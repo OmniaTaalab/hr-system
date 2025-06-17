@@ -14,6 +14,8 @@ import {
 import Link from "next/link";
 
 export function Header() {
+  const userName = "HR User"; // Placeholder for actual user name
+
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between sm:justify-end px-4 sm:px-8">
@@ -26,12 +28,13 @@ export function Header() {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm"> {/* Adjusted size, removed specific w/h and rounded-full */}
-                <Avatar className="h-6 w-6"> {/* Slightly smaller avatar */}
+              <Button variant="ghost" className="flex items-center space-x-2 px-2 py-1 h-auto"> {/* Adjusted padding and height */}
+                <Avatar className="h-6 w-6">
                   <AvatarImage src="https://placehold.co/40x40.png" alt="User Avatar" data-ai-hint="user avatar" />
-                  <AvatarFallback>HR</AvatarFallback>
+                  <AvatarFallback>{userName.substring(0,2).toUpperCase()}</AvatarFallback>
                 </Avatar>
-                <ChevronDown className="h-4 w-4 opacity-70" /> {/* Added ChevronDown icon */}
+                <span className="text-sm font-medium hidden sm:inline">{userName}</span>
+                <ChevronDown className="h-4 w-4 opacity-70" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -61,4 +64,3 @@ export function Header() {
     </header>
   );
 }
-
