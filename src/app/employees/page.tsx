@@ -96,8 +96,6 @@ export default function EmployeeManagementPage() {
   };
   
   const handleDeleteEmployee = (id: string) => {
-    // Using window.confirm for simplicity in this mock. 
-    // Consider a custom dialog for better UX in a real app.
     if (window.confirm(`Are you sure you want to delete employee ${id}? This action cannot be undone.`)) {
       setEmployees(prev => prev.filter(emp => emp.id !== id));
       toast({
@@ -113,7 +111,7 @@ export default function EmployeeManagementPage() {
     // const formData = new FormData(event.currentTarget);
     // const newEmployee = { ...Object.fromEntries(formData.entries()), id: `emp${Date.now()}` } as unknown as Employee;
     // setEmployees(prev => [...prev, newEmployee]);
-    toast({ title: "Mock Add", description: "Employee add functionality is a placeholder."});
+    // console.log("Mock Add: Employee add functionality is a placeholder.");
     closeAddDialog();
   };
 
@@ -125,7 +123,7 @@ export default function EmployeeManagementPage() {
     // if (editingEmployee) {
     //   setEmployees(prev => prev.map(emp => emp.id === editingEmployee.id ? { ...emp, ...updatedEmployeeData } : emp));
     // }
-    toast({ title: "Mock Edit", description: `Edit for ${editingEmployee?.name} is a placeholder.`});
+    // console.log(`Mock Edit: Edit for ${editingEmployee?.name} is a placeholder.`);
     closeEditDialog();
   };
 
@@ -335,5 +333,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
-    
