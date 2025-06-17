@@ -11,6 +11,7 @@ import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { ArrowRight, LogInIcon } from "lucide-react";
+import { Icons } from "@/components/icons"; // Import the Icons component
 
 const initialState: LoginState = { message: null, errors: {} };
 
@@ -40,6 +41,9 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 selection:bg-primary/20">
+      <div className="mb-8">
+        <Icons.Logo className="h-20 w-20" />
+      </div>
       <Card className="w-full max-w-sm shadow-xl">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold font-headline">Sign In</CardTitle>
