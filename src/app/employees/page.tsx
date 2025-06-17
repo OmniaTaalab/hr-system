@@ -124,13 +124,10 @@ export default function EmployeeManagementPage() {
     const phone = formData.get('phone') as string;
 
     if (!name || !employeeId || !department || !role || !email || !phone) {
-      setAddFormError("الرجاء تعبئة جميع الحقول المطلوبة.");
+      setAddFormError("Please fill in all required fields.");
       return;
     }
     
-    // Logic to add new employee (mock for now)
-    // const newEmployee = { id: `emp${Date.now()}`, name, employeeId, department, role, email, phone, status: "Active" } as Employee;
-    // setEmployees(prev => [...prev, newEmployee]);
     console.log("Mock Add: Employee add functionality is a placeholder.", Object.fromEntries(formData));
     closeAddDialog();
   };
@@ -149,15 +146,10 @@ export default function EmployeeManagementPage() {
 
 
     if (!name || !department || !role || !email || !phone || !status) {
-       setEditFormError("الرجاء تعبئة جميع الحقول المطلوبة.");
+       setEditFormError("Please fill in all required fields.");
        return;
     }
     
-    // Logic to edit employee (mock for now)
-    // if (editingEmployee) {
-    //   const updatedEmployeeData = { name, department, role, email, phone, status };
-    //   setEmployees(prev => prev.map(emp => emp.id === editingEmployee.id ? { ...emp, ...updatedEmployeeData } : emp));
-    // }
     console.log(`Mock Edit: Edit for ${editingEmployee?.name} is a placeholder.`, Object.fromEntries(formData));
     closeEditDialog();
   };
@@ -304,7 +296,7 @@ export default function EmployeeManagementPage() {
               </div>
               {addFormError && (
                 <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
-                  <AlertCircle className="mr-2 h-4 w-4" />
+                  <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
                   <span>{addFormError}</span>
                 </div>
               )}
@@ -363,7 +355,7 @@ export default function EmployeeManagementPage() {
                 </div>
                 {editFormError && (
                   <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
-                    <AlertCircle className="mr-2 h-4 w-4" />
+                    <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
                     <span>{editFormError}</span>
                   </div>
                 )}
@@ -380,4 +372,6 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+    
+
     
