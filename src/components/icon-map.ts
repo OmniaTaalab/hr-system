@@ -1,3 +1,4 @@
+
 import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard,
@@ -6,6 +7,7 @@ import {
   Briefcase,
   Lightbulb,
   Users,
+  ListChecks, // Added ListChecks icon
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -15,4 +17,5 @@ export const iconMap: { [key: string]: LucideIcon } = {
   Briefcase,
   Lightbulb,
   Users,
+  ListChecks, // Mapped ListChecks
 };

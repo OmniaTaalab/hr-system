@@ -1,3 +1,4 @@
+
 export interface NavItem {
   title: string;
   href: string;
@@ -15,6 +16,11 @@ export const navItems: NavItem[] = [
     title: 'Leave Request',
     href: '/leave/request',
     iconName: 'CalendarPlus',
+  },
+  {
+    title: 'All Leave Requests',
+    href: '/leave/all-requests',
+    iconName: 'ListChecks', // New icon for this page
   },
   {
     title: 'Attendance',
