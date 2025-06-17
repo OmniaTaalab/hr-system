@@ -17,6 +17,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2 } from "lucide-react";
 import React, { useState, useEffect, useMemo } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface Employee {
   id: string;
@@ -54,6 +55,7 @@ function EmployeeStatusBadge({ status }: { status: Employee["status"] }) {
 export default function EmployeeManagementPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
+  const { toast } = useToast();
 
   const filteredEmployees = useMemo(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
@@ -66,13 +68,31 @@ export default function EmployeeManagementPage() {
 
   const totalEmployees = employees.length;
 
-  // Placeholder functions for actions
-  const handleAddEmployee = () => alert("Add new employee functionality to be implemented.");
-  const handleEditEmployee = (id: string) => alert(`Edit employee ${id} functionality to be implemented.`);
+  const handleAddEmployee = () => {
+    toast({
+      title: "Feature In Development",
+      description: "Functionality to add a new employee will be implemented soon.",
+      variant: "default",
+    });
+  };
+
+  const handleEditEmployee = (id: string) => {
+    toast({
+      title: "Feature In Development",
+      description: `Functionality to edit employee (ID: ${id}) will be implemented soon.`,
+      variant: "default",
+    });
+  };
+  
   const handleDeleteEmployee = (id: string) => {
+    // In a real app, you would show a confirmation dialog first.
+    // For now, we simulate this with window.confirm
     if (confirm(`Are you sure you want to delete employee ${id}? This action cannot be undone.`)) {
       setEmployees(prev => prev.filter(emp => emp.id !== id));
-      alert(`Employee ${id} deleted (mock).`);
+      toast({
+        title: "Employee Deleted (Mock)",
+        description: `Employee ${id} has been removed from the list.`,
+      });
     }
   };
 
