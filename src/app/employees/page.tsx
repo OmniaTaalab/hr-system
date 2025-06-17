@@ -15,6 +15,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Label } from "@/components/ui/label";
 import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2 } from "lucide-react";
 import React, { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -57,6 +69,10 @@ export default function EmployeeManagementPage() {
   const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
   const { toast } = useToast();
 
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+
   const filteredEmployees = useMemo(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
     return employees.filter(employee =>
@@ -68,25 +84,19 @@ export default function EmployeeManagementPage() {
 
   const totalEmployees = employees.length;
 
-  const handleAddEmployee = () => {
-    toast({
-      title: "Feature In Development",
-      description: "Functionality to add a new employee will be implemented soon.",
-      variant: "default",
-    });
-  };
+  const openAddDialog = () => setIsAddDialogOpen(true);
+  const closeAddDialog = () => setIsAddDialogOpen(false);
 
-  const handleEditEmployee = (id: string) => {
-    toast({
-      title: "Feature In Development",
-      description: `Functionality to edit employee (ID: ${id}) will be implemented soon.`,
-      variant: "default",
-    });
+  const openEditDialog = (employee: Employee) => {
+    setEditingEmployee(employee);
+    setIsEditDialogOpen(true);
+  };
+  const closeEditDialog = () => {
+    setEditingEmployee(null);
+    setIsEditDialogOpen(false);
   };
   
   const handleDeleteEmployee = (id: string) => {
-    // In a real app, you would show a confirmation dialog first.
-    // For now, we simulate this with window.confirm
     if (confirm(`Are you sure you want to delete employee ${id}? This action cannot be undone.`)) {
       setEmployees(prev => prev.filter(emp => emp.id !== id));
       toast({
@@ -94,6 +104,28 @@ export default function EmployeeManagementPage() {
         description: `Employee ${id} has been removed from the list.`,
       });
     }
+  };
+
+  const handleSaveAddEmployee = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    // Logic to add new employee (mock for now)
+    // const formData = new FormData(event.currentTarget);
+    // const newEmployee = { ...Object.fromEntries(formData.entries()), id: `emp${Date.now()}` } as unknown as Employee;
+    // setEmployees(prev => [...prev, newEmployee]);
+    toast({ title: "Mock Add", description: "Employee add functionality is a placeholder."});
+    closeAddDialog();
+  };
+
+  const handleSaveEditEmployee = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    // Logic to edit employee (mock for now)
+    // const formData = new FormData(event.currentTarget);
+    // const updatedEmployeeData = Object.fromEntries(formData.entries());
+    // if (editingEmployee) {
+    //   setEmployees(prev => prev.map(emp => emp.id === editingEmployee.id ? { ...emp, ...updatedEmployeeData } : emp));
+    // }
+    toast({ title: "Mock Edit", description: `Edit for ${editingEmployee?.name} is a placeholder.`});
+    closeEditDialog();
   };
 
 
@@ -133,7 +165,7 @@ export default function EmployeeManagementPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Button onClick={handleAddEmployee} className="w-full sm:w-auto">
+              <Button onClick={openAddDialog} className="w-full sm:w-auto">
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add New Employee
               </Button>
@@ -175,7 +207,7 @@ export default function EmployeeManagementPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEditEmployee(employee.id)}>
+                            <DropdownMenuItem onClick={() => openEditDialog(employee)}>
                               <Edit3 className="mr-2 h-4 w-4" />
                               Edit
                             </DropdownMenuItem>
@@ -200,7 +232,107 @@ export default function EmployeeManagementPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Add Employee Dialog */}
+      <AlertDialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Add New Employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Fill in the details below to add a new employee.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <form onSubmit={handleSaveAddEmployee}>
+            <div className="space-y-4 py-4">
+              {/* Placeholder form fields */}
+              <div className="space-y-2">
+                <Label htmlFor="add-name">Full Name</Label>
+                <Input id="add-name" name="name" placeholder="e.g., John Doe" defaultValue="" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-employeeId">Employee ID</Label>
+                <Input id="add-employeeId" name="employeeId" placeholder="e.g., E007" defaultValue="" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-department">Department</Label>
+                <Input id="add-department" name="department" placeholder="e.g., Technology" defaultValue="" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-role">Role</Label>
+                <Input id="add-role" name="role" placeholder="e.g., Software Developer" defaultValue="" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-email">Email</Label>
+                <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" defaultValue="" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-phone">Phone</Label>
+                <Input id="add-phone" name="phone" placeholder="e.g., 555-0107" defaultValue="" />
+              </div>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel type="button" onClick={closeAddDialog}>Cancel</AlertDialogCancel>
+              <AlertDialogAction type="submit">Add Employee</AlertDialogAction>
+            </AlertDialogFooter>
+          </form>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Employee Dialog */}
+      {editingEmployee && (
+        <AlertDialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Edit Employee: {editingEmployee.name}</AlertDialogTitle>
+              <AlertDialogDescription>
+                Update the details for {editingEmployee.name}.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <form onSubmit={handleSaveEditEmployee}>
+              <div className="space-y-4 py-4">
+                {/* Placeholder form fields, pre-filled */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Full Name</Label>
+                  <Input id="edit-name" name="name" defaultValue={editingEmployee.name} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-employeeId">Employee ID</Label>
+                  <Input id="edit-employeeId" name="employeeId" defaultValue={editingEmployee.employeeId} readOnly className="bg-muted/50" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-department">Department</Label>
+                  <Input id="edit-department" name="department" defaultValue={editingEmployee.department} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-role">Role</Label>
+                  <Input id="edit-role" name="role" defaultValue={editingEmployee.role} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input id="edit-email" name="email" type="email" defaultValue={editingEmployee.email} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-phone">Phone</Label>
+                  <Input id="edit-phone" name="phone" defaultValue={editingEmployee.phone} />
+                </div>
+                 <div className="space-y-2">
+                  <Label htmlFor="edit-status">Status</Label>
+                   <select id="edit-status" name="status" defaultValue={editingEmployee.status} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                    <option value="Active">Active</option>
+                    <option value="On Leave">On Leave</option>
+                    <option value="Terminated">Terminated</option>
+                  </select>
+                </div>
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel type="button" onClick={closeEditDialog}>Cancel</AlertDialogCancel>
+                <AlertDialogAction type="submit">Save Changes</AlertDialogAction>
+              </AlertDialogFooter>
+            </form>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
     </AppLayout>
   );
 }
-
