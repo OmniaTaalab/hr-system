@@ -26,7 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2 } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle } from "lucide-react";
 import React, { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -71,6 +71,9 @@ export default function EmployeeManagementPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [addFormError, setAddFormError] = useState<string | null>(null);
+  const [editFormError, setEditFormError] = useState<string | null>(null);
+
 
   const filteredEmployees = useMemo(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
@@ -83,10 +86,14 @@ export default function EmployeeManagementPage() {
 
   const totalEmployees = employees.length;
 
-  const openAddDialog = () => setIsAddDialogOpen(true);
+  const openAddDialog = () => {
+    setAddFormError(null);
+    setIsAddDialogOpen(true);
+  }
   const closeAddDialog = () => setIsAddDialogOpen(false);
 
   const openEditDialog = (employee: Employee) => {
+    setEditFormError(null);
     setEditingEmployee(employee);
     setIsEditDialogOpen(true);
   };
@@ -107,23 +114,51 @@ export default function EmployeeManagementPage() {
 
   const handleSaveAddEmployee = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setAddFormError(null);
+    const formData = new FormData(event.currentTarget);
+    const name = formData.get('name') as string;
+    const employeeId = formData.get('employeeId') as string;
+    const department = formData.get('department') as string;
+    const role = formData.get('role') as string;
+    const email = formData.get('email') as string;
+    const phone = formData.get('phone') as string;
+
+    if (!name || !employeeId || !department || !role || !email || !phone) {
+      setAddFormError("الرجاء تعبئة جميع الحقول المطلوبة.");
+      return;
+    }
+    
     // Logic to add new employee (mock for now)
-    // const formData = new FormData(event.currentTarget);
-    // const newEmployee = { ...Object.fromEntries(formData.entries()), id: `emp${Date.now()}` } as unknown as Employee;
+    // const newEmployee = { id: `emp${Date.now()}`, name, employeeId, department, role, email, phone, status: "Active" } as Employee;
     // setEmployees(prev => [...prev, newEmployee]);
-    console.log("Mock Add: Employee add functionality is a placeholder.");
+    console.log("Mock Add: Employee add functionality is a placeholder.", Object.fromEntries(formData));
     closeAddDialog();
   };
 
   const handleSaveEditEmployee = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setEditFormError(null);
+    const formData = new FormData(event.currentTarget);
+    const name = formData.get('name') as string;
+    // Employee ID is read-only, so we get it from editingEmployee state
+    const department = formData.get('department') as string;
+    const role = formData.get('role') as string;
+    const email = formData.get('email') as string;
+    const phone = formData.get('phone') as string;
+    const status = formData.get('status') as Employee["status"];
+
+
+    if (!name || !department || !role || !email || !phone || !status) {
+       setEditFormError("الرجاء تعبئة جميع الحقول المطلوبة.");
+       return;
+    }
+    
     // Logic to edit employee (mock for now)
-    // const formData = new FormData(event.currentTarget);
-    // const updatedEmployeeData = Object.fromEntries(formData.entries());
     // if (editingEmployee) {
+    //   const updatedEmployeeData = { name, department, role, email, phone, status };
     //   setEmployees(prev => prev.map(emp => emp.id === editingEmployee.id ? { ...emp, ...updatedEmployeeData } : emp));
     // }
-    console.log(`Mock Edit: Edit for ${editingEmployee?.name} is a placeholder.`);
+    console.log(`Mock Edit: Edit for ${editingEmployee?.name} is a placeholder.`, Object.fromEntries(formData));
     closeEditDialog();
   };
 
@@ -245,28 +280,34 @@ export default function EmployeeManagementPage() {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="add-name">Full Name</Label>
-                <Input id="add-name" name="name" placeholder="e.g., John Doe" defaultValue="" required />
+                <Input id="add-name" name="name" placeholder="e.g., John Doe" defaultValue="" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-employeeId">Employee ID</Label>
-                <Input id="add-employeeId" name="employeeId" placeholder="e.g., E007" defaultValue="" required />
+                <Input id="add-employeeId" name="employeeId" placeholder="e.g., E007" defaultValue="" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-department">Department</Label>
-                <Input id="add-department" name="department" placeholder="e.g., Technology" defaultValue="" required />
+                <Input id="add-department" name="department" placeholder="e.g., Technology" defaultValue="" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-role">Role</Label>
-                <Input id="add-role" name="role" placeholder="e.g., Software Developer" defaultValue="" required />
+                <Input id="add-role" name="role" placeholder="e.g., Software Developer" defaultValue="" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-email">Email</Label>
-                <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" defaultValue="" required />
+                <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" defaultValue="" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-phone">Phone</Label>
-                <Input id="add-phone" name="phone" placeholder="e.g., 555-0107" defaultValue="" required />
+                <Input id="add-phone" name="phone" placeholder="e.g., 555-0107" defaultValue="" />
               </div>
+              {addFormError && (
+                <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
+                  <AlertCircle className="mr-2 h-4 w-4" />
+                  <span>{addFormError}</span>
+                </div>
+              )}
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel type="button" onClick={closeAddDialog}>Cancel</AlertDialogCancel>
@@ -290,7 +331,7 @@ export default function EmployeeManagementPage() {
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-name">Full Name</Label>
-                  <Input id="edit-name" name="name" defaultValue={editingEmployee.name} required />
+                  <Input id="edit-name" name="name" defaultValue={editingEmployee.name} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-employeeId">Employee ID</Label>
@@ -298,28 +339,34 @@ export default function EmployeeManagementPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-department">Department</Label>
-                  <Input id="edit-department" name="department" defaultValue={editingEmployee.department} required />
+                  <Input id="edit-department" name="department" defaultValue={editingEmployee.department} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-role">Role</Label>
-                  <Input id="edit-role" name="role" defaultValue={editingEmployee.role} required />
+                  <Input id="edit-role" name="role" defaultValue={editingEmployee.role} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-email">Email</Label>
-                  <Input id="edit-email" name="email" type="email" defaultValue={editingEmployee.email} required />
+                  <Input id="edit-email" name="email" type="email" defaultValue={editingEmployee.email} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-phone">Phone</Label>
-                  <Input id="edit-phone" name="phone" defaultValue={editingEmployee.phone} required />
+                  <Input id="edit-phone" name="phone" defaultValue={editingEmployee.phone} />
                 </div>
                  <div className="space-y-2">
                   <Label htmlFor="edit-status">Status</Label>
-                   <select id="edit-status" name="status" defaultValue={editingEmployee.status} required className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                   <select id="edit-status" name="status" defaultValue={editingEmployee.status} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                     <option value="Active">Active</option>
                     <option value="On Leave">On Leave</option>
                     <option value="Terminated">Terminated</option>
                   </select>
                 </div>
+                {editFormError && (
+                  <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
+                    <AlertCircle className="mr-2 h-4 w-4" />
+                    <span>{editFormError}</span>
+                  </div>
+                )}
               </div>
               <AlertDialogFooter>
                 <AlertDialogCancel type="button" onClick={closeEditDialog}>Cancel</AlertDialogCancel>
@@ -333,5 +380,4 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
     
