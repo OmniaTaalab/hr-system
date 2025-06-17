@@ -2,7 +2,7 @@
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Bell, Settings, LogOut, User } from "lucide-react"; // Added User
+import { Bell, Settings, LogOut, User, ChevronDown } from "lucide-react"; // Added User and ChevronDown
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,11 +26,12 @@ export function Header() {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                <Avatar className="h-8 w-8">
+              <Button variant="ghost" size="sm"> {/* Adjusted size, removed specific w/h and rounded-full */}
+                <Avatar className="h-6 w-6"> {/* Slightly smaller avatar */}
                   <AvatarImage src="https://placehold.co/40x40.png" alt="User Avatar" data-ai-hint="user avatar" />
                   <AvatarFallback>HR</AvatarFallback>
                 </Avatar>
+                <ChevronDown className="h-4 w-4 opacity-70" /> {/* Added ChevronDown icon */}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -60,3 +61,4 @@ export function Header() {
     </header>
   );
 }
+
