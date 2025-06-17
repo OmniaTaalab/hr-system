@@ -24,7 +24,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2 } from "lucide-react";
@@ -97,7 +96,9 @@ export default function EmployeeManagementPage() {
   };
   
   const handleDeleteEmployee = (id: string) => {
-    if (confirm(`Are you sure you want to delete employee ${id}? This action cannot be undone.`)) {
+    // Using window.confirm for simplicity in this mock. 
+    // Consider a custom dialog for better UX in a real app.
+    if (window.confirm(`Are you sure you want to delete employee ${id}? This action cannot be undone.`)) {
       setEmployees(prev => prev.filter(emp => emp.id !== id));
       toast({
         title: "Employee Deleted (Mock)",
@@ -239,35 +240,34 @@ export default function EmployeeManagementPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Add New Employee</AlertDialogTitle>
             <AlertDialogDescription>
-              Fill in the details below to add a new employee.
+              Fill in the details below to add a new employee. All fields are required.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <form onSubmit={handleSaveAddEmployee}>
             <div className="space-y-4 py-4">
-              {/* Placeholder form fields */}
               <div className="space-y-2">
                 <Label htmlFor="add-name">Full Name</Label>
-                <Input id="add-name" name="name" placeholder="e.g., John Doe" defaultValue="" />
+                <Input id="add-name" name="name" placeholder="e.g., John Doe" defaultValue="" required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-employeeId">Employee ID</Label>
-                <Input id="add-employeeId" name="employeeId" placeholder="e.g., E007" defaultValue="" />
+                <Input id="add-employeeId" name="employeeId" placeholder="e.g., E007" defaultValue="" required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-department">Department</Label>
-                <Input id="add-department" name="department" placeholder="e.g., Technology" defaultValue="" />
+                <Input id="add-department" name="department" placeholder="e.g., Technology" defaultValue="" required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-role">Role</Label>
-                <Input id="add-role" name="role" placeholder="e.g., Software Developer" defaultValue="" />
+                <Input id="add-role" name="role" placeholder="e.g., Software Developer" defaultValue="" required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-email">Email</Label>
-                <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" defaultValue="" />
+                <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" defaultValue="" required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-phone">Phone</Label>
-                <Input id="add-phone" name="phone" placeholder="e.g., 555-0107" defaultValue="" />
+                <Input id="add-phone" name="phone" placeholder="e.g., 555-0107" defaultValue="" required />
               </div>
             </div>
             <AlertDialogFooter>
@@ -285,15 +285,14 @@ export default function EmployeeManagementPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Edit Employee: {editingEmployee.name}</AlertDialogTitle>
               <AlertDialogDescription>
-                Update the details for {editingEmployee.name}.
+                Update the details for {editingEmployee.name}. All fields are required except Employee ID.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <form onSubmit={handleSaveEditEmployee}>
               <div className="space-y-4 py-4">
-                {/* Placeholder form fields, pre-filled */}
                 <div className="space-y-2">
                   <Label htmlFor="edit-name">Full Name</Label>
-                  <Input id="edit-name" name="name" defaultValue={editingEmployee.name} />
+                  <Input id="edit-name" name="name" defaultValue={editingEmployee.name} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-employeeId">Employee ID</Label>
@@ -301,23 +300,23 @@ export default function EmployeeManagementPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-department">Department</Label>
-                  <Input id="edit-department" name="department" defaultValue={editingEmployee.department} />
+                  <Input id="edit-department" name="department" defaultValue={editingEmployee.department} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-role">Role</Label>
-                  <Input id="edit-role" name="role" defaultValue={editingEmployee.role} />
+                  <Input id="edit-role" name="role" defaultValue={editingEmployee.role} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-email">Email</Label>
-                  <Input id="edit-email" name="email" type="email" defaultValue={editingEmployee.email} />
+                  <Input id="edit-email" name="email" type="email" defaultValue={editingEmployee.email} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-phone">Phone</Label>
-                  <Input id="edit-phone" name="phone" defaultValue={editingEmployee.phone} />
+                  <Input id="edit-phone" name="phone" defaultValue={editingEmployee.phone} required />
                 </div>
                  <div className="space-y-2">
                   <Label htmlFor="edit-status">Status</Label>
-                   <select id="edit-status" name="status" defaultValue={editingEmployee.status} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                   <select id="edit-status" name="status" defaultValue={editingEmployee.status} required className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                     <option value="Active">Active</option>
                     <option value="On Leave">On Leave</option>
                     <option value="Terminated">Terminated</option>
@@ -336,3 +335,5 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
+    
