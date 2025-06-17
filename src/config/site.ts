@@ -20,12 +20,17 @@ export const navItems: NavItem[] = [
   {
     title: 'All Leave Requests',
     href: '/leave/all-requests',
-    iconName: 'ListChecks', // New icon for this page
+    iconName: 'ListChecks', 
   },
   {
     title: 'Attendance',
     href: '/attendance',
     iconName: 'CheckCircle2',
+  },
+  {
+    title: 'Employee Management', // New Item
+    href: '/employees',
+    iconName: 'Users',
   },
   {
     title: 'Job Board',
