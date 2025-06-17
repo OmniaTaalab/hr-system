@@ -15,7 +15,7 @@ const fontSpaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: 'Streamlined HR Assistant',
+  title: 'NIS HR System',
   description: 'A modern Human Resource Management System',
 };
 

@@ -34,7 +34,7 @@ export const navItems: NavItem[] = [
 ];
 
 export const siteConfig = {
-  name: "Streamlined HR Assistant",
+  name: "NIS HR System",
   description: "A modern Human Resource Management System.",
   navItems,
 };

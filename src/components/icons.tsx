@@ -4,18 +4,24 @@ export const Icons = {
   Logo: (props: LucideProps) => (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      viewBox="0 0 100 40" // Adjusted viewBox for a more rectangular logo
+      fill="currentColor" // Changed to fill for solid text
+      stroke="none" // No stroke for text-based logo
       {...props}
     >
-      <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-      <path d="M2 17l10 5 10-5"></path>
-      <path d="M2 12l10 5 10-5"></path>
-      <title>Streamlined HR Assistant Logo</title>
+      <title>NIS HR System Logo</title>
+      {/* Simple text "NIS" logo */}
+      <text 
+        x="50%" 
+        y="50%" 
+        dominantBaseline="middle" 
+        textAnchor="middle" 
+        fontSize="30" // Adjusted font size
+        fontWeight="bold"
+        fontFamily="sans-serif" // Generic sans-serif font
+      >
+        NIS
+      </text>
     </svg>
   ),
 };
