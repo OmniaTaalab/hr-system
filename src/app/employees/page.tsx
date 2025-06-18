@@ -31,7 +31,7 @@ import React, { useState, useEffect, useMemo, useActionState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, type UpdateEmployeeState } from "@/app/actions/employee-actions";
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, deleteDoc, doc, type Timestamp } from 'firebase/firestore';
 
 
 interface Employee {
@@ -81,6 +81,9 @@ export default function EmployeeManagementPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   
+  const [addFormKey, setAddFormKey] = useState(0); // Key for resetting add form
+  const [editFormKey, setEditFormKey] = useState(0); // Key for resetting edit form
+
   const [addEmployeeServerState, addEmployeeFormAction, isAddEmployeePending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
   const [addFormClientError, setAddFormClientError] = useState<string | null>(null); 
   
@@ -124,16 +127,10 @@ export default function EmployeeManagementPage() {
 
   const openAddDialog = () => {
     setAddFormClientError(null); 
+    setAddFormKey(prevKey => prevKey + 1); // Increment key to reset form
     const form = document.getElementById('add-employee-form') as HTMLFormElement | null;
     if (form) {
-      form.reset();
-    }
-    // Reset server action state for errors when opening dialog
-    if (addEmployeeServerState.errors) {
-      addEmployeeServerState.errors = {};
-    }
-    if (addEmployeeServerState.message) {
-       addEmployeeServerState.message = null;
+      form.reset(); // Resets input values
     }
     setIsAddDialogOpen(true);
   }
@@ -143,15 +140,17 @@ export default function EmployeeManagementPage() {
   }
 
   useEffect(() => {
-    if (addEmployeeServerState?.message && !addEmployeeServerState.errors?.form && !Object.keys(addEmployeeServerState.errors || {}).filter(k => k !== 'form').length) { // Success from server
+    if (!addEmployeeServerState) return; // Guard against initial undefined state
+
+    if (addEmployeeServerState.message && !addEmployeeServerState.errors?.form && !Object.keys(addEmployeeServerState.errors || {}).filter(k => k !== 'form').length) { // Success from server
       toast({
         title: "Employee Added",
         description: addEmployeeServerState.message,
       });
       closeAddDialog();
-    } else if (addEmployeeServerState?.errors?.form) { 
+    } else if (addEmployeeServerState.errors?.form) { 
       setAddFormClientError(addEmployeeServerState.errors.form.join(', '));
-    } else if (addEmployeeServerState?.errors && Object.keys(addEmployeeServerState.errors).length > 0) { 
+    } else if (addEmployeeServerState.errors && Object.keys(addEmployeeServerState.errors).length > 0) { 
       const fieldErrors = Object.values(addEmployeeServerState.errors).flat().filter(Boolean).join('; ');
       setAddFormClientError(fieldErrors || "An error occurred. Please check the details.");
     }
@@ -161,12 +160,7 @@ export default function EmployeeManagementPage() {
   const openEditDialog = (employee: Employee) => {
     setEditFormClientError(null);
     setEditingEmployee(employee);
-     if (editEmployeeServerState.errors) {
-      editEmployeeServerState.errors = {};
-    }
-    if (editEmployeeServerState.message) {
-       editEmployeeServerState.message = null;
-    }
+    setEditFormKey(prevKey => prevKey + 1); // Increment key to reset form
     setIsEditDialogOpen(true);
   };
   const closeEditDialog = () => {
@@ -176,15 +170,17 @@ export default function EmployeeManagementPage() {
   };
   
   useEffect(() => {
-    if (editEmployeeServerState?.message && !editEmployeeServerState.errors?.form && !Object.keys(editEmployeeServerState.errors || {}).filter(k => k !== 'form').length) {
+    if (!editEmployeeServerState) return; // Guard against initial undefined state
+    
+    if (editEmployeeServerState.message && !editEmployeeServerState.errors?.form && !Object.keys(editEmployeeServerState.errors || {}).filter(k => k !== 'form').length) {
       toast({
         title: "Employee Updated",
         description: editEmployeeServerState.message,
       });
       closeEditDialog();
-    } else if (editEmployeeServerState?.errors?.form) {
+    } else if (editEmployeeServerState.errors?.form) {
       setEditFormClientError(editEmployeeServerState.errors.form.join(', '));
-    } else if (editEmployeeServerState?.errors && Object.keys(editEmployeeServerState.errors).length > 0) {
+    } else if (editEmployeeServerState.errors && Object.keys(editEmployeeServerState.errors).length > 0) {
       const fieldErrors = Object.values(editEmployeeServerState.errors).flat().filter(Boolean).join('; ');
       setEditFormClientError(fieldErrors || "An error occurred while updating. Please check the details.");
     }
@@ -332,7 +328,7 @@ export default function EmployeeManagementPage() {
               Fill in the details below to add a new employee. All fields are required.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <form id="add-employee-form" action={addEmployeeFormAction}>
+          <form id="add-employee-form" key={`add-form-${addFormKey}`} action={addEmployeeFormAction}>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="add-name">Full Name</Label>
@@ -346,7 +342,7 @@ export default function EmployeeManagementPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-employeeId">Employee ID</Label>
-                <Input id="add-employeeId" name="employeeId" placeholder="e.g., E007" />
+                <Input id="add-employeeId" name="employeeId" placeholder="e.g., 007" />
                 {addEmployeeServerState?.errors?.employeeId && <p className="text-sm text-destructive">{addEmployeeServerState.errors.employeeId.join(', ')}</p>}
               </div>
               <div className="space-y-2">
@@ -361,7 +357,7 @@ export default function EmployeeManagementPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-phone">Phone</Label>
-                <Input id="add-phone" name="phone" placeholder="e.g., 555-0107" />
+                <Input id="add-phone" name="phone" placeholder="e.g., 5550107" />
                  {addEmployeeServerState?.errors?.phone && <p className="text-sm text-destructive">{addEmployeeServerState.errors.phone.join(', ')}</p>}
               </div>
 
@@ -376,7 +372,6 @@ export default function EmployeeManagementPage() {
               <AlertDialogCancel type="button" onClick={closeAddDialog}>Cancel</AlertDialogCancel>
               <Button type="submit" disabled={isAddEmployeePending} asChild={false}>
                 <AlertDialogAction type="submit" disabled={isAddEmployeePending} onClick={(e) => {
-                  // Allow form to submit via action
                   if (isAddEmployeePending) e.preventDefault();
                 }}>
                   {isAddEmployeePending ? (
@@ -402,7 +397,7 @@ export default function EmployeeManagementPage() {
                 Update the details for {editingEmployee.name}. All fields are required except Employee ID.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <form action={editEmployeeFormAction}>
+            <form id="edit-employee-form" key={`edit-form-${editFormKey}`} action={editEmployeeFormAction}>
               <input type="hidden" name="employeeDocId" defaultValue={editingEmployee.id} />
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
@@ -413,7 +408,6 @@ export default function EmployeeManagementPage() {
                 <div className="space-y-2">
                   <Label htmlFor="edit-employeeIdDisplay">Employee ID (Company Given)</Label>
                   <Input id="edit-employeeIdDisplay" name="employeeIdDisplay" defaultValue={editingEmployee.employeeId} readOnly className="bg-muted/50" />
-                  {/* Note: We don't submit employeeId for update typically, it's an identifier. If it needs to be updatable, handle separately in server action. */}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-department">Department</Label>
@@ -475,3 +469,5 @@ export default function EmployeeManagementPage() {
   );
 }
 
+
+    
