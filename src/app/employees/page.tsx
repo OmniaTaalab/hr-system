@@ -26,7 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2 } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, UserClock } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, type UpdateEmployeeState } from "@/app/actions/employee-actions";
@@ -318,7 +318,19 @@ export default function EmployeeManagementPage() {
     );
   }, [employees, searchTerm]);
 
-  const totalEmployees = employees.length;
+  const employeeStats = useMemo(() => {
+    return employees.reduce(
+      (acc, emp) => {
+        if (emp.status === "Active") acc.active++;
+        else if (emp.status === "On Leave") acc.onLeave++;
+        else if (emp.status === "Terminated") acc.terminated++;
+        acc.total++;
+        return acc;
+      },
+      { active: 0, onLeave: 0, terminated: 0, total: 0 }
+    );
+  }, [employees]);
+
 
   const openAddDialog = () => {
     setAddFormKey(prevKey => prevKey + 1); // Reset form state by changing key
@@ -372,7 +384,7 @@ export default function EmployeeManagementPage() {
   return (
     <AppLayout>
       <div className="space-y-8">
-        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
               Employee Management
@@ -381,15 +393,44 @@ export default function EmployeeManagementPage() {
               Manage employee records, add new hires, and update details.
             </p>
           </div>
-          <Card className="sm:w-auto w-full">
-            <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-2xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : totalEmployees}</div>
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-xs font-medium sm:text-sm">Total Employees</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent className="p-3 pt-0">
+                <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.total}</div>
+              </CardContent>
+            </Card>
+             <Card>
+              <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-xs font-medium sm:text-sm">Active Employees</CardTitle>
+                <UserCheck className="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent className="p-3 pt-0">
+                <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.active}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-xs font-medium sm:text-sm">On Leave</CardTitle>
+                <UserClock className="h-4 w-4 text-yellow-500" />
+              </CardHeader>
+              <CardContent className="p-3 pt-0">
+                <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.onLeave}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-xs font-medium sm:text-sm">Terminated</CardTitle>
+                <UserX className="h-4 w-4 text-red-500" />
+              </CardHeader>
+              <CardContent className="p-3 pt-0">
+                <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.terminated}</div>
+              </CardContent>
+            </Card>
+          </div>
         </header>
 
         <Card className="shadow-lg">
@@ -521,5 +562,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
-    
