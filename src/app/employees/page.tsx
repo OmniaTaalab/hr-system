@@ -323,9 +323,14 @@ export default function EmployeeManagementPage() {
               Fill in the details below to add a new employee. All fields are required.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <form id="add-employee-form" key={`add-form-${addFormKey}`} action={addEmployeeFormAction}>
-            <ScrollArea className="max-h-[200px] border border-red-400"> {/* Debug border and reduced height */}
-              <div className="space-y-4 p-4 pr-5"> {/* Padding for content and scrollbar gutter */}
+          <form
+            id="add-employee-form"
+            key={`add-form-${addFormKey}`}
+            action={addEmployeeFormAction}
+            className="flex flex-col overflow-hidden"
+          >
+            <ScrollArea className="flex-grow bg-yellow-100 border-2 border-red-500 min-h-[150px] max-h-[300px]">
+              <div className="space-y-4 p-4 pr-2">
                 <div className="space-y-2">
                   <Label htmlFor="add-name">Full Name</Label>
                   <Input id="add-name" name="name" placeholder="e.g., John Doe" />
@@ -356,6 +361,12 @@ export default function EmployeeManagementPage() {
                   <Input id="add-phone" name="phone" placeholder="e.g., 5550107 (Numbers only)" />
                   {addEmployeeServerState?.errors?.phone && <p className="text-sm text-destructive">{addEmployeeServerState.errors.phone.join(', ')}</p>}
                 </div>
+                
+                {/* Dummy content for testing scroll */}
+                <div className="h-20 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center text-sm text-slate-500">Temp Box 1</div>
+                <div className="h-20 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center text-sm text-slate-500">Temp Box 2</div>
+                <div className="h-20 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center text-sm text-slate-500">Temp Box 3</div>
+
 
                 {(addFormClientError || addEmployeeServerState?.errors?.form) && (
                   <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
@@ -365,7 +376,7 @@ export default function EmployeeManagementPage() {
                 )}
               </div>
             </ScrollArea>
-            <AlertDialogFooter className="pt-4">
+            <AlertDialogFooter className="pt-4 flex-shrink-0 border-t">
               <AlertDialogCancel type="button" onClick={closeAddDialog}>Cancel</AlertDialogCancel>
               <Button type="submit" form="add-employee-form" disabled={isAddEmployeePending}>
                 {isAddEmployeePending ? (
@@ -390,10 +401,15 @@ export default function EmployeeManagementPage() {
                 Update the details for {editingEmployee.name}. All fields are required except Employee ID.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <form id="edit-employee-form" key={`edit-form-${editFormKey}`} action={editEmployeeFormAction}>
+            <form
+              id="edit-employee-form"
+              key={`edit-form-${editFormKey}`}
+              action={editEmployeeFormAction}
+              className="flex flex-col overflow-hidden"
+            >
               <input type="hidden" name="employeeDocId" defaultValue={editingEmployee.id} />
-              <ScrollArea className="max-h-[200px] border border-red-400"> {/* Debug border and reduced height */}
-                <div className="space-y-4 p-4 pr-5"> {/* Padding for content and scrollbar gutter */}
+              <ScrollArea className="flex-grow bg-yellow-100 border-2 border-red-500 min-h-[150px] max-h-[300px]">
+                <div className="space-y-4 p-4 pr-2">
                   <div className="space-y-2">
                     <Label htmlFor="edit-name">Full Name</Label>
                     <Input id="edit-name" name="name" defaultValue={editingEmployee.name}  />
@@ -432,6 +448,11 @@ export default function EmployeeManagementPage() {
                     </select>
                     {editEmployeeServerState?.errors?.status && <p className="text-sm text-destructive">{editEmployeeServerState.errors.status.join(', ')}</p>}
                   </div>
+
+                  {/* Dummy content for testing scroll */}
+                  <div className="h-20 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center text-sm text-slate-500">Temp Box 1</div>
+                  <div className="h-20 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center text-sm text-slate-500">Temp Box 2</div>
+
                   {(editFormClientError || editEmployeeServerState?.errors?.form) && (
                     <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
                       <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
@@ -440,7 +461,7 @@ export default function EmployeeManagementPage() {
                   )}
                 </div>
               </ScrollArea>
-              <AlertDialogFooter className="pt-4">
+              <AlertDialogFooter className="pt-4 flex-shrink-0 border-t">
                 <AlertDialogCancel type="button" onClick={closeEditDialog}>Cancel</AlertDialogCancel>
                 <Button type="submit" form="edit-employee-form" disabled={isEditEmployeePending}>
                     {isEditEmployeePending ? (
