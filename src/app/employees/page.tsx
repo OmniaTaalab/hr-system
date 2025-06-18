@@ -324,7 +324,7 @@ export default function EmployeeManagementPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <form id="add-employee-form" key={`add-form-${addFormKey}`} action={addEmployeeFormAction}>
-            <ScrollArea className="max-h-[60vh] pr-5"> {/* Added ScrollArea */}
+            <ScrollArea className="max-h-[450px] pr-5"> {/* Changed max-h */}
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label htmlFor="add-name">Full Name</Label>
@@ -365,7 +365,7 @@ export default function EmployeeManagementPage() {
                 )}
               </div>
             </ScrollArea>
-            <AlertDialogFooter className="pt-4"> {/* Added padding top to footer */}
+            <AlertDialogFooter className="pt-4">
               <AlertDialogCancel type="button" onClick={closeAddDialog}>Cancel</AlertDialogCancel>
               <Button type="submit" form="add-employee-form" disabled={isAddEmployeePending}>
                 {isAddEmployeePending ? (
@@ -392,7 +392,7 @@ export default function EmployeeManagementPage() {
             </AlertDialogHeader>
             <form id="edit-employee-form" key={`edit-form-${editFormKey}`} action={editEmployeeFormAction}>
               <input type="hidden" name="employeeDocId" defaultValue={editingEmployee.id} />
-              <ScrollArea className="max-h-[60vh] pr-5"> {/* Added ScrollArea */}
+              <ScrollArea className="max-h-[450px] pr-5"> {/* Changed max-h */}
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label htmlFor="edit-name">Full Name</Label>
@@ -440,7 +440,7 @@ export default function EmployeeManagementPage() {
                   )}
                 </div>
               </ScrollArea>
-              <AlertDialogFooter className="pt-4"> {/* Added padding top to footer */}
+              <AlertDialogFooter className="pt-4">
                 <AlertDialogCancel type="button" onClick={closeEditDialog}>Cancel</AlertDialogCancel>
                 <Button type="submit" form="edit-employee-form" disabled={isEditEmployeePending}>
                     {isEditEmployeePending ? (
@@ -459,5 +459,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
-
