@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useActionState, useFormStatus } from "react"; // Changed from "react-dom" and useFormState to useActionState
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom"; // Corrected import for useFormStatus
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,7 +27,7 @@ function LoginButton() {
 }
 
 export default function LoginPage() {
-  const [state, dispatch] = useActionState(loginUser, initialState); // Changed from useFormState
+  const [state, dispatch] = useActionState(loginUser, initialState);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -107,3 +108,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
