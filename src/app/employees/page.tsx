@@ -26,31 +26,26 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2 } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { createEmployeeAction, type CreateEmployeeState } from "@/app/actions/employee-actions";
+import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, type UpdateEmployeeState } from "@/app/actions/employee-actions";
+import { db } from '@/lib/firebase/config';
+import { collection, onSnapshot, query, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 
 
 interface Employee {
-  id: string;
+  id: string; // Firestore document ID
   name: string;
-  employeeId: string;
+  employeeId: string; // The ID given by the company
   department: string;
   role: string;
   email: string;
   phone: string;
   status: "Active" | "On Leave" | "Terminated";
+  createdAt?: Timestamp; // Optional, from Firestore
 }
 
-const mockEmployees: Employee[] = [
-  { id: "emp1", name: "Alice Wonderland", employeeId: "E001", department: "Technology", role: "Senior Software Engineer", email: "alice.w@example.com", phone: "555-0101", status: "Active" },
-  { id: "emp2", name: "Bob The Builder", employeeId: "E002", department: "Human Resources", role: "HR Manager", email: "bob.b@example.com", phone: "555-0102", status: "Active" },
-  { id: "emp3", name: "Charlie Brown", employeeId: "E003", department: "Marketing", role: "Marketing Specialist", email: "charlie.b@example.com", phone: "555-0103", status: "On Leave" },
-  { id: "emp4", name: "Diana Prince", employeeId: "E004", department: "Sales", role: "Sales Executive", email: "diana.p@example.com", phone: "555-0104", status: "Active" },
-  { id: "emp5", name: "Edward Scissorhands", employeeId: "E005", department: "Operations", role: "Operations Manager", email: "edward.s@example.com", phone: "555-0105", status: "Terminated" },
-  { id: "emp6", name: "Fiona Gallagher", employeeId: "E006", department: "Technology", role: "UX/UI Designer", email: "fiona.g@example.com", phone: "555-0106", status: "Active" },
-];
 
 function EmployeeStatusBadge({ status }: { status: Employee["status"] }) {
   switch (status) {
@@ -70,10 +65,16 @@ const initialCreateEmployeeState: CreateEmployeeState = {
   errors: {},
 };
 
+const initialEditEmployeeState: UpdateEmployeeState = {
+  message: null,
+  errors: {},
+};
+
 
 export default function EmployeeManagementPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -83,7 +84,31 @@ export default function EmployeeManagementPage() {
   const [addEmployeeServerState, addEmployeeFormAction, isAddEmployeePending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
   const [addFormClientError, setAddFormClientError] = useState<string | null>(null); 
   
+  const [editEmployeeServerState, editEmployeeFormAction, isEditEmployeePending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
   const [editFormClientError, setEditFormClientError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsLoading(true);
+    const q = query(collection(db, "employy"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const employeesData: Employee[] = [];
+      querySnapshot.forEach((doc) => {
+        employeesData.push({ id: doc.id, ...doc.data() } as Employee);
+      });
+      setEmployees(employeesData.sort((a, b) => a.name.localeCompare(b.name))); // Sort by name
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching employees: ", error);
+      toast({
+        variant: "destructive",
+        title: "Error Fetching Employees",
+        description: "Could not load employee data from Firestore. Please try again later.",
+      });
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe(); // Cleanup listener on component unmount
+  }, [toast]);
 
 
   const filteredEmployees = useMemo(() => {
@@ -99,8 +124,9 @@ export default function EmployeeManagementPage() {
 
   const openAddDialog = () => {
     setAddFormClientError(null); 
-    if (document.getElementById('add-employee-form')) {
-      (document.getElementById('add-employee-form') as HTMLFormElement).reset();
+    const form = document.getElementById('add-employee-form') as HTMLFormElement | null;
+    if (form) {
+      form.reset();
     }
     // Reset server action state for errors when opening dialog
     if (addEmployeeServerState.errors) {
@@ -123,7 +149,6 @@ export default function EmployeeManagementPage() {
         description: addEmployeeServerState.message,
       });
       closeAddDialog();
-      // Consider fetching employees again here or optimistic update
     } else if (addEmployeeServerState?.errors?.form) { 
       setAddFormClientError(addEmployeeServerState.errors.form.join(', '));
     } else if (addEmployeeServerState?.errors && Object.keys(addEmployeeServerState.errors).length > 0) { 
@@ -136,49 +161,54 @@ export default function EmployeeManagementPage() {
   const openEditDialog = (employee: Employee) => {
     setEditFormClientError(null);
     setEditingEmployee(employee);
+     if (editEmployeeServerState.errors) {
+      editEmployeeServerState.errors = {};
+    }
+    if (editEmployeeServerState.message) {
+       editEmployeeServerState.message = null;
+    }
     setIsEditDialogOpen(true);
   };
   const closeEditDialog = () => {
     setEditingEmployee(null);
     setIsEditDialogOpen(false);
+    setEditFormClientError(null);
   };
   
-  const handleDeleteEmployee = (id: string) => {
-    // In a real app, you'd call a server action here to delete the employee from Firestore
-    if (window.confirm(`Are you sure you want to delete employee ${id}? This action cannot be undone.`)) {
-      setEmployees(prev => prev.filter(emp => emp.id !== id)); // Mock delete
-      console.log(`Mock Delete: Employee ${id} delete action placeholder.`);
+  useEffect(() => {
+    if (editEmployeeServerState?.message && !editEmployeeServerState.errors?.form && !Object.keys(editEmployeeServerState.errors || {}).filter(k => k !== 'form').length) {
       toast({
-        title: "Employee Deleted (Mock)",
-        description: `Employee ${id} has been removed from the list. This is a mock action.`,
+        title: "Employee Updated",
+        description: editEmployeeServerState.message,
       });
+      closeEditDialog();
+    } else if (editEmployeeServerState?.errors?.form) {
+      setEditFormClientError(editEmployeeServerState.errors.form.join(', '));
+    } else if (editEmployeeServerState?.errors && Object.keys(editEmployeeServerState.errors).length > 0) {
+      const fieldErrors = Object.values(editEmployeeServerState.errors).flat().filter(Boolean).join('; ');
+      setEditFormClientError(fieldErrors || "An error occurred while updating. Please check the details.");
     }
-  };
+  }, [editEmployeeServerState, toast]);
 
-  const handleSaveEditEmployee = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setEditFormClientError(null);
-    const formData = new FormData(event.currentTarget);
-    const name = formData.get('name') as string;
-    const department = formData.get('department') as string;
-    const role = formData.get('role') as string;
-    const email = formData.get('email') as string;
-    const phone = formData.get('phone') as string;
-    const status = formData.get('status') as Employee["status"];
 
-    if (!name || !department || !role || !email || !phone || !status) {
-       setEditFormClientError("Please fill in all required fields.");
-       return;
+  const handleDeleteEmployee = async (employeeId: string, employeeName: string) => {
+    if (window.confirm(`Are you sure you want to delete employee ${employeeName} (ID: ${employeeId})? This action cannot be undone.`)) {
+      try {
+        await deleteDoc(doc(db, "employy", employeeId));
+        toast({
+          title: "Employee Deleted",
+          description: `Employee ${employeeName} has been removed successfully.`,
+        });
+        // The onSnapshot listener will automatically update the local state
+      } catch (error) {
+        console.error("Error deleting employee: ", error);
+        toast({
+          variant: "destructive",
+          title: "Error Deleting Employee",
+          description: `Could not delete ${employeeName}. Please try again.`,
+        });
+      }
     }
-    
-    console.log(`Mock Edit: Edit for ${editingEmployee?.name} is a placeholder.`, Object.fromEntries(formData));
-    // In a real app, you'd call a server action here to update the employee in Firestore
-    // For example: updateEmployeeInFirestore(editingEmployee.id, updatedData);
-    toast({
-        title: "Employee Updated (Mock)",
-        description: `${name}'s details have been updated (mock action).`
-    });
-    closeEditDialog();
   };
 
 
@@ -200,7 +230,7 @@ export default function EmployeeManagementPage() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent className="p-4 pt-0">
-              <div className="text-2xl font-bold">{totalEmployees}</div>
+              <div className="text-2xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : totalEmployees}</div>
             </CardContent>
           </Card>
         </header>
@@ -225,6 +255,12 @@ export default function EmployeeManagementPage() {
             </div>
           </CardHeader>
           <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center items-center h-64">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                 <p className="ml-4 text-lg">Loading employees...</p>
+              </div>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -264,7 +300,7 @@ export default function EmployeeManagementPage() {
                               <Edit3 className="mr-2 h-4 w-4" />
                               Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDeleteEmployee(employee.id)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                            <DropdownMenuItem onClick={() => handleDeleteEmployee(employee.id, employee.name)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
                               <Trash2 className="mr-2 h-4 w-4" />
                               Delete
                             </DropdownMenuItem>
@@ -276,12 +312,13 @@ export default function EmployeeManagementPage() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={8} className="h-24 text-center">
-                      {searchTerm ? "No employees found matching your search." : "No employees to display."}
+                      {searchTerm ? "No employees found matching your search." : "No employees found. Try adding some!"}
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -307,7 +344,6 @@ export default function EmployeeManagementPage() {
                 <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" />
                  {addEmployeeServerState?.errors?.email && <p className="text-sm text-destructive">{addEmployeeServerState.errors.email.join(', ')}</p>}
               </div>
-              {/* Password field removed */}
               <div className="space-y-2">
                 <Label htmlFor="add-employeeId">Employee ID</Label>
                 <Input id="add-employeeId" name="employeeId" placeholder="e.g., E007" />
@@ -338,9 +374,19 @@ export default function EmployeeManagementPage() {
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel type="button" onClick={closeAddDialog}>Cancel</AlertDialogCancel>
-              <AlertDialogAction type="submit" disabled={isAddEmployeePending}>
-                {isAddEmployeePending ? "Adding..." : "Add Employee"}
-              </AlertDialogAction>
+              <Button type="submit" disabled={isAddEmployeePending} asChild={false}>
+                <AlertDialogAction type="submit" disabled={isAddEmployeePending} onClick={(e) => {
+                  // Allow form to submit via action
+                  if (isAddEmployeePending) e.preventDefault();
+                }}>
+                  {isAddEmployeePending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Adding...
+                    </>
+                  ) : "Add Employee"}
+                </AlertDialogAction>
+              </Button>
             </AlertDialogFooter>
           </form>
         </AlertDialogContent>
@@ -356,31 +402,38 @@ export default function EmployeeManagementPage() {
                 Update the details for {editingEmployee.name}. All fields are required except Employee ID.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <form onSubmit={handleSaveEditEmployee}>
+            <form action={editEmployeeFormAction}>
+              <input type="hidden" name="employeeDocId" defaultValue={editingEmployee.id} />
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-name">Full Name</Label>
                   <Input id="edit-name" name="name" defaultValue={editingEmployee.name}  />
+                   {editEmployeeServerState?.errors?.name && <p className="text-sm text-destructive">{editEmployeeServerState.errors.name.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-employeeId">Employee ID</Label>
-                  <Input id="edit-employeeId" name="employeeId" defaultValue={editingEmployee.employeeId} readOnly className="bg-muted/50" />
+                  <Label htmlFor="edit-employeeIdDisplay">Employee ID (Company Given)</Label>
+                  <Input id="edit-employeeIdDisplay" name="employeeIdDisplay" defaultValue={editingEmployee.employeeId} readOnly className="bg-muted/50" />
+                  {/* Note: We don't submit employeeId for update typically, it's an identifier. If it needs to be updatable, handle separately in server action. */}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-department">Department</Label>
                   <Input id="edit-department" name="department" defaultValue={editingEmployee.department}  />
+                   {editEmployeeServerState?.errors?.department && <p className="text-sm text-destructive">{editEmployeeServerState.errors.department.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-role">Role</Label>
                   <Input id="edit-role" name="role" defaultValue={editingEmployee.role}  />
+                  {editEmployeeServerState?.errors?.role && <p className="text-sm text-destructive">{editEmployeeServerState.errors.role.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-email">Email</Label>
                   <Input id="edit-email" name="email" type="email" defaultValue={editingEmployee.email}  />
+                  {editEmployeeServerState?.errors?.email && <p className="text-sm text-destructive">{editEmployeeServerState.errors.email.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-phone">Phone</Label>
                   <Input id="edit-phone" name="phone" defaultValue={editingEmployee.phone}  />
+                  {editEmployeeServerState?.errors?.phone && <p className="text-sm text-destructive">{editEmployeeServerState.errors.phone.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
                   <Label htmlFor="edit-status">Status</Label>
@@ -389,17 +442,29 @@ export default function EmployeeManagementPage() {
                     <option value="On Leave">On Leave</option>
                     <option value="Terminated">Terminated</option>
                   </select>
+                  {editEmployeeServerState?.errors?.status && <p className="text-sm text-destructive">{editEmployeeServerState.errors.status.join(', ')}</p>}
                 </div>
-                {editFormClientError && (
+                {(editFormClientError || editEmployeeServerState?.errors?.form) && (
                   <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
                     <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-                    <span>{editFormClientError}</span>
+                    <span>{editFormClientError || editEmployeeServerState?.errors?.form?.join(', ')}</span>
                   </div>
                 )}
               </div>
               <AlertDialogFooter>
                 <AlertDialogCancel type="button" onClick={closeEditDialog}>Cancel</AlertDialogCancel>
-                <AlertDialogAction type="submit">Save Changes</AlertDialogAction>
+                 <Button type="submit" disabled={isEditEmployeePending} asChild={false}>
+                    <AlertDialogAction type="submit" disabled={isEditEmployeePending} onClick={(e) => {
+                        if (isEditEmployeePending) e.preventDefault();
+                    }}>
+                    {isEditEmployeePending ? (
+                        <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                        </>
+                    ) : "Save Changes"}
+                    </AlertDialogAction>
+                </Button>
               </AlertDialogFooter>
             </form>
           </AlertDialogContent>
@@ -409,3 +474,4 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
