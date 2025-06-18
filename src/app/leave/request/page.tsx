@@ -35,7 +35,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Send, Loader2, ChevronsUpDown, CheckIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useActionState, useEffect, useRef, useState, useMemo } from "react";
+import { useActionState, useEffect, useRef, useState, useMemo, useTransition } from "react";
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
 import { db } from '@/lib/firebase/config';
 import { collection, query, where, getDocs, orderBy, type Timestamp } from 'firebase/firestore';
@@ -71,7 +71,9 @@ interface Employee {
 export default function LeaveRequestPage() {
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
-  const [serverState, formAction, isPending] = useActionState(submitLeaveRequestAction, initialSubmitState);
+  const [serverState, formAction, isActionPending] = useActionState(submitLeaveRequestAction, initialSubmitState);
+  const [_isTransitionPending, startTransition] = useTransition();
+
 
   const [activeEmployees, setActiveEmployees] = useState<Employee[]>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
@@ -146,7 +148,9 @@ export default function LeaveRequestPage() {
     formData.set('employeeName', data.employeeName);
     formData.set('leaveType', data.leaveType);
     formData.set('reason', data.reason);
-    formAction(formData);
+    startTransition(() => {
+      formAction(formData);
+    });
   };
 
   return (
@@ -377,8 +381,8 @@ export default function LeaveRequestPage() {
               </p>
             )}
 
-            <Button type="submit" className="w-full md:w-auto group" disabled={isPending || isLoadingEmployees}>
-              {isPending ? (
+            <Button type="submit" className="w-full md:w-auto group" disabled={isActionPending || isLoadingEmployees}>
+              {isActionPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Submitting...
