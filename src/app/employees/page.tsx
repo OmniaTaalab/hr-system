@@ -332,10 +332,10 @@ export default function EmployeeManagementPage() {
     setIsEditDialogOpen(false);
   };
   
-  const handleDeleteEmployee = async (employeeId: string, employeeName: string) => {
-    if (window.confirm(`Are you sure you want to delete employee ${employeeName} (ID: ${employeeId})? This action cannot be undone.`)) {
+  const handleDeleteEmployee = async (employeeDocId: string, employeeName: string) => {
+    if (window.confirm(`Are you sure you want to delete employee ${employeeName} (ID: ${employeeDocId})? This action cannot be undone.`)) {
       try {
-        await deleteDoc(doc(db, "employy", employeeId));
+        await deleteDoc(doc(db, "employy", employeeDocId));
         toast({
           title: "Employee Deleted",
           description: `Employee ${employeeName} has been removed successfully.`,
@@ -345,7 +345,7 @@ export default function EmployeeManagementPage() {
         toast({
           variant: "destructive",
           title: "Error Deleting Employee",
-          description: `Could not delete ${employeeName}. Please try again.`,
+          description: `Could not delete ${employeeName}. Please try again. Error: ${(error as Error).message}`,
         });
       }
     }
@@ -482,3 +482,4 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
