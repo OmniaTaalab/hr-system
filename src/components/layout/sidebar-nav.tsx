@@ -33,7 +33,7 @@ export function SidebarNav({ items }: SidebarNavProps) {
           return (
             item.href && (
               <SidebarMenuItem key={index}>
-                <Link href={item.disabled ? "/" : item.href} legacyBehavior passHref>
+                <Link href={item.disabled ? "/" : item.href}>
                   <SidebarMenuButton
                     variant="default"
                     size="default"
@@ -70,3 +70,4 @@ export function AppLogo() {
     </Link>
   );
 }
+
