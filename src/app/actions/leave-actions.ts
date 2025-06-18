@@ -3,14 +3,12 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, Timestamp, deleteDoc } from 'firebase/firestore';
 import type { User } from 'firebase/auth'; // Assuming you might integrate auth later
 
 // Schema for validating leave request form data
 const LeaveRequestFormSchema = z.object({
   employeeName: z.string().min(1, "Employee name is required."),
-  // For simulation, we'll use employeeName. Ideally, this would be a logged-in user's ID.
-  // employeeId: z.string().min(1, "Employee ID is required."), 
   leaveType: z.string().min(1, "Leave type is required."),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." }),
@@ -59,20 +57,18 @@ export async function submitLeaveRequestAction(
   const { employeeName, leaveType, startDate, endDate, reason } = validatedFields.data;
 
   try {
-    // For now, we'll use employeeName as a pseudo-identifier.
-    // In a real app, you'd get the authenticated user's ID.
     const employeeId = employeeName; // Placeholder
 
     await addDoc(collection(db, "leaveRequests"), {
       employeeName,
-      employeeId, // Store the identifier
+      employeeId, 
       leaveType,
       startDate: Timestamp.fromDate(startDate),
       endDate: Timestamp.fromDate(endDate),
       reason,
       status: "Pending",
       submittedAt: serverTimestamp(),
-      managerNotes: "", // Initialize manager notes
+      managerNotes: "", 
     });
 
     return { message: "Leave request submitted successfully and is pending approval.", success: true };
@@ -130,8 +126,8 @@ export async function updateLeaveRequestStatusAction(
     const requestRef = doc(db, "leaveRequests", requestId);
     await updateDoc(requestRef, {
       status: newStatus,
-      managerNotes: managerNotes || "", // Store empty string if not provided
-      updatedAt: serverTimestamp(), // Track when the status was updated
+      managerNotes: managerNotes || "", 
+      updatedAt: serverTimestamp(), 
     });
     return { message: `Leave request status updated to ${newStatus}.`, success: true };
   } catch (error: any) {
@@ -144,5 +140,119 @@ export async function updateLeaveRequestStatusAction(
   }
 }
 
-// --- Potentially, actions for fetching leave requests could also go here if needed by multiple server components
-// --- For now, fetching will be done client-side with onSnapshot in the respective pages.
+// Schema for editing a leave request
+const EditLeaveRequestFormSchema = z.object({
+  requestId: z.string().min(1, "Request ID is required."),
+  leaveType: z.string().min(1, "Leave type is required."),
+  startDate: z.date({ required_error: "Start date is required." }),
+  endDate: z.date({ required_error: "End date is required." }),
+  reason: z.string().min(10, "Reason must be at least 10 characters.").max(500, "Reason must be at most 500 characters."),
+}).refine(data => data.endDate >= data.startDate, {
+  message: "End date cannot be before start date.",
+  path: ["endDate"],
+});
+
+export type EditLeaveRequestState = {
+  errors?: {
+    requestId?: string[];
+    leaveType?: string[];
+    startDate?: string[];
+    endDate?: string[];
+    reason?: string[];
+    form?: string[];
+  };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function editLeaveRequestAction(
+  prevState: EditLeaveRequestState,
+  formData: FormData
+): Promise<EditLeaveRequestState> {
+  const rawFormData = {
+    requestId: formData.get('requestId'),
+    leaveType: formData.get('leaveType'),
+    startDate: formData.get('startDate') ? new Date(formData.get('startDate') as string) : undefined,
+    endDate: formData.get('endDate') ? new Date(formData.get('endDate') as string) : undefined,
+    reason: formData.get('reason'),
+  };
+
+  const validatedFields = EditLeaveRequestFormSchema.safeParse(rawFormData);
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Validation failed. Please check your input.',
+      success: false,
+    };
+  }
+
+  const { requestId, leaveType, startDate, endDate, reason } = validatedFields.data;
+
+  try {
+    const requestRef = doc(db, "leaveRequests", requestId);
+    await updateDoc(requestRef, {
+      leaveType,
+      startDate: Timestamp.fromDate(startDate),
+      endDate: Timestamp.fromDate(endDate),
+      reason,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { message: "Leave request updated successfully.", success: true };
+  } catch (error: any) {
+    console.error('Firestore Edit Leave Request Error:', error);
+    return {
+      errors: { form: ["Failed to update leave request. An unexpected error occurred."] },
+      message: 'Failed to update leave request.',
+      success: false,
+    };
+  }
+}
+
+// Schema for deleting a leave request (only needs ID)
+const DeleteLeaveRequestSchema = z.object({
+  requestId: z.string().min(1, "Request ID is required."),
+});
+
+export type DeleteLeaveRequestState = {
+  errors?: {
+    requestId?: string[];
+    form?: string[];
+  };
+  message?: string | null;
+  success?: boolean;
+};
+
+// Server action for deleting a leave request
+export async function deleteLeaveRequestAction(
+  prevState: DeleteLeaveRequestState,
+  formData: FormData,
+): Promise<DeleteLeaveRequestState> {
+  const validatedFields = DeleteLeaveRequestSchema.safeParse({
+    requestId: formData.get('requestId'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Validation failed.',
+      success: false,
+    };
+  }
+
+  const { requestId } = validatedFields.data;
+
+  try {
+    const requestRef = doc(db, "leaveRequests", requestId);
+    await deleteDoc(requestRef);
+    return { message: "Leave request deleted successfully.", success: true };
+  } catch (error: any) {
+    console.error("Error deleting leave request:", error);
+    return {
+      errors: { form: [`Failed to delete request: ${error.message}`] },
+      message: "Failed to delete leave request.",
+      success: false,
+    };
+  }
+}
