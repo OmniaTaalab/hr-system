@@ -8,7 +8,8 @@ import type { User } from 'firebase/auth'; // Assuming you might integrate auth 
 
 // Schema for validating leave request form data
 const LeaveRequestFormSchema = z.object({
-  employeeName: z.string().min(1, "Employee name is required."),
+  requestingEmployeeDocId: z.string().min(1, "Employee document ID is required."), // Added for unique employee linking
+  employeeName: z.string().min(1, "Employee name is required."), // Still useful for display
   leaveType: z.string().min(1, "Leave type is required."),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." }),
@@ -20,6 +21,7 @@ const LeaveRequestFormSchema = z.object({
 
 export type SubmitLeaveRequestState = {
   errors?: {
+    requestingEmployeeDocId?: string[];
     employeeName?: string[];
     leaveType?: string[];
     startDate?: string[];
@@ -37,6 +39,7 @@ export async function submitLeaveRequestAction(
 ): Promise<SubmitLeaveRequestState> {
   
   const rawFormData = {
+    requestingEmployeeDocId: formData.get('requestingEmployeeDocId'),
     employeeName: formData.get('employeeName'),
     leaveType: formData.get('leaveType'),
     startDate: formData.get('startDate') ? new Date(formData.get('startDate') as string) : undefined,
@@ -54,14 +57,14 @@ export async function submitLeaveRequestAction(
     };
   }
 
-  const { employeeName, leaveType, startDate, endDate, reason } = validatedFields.data;
+  const { requestingEmployeeDocId, employeeName, leaveType, startDate, endDate, reason } = validatedFields.data;
 
   try {
-    const employeeId = employeeName; // Placeholder
-
+    // The 'employeeId' field in Firestore will now store the unique document ID from 'employy' collection
     await addDoc(collection(db, "leaveRequests"), {
-      employeeName,
-      employeeId, 
+      requestingEmployeeDocId, // Store the unique Firestore document ID of the employee
+      employeeName, // Keep employee name for display purposes if needed elsewhere
+      // employeeId: requestingEmployeeDocId, // If you want to rename/repurpose the old employeeId field
       leaveType,
       startDate: Timestamp.fromDate(startDate),
       endDate: Timestamp.fromDate(endDate),

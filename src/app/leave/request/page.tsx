@@ -42,6 +42,7 @@ import { collection, query, where, getDocs, orderBy, type Timestamp } from 'fire
 
 // Schema must match the server action's schema for client-side validation
 const leaveRequestClientSchema = z.object({
+  requestingEmployeeDocId: z.string().min(1, "Employee document ID is required"),
   employeeName: z.string().min(1, "Employee name is required"),
   leaveType: z.string().min(1, "Leave type is required"),
   startDate: z.date({ required_error: "Start date is required" }),
@@ -79,10 +80,12 @@ export default function LeaveRequestPage() {
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState("");
   const [isEmployeePopoverOpen, setIsEmployeePopoverOpen] = useState(false);
+  const [selectedEmployeeDocId, setSelectedEmployeeDocId] = useState<string | null>(null);
 
   const form = useForm<LeaveRequestFormValues>({
     resolver: zodResolver(leaveRequestClientSchema),
     defaultValues: {
+      requestingEmployeeDocId: "",
       employeeName: "",
       leaveType: "",
       reason: "",
@@ -130,6 +133,7 @@ export default function LeaveRequestPage() {
           description: serverState.message,
         });
         form.reset(); 
+        setSelectedEmployeeDocId(null);
         setEmployeeSearchTerm(""); // Reset search term on successful submission
       } else if (serverState.errors?.form || Object.keys(serverState.errors || {}).length > 0) {
         toast({
@@ -142,12 +146,18 @@ export default function LeaveRequestPage() {
   }, [serverState, toast, form]);
 
   const handleFormSubmit = (data: LeaveRequestFormValues) => {
+    if (!formRef.current!) return;
     const formData = new FormData(formRef.current!);
-    formData.set('startDate', data.startDate.toISOString());
-    formData.set('endDate', data.endDate.toISOString());
+    // Ensure all fields from the 'data' object (which is validated by Zod) are set.
+    // react-hook-form should fill the FormData object based on field names if we use form.handleSubmit directly with action.
+    // However, since we are constructing it manually for startTransition, let's be explicit.
+    formData.set('requestingEmployeeDocId', data.requestingEmployeeDocId);
     formData.set('employeeName', data.employeeName);
     formData.set('leaveType', data.leaveType);
+    formData.set('startDate', data.startDate.toISOString());
+    formData.set('endDate', data.endDate.toISOString());
     formData.set('reason', data.reason);
+    
     startTransition(() => {
       formAction(formData);
     });
@@ -167,6 +177,13 @@ export default function LeaveRequestPage() {
 
         <Form {...form}>
           <form ref={formRef} onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
+            {/* Hidden input for requestingEmployeeDocId */}
+            <FormField
+              control={form.control}
+              name="requestingEmployeeDocId"
+              render={({ field }) => <input type="hidden" {...field} />}
+            />
+            
             <FormField
               control={form.control}
               name="employeeName"
@@ -189,7 +206,7 @@ export default function LeaveRequestPage() {
                           {isLoadingEmployees
                             ? "Loading employees..."
                             : field.value
-                            ? activeEmployees.find(emp => emp.name === field.value)?.name
+                            ? field.value // Display the name set by form.setValue
                             : "Select employee..."}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
@@ -215,7 +232,9 @@ export default function LeaveRequestPage() {
                             key={employee.id}
                             onClick={() => {
                               form.setValue("employeeName", employee.name);
-                              field.onChange(employee.name); // Ensure react-hook-form is updated
+                              form.setValue("requestingEmployeeDocId", employee.id); // Set the document ID
+                              setSelectedEmployeeDocId(employee.id); // Keep track if needed locally
+                              field.onChange(employee.name); // Update RHF for employeeName
                               setIsEmployeePopoverOpen(false);
                               setEmployeeSearchTerm("");
                             }}
@@ -225,7 +244,7 @@ export default function LeaveRequestPage() {
                             <CheckIcon
                               className={cn(
                                 "ml-auto h-4 w-4",
-                                employee.name === field.value
+                                employee.name === field.value 
                                   ? "opacity-100"
                                   : "opacity-0"
                               )}
@@ -235,7 +254,7 @@ export default function LeaveRequestPage() {
                       </ScrollArea>
                     </PopoverContent>
                   </Popover>
-                  <FormMessage>{serverState?.errors?.employeeName?.[0] || form.formState.errors.employeeName?.message}</FormMessage>
+                  <FormMessage>{serverState?.errors?.employeeName?.[0] || form.formState.errors.employeeName?.message || serverState?.errors?.requestingEmployeeDocId?.[0]}</FormMessage>
                 </FormItem>
               )}
             />
@@ -400,5 +419,3 @@ export default function LeaveRequestPage() {
     </AppLayout>
   );
 }
-
-    

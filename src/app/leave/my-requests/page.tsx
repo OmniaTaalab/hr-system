@@ -18,7 +18,22 @@ import React, { useState, useEffect, useCallback } from "react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, where, Timestamp, orderBy, DocumentData } from 'firebase/firestore';
-import type { LeaveRequestEntry } from '@/app/leave/all-requests/page'; // Re-use the interface
+// Re-use the interface but add the new ID field
+export interface LeaveRequestEntry {
+  id: string; 
+  requestingEmployeeDocId?: string; // The unique Firestore document ID of the employee
+  employeeName: string; // Still useful for display
+  // employeeId: string; // This was the old field, potentially storing name or company ID. Now distinct.
+  leaveType: string;
+  startDate: Timestamp;
+  endDate: Timestamp;
+  reason: string;
+  status: "Pending" | "Approved" | "Rejected";
+  submittedAt: Timestamp;
+  managerNotes?: string;
+  updatedAt?: Timestamp;
+}
+
 import { cn } from "@/lib/utils";
 
 // Re-use LeaveStatusBadge from all-requests or define locally if preferred
@@ -36,7 +51,7 @@ function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
 }
 
 interface Employee {
-  id: string;
+  id: string; // Firestore document ID
   name: string;
   employeeId: string; // Company's employee ID
   department: string;
@@ -79,7 +94,7 @@ export default function ViewEmployeeLeaveRequestsPage() {
     return () => unsubscribe();
   }, [toast]);
 
-  // Fetch leave requests for the selected employee
+  // Fetch leave requests for the selected employee using their unique document ID
   useEffect(() => {
     if (!selectedEmployee) {
       setEmployeeRequests([]);
@@ -87,11 +102,10 @@ export default function ViewEmployeeLeaveRequestsPage() {
     }
 
     setIsLoadingRequests(true);
-    // The 'employeeName' field in 'leaveRequests' collection stores the employee's name
-    // This is based on how submitLeaveRequestAction saves it.
+    // Query by the unique requestingEmployeeDocId
     const requestsQuery = query(
       collection(db, "leaveRequests"),
-      where("employeeName", "==", selectedEmployee.name), 
+      where("requestingEmployeeDocId", "==", selectedEmployee.id), 
       orderBy("submittedAt", "desc")
     );
 
@@ -107,7 +121,7 @@ export default function ViewEmployeeLeaveRequestsPage() {
       toast({
         variant: "destructive",
         title: "Error Fetching Requests",
-        description: `Could not load leave requests for ${selectedEmployee.name}.`,
+        description: `Could not load leave requests for ${selectedEmployee.name}. This might be due to a missing Firestore index.`,
       });
       setIsLoadingRequests(false);
     });
@@ -189,7 +203,7 @@ export default function ViewEmployeeLeaveRequestsPage() {
                 Leave Requests for {selectedEmployee.name}
               </CardTitle>
               <CardDescription>
-                Showing all leave requests submitted by {selectedEmployee.name}.
+                Showing all leave requests submitted by {selectedEmployee.name}. Requests submitted before this system update might not appear if not linked by ID.
               </CardDescription>
             </CardHeader>
             <CardContent>
