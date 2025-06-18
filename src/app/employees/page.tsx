@@ -70,6 +70,201 @@ const initialEditEmployeeState: UpdateEmployeeState = {
   errors: {},
 };
 
+// Internal component for Add Employee Form content
+function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
+  const { toast } = useToast();
+  const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
+  const [formClientError, setFormClientError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!serverState) return;
+
+    if (serverState.message && !serverState.errors?.form && !Object.keys(serverState.errors || {}).filter(k => k !== 'form').length) {
+      toast({
+        title: "Employee Added",
+        description: serverState.message,
+      });
+      onSuccess();
+    } else if (serverState.errors?.form) {
+      setFormClientError(serverState.errors.form.join(', '));
+    } else if (serverState.errors && Object.keys(serverState.errors).length > 0) {
+      const fieldErrors = Object.values(serverState.errors).flat().filter(Boolean).join('; ');
+      setFormClientError(fieldErrors || "An error occurred. Please check the details.");
+    }
+  }, [serverState, toast, onSuccess]);
+
+  return (
+    <>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Add New Employee</AlertDialogTitle>
+        <AlertDialogDescription>
+          Fill in the details below to add a new employee. All fields are required.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <form
+        id="add-employee-form"
+        action={formAction}
+        className="flex flex-col overflow-hidden"
+      >
+        <ScrollArea className="flex-grow min-h-[150px] max-h-[300px] border-2 border-transparent bg-transparent">
+          <div className="space-y-4 p-4 pr-2">
+            <div className="space-y-2">
+              <Label htmlFor="add-name">Full Name</Label>
+              <Input id="add-name" name="name" placeholder="e.g., John Doe" />
+              {serverState?.errors?.name && <p className="text-sm text-destructive">{serverState.errors.name.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-email">Email</Label>
+              <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" />
+              {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-employeeId">Employee ID</Label>
+              <Input id="add-employeeId" name="employeeId" placeholder="e.g., 007 (Numbers only)" />
+              {serverState?.errors?.employeeId && <p className="text-sm text-destructive">{serverState.errors.employeeId.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-department">Department</Label>
+              <Input id="add-department" name="department" placeholder="e.g., Technology" />
+              {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-role">Role</Label>
+              <Input id="add-role" name="role" placeholder="e.g., Software Developer" />
+              {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-phone">Phone</Label>
+              <Input id="add-phone" name="phone" placeholder="e.g., 5550107 (Numbers only)" />
+              {serverState?.errors?.phone && <p className="text-sm text-destructive">{serverState.errors.phone.join(', ')}</p>}
+            </div>
+            
+            {(formClientError || serverState?.errors?.form) && (
+              <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
+                <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
+                <span>{formClientError || serverState?.errors?.form?.join(', ')}</span>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+        <AlertDialogFooter className="pt-4 flex-shrink-0 border-t">
+          <AlertDialogCancel type="button" onClick={onSuccess}>Cancel</AlertDialogCancel>
+          <Button type="submit" form="add-employee-form" disabled={isPending}>
+            {isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Adding...
+              </>
+            ) : "Add Employee"}
+          </Button>
+        </AlertDialogFooter>
+      </form>
+    </>
+  );
+}
+
+// Internal component for Edit Employee Form content
+function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; onSuccess: () => void }) {
+  const { toast } = useToast();
+  const [serverState, formAction, isPending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
+  const [formClientError, setFormClientError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!serverState) return;
+    
+    if (serverState.message && !serverState.errors?.form && !Object.keys(serverState.errors || {}).filter(k => k !== 'form').length) {
+      toast({
+        title: "Employee Updated",
+        description: serverState.message,
+      });
+      onSuccess();
+    } else if (serverState.errors?.form) {
+      setFormClientError(serverState.errors.form.join(', '));
+    } else if (serverState.errors && Object.keys(serverState.errors).length > 0) {
+      const fieldErrors = Object.values(serverState.errors).flat().filter(Boolean).join('; ');
+      setFormClientError(fieldErrors || "An error occurred while updating. Please check the details.");
+    }
+  }, [serverState, toast, onSuccess]);
+  
+  return (
+    <>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Edit Employee: {employee.name}</AlertDialogTitle>
+        <AlertDialogDescription>
+          Update the details for {employee.name}. All fields are required except Employee ID.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <form
+        id="edit-employee-form"
+        action={formAction}
+        className="flex flex-col overflow-hidden"
+      >
+        <input type="hidden" name="employeeDocId" defaultValue={employee.id} />
+        <ScrollArea className="flex-grow min-h-[150px] max-h-[300px] border-2 border-transparent bg-transparent">
+          <div className="space-y-4 p-4 pr-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Full Name</Label>
+              <Input id="edit-name" name="name" defaultValue={employee.name}  />
+              {serverState?.errors?.name && <p className="text-sm text-destructive">{serverState.errors.name.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-employeeIdDisplay">Employee ID (Company Given)</Label>
+              <Input id="edit-employeeIdDisplay" name="employeeIdDisplay" defaultValue={employee.employeeId} readOnly className="bg-muted/50" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-department">Department</Label>
+              <Input id="edit-department" name="department" defaultValue={employee.department}  />
+              {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-role">Role</Label>
+              <Input id="edit-role" name="role" defaultValue={employee.role}  />
+              {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input id="edit-email" name="email" type="email" defaultValue={employee.email}  />
+              {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone">Phone</Label>
+              <Input id="edit-phone" name="phone" defaultValue={employee.phone} placeholder="Numbers only" />
+              {serverState?.errors?.phone && <p className="text-sm text-destructive">{serverState.errors.phone.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-status">Status</Label>
+              <select id="edit-status" name="status" defaultValue={employee.status} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" >
+                <option value="Active">Active</option>
+                <option value="On Leave">On Leave</option>
+                <option value="Terminated">Terminated</option>
+              </select>
+              {serverState?.errors?.status && <p className="text-sm text-destructive">{serverState.errors.status.join(', ')}</p>}
+            </div>
+
+            {(formClientError || serverState?.errors?.form) && (
+              <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
+                <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
+                <span>{formClientError || serverState?.errors?.form?.join(', ')}</span>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+        <AlertDialogFooter className="pt-4 flex-shrink-0 border-t">
+          <AlertDialogCancel type="button" onClick={onSuccess}>Cancel</AlertDialogCancel>
+          <Button type="submit" form="edit-employee-form" disabled={isPending}>
+              {isPending ? (
+                  <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                  </>
+              ) : "Save Changes"}
+          </Button>
+        </AlertDialogFooter>
+      </form>
+    </>
+  );
+}
+
 
 export default function EmployeeManagementPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -83,12 +278,6 @@ export default function EmployeeManagementPage() {
   
   const [addFormKey, setAddFormKey] = useState(0);
   const [editFormKey, setEditFormKey] = useState(0);
-
-  const [addEmployeeServerState, addEmployeeFormAction, isAddEmployeePending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
-  const [addFormClientError, setAddFormClientError] = useState<string | null>(null); 
-  
-  const [editEmployeeServerState, editEmployeeFormAction, isEditEmployeePending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
-  const [editFormClientError, setEditFormClientError] = useState<string | null>(null);
 
   useEffect(() => {
     setIsLoading(true);
@@ -126,35 +315,14 @@ export default function EmployeeManagementPage() {
   const totalEmployees = employees.length;
 
   const openAddDialog = () => {
-    setAddFormClientError(null); 
     setAddFormKey(prevKey => prevKey + 1);
     setIsAddDialogOpen(true);
   }
   const closeAddDialog = () => {
     setIsAddDialogOpen(false);
-    setAddFormClientError(null);
   }
 
-  useEffect(() => {
-    if (!addEmployeeServerState) return;
-
-    if (addEmployeeServerState.message && !addEmployeeServerState.errors?.form && !Object.keys(addEmployeeServerState.errors || {}).filter(k => k !== 'form').length) {
-      toast({
-        title: "Employee Added",
-        description: addEmployeeServerState.message,
-      });
-      closeAddDialog();
-    } else if (addEmployeeServerState.errors?.form) { 
-      setAddFormClientError(addEmployeeServerState.errors.form.join(', '));
-    } else if (addEmployeeServerState.errors && Object.keys(addEmployeeServerState.errors).length > 0) { 
-      const fieldErrors = Object.values(addEmployeeServerState.errors).flat().filter(Boolean).join('; ');
-      setAddFormClientError(fieldErrors || "An error occurred. Please check the details.");
-    }
-  }, [addEmployeeServerState, toast]);
-
-
   const openEditDialog = (employee: Employee) => {
-    setEditFormClientError(null);
     setEditingEmployee(employee);
     setEditFormKey(prevKey => prevKey + 1);
     setIsEditDialogOpen(true);
@@ -162,27 +330,8 @@ export default function EmployeeManagementPage() {
   const closeEditDialog = () => {
     setEditingEmployee(null);
     setIsEditDialogOpen(false);
-    setEditFormClientError(null);
   };
   
-  useEffect(() => {
-    if (!editEmployeeServerState) return;
-    
-    if (editEmployeeServerState.message && !editEmployeeServerState.errors?.form && !Object.keys(editEmployeeServerState.errors || {}).filter(k => k !== 'form').length) {
-      toast({
-        title: "Employee Updated",
-        description: editEmployeeServerState.message,
-      });
-      closeEditDialog();
-    } else if (editEmployeeServerState.errors?.form) {
-      setEditFormClientError(editEmployeeServerState.errors.form.join(', '));
-    } else if (editEmployeeServerState.errors && Object.keys(editEmployeeServerState.errors).length > 0) {
-      const fieldErrors = Object.values(editEmployeeServerState.errors).flat().filter(Boolean).join('; ');
-      setEditFormClientError(fieldErrors || "An error occurred while updating. Please check the details.");
-    }
-  }, [editEmployeeServerState, toast]);
-
-
   const handleDeleteEmployee = async (employeeId: string, employeeName: string) => {
     if (window.confirm(`Are you sure you want to delete employee ${employeeName} (ID: ${employeeId})? This action cannot be undone.`)) {
       try {
@@ -314,155 +463,18 @@ export default function EmployeeManagementPage() {
         </Card>
       </div>
 
-      {/* Add Employee Dialog */}
-      <AlertDialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Add New Employee</AlertDialogTitle>
-            <AlertDialogDescription>
-              Fill in the details below to add a new employee. All fields are required.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <form
-            id="add-employee-form"
-            key={`add-form-${addFormKey}`}
-            action={addEmployeeFormAction}
-            className="flex flex-col overflow-hidden"
-          >
-            <ScrollArea className="flex-grow min-h-[150px] max-h-[300px]">
-              <div className="space-y-4 p-4 pr-2">
-                <div className="space-y-2">
-                  <Label htmlFor="add-name">Full Name</Label>
-                  <Input id="add-name" name="name" placeholder="e.g., John Doe" />
-                  {addEmployeeServerState?.errors?.name && <p className="text-sm text-destructive">{addEmployeeServerState.errors.name.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-email">Email</Label>
-                  <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" />
-                  {addEmployeeServerState?.errors?.email && <p className="text-sm text-destructive">{addEmployeeServerState.errors.email.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-employeeId">Employee ID</Label>
-                  <Input id="add-employeeId" name="employeeId" placeholder="e.g., 007 (Numbers only)" />
-                  {addEmployeeServerState?.errors?.employeeId && <p className="text-sm text-destructive">{addEmployeeServerState.errors.employeeId.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-department">Department</Label>
-                  <Input id="add-department" name="department" placeholder="e.g., Technology" />
-                  {addEmployeeServerState?.errors?.department && <p className="text-sm text-destructive">{addEmployeeServerState.errors.department.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-role">Role</Label>
-                  <Input id="add-role" name="role" placeholder="e.g., Software Developer" />
-                  {addEmployeeServerState?.errors?.role && <p className="text-sm text-destructive">{addEmployeeServerState.errors.role.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-phone">Phone</Label>
-                  <Input id="add-phone" name="phone" placeholder="e.g., 5550107 (Numbers only)" />
-                  {addEmployeeServerState?.errors?.phone && <p className="text-sm text-destructive">{addEmployeeServerState.errors.phone.join(', ')}</p>}
-                </div>
-                
-                {(addFormClientError || addEmployeeServerState?.errors?.form) && (
-                  <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
-                    <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-                    <span>{addFormClientError || addEmployeeServerState?.errors?.form?.join(', ')}</span>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-            <AlertDialogFooter className="pt-4 flex-shrink-0 border-t">
-              <AlertDialogCancel type="button" onClick={closeAddDialog}>Cancel</AlertDialogCancel>
-              <Button type="submit" form="add-employee-form" disabled={isAddEmployeePending}>
-                {isAddEmployeePending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Adding...
-                  </>
-                ) : "Add Employee"}
-              </Button>
-            </AlertDialogFooter>
-          </form>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Edit Employee Dialog */}
-      {editingEmployee && (
-        <AlertDialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      {isAddDialogOpen && (
+        <AlertDialog open={isAddDialogOpen} onOpenChange={(open) => { if(!open) closeAddDialog(); else setIsAddDialogOpen(true); }}>
           <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Edit Employee: {editingEmployee.name}</AlertDialogTitle>
-              <AlertDialogDescription>
-                Update the details for {editingEmployee.name}. All fields are required except Employee ID.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <form
-              id="edit-employee-form"
-              key={`edit-form-${editFormKey}`}
-              action={editEmployeeFormAction}
-              className="flex flex-col overflow-hidden"
-            >
-              <input type="hidden" name="employeeDocId" defaultValue={editingEmployee.id} />
-              <ScrollArea className="flex-grow min-h-[150px] max-h-[300px]">
-                <div className="space-y-4 p-4 pr-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-name">Full Name</Label>
-                    <Input id="edit-name" name="name" defaultValue={editingEmployee.name}  />
-                    {editEmployeeServerState?.errors?.name && <p className="text-sm text-destructive">{editEmployeeServerState.errors.name.join(', ')}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-employeeIdDisplay">Employee ID (Company Given)</Label>
-                    <Input id="edit-employeeIdDisplay" name="employeeIdDisplay" defaultValue={editingEmployee.employeeId} readOnly className="bg-muted/50" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-department">Department</Label>
-                    <Input id="edit-department" name="department" defaultValue={editingEmployee.department}  />
-                    {editEmployeeServerState?.errors?.department && <p className="text-sm text-destructive">{editEmployeeServerState.errors.department.join(', ')}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-role">Role</Label>
-                    <Input id="edit-role" name="role" defaultValue={editingEmployee.role}  />
-                    {editEmployeeServerState?.errors?.role && <p className="text-sm text-destructive">{editEmployeeServerState.errors.role.join(', ')}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-email">Email</Label>
-                    <Input id="edit-email" name="email" type="email" defaultValue={editingEmployee.email}  />
-                    {editEmployeeServerState?.errors?.email && <p className="text-sm text-destructive">{editEmployeeServerState.errors.email.join(', ')}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-phone">Phone</Label>
-                    <Input id="edit-phone" name="phone" defaultValue={editingEmployee.phone} placeholder="Numbers only" />
-                    {editEmployeeServerState?.errors?.phone && <p className="text-sm text-destructive">{editEmployeeServerState.errors.phone.join(', ')}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-status">Status</Label>
-                    <select id="edit-status" name="status" defaultValue={editingEmployee.status} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" >
-                      <option value="Active">Active</option>
-                      <option value="On Leave">On Leave</option>
-                      <option value="Terminated">Terminated</option>
-                    </select>
-                    {editEmployeeServerState?.errors?.status && <p className="text-sm text-destructive">{editEmployeeServerState.errors.status.join(', ')}</p>}
-                  </div>
-
-                  {(editFormClientError || editEmployeeServerState?.errors?.form) && (
-                    <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
-                      <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-                      <span>{editFormClientError || editEmployeeServerState?.errors?.form?.join(', ')}</span>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-              <AlertDialogFooter className="pt-4 flex-shrink-0 border-t">
-                <AlertDialogCancel type="button" onClick={closeEditDialog}>Cancel</AlertDialogCancel>
-                <Button type="submit" form="edit-employee-form" disabled={isEditEmployeePending}>
-                    {isEditEmployeePending ? (
-                        <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
-                        </>
-                    ) : "Save Changes"}
-                </Button>
-              </AlertDialogFooter>
-            </form>
+            <AddEmployeeFormContent key={`add-form-${addFormKey}`} onSuccess={closeAddDialog} />
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      
+      {isEditDialogOpen && editingEmployee && (
+        <AlertDialog open={isEditDialogOpen} onOpenChange={(open) => { if(!open) closeEditDialog(); else setIsEditDialogOpen(true); }}>
+          <AlertDialogContent>
+             <EditEmployeeFormContent key={`edit-form-${editFormKey}-${editingEmployee.id}`} employee={editingEmployee} onSuccess={closeEditDialog} />
           </AlertDialogContent>
         </AlertDialog>
       )}
@@ -470,4 +482,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
