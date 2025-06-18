@@ -3,9 +3,7 @@
 
 import { AppLayout } from "@/components/layout/app-layout";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -15,12 +13,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, XCircle, Hourglass, Search, Loader2, ShieldCheck, ShieldX } from "lucide-react";
+import { Loader2, ShieldCheck, ShieldX, Hourglass, Users, ListFilter } from "lucide-react";
 import React, { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, where, Timestamp, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, Timestamp, orderBy, DocumentData } from 'firebase/firestore';
 import type { LeaveRequestEntry } from '@/app/leave/all-requests/page'; // Re-use the interface
+import { cn } from "@/lib/utils";
 
 // Re-use LeaveStatusBadge from all-requests or define locally if preferred
 function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
@@ -36,130 +35,184 @@ function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
   }
 }
 
-export default function MyLeaveRequestsPage() {
-  const [employeeIdentifier, setEmployeeIdentifier] = useState(""); // Could be name or ID
-  const [searchTrigger, setSearchTrigger] = useState(0); // To trigger search on button click
-  const [myRequests, setMyRequests] = useState<LeaveRequestEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+interface Employee {
+  id: string;
+  name: string;
+  employeeId: string; // Company's employee ID
+  department: string;
+  role: string;
+  status: string;
+  // Add other relevant fields if needed
+}
+
+
+export default function ViewEmployeeLeaveRequestsPage() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  
+  const [employeeRequests, setEmployeeRequests] = useState<LeaveRequestEntry[]>([]);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
+  
   const { toast } = useToast();
 
-  const fetchRequests = useCallback(() => {
-    if (!employeeIdentifier.trim()) {
-      // toast({ variant: "default", title: "Info", description: "Please enter an employee name or ID to search." });
-      setMyRequests([]); // Clear requests if identifier is empty
+  // Fetch all employees
+  useEffect(() => {
+    setIsLoadingEmployees(true);
+    const q = query(collection(db, "employy"), orderBy("name"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const employeesData: Employee[] = [];
+      querySnapshot.forEach((doc) => {
+        employeesData.push({ id: doc.id, ...doc.data() } as Employee);
+      });
+      setEmployees(employeesData);
+      setIsLoadingEmployees(false);
+    }, (error) => {
+      console.error("Error fetching employees: ", error);
+      toast({
+        variant: "destructive",
+        title: "Error Fetching Employees",
+        description: "Could not load employee data.",
+      });
+      setIsLoadingEmployees(false);
+    });
+    return () => unsubscribe();
+  }, [toast]);
+
+  // Fetch leave requests for the selected employee
+  useEffect(() => {
+    if (!selectedEmployee) {
+      setEmployeeRequests([]);
       return;
     }
-    setIsLoading(true);
-    // Search by employeeName or employeeId. Adjust field as needed based on your data.
-    // For this simulation, we assume `employeeId` field stores the name entered in the request form.
-    const q = query(
-        collection(db, "leaveRequests"), 
-        where("employeeId", "==", employeeIdentifier.trim()),
-        orderBy("submittedAt", "desc")
+
+    setIsLoadingRequests(true);
+    // The 'employeeId' field in 'leaveRequests' collection stores the employee's name
+    // This is based on how submitLeaveRequestAction saves it.
+    const requestsQuery = query(
+      collection(db, "leaveRequests"),
+      where("employeeId", "==", selectedEmployee.name), 
+      orderBy("submittedAt", "desc")
     );
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const unsubscribe = onSnapshot(requestsQuery, (querySnapshot) => {
       const requestsData: LeaveRequestEntry[] = [];
       querySnapshot.forEach((doc) => {
         requestsData.push({ id: doc.id, ...doc.data() } as LeaveRequestEntry);
       });
-      setMyRequests(requestsData);
-      setIsLoading(false);
-      if (requestsData.length === 0 && employeeIdentifier.trim()) {
-          toast({ title: "No Requests Found", description: `No leave requests found for "${employeeIdentifier}".`});
-      }
+      setEmployeeRequests(requestsData);
+      setIsLoadingRequests(false);
     }, (error) => {
-      console.error("Error fetching 'my' leave requests: ", error);
+      console.error(`Error fetching leave requests for ${selectedEmployee.name}: `, error);
       toast({
         variant: "destructive",
         title: "Error Fetching Requests",
-        description: "Could not load your leave requests.",
+        description: `Could not load leave requests for ${selectedEmployee.name}.`,
       });
-      setIsLoading(false);
+      setIsLoadingRequests(false);
     });
 
-    return unsubscribe; // Return unsubscribe function for cleanup
-  }, [employeeIdentifier, toast]);
+    return () => unsubscribe();
+  }, [selectedEmployee, toast]);
 
-  // Effect to trigger fetch when searchTrigger changes (i.e., search button clicked)
-  useEffect(() => {
-    if (searchTrigger > 0) { // Only run if search has been triggered at least once
-        const unsubscribe = fetchRequests();
-        return () => { // Cleanup on component unmount or if dependencies change triggering re-run
-            if (unsubscribe) {
-                unsubscribe();
-            }
-        };
-    }
-  }, [searchTrigger, fetchRequests]);
-
-
-  const handleSearch = () => {
-    if (!employeeIdentifier.trim()) {
-      toast({ variant: "default", title: "Input Required", description: "Please enter an employee name or ID to search." });
-      setMyRequests([]);
-      return;
-    }
-    setSearchTrigger(prev => prev + 1); // Increment to trigger useEffect
+  const handleEmployeeSelect = (employee: Employee) => {
+    setSelectedEmployee(employee);
   };
-
 
   return (
     <AppLayout>
       <div className="space-y-8">
         <header>
           <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-            My Leave Requests
+            View Employee Leave Requests
           </h1>
           <p className="text-muted-foreground">
-            View the status of your submitted leave requests.
+            Select an employee from the list to view their submitted leave requests.
           </p>
         </header>
 
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle>Search Your Requests</CardTitle>
-            <CardDescription>
-              Enter your employee name (as submitted in requests) to find your leave applications.
-              In a real system, this would be automatic based on your login.
-            </CardDescription>
-            <div className="flex gap-2 mt-4">
-              <Input
-                type="text"
-                placeholder="Enter Your Employee Name/ID"
-                value={employeeIdentifier}
-                onChange={(e) => setEmployeeIdentifier(e.target.value)}
-                onKeyPress={(e) => { if (e.key === 'Enter') handleSearch(); }}
-                className="max-w-sm"
-              />
-              <Button onClick={handleSearch} disabled={isLoading}>
-                <Search className="mr-2 h-4 w-4" />
-                Search
-              </Button>
-            </div>
+            <CardTitle className="flex items-center">
+              <Users className="mr-2 h-5 w-5 text-primary" />
+              Employee List
+            </CardTitle>
+            <CardDescription>Click on an employee to see their leave requests.</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center items-center h-64">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <p className="ml-4 text-lg">Loading your requests...</p>
+            {isLoadingEmployees ? (
+              <div className="flex justify-center items-center h-40">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="ml-3 text-muted-foreground">Loading employees...</p>
               </div>
-            ) : (
+            ) : employees.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Leave Type</TableHead>
-                    <TableHead>Start Date</TableHead>
-                    <TableHead>End Date</TableHead>
-                    <TableHead>Reason</TableHead>
-                    <TableHead>Submitted On</TableHead>
-                    <TableHead>Manager Notes</TableHead>
-                    <TableHead className="text-right">Status</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Employee ID</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {myRequests.length > 0 ? (
-                    myRequests.map((request) => (
+                  {employees.map((employee) => (
+                    <TableRow
+                      key={employee.id}
+                      onClick={() => handleEmployeeSelect(employee)}
+                      className={cn(
+                        "cursor-pointer hover:bg-muted/50",
+                        selectedEmployee?.id === employee.id && "bg-accent text-accent-foreground hover:bg-accent/90"
+                      )}
+                    >
+                      <TableCell className="font-medium">{employee.name}</TableCell>
+                      <TableCell>{employee.employeeId}</TableCell>
+                      <TableCell>{employee.department}</TableCell>
+                      <TableCell>{employee.role}</TableCell>
+                      <TableCell><Badge variant={employee.status === "Active" ? "secondary" : "outline"} className={cn(employee.status === "Active" && "bg-green-100 text-green-800")}>{employee.status}</Badge></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <p className="text-center text-muted-foreground py-4">No employees found.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {selectedEmployee && (
+          <Card className="shadow-lg mt-8">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <ListFilter className="mr-2 h-5 w-5 text-primary" />
+                Leave Requests for {selectedEmployee.name}
+              </CardTitle>
+              <CardDescription>
+                Showing all leave requests submitted by {selectedEmployee.name}.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingRequests ? (
+                <div className="flex justify-center items-center h-40">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                   <p className="ml-3 text-muted-foreground">Loading requests...</p>
+                </div>
+              ) : employeeRequests.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Leave Type</TableHead>
+                      <TableHead>Start Date</TableHead>
+                      <TableHead>End Date</TableHead>
+                      <TableHead>Reason</TableHead>
+                      <TableHead>Submitted On</TableHead>
+                      <TableHead>Manager Notes</TableHead>
+                      <TableHead className="text-right">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {employeeRequests.map((request) => (
                       <TableRow key={request.id}>
                         <TableCell>{request.leaveType}</TableCell>
                         <TableCell>{format(request.startDate.toDate(), "PPP")}</TableCell>
@@ -171,21 +224,16 @@ export default function MyLeaveRequestsPage() {
                           <LeaveStatusBadge status={request.status} />
                         </TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center">
-                        {employeeIdentifier.trim() && searchTrigger > 0 ? `No leave requests found for "${employeeIdentifier}".` : "Enter your employee name/ID and click search to see your requests."}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                 <p className="text-center text-muted-foreground py-4">No leave requests found for {selectedEmployee.name}.</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AppLayout>
   );
 }
-
