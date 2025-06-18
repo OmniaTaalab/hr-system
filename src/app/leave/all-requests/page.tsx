@@ -41,7 +41,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send } from "lucide-react";
+import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send, Filter } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { db } from '@/lib/firebase/config';
@@ -225,8 +225,6 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
     formData.set('requestId', request.id);
     formData.set('startDate', data.startDate.toISOString()); 
     formData.set('endDate', data.endDate.toISOString());
-    // react-hook-form already populates these from `data` into FormData when using formRef and native submit
-    // but explicit set ensures they are present if there's any discrepancy.
     formData.set('leaveType', data.leaveType);
     formData.set('reason', data.reason);
     formAction(formData);
@@ -349,6 +347,7 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
 
 export default function AllLeaveRequestsPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Approved" | "Rejected">("All");
   const [allRequests, setAllRequests] = useState<LeaveRequestEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -401,18 +400,27 @@ export default function AllLeaveRequestsPage() {
 
 
   const filteredRequests = useMemo(() => {
-    const lowercasedFilter = searchTerm.toLowerCase();
-    return allRequests.filter(item => {
-      return (
-        item.employeeName.toLowerCase().includes(lowercasedFilter) ||
-        item.leaveType.toLowerCase().includes(lowercasedFilter) ||
-        item.reason.toLowerCase().includes(lowercasedFilter) ||
-        item.status.toLowerCase().includes(lowercasedFilter) ||
-        format(item.startDate.toDate(), "PPP").toLowerCase().includes(lowercasedFilter) ||
-        format(item.endDate.toDate(), "PPP").toLowerCase().includes(lowercasedFilter)
-      );
-    });
-  }, [allRequests, searchTerm]);
+    let requests = allRequests;
+
+    if (statusFilter !== "All") {
+      requests = requests.filter(item => item.status === statusFilter);
+    }
+
+    if (searchTerm) {
+      const lowercasedFilter = searchTerm.toLowerCase();
+      requests = requests.filter(item => {
+        return (
+          item.employeeName.toLowerCase().includes(lowercasedFilter) ||
+          item.leaveType.toLowerCase().includes(lowercasedFilter) ||
+          item.reason.toLowerCase().includes(lowercasedFilter) ||
+          item.status.toLowerCase().includes(lowercasedFilter) || // Status already filtered, but good for direct search
+          format(item.startDate.toDate(), "PPP").toLowerCase().includes(lowercasedFilter) ||
+          format(item.endDate.toDate(), "PPP").toLowerCase().includes(lowercasedFilter)
+        );
+      });
+    }
+    return requests;
+  }, [allRequests, searchTerm, statusFilter]);
 
   const openStatusUpdateDialog = (request: LeaveRequestEntry, type: "Approved" | "Rejected") => {
     setSelectedRequestToAction(request);
@@ -459,17 +467,31 @@ export default function AllLeaveRequestsPage() {
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Leave Request Log</CardTitle>
+             <CardDescription>A comprehensive list of all submitted leave requests.</CardDescription>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-2">
-                <CardDescription className="flex-grow">A comprehensive list of all submitted leave requests.</CardDescription>
-                <div className="relative sm:w-1/2 lg:w-1/3">
+                <div className="relative flex-grow sm:flex-grow-0 sm:w-1/2 lg:w-1/3">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                     type="search"
-                    placeholder="Search requests (name, type, status, date...)"
+                    placeholder="Search requests..."
                     className="w-full pl-10"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     />
+                </div>
+                <div className="flex items-center gap-2 sm:w-auto">
+                    <Filter className="h-4 w-4 text-muted-foreground"/>
+                    <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "All" | "Pending" | "Approved" | "Rejected")}>
+                        <SelectTrigger className="w-full sm:w-[180px]">
+                            <SelectValue placeholder="Filter by status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="All">All Statuses</SelectItem>
+                            <SelectItem value="Pending">Pending</SelectItem>
+                            <SelectItem value="Approved">Approved</SelectItem>
+                            <SelectItem value="Rejected">Rejected</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
           </CardHeader>
@@ -548,7 +570,7 @@ export default function AllLeaveRequestsPage() {
                   ) : (
                     <TableRow>
                       <TableCell colSpan={9} className="h-24 text-center">
-                        {searchTerm ? "No requests found matching your search." : "No leave requests found."}
+                        {searchTerm || statusFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
                       </TableCell>
                     </TableRow>
                   )}
