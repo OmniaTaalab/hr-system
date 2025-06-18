@@ -9,10 +9,10 @@ import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/fi
 const CreateEmployeeFormSchema = z.object({
   name: z.string().min(1, "Full name is required."),
   email: z.string().email({ message: 'Invalid email address.' }),
-  employeeId: z.string().min(1, "Employee ID is required."),
+  employeeId: z.string().min(1, "Employee ID is required.").regex(/^\d+$/, "Employee ID must contain only numbers."),
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
-  phone: z.string().min(1, "Phone number is required."),
+  phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
 });
 
 export type CreateEmployeeState = {
@@ -93,7 +93,7 @@ const UpdateEmployeeFormSchema = z.object({
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
   email: z.string().email({ message: 'Invalid email address.' }),
-  phone: z.string().min(1, "Phone number is required."),
+  phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
   status: z.enum(["Active", "On Leave", "Terminated"]),
 });
 
@@ -163,3 +163,4 @@ export async function updateEmployeeAction(
     };
   }
 }
+
