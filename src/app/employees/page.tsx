@@ -3,7 +3,7 @@
 
 import { AppLayout } from "@/components/layout/app-layout";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,6 +17,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -32,6 +33,7 @@ import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, t
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, deleteDoc, doc, type Timestamp } from 'firebase/firestore';
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 
 interface Employee {
@@ -106,7 +108,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         action={formAction}
         className="flex flex-col overflow-hidden"
       >
-        <ScrollArea className="flex-grow min-h-[150px] max-h-[300px] border-2 border-transparent bg-transparent">
+        <ScrollArea className="flex-grow min-h-[150px] max-h-[300px]">
           <div className="space-y-4 p-4 pr-2">
             <div className="space-y-2">
               <Label htmlFor="add-name">Full Name</Label>
@@ -148,7 +150,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
           </div>
         </ScrollArea>
         <AlertDialogFooter className="pt-4 flex-shrink-0 border-t">
-          <AlertDialogCancel type="button" onClick={onSuccess}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel type="button" onClick={() => { onSuccess(); setFormClientError(null); }}>Cancel</AlertDialogCancel>
           <Button type="submit" form="add-employee-form" disabled={isPending}>
             {isPending ? (
               <>
@@ -200,7 +202,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         className="flex flex-col overflow-hidden"
       >
         <input type="hidden" name="employeeDocId" defaultValue={employee.id} />
-        <ScrollArea className="flex-grow min-h-[150px] max-h-[300px] border-2 border-transparent bg-transparent">
+        <ScrollArea className="flex-grow min-h-[150px] max-h-[300px]">
           <div className="space-y-4 p-4 pr-2">
             <div className="space-y-2">
               <Label htmlFor="edit-name">Full Name</Label>
@@ -250,7 +252,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
           </div>
         </ScrollArea>
         <AlertDialogFooter className="pt-4 flex-shrink-0 border-t">
-          <AlertDialogCancel type="button" onClick={onSuccess}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel type="button" onClick={() => { onSuccess(); setFormClientError(null); }}>Cancel</AlertDialogCancel>
           <Button type="submit" form="edit-employee-form" disabled={isPending}>
               {isPending ? (
                   <>
@@ -278,6 +280,10 @@ export default function EmployeeManagementPage() {
   
   const [addFormKey, setAddFormKey] = useState(0);
   const [editFormKey, setEditFormKey] = useState(0);
+
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+
 
   useEffect(() => {
     setIsLoading(true);
@@ -315,7 +321,7 @@ export default function EmployeeManagementPage() {
   const totalEmployees = employees.length;
 
   const openAddDialog = () => {
-    setAddFormKey(prevKey => prevKey + 1);
+    setAddFormKey(prevKey => prevKey + 1); // Reset form state by changing key
     setIsAddDialogOpen(true);
   }
   const closeAddDialog = () => {
@@ -324,7 +330,7 @@ export default function EmployeeManagementPage() {
 
   const openEditDialog = (employee: Employee) => {
     setEditingEmployee(employee);
-    setEditFormKey(prevKey => prevKey + 1);
+    setEditFormKey(prevKey => prevKey + 1); // Reset form state
     setIsEditDialogOpen(true);
   };
   const closeEditDialog = () => {
@@ -332,22 +338,33 @@ export default function EmployeeManagementPage() {
     setIsEditDialogOpen(false);
   };
   
-  const handleDeleteEmployee = async (employeeDocId: string, employeeName: string) => {
-    if (window.confirm(`Are you sure you want to delete employee ${employeeName} (ID: ${employeeDocId})? This action cannot be undone.`)) {
-      try {
-        await deleteDoc(doc(db, "employy", employeeDocId));
-        toast({
-          title: "Employee Deleted",
-          description: `Employee ${employeeName} has been removed successfully.`,
-        });
-      } catch (error) {
-        console.error("Error deleting employee: ", error);
-        toast({
-          variant: "destructive",
-          title: "Error Deleting Employee",
-          description: `Could not delete ${employeeName}. Please try again. Error: ${(error as Error).message}`,
-        });
-      }
+  const openDeleteConfirmDialog = (employee: Employee) => {
+    setEmployeeToDelete(employee);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const closeDeleteConfirmDialog = () => {
+    setEmployeeToDelete(null);
+    setIsDeleteDialogOpen(false);
+  };
+
+  const confirmDeleteEmployee = async () => {
+    if (!employeeToDelete) return;
+    try {
+      await deleteDoc(doc(db, "employy", employeeToDelete.id));
+      toast({
+        title: "Employee Deleted",
+        description: `Employee ${employeeToDelete.name} has been removed successfully.`,
+      });
+    } catch (error) {
+      console.error("Error deleting employee: ", error);
+      toast({
+        variant: "destructive",
+        title: "Error Deleting Employee",
+        description: `Could not delete ${employeeToDelete.name}. Please try again. Error: ${(error as Error).message}`,
+      });
+    } finally {
+      closeDeleteConfirmDialog();
     }
   };
 
@@ -440,7 +457,7 @@ export default function EmployeeManagementPage() {
                               <Edit3 className="mr-2 h-4 w-4" />
                               Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDeleteEmployee(employee.id, employee.name)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                            <DropdownMenuItem onClick={() => openDeleteConfirmDialog(employee)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
                               <Trash2 className="mr-2 h-4 w-4" />
                               Delete
                             </DropdownMenuItem>
@@ -479,7 +496,30 @@ export default function EmployeeManagementPage() {
         </AlertDialog>
       )}
 
+      {isDeleteDialogOpen && employeeToDelete && (
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => { if(!open) closeDeleteConfirmDialog(); else setIsDeleteDialogOpen(true); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the employee record for <strong>{employeeToDelete.name}</strong> (ID: {employeeToDelete.employeeId}).
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={closeDeleteConfirmDialog}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDeleteEmployee}
+                className={cn(buttonVariants({ variant: "destructive" }), "bg-destructive text-destructive-foreground hover:bg-destructive/90")}
+              >
+                Delete Employee
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
     </AppLayout>
   );
 }
 
+    
