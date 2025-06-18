@@ -126,7 +126,7 @@ export default function ViewEmployeeLeaveRequestsPage() {
       <div className="space-y-8">
         <header>
           <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-            View Employee Leave Requests
+            Leave Request Details
           </h1>
           <p className="text-muted-foreground">
             Select an employee from the list to view their submitted leave requests.

@@ -23,9 +23,9 @@ export const navItems: NavItem[] = [
     iconName: 'CalendarPlus',
   },
   {
-    title: 'My Leave Requests', // New Page
+    title: 'Leave request details', // Renamed
     href: '/leave/my-requests',
-    iconName: 'ClipboardList', // Using ClipboardList or similar
+    iconName: 'ClipboardList', 
   },
   {
     title: 'All Leave Requests',
