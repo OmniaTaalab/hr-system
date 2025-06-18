@@ -190,20 +190,20 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
   const form = useForm<EditLeaveRequestFormValues>({
     resolver: zodResolver(editLeaveRequestClientSchema),
     defaultValues: {
-      leaveType: request.leaveType,
+      leaveType: request.leaveType || "",
       startDate: request.startDate.toDate(),
       endDate: request.endDate.toDate(),
-      reason: request.reason,
+      reason: request.reason || "",
     },
   });
    
   useEffect(() => {
-    if (request && open) { // Ensure reset only happens when dialog is opened with new request data
+    if (request && open) { 
       form.reset({
-        leaveType: request.leaveType,
+        leaveType: request.leaveType || "",
         startDate: request.startDate.toDate(),
         endDate: request.endDate.toDate(),
-        reason: request.reason,
+        reason: request.reason || "",
       });
     }
   }, [request, form, open]);
@@ -225,6 +225,10 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
     formData.set('requestId', request.id);
     formData.set('startDate', data.startDate.toISOString()); 
     formData.set('endDate', data.endDate.toISOString());
+    // react-hook-form already populates these from `data` into FormData when using formRef and native submit
+    // but explicit set ensures they are present if there's any discrepancy.
+    formData.set('leaveType', data.leaveType);
+    formData.set('reason', data.reason);
     formAction(formData);
   };
 
@@ -246,7 +250,7 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Leave Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger><SelectValue placeholder="Select a leave type" /></SelectTrigger>
                     </FormControl>
@@ -321,7 +325,7 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
                 <FormItem>
                   <FormLabel>Reason for Leave</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Reason for leave" className="resize-none" {...field} rows={3} />
+                    <Textarea placeholder="Reason for leave" className="resize-none" {...field} value={field.value || ""} rows={3} />
                   </FormControl>
                   <FormMessage>{serverState?.errors?.reason?.[0] || form.formState.errors.reason?.message}</FormMessage>
                 </FormItem>
