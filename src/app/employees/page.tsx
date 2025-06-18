@@ -26,7 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, UserClock } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, type UpdateEmployeeState } from "@/app/actions/employee-actions";
@@ -415,7 +415,7 @@ export default function EmployeeManagementPage() {
             <Card>
               <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-xs font-medium sm:text-sm">On Leave</CardTitle>
-                <UserClock className="h-4 w-4 text-yellow-500" />
+                <Clock className="h-4 w-4 text-yellow-500" />
               </CardHeader>
               <CardContent className="p-3 pt-0">
                 <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.onLeave}</div>
@@ -562,3 +562,4 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
