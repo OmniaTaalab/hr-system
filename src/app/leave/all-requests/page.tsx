@@ -43,7 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
-import { format } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, Timestamp, orderBy } from 'firebase/firestore';
 import { 
@@ -483,6 +483,7 @@ export default function AllLeaveRequestsPage() {
                     <TableHead>Leave Type</TableHead>
                     <TableHead>Start Date</TableHead>
                     <TableHead>End Date</TableHead>
+                    <TableHead>Number of Days</TableHead>
                     <TableHead>Reason</TableHead>
                     <TableHead>Manager Notes</TableHead>
                     <TableHead>Status</TableHead>
@@ -491,52 +492,58 @@ export default function AllLeaveRequestsPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredRequests.length > 0 ? (
-                    filteredRequests.map((request) => (
-                      <TableRow key={request.id}>
-                        <TableCell className="font-medium">{request.employeeName}</TableCell>
-                        <TableCell>{request.leaveType}</TableCell>
-                        <TableCell>{format(request.startDate.toDate(), "PPP")}</TableCell>
-                        <TableCell>{format(request.endDate.toDate(), "PPP")}</TableCell>
-                        <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
-                        <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>
-                        <TableCell>
-                          <LeaveStatusBadge status={request.status} />
-                        </TableCell>
-                        <TableCell className="text-right">
-                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              {request.status === "Pending" && (
-                                <>
-                                  <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Approved")}>
-                                    <ShieldCheck className="mr-2 h-4 w-4" /> Approve
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Rejected")}>
-                                    <ShieldX className="mr-2 h-4 w-4" /> Reject
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => openEditDialog(request)}>
-                                    <Edit3 className="mr-2 h-4 w-4" /> Edit
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                </>
-                              )}
-                              <DropdownMenuItem onClick={() => openDeleteDialog(request)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                                <Trash2 className="mr-2 h-4 w-4" /> Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    filteredRequests.map((request) => {
+                      const startDate = request.startDate.toDate();
+                      const endDate = request.endDate.toDate();
+                      const numberOfDays = differenceInCalendarDays(endDate, startDate) + 1;
+                      return (
+                        <TableRow key={request.id}>
+                          <TableCell className="font-medium">{request.employeeName}</TableCell>
+                          <TableCell>{request.leaveType}</TableCell>
+                          <TableCell>{format(startDate, "PPP")}</TableCell>
+                          <TableCell>{format(endDate, "PPP")}</TableCell>
+                          <TableCell>{numberOfDays}</TableCell>
+                          <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
+                          <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>
+                          <TableCell>
+                            <LeaveStatusBadge status={request.status} />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                  <span className="sr-only">Open menu</span>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                {request.status === "Pending" && (
+                                  <>
+                                    <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Approved")}>
+                                      <ShieldCheck className="mr-2 h-4 w-4" /> Approve
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Rejected")}>
+                                      <ShieldX className="mr-2 h-4 w-4" /> Reject
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => openEditDialog(request)}>
+                                      <Edit3 className="mr-2 h-4 w-4" /> Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                  </>
+                                )}
+                                <DropdownMenuItem onClick={() => openDeleteDialog(request)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center">
+                      <TableCell colSpan={9} className="h-24 text-center">
                         {searchTerm ? "No requests found matching your search." : "No leave requests found."}
                       </TableCell>
                     </TableRow>

@@ -15,7 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, ShieldCheck, ShieldX, Hourglass, Users, ListFilter } from "lucide-react";
 import React, { useState, useEffect, useCallback } from "react";
-import { format } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, where, Timestamp, orderBy, DocumentData } from 'firebase/firestore';
 import type { LeaveRequestEntry } from '@/app/leave/all-requests/page'; // Re-use the interface
@@ -89,9 +89,11 @@ export default function ViewEmployeeLeaveRequestsPage() {
     setIsLoadingRequests(true);
     // The 'employeeId' field in 'leaveRequests' collection stores the employee's name
     // This is based on how submitLeaveRequestAction saves it.
+    // To ensure robust matching, we should ideally use a unique, immutable employee ID.
+    // For now, assuming 'employeeName' in 'leaveRequests' matches 'name' in 'employy'.
     const requestsQuery = query(
       collection(db, "leaveRequests"),
-      where("employeeId", "==", selectedEmployee.name), 
+      where("employeeName", "==", selectedEmployee.name), // Querying by employeeName as per current setup
       orderBy("submittedAt", "desc")
     );
 
@@ -205,6 +207,7 @@ export default function ViewEmployeeLeaveRequestsPage() {
                       <TableHead>Leave Type</TableHead>
                       <TableHead>Start Date</TableHead>
                       <TableHead>End Date</TableHead>
+                      <TableHead>Number of Days</TableHead>
                       <TableHead>Reason</TableHead>
                       <TableHead>Submitted On</TableHead>
                       <TableHead>Manager Notes</TableHead>
@@ -212,19 +215,25 @@ export default function ViewEmployeeLeaveRequestsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {employeeRequests.map((request) => (
-                      <TableRow key={request.id}>
-                        <TableCell>{request.leaveType}</TableCell>
-                        <TableCell>{format(request.startDate.toDate(), "PPP")}</TableCell>
-                        <TableCell>{format(request.endDate.toDate(), "PPP")}</TableCell>
-                        <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
-                        <TableCell>{request.submittedAt ? format(request.submittedAt.toDate(), "PPP p") : "-"}</TableCell>
-                        <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>
-                        <TableCell className="text-right">
-                          <LeaveStatusBadge status={request.status} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {employeeRequests.map((request) => {
+                      const startDate = request.startDate.toDate();
+                      const endDate = request.endDate.toDate();
+                      const numberOfDays = differenceInCalendarDays(endDate, startDate) + 1;
+                      return (
+                        <TableRow key={request.id}>
+                          <TableCell>{request.leaveType}</TableCell>
+                          <TableCell>{format(startDate, "PPP")}</TableCell>
+                          <TableCell>{format(endDate, "PPP")}</TableCell>
+                          <TableCell>{numberOfDays}</TableCell>
+                          <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
+                          <TableCell>{request.submittedAt ? format(request.submittedAt.toDate(), "PPP p") : "-"}</TableCell>
+                          <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>
+                          <TableCell className="text-right">
+                            <LeaveStatusBadge status={request.status} />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               ) : (
