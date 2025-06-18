@@ -3,6 +3,8 @@
 
 import { z } from 'zod';
 import { redirect } from 'next/navigation';
+import { auth } from '@/lib/firebase/config'; // Import Firebase auth instance
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 const LoginSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -13,9 +15,9 @@ export type LoginState = {
   errors?: {
     email?: string[];
     password?: string[];
-    form?: string[]; 
+    form?: string[];
   };
-  message?: string | null; 
+  message?: string | null;
 };
 
 export async function loginUser(
@@ -36,22 +38,40 @@ export async function loginUser(
 
   const { email, password } = validatedFields.data;
 
-  // Simulate backend authentication
-  // In a real app, replace this with your actual authentication logic
-  // (e.g., call your backend API, Firebase Auth, etc.)
-  if (email === 'user@example.com' && password === 'password123') {
-    // IMPORTANT: In a real app, you would set up a session or cookie here
-    // to maintain the user's authenticated state.
-    
-    // For now, we just redirect to the dashboard.
-    // This does NOT persist any login state across requests or browser sessions.
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    // Successful login
+    // IMPORTANT: In a real app, you would set up session management here
+    // or rely on Firebase's client-side persistence.
+    // For now, we just redirect.
     redirect('/');
     // redirect() throws an error, so this line is technically unreachable.
-    // To satisfy TypeScript if strict checks are on:
     // return { message: 'Login successful, redirecting...' };
-  } else {
+  } catch (error: any) {
+    let errorMessage = 'Login failed. An unexpected error occurred.';
+    if (error.code) {
+      switch (error.code) {
+        case 'auth/invalid-credential':
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+          errorMessage = 'Invalid email or password. Please try again.';
+          break;
+        case 'auth/invalid-email':
+          return {
+            errors: { email: ['Invalid email address format.'] },
+            message: 'Login failed.',
+          };
+        case 'auth/too-many-requests':
+          errorMessage = 'Too many login attempts. Please try again later.';
+          break;
+        default:
+          errorMessage = `Login failed: ${error.message}`;
+          break;
+      }
+    }
+    console.error('Firebase Authentication Error:', error);
     return {
-      errors: { form: ['Invalid email or password. Please try again.'] },
+      errors: { form: [errorMessage] },
       message: 'Login failed.',
     };
   }
