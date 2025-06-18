@@ -324,8 +324,8 @@ export default function EmployeeManagementPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <form id="add-employee-form" key={`add-form-${addFormKey}`} action={addEmployeeFormAction}>
-            <ScrollArea className="max-h-[250px] pr-2">
-              <div className="space-y-4 py-4">
+            <ScrollArea className="max-h-[200px] border border-red-400"> {/* Debug border and reduced height */}
+              <div className="space-y-4 p-4 pr-5"> {/* Padding for content and scrollbar gutter */}
                 <div className="space-y-2">
                   <Label htmlFor="add-name">Full Name</Label>
                   <Input id="add-name" name="name" placeholder="e.g., John Doe" />
@@ -392,8 +392,8 @@ export default function EmployeeManagementPage() {
             </AlertDialogHeader>
             <form id="edit-employee-form" key={`edit-form-${editFormKey}`} action={editEmployeeFormAction}>
               <input type="hidden" name="employeeDocId" defaultValue={editingEmployee.id} />
-              <ScrollArea className="max-h-[250px] pr-2">
-                <div className="space-y-4 py-4">
+              <ScrollArea className="max-h-[200px] border border-red-400"> {/* Debug border and reduced height */}
+                <div className="space-y-4 p-4 pr-5"> {/* Padding for content and scrollbar gutter */}
                   <div className="space-y-2">
                     <Label htmlFor="edit-name">Full Name</Label>
                     <Input id="edit-name" name="name" defaultValue={editingEmployee.name}  />
