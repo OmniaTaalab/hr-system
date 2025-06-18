@@ -48,37 +48,53 @@ export async function loginUser(
     // redirect() throws an error, so this line is technically unreachable.
     // return { message: 'Login successful, redirecting...' };
   } catch (error: any) {
-    console.error('Firebase Authentication Error:', error); // Log the full error object
-    let errorMessage = 'Login failed. An unexpected error occurred.';
+    console.error('Firebase Authentication Error:', error); // Log the full error object - THIS IS IMPORTANT FOR DEBUGGING
+
+    let specificErrorMessage: string | null = null;
+
     if (error.code) {
       switch (error.code) {
         case 'auth/invalid-credential':
-        case 'auth/user-not-found':
-        case 'auth/wrong-password':
-          errorMessage = 'Invalid email or password. Please try again.';
+        // auth/invalid-credential is a common error that can mean user not found or wrong password.
+        // Firebase consolidated these for security reasons.
+        case 'auth/user-not-found': // Kept for clarity, though often covered by invalid-credential
+        case 'auth/wrong-password': // Kept for clarity, though often covered by invalid-credential
+          specificErrorMessage = 'Invalid email or password. Please try again.';
           break;
         case 'auth/invalid-email':
+          // For invalid-email, we return directly to set errors on the email field
           return {
             errors: { email: ['Invalid email address format.'] },
             message: 'Login failed.',
           };
         case 'auth/too-many-requests':
-          errorMessage = 'Too many login attempts. Please try again later.';
+          specificErrorMessage = 'Too many login attempts. Please try again later.';
+          break;
+        case 'auth/user-disabled':
+          specificErrorMessage = 'This user account has been disabled.';
           break;
         // Add more specific Firebase error codes as needed
-        // e.g. auth/user-disabled, auth/operation-not-allowed
+        // e.g., auth/operation-not-allowed
         default:
-          // Use the error message from Firebase if available and not too generic
+          // Unhandled Firebase error code
           if (error.message && !error.message.includes('INTERNAL ASSERTION FAILED')) {
-            errorMessage = `Login failed: ${error.message}`;
+            specificErrorMessage = `Login failed: ${error.message} (Code: ${error.code})`;
+          } else {
+            specificErrorMessage = `Login failed. An unexpected error occurred (Code: ${error.code}).`;
           }
           break;
       }
+    } else if (error.message && !error.message.includes('INTERNAL ASSERTION FAILED')) {
+      // Error without a Firebase code, but with a message
+      specificErrorMessage = `Login failed: ${error.message}`;
     }
+
+    // If no specific message was set after checking error.code and error.message, use the most generic one.
+    const finalErrorMessage = specificErrorMessage || 'Login failed. An unexpected error occurred.';
+
     return {
-      errors: { form: [errorMessage] },
+      errors: { form: [finalErrorMessage] },
       message: 'Login failed.',
     };
   }
 }
-
