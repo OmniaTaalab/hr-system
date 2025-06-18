@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState, useFormStatus } from "react"; // Changed from "react-dom" and useFormState to useActionState
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ function LoginButton() {
 }
 
 export default function LoginPage() {
-  const [state, dispatch] = useFormState(loginUser, initialState);
+  const [state, dispatch] = useActionState(loginUser, initialState); // Changed from useFormState
   const { toast } = useToast();
 
   useEffect(() => {
@@ -58,7 +58,6 @@ export default function LoginPage() {
                 name="email"
                 type="email"
                 placeholder="user@example.com"
-                required
                 aria-describedby="email-error"
               />
               {state?.errors?.email && (
@@ -73,7 +72,6 @@ export default function LoginPage() {
                 id="password"
                 name="password"
                 type="password"
-                required
                 placeholder="••••••••"
                 aria-describedby="password-error"
               />
