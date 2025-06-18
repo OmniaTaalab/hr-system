@@ -66,13 +66,13 @@ export async function createEmployeeAction(
       createdAt: serverTimestamp(), // Timestamp for when the record was created
     };
     
-    // Add a new document with a generated ID to the "employees" collection
-    const docRef = await addDoc(collection(db, "employees"), employeeData);
+    // Add a new document with a generated ID to the "مستخدمين" collection
+    const docRef = await addDoc(collection(db, "مستخدمين"), employeeData);
     
-    console.log('Employee data saved to Firestore with ID:', docRef.id);
+    console.log('Employee data saved to Firestore in "مستخدمين" collection with ID:', docRef.id);
     console.log('Employee data:', employeeData);
 
-    return { message: `Employee "${name}" created successfully in Firestore.` };
+    return { message: `Employee "${name}" created successfully and saved to Firestore.` };
   } catch (error: any) {
     console.error('Firestore Create Employee Error:', error); 
     let specificErrorMessage = 'Failed to create employee in Firestore. An unexpected error occurred.';
@@ -90,3 +90,4 @@ export async function createEmployeeAction(
     };
   }
 }
+
