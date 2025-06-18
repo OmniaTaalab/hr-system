@@ -81,8 +81,8 @@ export default function EmployeeManagementPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   
-  const [addFormKey, setAddFormKey] = useState(0); // Key for resetting add form
-  const [editFormKey, setEditFormKey] = useState(0); // Key for resetting edit form
+  const [addFormKey, setAddFormKey] = useState(0);
+  const [editFormKey, setEditFormKey] = useState(0);
 
   const [addEmployeeServerState, addEmployeeFormAction, isAddEmployeePending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
   const [addFormClientError, setAddFormClientError] = useState<string | null>(null); 
@@ -98,7 +98,7 @@ export default function EmployeeManagementPage() {
       querySnapshot.forEach((doc) => {
         employeesData.push({ id: doc.id, ...doc.data() } as Employee);
       });
-      setEmployees(employeesData.sort((a, b) => a.name.localeCompare(b.name))); // Sort by name
+      setEmployees(employeesData.sort((a, b) => a.name.localeCompare(b.name)));
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching employees: ", error);
@@ -110,7 +110,7 @@ export default function EmployeeManagementPage() {
       setIsLoading(false);
     });
 
-    return () => unsubscribe(); // Cleanup listener on component unmount
+    return () => unsubscribe();
   }, [toast]);
 
 
@@ -127,11 +127,8 @@ export default function EmployeeManagementPage() {
 
   const openAddDialog = () => {
     setAddFormClientError(null); 
-    setAddFormKey(prevKey => prevKey + 1); // Increment key to reset form
-    const form = document.getElementById('add-employee-form') as HTMLFormElement | null;
-    if (form) {
-      form.reset(); // Resets input values
-    }
+    setAddFormKey(prevKey => prevKey + 1);
+    // Form reset is now handled by the key prop on the form element
     setIsAddDialogOpen(true);
   }
   const closeAddDialog = () => {
@@ -140,9 +137,9 @@ export default function EmployeeManagementPage() {
   }
 
   useEffect(() => {
-    if (!addEmployeeServerState) return; // Guard against initial undefined state
+    if (!addEmployeeServerState) return;
 
-    if (addEmployeeServerState.message && !addEmployeeServerState.errors?.form && !Object.keys(addEmployeeServerState.errors || {}).filter(k => k !== 'form').length) { // Success from server
+    if (addEmployeeServerState.message && !addEmployeeServerState.errors?.form && !Object.keys(addEmployeeServerState.errors || {}).filter(k => k !== 'form').length) {
       toast({
         title: "Employee Added",
         description: addEmployeeServerState.message,
@@ -160,7 +157,7 @@ export default function EmployeeManagementPage() {
   const openEditDialog = (employee: Employee) => {
     setEditFormClientError(null);
     setEditingEmployee(employee);
-    setEditFormKey(prevKey => prevKey + 1); // Increment key to reset form
+    setEditFormKey(prevKey => prevKey + 1);
     setIsEditDialogOpen(true);
   };
   const closeEditDialog = () => {
@@ -170,7 +167,7 @@ export default function EmployeeManagementPage() {
   };
   
   useEffect(() => {
-    if (!editEmployeeServerState) return; // Guard against initial undefined state
+    if (!editEmployeeServerState) return;
     
     if (editEmployeeServerState.message && !editEmployeeServerState.errors?.form && !Object.keys(editEmployeeServerState.errors || {}).filter(k => k !== 'form').length) {
       toast({
@@ -195,7 +192,6 @@ export default function EmployeeManagementPage() {
           title: "Employee Deleted",
           description: `Employee ${employeeName} has been removed successfully.`,
         });
-        // The onSnapshot listener will automatically update the local state
       } catch (error) {
         console.error("Error deleting employee: ", error);
         toast({
@@ -342,7 +338,7 @@ export default function EmployeeManagementPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-employeeId">Employee ID</Label>
-                <Input id="add-employeeId" name="employeeId" placeholder="e.g., 007" />
+                <Input id="add-employeeId" name="employeeId" placeholder="e.g., 007 (Numbers only)" />
                 {addEmployeeServerState?.errors?.employeeId && <p className="text-sm text-destructive">{addEmployeeServerState.errors.employeeId.join(', ')}</p>}
               </div>
               <div className="space-y-2">
@@ -357,7 +353,7 @@ export default function EmployeeManagementPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-phone">Phone</Label>
-                <Input id="add-phone" name="phone" placeholder="e.g., 5550107" />
+                <Input id="add-phone" name="phone" placeholder="e.g., 5550107 (Numbers only)" />
                  {addEmployeeServerState?.errors?.phone && <p className="text-sm text-destructive">{addEmployeeServerState.errors.phone.join(', ')}</p>}
               </div>
 
@@ -370,17 +366,13 @@ export default function EmployeeManagementPage() {
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel type="button" onClick={closeAddDialog}>Cancel</AlertDialogCancel>
-              <Button type="submit" disabled={isAddEmployeePending} asChild={false}>
-                <AlertDialogAction type="submit" disabled={isAddEmployeePending} onClick={(e) => {
-                  if (isAddEmployeePending) e.preventDefault();
-                }}>
-                  {isAddEmployeePending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Adding...
-                    </>
-                  ) : "Add Employee"}
-                </AlertDialogAction>
+              <Button type="submit" form="add-employee-form" disabled={isAddEmployeePending}>
+                {isAddEmployeePending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Adding...
+                  </>
+                ) : "Add Employee"}
               </Button>
             </AlertDialogFooter>
           </form>
@@ -426,7 +418,7 @@ export default function EmployeeManagementPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-phone">Phone</Label>
-                  <Input id="edit-phone" name="phone" defaultValue={editingEmployee.phone}  />
+                  <Input id="edit-phone" name="phone" defaultValue={editingEmployee.phone} placeholder="Numbers only" />
                   {editEmployeeServerState?.errors?.phone && <p className="text-sm text-destructive">{editEmployeeServerState.errors.phone.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
@@ -447,17 +439,13 @@ export default function EmployeeManagementPage() {
               </div>
               <AlertDialogFooter>
                 <AlertDialogCancel type="button" onClick={closeEditDialog}>Cancel</AlertDialogCancel>
-                 <Button type="submit" disabled={isEditEmployeePending} asChild={false}>
-                    <AlertDialogAction type="submit" disabled={isEditEmployeePending} onClick={(e) => {
-                        if (isEditEmployeePending) e.preventDefault();
-                    }}>
+                 <Button type="submit" form="edit-employee-form" disabled={isEditEmployeePending}>
                     {isEditEmployeePending ? (
                         <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Saving...
                         </>
                     ) : "Save Changes"}
-                    </AlertDialogAction>
                 </Button>
               </AlertDialogFooter>
             </form>
@@ -468,6 +456,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
-
-    
