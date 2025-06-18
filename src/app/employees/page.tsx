@@ -329,7 +329,7 @@ export default function EmployeeManagementPage() {
             action={addEmployeeFormAction}
             className="flex flex-col overflow-hidden"
           >
-            <ScrollArea className="flex-grow bg-yellow-100 border-2 border-red-500 min-h-[150px] max-h-[300px]">
+            <ScrollArea className="flex-grow min-h-[150px] max-h-[300px]">
               <div className="space-y-4 p-4 pr-2">
                 <div className="space-y-2">
                   <Label htmlFor="add-name">Full Name</Label>
@@ -362,12 +362,6 @@ export default function EmployeeManagementPage() {
                   {addEmployeeServerState?.errors?.phone && <p className="text-sm text-destructive">{addEmployeeServerState.errors.phone.join(', ')}</p>}
                 </div>
                 
-                {/* Dummy content for testing scroll */}
-                <div className="h-20 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center text-sm text-slate-500">Temp Box 1</div>
-                <div className="h-20 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center text-sm text-slate-500">Temp Box 2</div>
-                <div className="h-20 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center text-sm text-slate-500">Temp Box 3</div>
-
-
                 {(addFormClientError || addEmployeeServerState?.errors?.form) && (
                   <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
                     <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
@@ -408,7 +402,7 @@ export default function EmployeeManagementPage() {
               className="flex flex-col overflow-hidden"
             >
               <input type="hidden" name="employeeDocId" defaultValue={editingEmployee.id} />
-              <ScrollArea className="flex-grow bg-yellow-100 border-2 border-red-500 min-h-[150px] max-h-[300px]">
+              <ScrollArea className="flex-grow min-h-[150px] max-h-[300px]">
                 <div className="space-y-4 p-4 pr-2">
                   <div className="space-y-2">
                     <Label htmlFor="edit-name">Full Name</Label>
@@ -448,10 +442,6 @@ export default function EmployeeManagementPage() {
                     </select>
                     {editEmployeeServerState?.errors?.status && <p className="text-sm text-destructive">{editEmployeeServerState.errors.status.join(', ')}</p>}
                   </div>
-
-                  {/* Dummy content for testing scroll */}
-                  <div className="h-20 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center text-sm text-slate-500">Temp Box 1</div>
-                  <div className="h-20 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center text-sm text-slate-500">Temp Box 2</div>
 
                   {(editFormClientError || editEmployeeServerState?.errors?.form) && (
                     <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
