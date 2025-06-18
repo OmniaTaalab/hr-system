@@ -87,13 +87,11 @@ export default function ViewEmployeeLeaveRequestsPage() {
     }
 
     setIsLoadingRequests(true);
-    // The 'employeeId' field in 'leaveRequests' collection stores the employee's name
+    // The 'employeeName' field in 'leaveRequests' collection stores the employee's name
     // This is based on how submitLeaveRequestAction saves it.
-    // To ensure robust matching, we should ideally use a unique, immutable employee ID.
-    // For now, assuming 'employeeName' in 'leaveRequests' matches 'name' in 'employy'.
     const requestsQuery = query(
       collection(db, "leaveRequests"),
-      where("employeeName", "==", selectedEmployee.name), // Querying by employeeName as per current setup
+      where("employeeName", "==", selectedEmployee.name), 
       orderBy("submittedAt", "desc")
     );
 
