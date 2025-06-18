@@ -35,15 +35,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 
 interface Employee {
-  id: string; // Firestore document ID
+  id: string; 
   name: string;
-  employeeId: string; // The ID given by the company
+  employeeId: string; 
   department: string;
   role: string;
   email: string;
   phone: string;
   status: "Active" | "On Leave" | "Terminated";
-  createdAt?: Timestamp; // Optional, from Firestore
+  createdAt?: Timestamp; 
 }
 
 
