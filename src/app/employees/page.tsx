@@ -17,7 +17,6 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -32,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, type UpdateEmployeeState } from "@/app/actions/employee-actions";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, deleteDoc, doc, type Timestamp } from 'firebase/firestore';
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 
 interface Employee {
@@ -128,7 +128,6 @@ export default function EmployeeManagementPage() {
   const openAddDialog = () => {
     setAddFormClientError(null); 
     setAddFormKey(prevKey => prevKey + 1);
-    // Form reset is now handled by the key prop on the form element
     setIsAddDialogOpen(true);
   }
   const closeAddDialog = () => {
@@ -325,46 +324,48 @@ export default function EmployeeManagementPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <form id="add-employee-form" key={`add-form-${addFormKey}`} action={addEmployeeFormAction}>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="add-name">Full Name</Label>
-                <Input id="add-name" name="name" placeholder="e.g., John Doe" />
-                {addEmployeeServerState?.errors?.name && <p className="text-sm text-destructive">{addEmployeeServerState.errors.name.join(', ')}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-email">Email</Label>
-                <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" />
-                 {addEmployeeServerState?.errors?.email && <p className="text-sm text-destructive">{addEmployeeServerState.errors.email.join(', ')}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-employeeId">Employee ID</Label>
-                <Input id="add-employeeId" name="employeeId" placeholder="e.g., 007 (Numbers only)" />
-                {addEmployeeServerState?.errors?.employeeId && <p className="text-sm text-destructive">{addEmployeeServerState.errors.employeeId.join(', ')}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-department">Department</Label>
-                <Input id="add-department" name="department" placeholder="e.g., Technology" />
-                {addEmployeeServerState?.errors?.department && <p className="text-sm text-destructive">{addEmployeeServerState.errors.department.join(', ')}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-role">Role</Label>
-                <Input id="add-role" name="role" placeholder="e.g., Software Developer" />
-                {addEmployeeServerState?.errors?.role && <p className="text-sm text-destructive">{addEmployeeServerState.errors.role.join(', ')}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-phone">Phone</Label>
-                <Input id="add-phone" name="phone" placeholder="e.g., 5550107 (Numbers only)" />
-                 {addEmployeeServerState?.errors?.phone && <p className="text-sm text-destructive">{addEmployeeServerState.errors.phone.join(', ')}</p>}
-              </div>
-
-              {(addFormClientError || addEmployeeServerState?.errors?.form) && (
-                <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
-                  <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-                  <span>{addFormClientError || addEmployeeServerState?.errors?.form?.join(', ')}</span>
+            <ScrollArea className="max-h-[60vh] pr-5"> {/* Added ScrollArea */}
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="add-name">Full Name</Label>
+                  <Input id="add-name" name="name" placeholder="e.g., John Doe" />
+                  {addEmployeeServerState?.errors?.name && <p className="text-sm text-destructive">{addEmployeeServerState.errors.name.join(', ')}</p>}
                 </div>
-              )}
-            </div>
-            <AlertDialogFooter>
+                <div className="space-y-2">
+                  <Label htmlFor="add-email">Email</Label>
+                  <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" />
+                  {addEmployeeServerState?.errors?.email && <p className="text-sm text-destructive">{addEmployeeServerState.errors.email.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-employeeId">Employee ID</Label>
+                  <Input id="add-employeeId" name="employeeId" placeholder="e.g., 007 (Numbers only)" />
+                  {addEmployeeServerState?.errors?.employeeId && <p className="text-sm text-destructive">{addEmployeeServerState.errors.employeeId.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-department">Department</Label>
+                  <Input id="add-department" name="department" placeholder="e.g., Technology" />
+                  {addEmployeeServerState?.errors?.department && <p className="text-sm text-destructive">{addEmployeeServerState.errors.department.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-role">Role</Label>
+                  <Input id="add-role" name="role" placeholder="e.g., Software Developer" />
+                  {addEmployeeServerState?.errors?.role && <p className="text-sm text-destructive">{addEmployeeServerState.errors.role.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-phone">Phone</Label>
+                  <Input id="add-phone" name="phone" placeholder="e.g., 5550107 (Numbers only)" />
+                  {addEmployeeServerState?.errors?.phone && <p className="text-sm text-destructive">{addEmployeeServerState.errors.phone.join(', ')}</p>}
+                </div>
+
+                {(addFormClientError || addEmployeeServerState?.errors?.form) && (
+                  <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
+                    <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
+                    <span>{addFormClientError || addEmployeeServerState?.errors?.form?.join(', ')}</span>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+            <AlertDialogFooter className="pt-4"> {/* Added padding top to footer */}
               <AlertDialogCancel type="button" onClick={closeAddDialog}>Cancel</AlertDialogCancel>
               <Button type="submit" form="add-employee-form" disabled={isAddEmployeePending}>
                 {isAddEmployeePending ? (
@@ -391,55 +392,57 @@ export default function EmployeeManagementPage() {
             </AlertDialogHeader>
             <form id="edit-employee-form" key={`edit-form-${editFormKey}`} action={editEmployeeFormAction}>
               <input type="hidden" name="employeeDocId" defaultValue={editingEmployee.id} />
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-name">Full Name</Label>
-                  <Input id="edit-name" name="name" defaultValue={editingEmployee.name}  />
-                   {editEmployeeServerState?.errors?.name && <p className="text-sm text-destructive">{editEmployeeServerState.errors.name.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-employeeIdDisplay">Employee ID (Company Given)</Label>
-                  <Input id="edit-employeeIdDisplay" name="employeeIdDisplay" defaultValue={editingEmployee.employeeId} readOnly className="bg-muted/50" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-department">Department</Label>
-                  <Input id="edit-department" name="department" defaultValue={editingEmployee.department}  />
-                   {editEmployeeServerState?.errors?.department && <p className="text-sm text-destructive">{editEmployeeServerState.errors.department.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-role">Role</Label>
-                  <Input id="edit-role" name="role" defaultValue={editingEmployee.role}  />
-                  {editEmployeeServerState?.errors?.role && <p className="text-sm text-destructive">{editEmployeeServerState.errors.role.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-email">Email</Label>
-                  <Input id="edit-email" name="email" type="email" defaultValue={editingEmployee.email}  />
-                  {editEmployeeServerState?.errors?.email && <p className="text-sm text-destructive">{editEmployeeServerState.errors.email.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-phone">Phone</Label>
-                  <Input id="edit-phone" name="phone" defaultValue={editingEmployee.phone} placeholder="Numbers only" />
-                  {editEmployeeServerState?.errors?.phone && <p className="text-sm text-destructive">{editEmployeeServerState.errors.phone.join(', ')}</p>}
-                </div>
-                 <div className="space-y-2">
-                  <Label htmlFor="edit-status">Status</Label>
-                   <select id="edit-status" name="status" defaultValue={editingEmployee.status} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" >
-                    <option value="Active">Active</option>
-                    <option value="On Leave">On Leave</option>
-                    <option value="Terminated">Terminated</option>
-                  </select>
-                  {editEmployeeServerState?.errors?.status && <p className="text-sm text-destructive">{editEmployeeServerState.errors.status.join(', ')}</p>}
-                </div>
-                {(editFormClientError || editEmployeeServerState?.errors?.form) && (
-                  <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
-                    <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-                    <span>{editFormClientError || editEmployeeServerState?.errors?.form?.join(', ')}</span>
+              <ScrollArea className="max-h-[60vh] pr-5"> {/* Added ScrollArea */}
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-name">Full Name</Label>
+                    <Input id="edit-name" name="name" defaultValue={editingEmployee.name}  />
+                    {editEmployeeServerState?.errors?.name && <p className="text-sm text-destructive">{editEmployeeServerState.errors.name.join(', ')}</p>}
                   </div>
-                )}
-              </div>
-              <AlertDialogFooter>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-employeeIdDisplay">Employee ID (Company Given)</Label>
+                    <Input id="edit-employeeIdDisplay" name="employeeIdDisplay" defaultValue={editingEmployee.employeeId} readOnly className="bg-muted/50" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-department">Department</Label>
+                    <Input id="edit-department" name="department" defaultValue={editingEmployee.department}  />
+                    {editEmployeeServerState?.errors?.department && <p className="text-sm text-destructive">{editEmployeeServerState.errors.department.join(', ')}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-role">Role</Label>
+                    <Input id="edit-role" name="role" defaultValue={editingEmployee.role}  />
+                    {editEmployeeServerState?.errors?.role && <p className="text-sm text-destructive">{editEmployeeServerState.errors.role.join(', ')}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-email">Email</Label>
+                    <Input id="edit-email" name="email" type="email" defaultValue={editingEmployee.email}  />
+                    {editEmployeeServerState?.errors?.email && <p className="text-sm text-destructive">{editEmployeeServerState.errors.email.join(', ')}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-phone">Phone</Label>
+                    <Input id="edit-phone" name="phone" defaultValue={editingEmployee.phone} placeholder="Numbers only" />
+                    {editEmployeeServerState?.errors?.phone && <p className="text-sm text-destructive">{editEmployeeServerState.errors.phone.join(', ')}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-status">Status</Label>
+                    <select id="edit-status" name="status" defaultValue={editingEmployee.status} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" >
+                      <option value="Active">Active</option>
+                      <option value="On Leave">On Leave</option>
+                      <option value="Terminated">Terminated</option>
+                    </select>
+                    {editEmployeeServerState?.errors?.status && <p className="text-sm text-destructive">{editEmployeeServerState.errors.status.join(', ')}</p>}
+                  </div>
+                  {(editFormClientError || editEmployeeServerState?.errors?.form) && (
+                    <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
+                      <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
+                      <span>{editFormClientError || editEmployeeServerState?.errors?.form?.join(', ')}</span>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+              <AlertDialogFooter className="pt-4"> {/* Added padding top to footer */}
                 <AlertDialogCancel type="button" onClick={closeEditDialog}>Cancel</AlertDialogCancel>
-                 <Button type="submit" form="edit-employee-form" disabled={isEditEmployeePending}>
+                <Button type="submit" form="edit-employee-form" disabled={isEditEmployeePending}>
                     {isEditEmployeePending ? (
                         <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -456,3 +459,5 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
+
