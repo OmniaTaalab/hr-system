@@ -27,15 +27,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { format, parseISO } from "date-fns";
-import { CalendarIcon, Send, Loader2 } from "lucide-react";
+import { format } from "date-fns";
+import { CalendarIcon, Send, Loader2, ChevronsUpDown, CheckIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState, useMemo } from "react";
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
+import { db } from '@/lib/firebase/config';
+import { collection, query, where, getDocs, orderBy, type Timestamp } from 'firebase/firestore';
 
 // Schema must match the server action's schema for client-side validation
 const leaveRequestClientSchema = z.object({
@@ -57,21 +60,65 @@ const initialSubmitState: SubmitLeaveRequestState = {
   success: false,
 };
 
+interface Employee {
+  id: string; // Firestore document ID
+  name: string;
+  employeeId: string; // Company's employee ID
+  status: string;
+  // Add other relevant fields if needed, e.g., department
+}
+
 export default function LeaveRequestPage() {
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const [serverState, formAction, isPending] = useActionState(submitLeaveRequestAction, initialSubmitState);
 
+  const [activeEmployees, setActiveEmployees] = useState<Employee[]>([]);
+  const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
+  const [employeeSearchTerm, setEmployeeSearchTerm] = useState("");
+  const [isEmployeePopoverOpen, setIsEmployeePopoverOpen] = useState(false);
+
   const form = useForm<LeaveRequestFormValues>({
     resolver: zodResolver(leaveRequestClientSchema),
     defaultValues: {
-      employeeName: "", // In a real app, this might be pre-filled from user auth
+      employeeName: "",
       leaveType: "",
       reason: "",
       startDate: undefined,
       endDate: undefined,
     },
   });
+
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      setIsLoadingEmployees(true);
+      try {
+        const q = query(collection(db, "employy"), where("status", "==", "Active"), orderBy("name"));
+        const querySnapshot = await getDocs(q);
+        const employeesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        setActiveEmployees(employeesData);
+      } catch (error) {
+        console.error("Error fetching active employees:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not load active employees for selection.",
+        });
+      } finally {
+        setIsLoadingEmployees(false);
+      }
+    };
+    fetchEmployees();
+  }, [toast]);
+
+  const filteredEmployees = useMemo(() => {
+    if (!employeeSearchTerm) {
+      return activeEmployees;
+    }
+    return activeEmployees.filter(employee =>
+      employee.name.toLowerCase().includes(employeeSearchTerm.toLowerCase())
+    );
+  }, [activeEmployees, employeeSearchTerm]);
 
  useEffect(() => {
     if (serverState?.message) {
@@ -80,11 +127,8 @@ export default function LeaveRequestPage() {
           title: "Success",
           description: serverState.message,
         });
-        form.reset(); // Reset form on successful submission
-        // Clear serverState to prevent toast from re-appearing on navigation
-        // This requires a way to reset useActionState, which is tricky.
-        // A common pattern is to use a key on the form or redirect.
-        // For now, the user can navigate away.
+        form.reset(); 
+        setEmployeeSearchTerm(""); // Reset search term on successful submission
       } else if (serverState.errors?.form || Object.keys(serverState.errors || {}).length > 0) {
         toast({
           variant: "destructive",
@@ -95,26 +139,15 @@ export default function LeaveRequestPage() {
     }
   }, [serverState, toast, form]);
 
-
-  // Function to handle actual form submission logic
   const handleFormSubmit = (data: LeaveRequestFormValues) => {
-    const formData = new FormData(formRef.current!); // Get FormData from the form element
-    
-    // Dates need to be in ISO string format for FormData
+    const formData = new FormData(formRef.current!);
     formData.set('startDate', data.startDate.toISOString());
     formData.set('endDate', data.endDate.toISOString());
-    
-    // Manually set other fields if they are not directly from input elements
-    // or if their names differ from react-hook-form field names.
-    // For standard input/select/textarea, react-hook-form handles this.
-    // Here, we're ensuring all validated data is present.
     formData.set('employeeName', data.employeeName);
     formData.set('leaveType', data.leaveType);
     formData.set('reason', data.reason);
-
     formAction(formData);
   };
-
 
   return (
     <AppLayout>
@@ -129,18 +162,76 @@ export default function LeaveRequestPage() {
         </header>
 
         <Form {...form}>
-          {/* We pass the validated data to handleFormSubmit */}
           <form ref={formRef} onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
             <FormField
               control={form.control}
               name="employeeName"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="flex flex-col">
                   <FormLabel>Employee Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter your full name" {...field} />
-                  </FormControl>
-                  <FormMessage>{serverState?.errors?.employeeName?.[0]}</FormMessage>
+                  <Popover open={isEmployeePopoverOpen} onOpenChange={setIsEmployeePopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={isEmployeePopoverOpen}
+                          className={cn(
+                            "w-full justify-between",
+                            !field.value && "text-muted-foreground"
+                          )}
+                          disabled={isLoadingEmployees}
+                        >
+                          {isLoadingEmployees
+                            ? "Loading employees..."
+                            : field.value
+                            ? activeEmployees.find(emp => emp.name === field.value)?.name
+                            : "Select employee..."}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <div className="p-2">
+                        <Input
+                          placeholder="Search employee..."
+                          value={employeeSearchTerm}
+                          onChange={(e) => setEmployeeSearchTerm(e.target.value)}
+                          className="w-full"
+                          aria-label="Search employees"
+                        />
+                      </div>
+                      <ScrollArea className="max-h-60">
+                        {isLoadingEmployees && <p className="p-2 text-sm text-center text-muted-foreground">Loading...</p>}
+                        {!isLoadingEmployees && filteredEmployees.length === 0 && (
+                          <p className="p-2 text-sm text-center text-muted-foreground">No employee found.</p>
+                        )}
+                        {!isLoadingEmployees && filteredEmployees.map((employee) => (
+                          <div
+                            key={employee.id}
+                            onClick={() => {
+                              form.setValue("employeeName", employee.name);
+                              field.onChange(employee.name); // Ensure react-hook-form is updated
+                              setIsEmployeePopoverOpen(false);
+                              setEmployeeSearchTerm("");
+                            }}
+                            className="flex items-center justify-between p-2 mx-1 my-0.5 text-sm hover:bg-accent rounded-md cursor-pointer"
+                          >
+                            {employee.name}
+                            <CheckIcon
+                              className={cn(
+                                "ml-auto h-4 w-4",
+                                employee.name === field.value
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              )}
+                            />
+                          </div>
+                        ))}
+                      </ScrollArea>
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage>{serverState?.errors?.employeeName?.[0] || form.formState.errors.employeeName?.message}</FormMessage>
                 </FormItem>
               )}
             />
@@ -151,7 +242,7 @@ export default function LeaveRequestPage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Leave Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a leave type" />
@@ -167,7 +258,7 @@ export default function LeaveRequestPage() {
                       <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
-                  <FormMessage>{serverState?.errors?.leaveType?.[0]}</FormMessage>
+                  <FormMessage>{serverState?.errors?.leaveType?.[0] || form.formState.errors.leaveType?.message}</FormMessage>
                 </FormItem>
               )}
             />
@@ -204,13 +295,13 @@ export default function LeaveRequestPage() {
                           selected={field.value}
                           onSelect={field.onChange}
                           disabled={(date) =>
-                            date < new Date(new Date().setHours(0,0,0,0)) // Disable past dates
+                            date < new Date(new Date().setHours(0,0,0,0)) 
                           }
                           initialFocus
                         />
                       </PopoverContent>
                     </Popover>
-                    <FormMessage>{serverState?.errors?.startDate?.[0]}</FormMessage>
+                    <FormMessage>{serverState?.errors?.startDate?.[0] || form.formState.errors.startDate?.message}</FormMessage>
                   </FormItem>
                 )}
               />
@@ -252,7 +343,7 @@ export default function LeaveRequestPage() {
                         />
                       </PopoverContent>
                     </Popover>
-                    <FormMessage>{serverState?.errors?.endDate?.[0]}</FormMessage>
+                    <FormMessage>{serverState?.errors?.endDate?.[0] || form.formState.errors.endDate?.message}</FormMessage>
                   </FormItem>
                 )}
               />
@@ -275,7 +366,7 @@ export default function LeaveRequestPage() {
                   <FormDescription>
                     A brief reason helps in faster processing of your request.
                   </FormDescription>
-                  <FormMessage>{serverState?.errors?.reason?.[0]}</FormMessage>
+                  <FormMessage>{serverState?.errors?.reason?.[0] || form.formState.errors.reason?.message}</FormMessage>
                 </FormItem>
               )}
             />
@@ -286,7 +377,7 @@ export default function LeaveRequestPage() {
               </p>
             )}
 
-            <Button type="submit" className="w-full md:w-auto group" disabled={isPending}>
+            <Button type="submit" className="w-full md:w-auto group" disabled={isPending || isLoadingEmployees}>
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -305,3 +396,5 @@ export default function LeaveRequestPage() {
     </AppLayout>
   );
 }
+
+    
