@@ -60,8 +60,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 
 export interface LeaveRequestEntry {
   id: string; 
+  requestingEmployeeDocId: string; // Added this for robust linking
   employeeName: string;
-  employeeId: string;
+  // employeeId: string; // Original field, perhaps used differently, now we rely on requestingEmployeeDocId
   leaveType: string;
   startDate: Timestamp;
   endDate: Timestamp;
@@ -367,6 +368,8 @@ export default function AllLeaveRequestsPage() {
 
   useEffect(() => {
     setIsLoading(true);
+    // Make sure a Firestore index exists for: requestingEmployeeDocId (ASC), submittedAt (DESC)
+    // And another for: submittedAt (DESC) (if you sort all requests just by submission time)
     const q = query(collection(db, "leaveRequests"), orderBy("submittedAt", "desc"));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const requestsData: LeaveRequestEntry[] = [];
@@ -380,7 +383,7 @@ export default function AllLeaveRequestsPage() {
       toast({
         variant: "destructive",
         title: "Error Fetching Requests",
-        description: "Could not load leave requests from Firestore.",
+        description: "Could not load leave requests from Firestore. This might be due to a missing Firestore index.",
       });
       setIsLoading(false);
     });
@@ -398,6 +401,17 @@ export default function AllLeaveRequestsPage() {
     }
   }, [deleteServerState, toast]);
 
+  const requestCounts = useMemo(() => {
+    return allRequests.reduce(
+      (acc, request) => {
+        if (request.status === "Pending") acc.pending++;
+        else if (request.status === "Approved") acc.approved++;
+        else if (request.status === "Rejected") acc.rejected++;
+        return acc;
+      },
+      { pending: 0, approved: 0, rejected: 0 }
+    );
+  }, [allRequests]);
 
   const filteredRequests = useMemo(() => {
     let requests = allRequests;
@@ -413,7 +427,7 @@ export default function AllLeaveRequestsPage() {
           item.employeeName.toLowerCase().includes(lowercasedFilter) ||
           item.leaveType.toLowerCase().includes(lowercasedFilter) ||
           item.reason.toLowerCase().includes(lowercasedFilter) ||
-          item.status.toLowerCase().includes(lowercasedFilter) || // Status already filtered, but good for direct search
+          item.status.toLowerCase().includes(lowercasedFilter) || 
           format(item.startDate.toDate(), "PPP").toLowerCase().includes(lowercasedFilter) ||
           format(item.endDate.toDate(), "PPP").toLowerCase().includes(lowercasedFilter)
         );
@@ -463,6 +477,42 @@ export default function AllLeaveRequestsPage() {
             View, search, and manage all employee leave requests.
           </p>
         </header>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
+              <Hourglass className="h-4 w-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.pending}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Approved Requests</CardTitle>
+              <ShieldCheck className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.approved}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Rejected Requests</CardTitle>
+              <ShieldX className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.rejected}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         <Card className="shadow-lg">
           <CardHeader>
@@ -623,7 +673,7 @@ export default function AllLeaveRequestsPage() {
                 <AlertDialogAction
                   type="submit"
                   form="delete-leave-request-form"
-                  className={buttonVariants({ variant: "destructive" })}
+                  className={cn(buttonVariants({ variant: "destructive" }), "bg-destructive text-destructive-foreground hover:bg-destructive/90")}
                   disabled={isDeletePending}
                 >
                   {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Request"}
@@ -637,4 +687,3 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
-
