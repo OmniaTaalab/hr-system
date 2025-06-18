@@ -9,7 +9,6 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore'; // Imp
 const CreateEmployeeFormSchema = z.object({
   name: z.string().min(1, "Full name is required."),
   email: z.string().email({ message: 'Invalid email address.' }),
-  // Password field removed as per user request
   employeeId: z.string().min(1, "Employee ID is required."),
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
@@ -20,7 +19,6 @@ export type CreateEmployeeState = {
   errors?: {
     name?: string[];
     email?: string[];
-    // password?: string[]; // Password errors removed
     employeeId?: string[];
     department?: string[];
     role?: string[];
@@ -37,7 +35,6 @@ export async function createEmployeeAction(
   const validatedFields = CreateEmployeeFormSchema.safeParse({
     name: formData.get('name'),
     email: formData.get('email'),
-    // password: formData.get('password'), // Password removed
     employeeId: formData.get('employeeId'),
     department: formData.get('department'),
     role: formData.get('role'),
@@ -66,10 +63,10 @@ export async function createEmployeeAction(
       createdAt: serverTimestamp(), // Timestamp for when the record was created
     };
     
-    // Add a new document with a generated ID to the "مستخدمين" collection
-    const docRef = await addDoc(collection(db, "مستخدمين"), employeeData);
+    // Add a new document with a generated ID to the "users" collection
+    const docRef = await addDoc(collection(db, "users"), employeeData);
     
-    console.log('Employee data saved to Firestore in "مستخدمين" collection with ID:', docRef.id);
+    console.log('Employee data saved to Firestore in "users" collection with ID:', docRef.id);
     console.log('Employee data:', employeeData);
 
     return { message: `Employee "${name}" created successfully and saved to Firestore.` };
@@ -90,4 +87,3 @@ export async function createEmployeeAction(
     };
   }
 }
-
