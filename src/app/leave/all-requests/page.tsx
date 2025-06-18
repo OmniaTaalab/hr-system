@@ -198,7 +198,7 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
   });
    
   useEffect(() => {
-    if (request) {
+    if (request && open) { // Ensure reset only happens when dialog is opened with new request data
       form.reset({
         leaveType: request.leaveType,
         startDate: request.startDate.toDate(),
@@ -206,7 +206,7 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
         reason: request.reason,
       });
     }
-  }, [request, form, open]); // Reset form when request or open state changes
+  }, [request, form, open]);
 
   useEffect(() => {
     if (serverState?.message) {
@@ -223,14 +223,13 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
     if (!formRef.current) return;
     const formData = new FormData(formRef.current);
     formData.set('requestId', request.id);
-    formData.set('startDate', data.startDate.toISOString()); // Convert Date to ISO string for FormData
+    formData.set('startDate', data.startDate.toISOString()); 
     formData.set('endDate', data.endDate.toISOString());
-    // leaveType and reason are already set by react-hook-form via field binding
     formAction(formData);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>Edit Leave Request</DialogTitle>
@@ -440,13 +439,6 @@ export default function AllLeaveRequestsPage() {
     setIsDeleteDialogOpen(false);
   };
 
-  const handleDeleteConfirm = () => {
-    if (!selectedRequestToDelete) return;
-    const formData = new FormData();
-    formData.append('requestId', selectedRequestToDelete.id);
-    deleteFormAction(formData);
-  };
-
 
   return (
     <AppLayout>
@@ -531,9 +523,9 @@ export default function AllLeaveRequestsPage() {
                                   <DropdownMenuItem onClick={() => openEditDialog(request)}>
                                     <Edit3 className="mr-2 h-4 w-4" /> Edit
                                   </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
                                 </>
                               )}
-                              <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => openDeleteDialog(request)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
                                 <Trash2 className="mr-2 h-4 w-4" /> Delete
                               </DropdownMenuItem>
@@ -557,7 +549,7 @@ export default function AllLeaveRequestsPage() {
       </div>
       
       {isStatusUpdateDialogOpen && selectedRequestToAction && actionTypeForStatusUpdate && (
-        <AlertDialog open={isStatusUpdateDialogOpen} onOpenChange={setIsStatusUpdateDialogOpen}>
+        <AlertDialog open={isStatusUpdateDialogOpen} onOpenChange={(isOpen) => {if(!isOpen) closeStatusUpdateDialog(); else setIsStatusUpdateDialogOpen(true);}}>
           <AlertDialogContent>
             <UpdateStatusForm 
               request={selectedRequestToAction} 
@@ -577,30 +569,34 @@ export default function AllLeaveRequestsPage() {
       )}
 
       {isDeleteDialogOpen && selectedRequestToDelete && (
-        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {if(!isOpen) closeDeleteDialog(); else setIsDeleteDialogOpen(true);}}>
           <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the leave request for <strong>{selectedRequestToDelete.employeeName}</strong>
-                from {format(selectedRequestToDelete.startDate.toDate(), "PPP")} to {format(selectedRequestToDelete.endDate.toDate(), "PPP")}.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-             {deleteServerState?.errors?.form && (
-                <p className="text-sm font-medium text-destructive">
-                {deleteServerState.errors.form.join(", ")}
-                </p>
-            )}
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={closeDeleteDialog}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDeleteConfirm}
-                className={buttonVariants({ variant: "destructive" })}
-                disabled={isDeletePending}
-              >
-                {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Request"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
+            <form id="delete-leave-request-form" action={deleteFormAction}>
+              <input type="hidden" name="requestId" value={selectedRequestToDelete.id} />
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete the leave request for <strong>{selectedRequestToDelete.employeeName}</strong>
+                  from {format(selectedRequestToDelete.startDate.toDate(), "PPP")} to {format(selectedRequestToDelete.endDate.toDate(), "PPP")}.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {deleteServerState?.errors?.form && (
+                  <p className="text-sm font-medium text-destructive my-2">
+                  {deleteServerState.errors.form.join(", ")}
+                  </p>
+              )}
+              <AlertDialogFooter className="mt-4">
+                <AlertDialogCancel type="button" onClick={closeDeleteDialog}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  type="submit"
+                  form="delete-leave-request-form"
+                  className={buttonVariants({ variant: "destructive" })}
+                  disabled={isDeletePending}
+                >
+                  {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Request"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </form>
           </AlertDialogContent>
         </AlertDialog>
       )}
