@@ -27,8 +27,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle } from "lucide-react";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useActionState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { createEmployeeAction, type CreateEmployeeState } from "@/app/actions/employee-actions";
+
 
 interface Employee {
   id: string;
@@ -63,6 +65,12 @@ function EmployeeStatusBadge({ status }: { status: Employee["status"] }) {
   }
 }
 
+const initialCreateEmployeeState: CreateEmployeeState = {
+  message: null,
+  errors: {},
+};
+
+
 export default function EmployeeManagementPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
@@ -71,7 +79,10 @@ export default function EmployeeManagementPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [addFormError, setAddFormError] = useState<string | null>(null);
+  
+  const [addEmployeeServerState, addEmployeeFormAction, isAddEmployeePending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
+  const [addFormClientError, setAddFormClientError] = useState<string | null>(null); // For client-side only validation messages
+  
   const [editFormError, setEditFormError] = useState<string | null>(null);
 
 
@@ -87,10 +98,37 @@ export default function EmployeeManagementPage() {
   const totalEmployees = employees.length;
 
   const openAddDialog = () => {
-    setAddFormError(null);
+    setAddFormClientError(null); 
+    // Reset server action state if you want the form to be fresh, though useActionState might handle this.
+    // For safety, could explicitly reset: addEmployeeServerState = initialCreateEmployeeState but useActionState doesn't return a setter for state.
+    // Best to clear form fields manually or rely on form reset on success.
+    if (document.getElementById('add-employee-form')) {
+      (document.getElementById('add-employee-form') as HTMLFormElement).reset();
+    }
     setIsAddDialogOpen(true);
   }
-  const closeAddDialog = () => setIsAddDialogOpen(false);
+  const closeAddDialog = () => {
+    setIsAddDialogOpen(false);
+    setAddFormClientError(null); // Clear client error on close
+    // Consider resetting server action state if needed, though it typically re-evaluates on next action.
+  }
+
+  useEffect(() => {
+    if (addEmployeeServerState?.message && !addEmployeeServerState.errors) { // Success from server
+      toast({
+        title: "Employee Added",
+        description: addEmployeeServerState.message,
+      });
+      closeAddDialog();
+    } else if (addEmployeeServerState?.errors?.form) { // Form-level error from server
+      setAddFormClientError(addEmployeeServerState.errors.form.join(', '));
+    } else if (addEmployeeServerState?.errors) { // Field-level errors from server
+      // Concatenate field errors for simplicity, or handle them individually
+      const fieldErrors = Object.values(addEmployeeServerState.errors).flat().filter(Boolean).join('; ');
+      setAddFormClientError(fieldErrors || "An error occurred. Please check the details.");
+    }
+  }, [addEmployeeServerState, toast]);
+
 
   const openEditDialog = (employee: Employee) => {
     setEditFormError(null);
@@ -107,29 +145,9 @@ export default function EmployeeManagementPage() {
       setEmployees(prev => prev.filter(emp => emp.id !== id));
       toast({
         title: "Employee Deleted (Mock)",
-        description: `Employee ${id} has been removed from the list.`,
+        description: `Employee ${id} has been removed from the list. This is a mock action.`,
       });
     }
-  };
-
-  const handleSaveAddEmployee = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setAddFormError(null);
-    const formData = new FormData(event.currentTarget);
-    const name = formData.get('name') as string;
-    const employeeId = formData.get('employeeId') as string;
-    const department = formData.get('department') as string;
-    const role = formData.get('role') as string;
-    const email = formData.get('email') as string;
-    const phone = formData.get('phone') as string;
-
-    if (!name || !employeeId || !department || !role || !email || !phone) {
-      setAddFormError("Please fill in all required fields.");
-      return;
-    }
-    
-    console.log("Mock Add: Employee add functionality is a placeholder.", Object.fromEntries(formData));
-    closeAddDialog();
   };
 
   const handleSaveEditEmployee = (event: React.FormEvent<HTMLFormElement>) => {
@@ -137,13 +155,11 @@ export default function EmployeeManagementPage() {
     setEditFormError(null);
     const formData = new FormData(event.currentTarget);
     const name = formData.get('name') as string;
-    // Employee ID is read-only, so we get it from editingEmployee state
     const department = formData.get('department') as string;
     const role = formData.get('role') as string;
     const email = formData.get('email') as string;
     const phone = formData.get('phone') as string;
     const status = formData.get('status') as Employee["status"];
-
 
     if (!name || !department || !role || !email || !phone || !status) {
        setEditFormError("Please fill in all required fields.");
@@ -151,6 +167,11 @@ export default function EmployeeManagementPage() {
     }
     
     console.log(`Mock Edit: Edit for ${editingEmployee?.name} is a placeholder.`, Object.fromEntries(formData));
+    // In a real app, you'd call a server action here to update the employee
+    toast({
+        title: "Employee Updated (Mock)",
+        description: `${name}'s details have been updated (mock action).`
+    });
     closeEditDialog();
   };
 
@@ -268,42 +289,56 @@ export default function EmployeeManagementPage() {
               Fill in the details below to add a new employee. All fields are required.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <form onSubmit={handleSaveAddEmployee}>
+          <form id="add-employee-form" action={addEmployeeFormAction}>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="add-name">Full Name</Label>
-                <Input id="add-name" name="name" placeholder="e.g., John Doe" defaultValue="" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-employeeId">Employee ID</Label>
-                <Input id="add-employeeId" name="employeeId" placeholder="e.g., E007" defaultValue="" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-department">Department</Label>
-                <Input id="add-department" name="department" placeholder="e.g., Technology" defaultValue="" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-role">Role</Label>
-                <Input id="add-role" name="role" placeholder="e.g., Software Developer" defaultValue="" />
+                <Input id="add-name" name="name" placeholder="e.g., John Doe" />
+                {addEmployeeServerState?.errors?.name && <p className="text-sm text-destructive">{addEmployeeServerState.errors.name.join(', ')}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-email">Email</Label>
-                <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" defaultValue="" />
+                <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" />
+                 {addEmployeeServerState?.errors?.email && <p className="text-sm text-destructive">{addEmployeeServerState.errors.email.join(', ')}</p>}
+              </div>
+               <div className="space-y-2">
+                <Label htmlFor="add-password">Password</Label>
+                <Input id="add-password" name="password" type="password" placeholder="Min. 6 characters" />
+                {addEmployeeServerState?.errors?.password && <p className="text-sm text-destructive">{addEmployeeServerState.errors.password.join(', ')}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-employeeId">Employee ID</Label>
+                <Input id="add-employeeId" name="employeeId" placeholder="e.g., E007" />
+                {addEmployeeServerState?.errors?.employeeId && <p className="text-sm text-destructive">{addEmployeeServerState.errors.employeeId.join(', ')}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-department">Department</Label>
+                <Input id="add-department" name="department" placeholder="e.g., Technology" />
+                {addEmployeeServerState?.errors?.department && <p className="text-sm text-destructive">{addEmployeeServerState.errors.department.join(', ')}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-role">Role</Label>
+                <Input id="add-role" name="role" placeholder="e.g., Software Developer" />
+                {addEmployeeServerState?.errors?.role && <p className="text-sm text-destructive">{addEmployeeServerState.errors.role.join(', ')}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-phone">Phone</Label>
-                <Input id="add-phone" name="phone" placeholder="e.g., 555-0107" defaultValue="" />
+                <Input id="add-phone" name="phone" placeholder="e.g., 555-0107" />
+                 {addEmployeeServerState?.errors?.phone && <p className="text-sm text-destructive">{addEmployeeServerState.errors.phone.join(', ')}</p>}
               </div>
-              {addFormError && (
+
+              {(addFormClientError || addEmployeeServerState?.errors?.form) && (
                 <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
                   <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-                  <span>{addFormError}</span>
+                  <span>{addFormClientError || addEmployeeServerState?.errors?.form?.join(', ')}</span>
                 </div>
               )}
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel type="button" onClick={closeAddDialog}>Cancel</AlertDialogCancel>
-              <AlertDialogAction type="submit">Add Employee</AlertDialogAction>
+              <AlertDialogAction type="submit" disabled={isAddEmployeePending}>
+                {isAddEmployeePending ? "Adding..." : "Add Employee"}
+              </AlertDialogAction>
             </AlertDialogFooter>
           </form>
         </AlertDialogContent>
@@ -372,6 +407,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-    
-
-    
