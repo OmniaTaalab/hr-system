@@ -2,8 +2,9 @@
 'use server';
 
 import { z } from 'zod';
-import { auth } from '@/lib/firebase/config'; // Firebase auth instance
+import { auth, db } from '@/lib/firebase/config'; // Import db from Firebase config
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp, collection } from 'firebase/firestore'; // Import Firestore functions
 
 // Schema for validating form data for creating an employee
 const CreateEmployeeFormSchema = z.object({
@@ -54,22 +55,41 @@ export async function createEmployeeAction(
   const { email, password, name, employeeId, department, role, phone } = validatedFields.data;
 
   try {
+    // Step 1: Create user in Firebase Authentication
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    // User created in Firebase Auth.
-    if (userCredential.user) {
-      await updateProfile(userCredential.user, {
+    const user = userCredential.user;
+
+    if (user) {
+      // Step 2: Update user profile in Firebase Authentication (displayName)
+      await updateProfile(user, {
         displayName: name,
       });
+
+      // Step 3: Save additional employee details to Firestore
+      const employeeData = {
+        uid: user.uid, // Store uid for linking
+        name,
+        email,
+        employeeId,
+        department,
+        role,
+        phone,
+        status: "Active", // Default status for new employee
+        createdAt: serverTimestamp(), // Timestamp for when the record was created
+      };
+      
+      // Create a reference to the employees collection and a new document with the user's UID
+      const employeeDocRef = doc(collection(db, "employees"), user.uid);
+      await setDoc(employeeDocRef, employeeData);
+      
+      console.log('Firebase Auth user created:', user.uid);
+      console.log('Employee data saved to Firestore:', employeeData);
     }
 
-    // In a real app, save additional employee details (employeeId, department, role, phone)
-    // to Firestore or Realtime Database, linking it with userCredential.user.uid.
-    console.log('Firebase Auth user created:', userCredential.user.uid);
-    console.log('Additional details (would be saved to DB):', { employeeId, department, role, phone });
 
-    return { message: `Employee "${name}" created successfully in Firebase Authentication.` };
+    return { message: `Employee "${name}" created successfully in Firebase Authentication and Firestore.` };
   } catch (error: any) {
-    console.error('Firebase Create User Error:', error); // Log the full error for server-side debugging
+    console.error('Firebase Create User/Employee Error:', error); 
     let specificErrorMessage = 'Failed to create employee. An unexpected error occurred.';
     if (error.code) {
       switch (error.code) {
@@ -85,6 +105,7 @@ export async function createEmployeeAction(
         case 'auth/weak-password':
           specificErrorMessage = 'The password is too weak (must be at least 6 characters).';
           break;
+        // Firestore specific errors could be handled here if needed, e.g., 'permission-denied'
         default:
            if (error.message) {
             specificErrorMessage = `Failed to create employee: ${error.message} (Code: ${error.code})`;
