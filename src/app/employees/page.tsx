@@ -324,7 +324,7 @@ export default function EmployeeManagementPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <form id="add-employee-form" key={`add-form-${addFormKey}`} action={addEmployeeFormAction}>
-            <ScrollArea className="max-h-[450px] pr-5"> {/* Changed max-h */}
+            <ScrollArea className="max-h-[250px] pr-2">
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label htmlFor="add-name">Full Name</Label>
@@ -392,7 +392,7 @@ export default function EmployeeManagementPage() {
             </AlertDialogHeader>
             <form id="edit-employee-form" key={`edit-form-${editFormKey}`} action={editEmployeeFormAction}>
               <input type="hidden" name="employeeDocId" defaultValue={editingEmployee.id} />
-              <ScrollArea className="max-h-[450px] pr-5"> {/* Changed max-h */}
+              <ScrollArea className="max-h-[250px] pr-2">
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label htmlFor="edit-name">Full Name</Label>
@@ -459,3 +459,4 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
