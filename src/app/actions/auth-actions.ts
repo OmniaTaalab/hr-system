@@ -48,6 +48,7 @@ export async function loginUser(
     // redirect() throws an error, so this line is technically unreachable.
     // return { message: 'Login successful, redirecting...' };
   } catch (error: any) {
+    console.error('Firebase Authentication Error:', error); // Log the full error object
     let errorMessage = 'Login failed. An unexpected error occurred.';
     if (error.code) {
       switch (error.code) {
@@ -64,15 +65,20 @@ export async function loginUser(
         case 'auth/too-many-requests':
           errorMessage = 'Too many login attempts. Please try again later.';
           break;
+        // Add more specific Firebase error codes as needed
+        // e.g. auth/user-disabled, auth/operation-not-allowed
         default:
-          errorMessage = `Login failed: ${error.message}`;
+          // Use the error message from Firebase if available and not too generic
+          if (error.message && !error.message.includes('INTERNAL ASSERTION FAILED')) {
+            errorMessage = `Login failed: ${error.message}`;
+          }
           break;
       }
     }
-    console.error('Firebase Authentication Error:', error);
     return {
       errors: { form: [errorMessage] },
       message: 'Login failed.',
     };
   }
 }
+
