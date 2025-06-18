@@ -7,7 +7,8 @@ import {
   Briefcase,
   Lightbulb,
   Users,
-  ListChecks, // Added ListChecks icon
+  ListChecks, 
+  ClipboardList, // Added ClipboardList icon
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -17,5 +18,6 @@ export const iconMap: { [key: string]: LucideIcon } = {
   Briefcase,
   Lightbulb,
   Users,
-  ListChecks, // Mapped ListChecks
+  ListChecks,
+  ClipboardList, // Mapped ClipboardList
 };

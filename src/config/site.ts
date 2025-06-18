@@ -13,9 +13,19 @@ export const navItems: NavItem[] = [
     iconName: 'LayoutDashboard',
   },
   {
-    title: 'Leave Request',
+    title: 'Employee Management', 
+    href: '/employees',
+    iconName: 'Users',
+  },
+  {
+    title: 'Submit Leave Request',
     href: '/leave/request',
     iconName: 'CalendarPlus',
+  },
+  {
+    title: 'My Leave Requests', // New Page
+    href: '/leave/my-requests',
+    iconName: 'ClipboardList', // Using ClipboardList or similar
   },
   {
     title: 'All Leave Requests',
@@ -26,11 +36,6 @@ export const navItems: NavItem[] = [
     title: 'Attendance',
     href: '/attendance',
     iconName: 'CheckCircle2',
-  },
-  {
-    title: 'Employee Management', // New Item
-    href: '/employees',
-    iconName: 'Users',
   },
   {
     title: 'Job Board',

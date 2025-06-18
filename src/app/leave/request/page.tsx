@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout } from "@/components/layout/app-layout";
@@ -29,12 +30,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { format } from "date-fns";
-import { CalendarIcon, Send } from "lucide-react";
+import { format, parseISO } from "date-fns";
+import { CalendarIcon, Send, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { useActionState, useEffect, useRef } from "react";
+import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
 
-const leaveRequestSchema = z.object({
+// Schema must match the server action's schema for client-side validation
+const leaveRequestClientSchema = z.object({
   employeeName: z.string().min(1, "Employee name is required"),
   leaveType: z.string().min(1, "Leave type is required"),
   startDate: z.date({ required_error: "Start date is required" }),
@@ -45,28 +49,72 @@ const leaveRequestSchema = z.object({
   path: ["endDate"],
 });
 
-type LeaveRequestFormValues = z.infer<typeof leaveRequestSchema>;
+type LeaveRequestFormValues = z.infer<typeof leaveRequestClientSchema>;
+
+const initialSubmitState: SubmitLeaveRequestState = {
+  message: null,
+  errors: {},
+  success: false,
+};
 
 export default function LeaveRequestPage() {
   const { toast } = useToast();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [serverState, formAction, isPending] = useActionState(submitLeaveRequestAction, initialSubmitState);
+
   const form = useForm<LeaveRequestFormValues>({
-    resolver: zodResolver(leaveRequestSchema),
+    resolver: zodResolver(leaveRequestClientSchema),
     defaultValues: {
-      employeeName: "", // Assuming current user context would fill this
+      employeeName: "", // In a real app, this might be pre-filled from user auth
       leaveType: "",
       reason: "",
+      startDate: undefined,
+      endDate: undefined,
     },
   });
 
-  function onSubmit(data: LeaveRequestFormValues) {
-    // Simulate API call
-    console.log(data);
-    toast({
-      title: "Leave Request Submitted",
-      description: `Your request for ${data.leaveType} leave from ${format(data.startDate, "PPP")} to ${format(data.endDate, "PPP")} has been submitted.`,
-    });
-    form.reset();
-  }
+ useEffect(() => {
+    if (serverState?.message) {
+      if (serverState.success) {
+        toast({
+          title: "Success",
+          description: serverState.message,
+        });
+        form.reset(); // Reset form on successful submission
+        // Clear serverState to prevent toast from re-appearing on navigation
+        // This requires a way to reset useActionState, which is tricky.
+        // A common pattern is to use a key on the form or redirect.
+        // For now, the user can navigate away.
+      } else if (serverState.errors?.form || Object.keys(serverState.errors || {}).length > 0) {
+        toast({
+          variant: "destructive",
+          title: "Submission Failed",
+          description: serverState.errors?.form?.join(", ") || serverState.message || "Please check the form for errors.",
+        });
+      }
+    }
+  }, [serverState, toast, form]);
+
+
+  // Function to handle actual form submission logic
+  const handleFormSubmit = (data: LeaveRequestFormValues) => {
+    const formData = new FormData(formRef.current!); // Get FormData from the form element
+    
+    // Dates need to be in ISO string format for FormData
+    formData.set('startDate', data.startDate.toISOString());
+    formData.set('endDate', data.endDate.toISOString());
+    
+    // Manually set other fields if they are not directly from input elements
+    // or if their names differ from react-hook-form field names.
+    // For standard input/select/textarea, react-hook-form handles this.
+    // Here, we're ensuring all validated data is present.
+    formData.set('employeeName', data.employeeName);
+    formData.set('leaveType', data.leaveType);
+    formData.set('reason', data.reason);
+
+    formAction(formData);
+  };
+
 
   return (
     <AppLayout>
@@ -76,12 +124,13 @@ export default function LeaveRequestPage() {
             Submit Leave Request
           </h1>
           <p className="text-muted-foreground">
-            Fill out the form below to request time off.
+            Fill out the form below to request time off. Your request will be sent for approval.
           </p>
         </header>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          {/* We pass the validated data to handleFormSubmit */}
+          <form ref={formRef} onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
             <FormField
               control={form.control}
               name="employeeName"
@@ -91,7 +140,7 @@ export default function LeaveRequestPage() {
                   <FormControl>
                     <Input placeholder="Enter your full name" {...field} />
                   </FormControl>
-                  <FormMessage />
+                  <FormMessage>{serverState?.errors?.employeeName?.[0]}</FormMessage>
                 </FormItem>
               )}
             />
@@ -109,15 +158,16 @@ export default function LeaveRequestPage() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="annual">Annual Leave</SelectItem>
-                      <SelectItem value="sick">Sick Leave</SelectItem>
-                      <SelectItem value="unpaid">Unpaid Leave</SelectItem>
-                      <SelectItem value="maternity">Maternity Leave</SelectItem>
-                      <SelectItem value="paternity">Paternity Leave</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
+                      <SelectItem value="Annual">Annual Leave</SelectItem>
+                      <SelectItem value="Sick">Sick Leave</SelectItem>
+                      <SelectItem value="Unpaid">Unpaid Leave</SelectItem>
+                      <SelectItem value="Maternity">Maternity Leave</SelectItem>
+                      <SelectItem value="Paternity">Paternity Leave</SelectItem>
+                      <SelectItem value="Bereavement">Bereavement Leave</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
-                  <FormMessage />
+                  <FormMessage>{serverState?.errors?.leaveType?.[0]}</FormMessage>
                 </FormItem>
               )}
             />
@@ -160,7 +210,7 @@ export default function LeaveRequestPage() {
                         />
                       </PopoverContent>
                     </Popover>
-                    <FormMessage />
+                    <FormMessage>{serverState?.errors?.startDate?.[0]}</FormMessage>
                   </FormItem>
                 )}
               />
@@ -202,7 +252,7 @@ export default function LeaveRequestPage() {
                         />
                       </PopoverContent>
                     </Popover>
-                    <FormMessage />
+                    <FormMessage>{serverState?.errors?.endDate?.[0]}</FormMessage>
                   </FormItem>
                 )}
               />
@@ -225,14 +275,29 @@ export default function LeaveRequestPage() {
                   <FormDescription>
                     A brief reason helps in faster processing of your request.
                   </FormDescription>
-                  <FormMessage />
+                  <FormMessage>{serverState?.errors?.reason?.[0]}</FormMessage>
                 </FormItem>
               )}
             />
 
-            <Button type="submit" className="w-full md:w-auto group" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? "Submitting..." : "Submit Request"}
-              <Send className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+            {serverState?.errors?.form && (
+              <p className="text-sm font-medium text-destructive">
+                {serverState.errors.form.join(", ")}
+              </p>
+            )}
+
+            <Button type="submit" className="w-full md:w-auto group" disabled={isPending}>
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-2 h-4 w-4" />
+                  Submit Request
+                </>
+              )}
             </Button>
           </form>
         </Form>
