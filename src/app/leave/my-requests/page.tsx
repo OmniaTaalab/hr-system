@@ -12,15 +12,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ShieldCheck, ShieldX, Hourglass, Users, ListFilter, Clock, CalendarDays, Activity, CalendarOff, ListChecks } from "lucide-react"; // Added CalendarOff and ListChecks
-import React, { useState, useEffect, useCallback } from "react";
-import { format, differenceInCalendarDays, startOfMonth, endOfMonth, startOfDay, endOfDay, max, min } from "date-fns";
+import { Loader2, ShieldCheck, ShieldX, Hourglass, Users, ListFilter, Clock, CalendarDays, Activity, CalendarOff, ListChecks, Eye } from "lucide-react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { format, differenceInCalendarDays, startOfMonth, endOfMonth, startOfDay, endOfDay, max, min, getYear, getMonth, setYear, setMonth, isSameMonth, isToday } from "date-fns";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, where, Timestamp, orderBy, DocumentData, getDocs, limit } from 'firebase/firestore';
 import { cn } from "@/lib/utils";
-// import type { AttendanceRecord } from "@/app/attendance/page"; // Assuming structure is similar
-// Temporary AttendanceRecord type to avoid circular dependency or if attendance page structure is complex
+
 interface AttendanceRecord {
   id: string;
   employeeDocId: string;
@@ -86,7 +86,7 @@ const formatDurationFromMinutes = (totalMinutes: number | null | undefined): str
     if (hours > 0) result += " ";
     result += `${minutes} minute${minutes > 1 ? "s" : ""}`;
   }
-  return result || "0 minutes"; // Ensure "0 minutes" if both are zero after logic
+  return result || "0 minutes"; 
 };
 
 const calculateLeaveDaysInMonth = (
@@ -105,20 +105,29 @@ const calculateLeaveDaysInMonth = (
 };
 
 
-export default function ViewEmployeeLeaveRequestsPage() {
+const currentYear = getYear(new Date());
+const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i); // Current year +/- 2 years
+const months = Array.from({ length: 12 }, (_, i) => ({
+  value: i,
+  label: format(new Date(0, i), "MMMM"),
+}));
+
+
+export default function ViewEmployeeLeaveAndWorkSummaryPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   
-  const [employeeRequests, setEmployeeRequests] = useState<LeaveRequestEntry[]>([]);
-  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
+  const [employeeLeaveRequests, setEmployeeLeaveRequests] = useState<LeaveRequestEntry[]>([]);
+  const [isLoadingLeaveRequests, setIsLoadingLeaveRequests] = useState(false);
 
-  // Stats states
+  const [currentMonthDate, setCurrentMonthDate] = useState<Date>(startOfMonth(new Date()));
+
   const [dailyWorkHoursToday, setDailyWorkHoursToday] = useState<number | null>(null);
   const [monthlyWorkHours, setMonthlyWorkHours] = useState<number>(0);
   const [monthlyWorkDays, setMonthlyWorkDays] = useState<number>(0);
   const [monthlyLeaveDays, setMonthlyLeaveDays] = useState<number>(0);
-  const [monthlyLeaveRequestsCount, setMonthlyLeaveRequestsCount] = useState<number>(0);
+  const [monthlyLeaveApplicationsCount, setMonthlyLeaveApplicationsCount] = useState<number>(0);
   const [isLoadingMonthlyStats, setIsLoadingMonthlyStats] = useState(false);
   
   const { toast } = useToast();
@@ -133,6 +142,9 @@ export default function ViewEmployeeLeaveRequestsPage() {
       });
       setEmployees(employeesData);
       setIsLoadingEmployees(false);
+      if (employeesData.length > 0 && !selectedEmployee) {
+         // setSelectedEmployee(employeesData[0]); // Optionally auto-select first employee
+      }
     }, (error) => {
       console.error("Error fetching employees: ", error);
       toast({
@@ -143,161 +155,158 @@ export default function ViewEmployeeLeaveRequestsPage() {
       setIsLoadingEmployees(false);
     });
     return () => unsubscribe();
-  }, [toast]);
+  }, [toast, selectedEmployee]);
 
   useEffect(() => {
     if (!selectedEmployee) {
-      setEmployeeRequests([]);
+      setEmployeeLeaveRequests([]);
       setDailyWorkHoursToday(null);
       setMonthlyWorkHours(0);
       setMonthlyWorkDays(0);
       setMonthlyLeaveDays(0);
-      setMonthlyLeaveRequestsCount(0);
+      setMonthlyLeaveApplicationsCount(0);
       return;
     }
 
-    setIsLoadingRequests(true);
+    setIsLoadingLeaveRequests(true);
     setIsLoadingMonthlyStats(true);
 
-    const fetchLeaveRequests = async () => {
-      const requestsQuery = query(
-        collection(db, "leaveRequests"),
-        where("requestingEmployeeDocId", "==", selectedEmployee.id), 
-        orderBy("submittedAt", "desc")
-      );
-      const unsubscribeRequests = onSnapshot(requestsQuery, (querySnapshot) => {
-        const requestsData: LeaveRequestEntry[] = [];
-        querySnapshot.forEach((doc) => {
-          requestsData.push({ id: doc.id, ...doc.data() } as LeaveRequestEntry);
-        });
-        setEmployeeRequests(requestsData);
-        setIsLoadingRequests(false);
-      }, (error) => {
-        console.error(`Error fetching leave requests for ${selectedEmployee.name}: `, error);
-        toast({
-          variant: "destructive",
-          title: "Error Fetching Leave Requests",
-          description: `Could not load leave requests. Firestore index might be needed for 'leaveRequests' on (requestingEmployeeDocId, submittedAt DESC).`,
-        });
-        setIsLoadingRequests(false);
-      });
-      return unsubscribeRequests;
-    };
+    const monthStart = startOfMonth(currentMonthDate);
+    const monthEnd = endOfMonth(currentMonthDate);
+    const today = new Date();
 
-    const fetchMonthlyStats = async () => {
-      const today = new Date();
-      const currentMonthStart = startOfMonth(today);
-      const currentMonthEnd = endOfMonth(today);
-      const todayStart = startOfDay(today);
-      const todayEnd = endOfDay(today);
-
-      // Daily Work Hours Today
-      try {
-        const dailyAttendanceQuery = query(
-          collection(db, "attendanceRecords"),
-          where("employeeDocId", "==", selectedEmployee.id),
-          where("date", ">=", Timestamp.fromDate(todayStart)),
-          where("date", "<=", Timestamp.fromDate(todayEnd)),
-          where("status", "==", "Completed"),
-          limit(1)
-        );
-        const dailySnapshot = await getDocs(dailyAttendanceQuery);
-        if (!dailySnapshot.empty) {
-          const record = dailySnapshot.docs[0].data() as AttendanceRecord;
-          console.log('[MyRequestsPage] Daily attendance record for today:', record.id, 'workDurationMinutes:', record.workDurationMinutes);
-          setDailyWorkHoursToday(record.workDurationMinutes !== undefined && record.workDurationMinutes !== null ? record.workDurationMinutes : 0);
-        } else {
-          console.log('[MyRequestsPage] No "Completed" daily attendance record found for today.');
-          setDailyWorkHoursToday(null); // No completed record for today
+    const fetchMonthlyStatsAndLeaves = async () => {
+      // Fetch Daily Work Hours if selected month is current month and today
+      if (isSameMonth(currentMonthDate, today) && isToday(today)) {
+        try {
+          const dailyAttendanceQuery = query(
+            collection(db, "attendanceRecords"),
+            where("employeeDocId", "==", selectedEmployee.id),
+            where("date", ">=", Timestamp.fromDate(startOfDay(today))),
+            where("date", "<=", Timestamp.fromDate(endOfDay(today))),
+            where("status", "==", "Completed"),
+            limit(1)
+          );
+          const dailySnapshot = await getDocs(dailyAttendanceQuery);
+          if (!dailySnapshot.empty) {
+            const record = dailySnapshot.docs[0].data() as AttendanceRecord;
+            setDailyWorkHoursToday(record.workDurationMinutes ?? 0);
+          } else {
+            setDailyWorkHoursToday(null);
+          }
+        } catch (e: any) {
+          console.error("Error fetching daily attendance:", e);
+          setDailyWorkHoursToday(null);
+          toast({ title: "Error", description: `Could not fetch today's work hours. Index might be needed for 'attendanceRecords' on (employeeDocId, date, status). Details: ${e.message}`, variant: "destructive"});
         }
-      } catch (e: any) {
-        console.error("Error fetching daily attendance:", e);
-        setDailyWorkHoursToday(null);
-        toast({ title: "Error", description: `Could not fetch today's work hours. Firestore index might be needed for 'attendanceRecords' on (employeeDocId, date, status). Details: ${e.message}`, variant: "destructive"});
+      } else {
+        setDailyWorkHoursToday(null); // Not current day or month
       }
 
-      // Monthly Work Stats
+      // Fetch Monthly Work Stats (Attendance)
       try {
         const monthlyAttendanceQuery = query(
           collection(db, "attendanceRecords"),
           where("employeeDocId", "==", selectedEmployee.id),
-          where("date", ">=", Timestamp.fromDate(currentMonthStart)),
-          where("date", "<=", Timestamp.fromDate(currentMonthEnd)),
-          where("status", "==", "Completed")
+          where("status", "==", "Completed"),
+          where("date", ">=", Timestamp.fromDate(monthStart)),
+          where("date", "<=", Timestamp.fromDate(monthEnd))
         );
         const monthlyAttendanceSnapshot = await getDocs(monthlyAttendanceQuery);
         let totalMinutes = 0;
-        const workDays = new Set<string>();
-        console.log(`[MyRequestsPage] Found ${monthlyAttendanceSnapshot.size} "Completed" monthly attendance records for employee ${selectedEmployee.id}.`);
+        const workDaysSet = new Set<string>();
         monthlyAttendanceSnapshot.forEach(docLoop => {
           const record = docLoop.data() as AttendanceRecord;
-          console.log('[MyRequestsPage] Processing monthly record:', record.id, 'workDurationMinutes:', record.workDurationMinutes, 'date:', record.date.toDate());
           if (record.workDurationMinutes !== undefined && record.workDurationMinutes !== null && typeof record.workDurationMinutes === 'number') {
             totalMinutes += record.workDurationMinutes;
-          } else {
-            console.warn('[MyRequestsPage] Monthly record has invalid workDurationMinutes:', record.id, record.workDurationMinutes);
           }
           if (record.date) {
-            workDays.add(format(record.date.toDate(), "yyyy-MM-dd"));
+            workDaysSet.add(format(record.date.toDate(), "yyyy-MM-dd"));
           }
         });
-        console.log('[MyRequestsPage] Total monthly minutes calculated:', totalMinutes);
         setMonthlyWorkHours(totalMinutes);
-        setMonthlyWorkDays(workDays.size);
+        setMonthlyWorkDays(workDaysSet.size);
       } catch (e: any) {
         console.error("Error fetching monthly attendance:", e);
         setMonthlyWorkHours(0);
         setMonthlyWorkDays(0);
-        toast({ title: "Error", description: `Could not fetch monthly work stats. Firestore index might be needed for 'attendanceRecords' on (employeeDocId, date, status). Details: ${e.message}`, variant: "destructive"});
+        toast({ title: "Error", description: `Could not fetch monthly work stats. Index might be needed for 'attendanceRecords' on (employeeDocId, status, date). Details: ${e.message}`, variant: "destructive"});
       }
 
-      // Monthly Leave Stats
+      // Fetch Monthly Leave Stats and Leave Requests for Table
       try {
-        const monthlyLeaveQuery = query(
+        // Query for leave requests that overlap with the selected month
+        const overlappingLeavesQuery = query(
           collection(db, "leaveRequests"),
           where("requestingEmployeeDocId", "==", selectedEmployee.id),
-          where("status", "==", "Approved"),
-          where("startDate", "<=", Timestamp.fromDate(currentMonthEnd)) 
+          where("status", "==", "Approved"), // For stats, only approved
+          where("startDate", "<=", Timestamp.fromDate(monthEnd)), // Starts before or during month
+          // Firestore doesn't support two range filters on different fields directly.
+          // So, we fetch broadly by startDate and filter endDate client-side for stats.
+          // For the table, we can do a more specific query or filter client-side.
+          orderBy("startDate", "desc") 
         );
-        const monthlyLeaveSnapshot = await getDocs(monthlyLeaveQuery);
+        
+        const leaveSnapshot = await getDocs(overlappingLeavesQuery);
         let totalLeaveDaysInMonth = 0;
-        let approvedRequestsThisMonth = 0;
-        monthlyLeaveSnapshot.forEach(doc => {
-          const leave = doc.data() as LeaveRequestEntry;
-          if (leave.endDate.toDate() >= currentMonthStart) { // Further filter for leaves ending in or after month start
+        const approvedLeaveApplicationsInMonth = new Set<string>();
+        const filteredLeaveRequestsForTable: LeaveRequestEntry[] = [];
+
+        leaveSnapshot.forEach(doc => {
+          const leave = { id: doc.id, ...doc.data() } as LeaveRequestEntry;
+          const leaveStartDate = leave.startDate.toDate();
+          const leaveEndDate = leave.endDate.toDate();
+
+          // Check if leave overlaps with the selected month
+          if (leaveEndDate >= monthStart) { // Ends after or during month start (already filtered by startDate <= monthEnd)
             const daysInMonth = calculateLeaveDaysInMonth(
-              leave.startDate.toDate(),
-              leave.endDate.toDate(),
-              currentMonthStart,
-              currentMonthEnd
+              leaveStartDate,
+              leaveEndDate,
+              monthStart,
+              monthEnd
             );
             if (daysInMonth > 0) {
-              totalLeaveDaysInMonth += daysInMonth;
-              approvedRequestsThisMonth++;
+              if(leave.status === "Approved") { // Double check status for stats
+                 totalLeaveDaysInMonth += daysInMonth;
+                 approvedLeaveApplicationsInMonth.add(leave.id);
+              }
+              filteredLeaveRequestsForTable.push(leave); // Add to table list if it overlaps
             }
           }
         });
         setMonthlyLeaveDays(totalLeaveDaysInMonth);
-        setMonthlyLeaveRequestsCount(approvedRequestsThisMonth);
+        setMonthlyLeaveApplicationsCount(approvedLeaveApplicationsInMonth.size);
+        setEmployeeLeaveRequests(filteredLeaveRequestsForTable.sort((a,b) => b.startDate.toMillis() - a.startDate.toMillis()));
+
       } catch (e:any) {
         console.error("Error fetching monthly leaves:", e);
         setMonthlyLeaveDays(0);
-        setMonthlyLeaveRequestsCount(0);
-        toast({ title: "Error", description: `Could not fetch monthly leave stats. Firestore index might be needed for 'leaveRequests' on (requestingEmployeeDocId, status, startDate). Details: ${e.message}`, variant: "destructive"});
+        setMonthlyLeaveApplicationsCount(0);
+        setEmployeeLeaveRequests([]);
+        toast({ title: "Error", description: `Could not fetch monthly leave data. Index might be needed for 'leaveRequests' on (requestingEmployeeDocId, status, startDate). Details: ${e.message}`, variant: "destructive"});
       }
+      
       setIsLoadingMonthlyStats(false);
+      setIsLoadingLeaveRequests(false);
     };
     
-    const unsubRequestsPromise = fetchLeaveRequests();
-    fetchMonthlyStats();
+    fetchMonthlyStatsAndLeaves();
 
-    return () => {
-      unsubRequestsPromise.then(unsub => unsub && unsub());
-    };
-  }, [selectedEmployee, toast]);
+  }, [selectedEmployee, currentMonthDate, toast]);
 
-  const handleEmployeeSelect = (employee: Employee) => {
-    setSelectedEmployee(employee);
+  const handleEmployeeSelect = (employeeId: string) => {
+    const employee = employees.find(e => e.id === employeeId);
+    setSelectedEmployee(employee || null);
+  };
+  
+  const handleYearChange = (yearString: string) => {
+    const year = parseInt(yearString, 10);
+    setCurrentMonthDate(prev => setYear(prev, year));
+  };
+
+  const handleMonthChange = (monthString: string) => {
+    const monthIndex = parseInt(monthString, 10);
+    setCurrentMonthDate(prev => setMonth(prev, monthIndex));
   };
 
   return (
@@ -308,7 +317,7 @@ export default function ViewEmployeeLeaveRequestsPage() {
             Employee Leave & Work Summary
           </h1>
           <p className="text-muted-foreground">
-            Select an employee to view their leave requests and a summary of their work and leave for the current month.
+            Select an employee and month to view their summary.
           </p>
         </header>
 
@@ -316,51 +325,62 @@ export default function ViewEmployeeLeaveRequestsPage() {
           <CardHeader>
             <CardTitle className="flex items-center">
               <Users className="mr-2 h-5 w-5 text-primary" />
-              Employee List
+              Select Employee
             </CardTitle>
-            <CardDescription>Click on an employee to see their details.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoadingEmployees ? (
-              <div className="flex justify-center items-center h-40">
+              <div className="flex justify-center items-center h-20">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-3 text-muted-foreground">Loading employees...</p>
               </div>
             ) : employees.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Employee ID</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <Select onValueChange={handleEmployeeSelect} value={selectedEmployee?.id || ""}>
+                <SelectTrigger className="w-full md:w-1/2 lg:w-1/3">
+                  <SelectValue placeholder="Select an employee..." />
+                </SelectTrigger>
+                <SelectContent>
                   {employees.map((employee) => (
-                    <TableRow
-                      key={employee.id}
-                      onClick={() => handleEmployeeSelect(employee)}
-                      className={cn(
-                        "cursor-pointer hover:bg-muted/50",
-                        selectedEmployee?.id === employee.id && "bg-accent text-accent-foreground hover:bg-accent/90"
-                      )}
-                    >
-                      <TableCell className="font-medium">{employee.name}</TableCell>
-                      <TableCell>{employee.employeeId}</TableCell>
-                      <TableCell>{employee.department}</TableCell>
-                      <TableCell>{employee.role}</TableCell>
-                      <TableCell><Badge variant={employee.status === "Active" ? "secondary" : "outline"} className={cn(employee.status === "Active" && "bg-green-100 text-green-800")}>{employee.status}</Badge></TableCell>
-                    </TableRow>
+                    <SelectItem key={employee.id} value={employee.id}>
+                      {employee.name} ({employee.employeeId})
+                    </SelectItem>
                   ))}
-                </TableBody>
-              </Table>
+                </SelectContent>
+              </Select>
             ) : (
               <p className="text-center text-muted-foreground py-4">No employees found.</p>
             )}
           </CardContent>
         </Card>
+        
+        {selectedEmployee && (
+        <Card className="shadow-lg">
+            <CardHeader>
+                <CardTitle className="flex items-center">
+                    <ListFilter className="mr-2 h-5 w-5 text-primary" />
+                    Select Month and Year
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col sm:flex-row gap-4">
+                <Select onValueChange={handleYearChange} value={getYear(currentMonthDate).toString()}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Select Year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {years.map(year => <SelectItem key={year} value={year.toString()}>{year}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                <Select onValueChange={handleMonthChange} value={getMonth(currentMonthDate).toString()}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Select Month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {months.map(month => <SelectItem key={month.value} value={month.value.toString()}>{month.label}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+            </CardContent>
+        </Card>
+        )}
+
 
         {selectedEmployee && (
           <>
@@ -368,10 +388,10 @@ export default function ViewEmployeeLeaveRequestsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <Activity className="mr-2 h-5 w-5 text-primary" />
-                  Monthly Summary for {selectedEmployee.name} ({format(new Date(), "MMMM yyyy")})
+                  Monthly Summary for {selectedEmployee.name} ({format(currentMonthDate, "MMMM yyyy")})
                 </CardTitle>
                 <CardDescription>
-                  Overview of work and leave for the current month.
+                  Overview of work and leave for the selected month.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -382,30 +402,32 @@ export default function ViewEmployeeLeaveRequestsPage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                    {isSameMonth(currentMonthDate, new Date()) && isToday(new Date()) && dailyWorkHoursToday !== null && (
+                        <div className="flex items-center">
+                        <Clock className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="font-medium">Work Hours (Today):&nbsp;</span>
+                        <span>{formatDurationFromMinutes(dailyWorkHoursToday)}</span>
+                        </div>
+                    )}
                     <div className="flex items-center">
                       <Clock className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="font-medium">Work Hours (Today):&nbsp;</span>
-                      <span>{dailyWorkHoursToday !== null ? formatDurationFromMinutes(dailyWorkHoursToday) : "Not clocked/completed today"}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Clock className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="font-medium">Work Hours (This Month):&nbsp;</span>
+                      <span className="font-medium">Work Hours (Selected Month):&nbsp;</span>
                       <span>{formatDurationFromMinutes(monthlyWorkHours)}</span>
                     </div>
                     <div className="flex items-center">
                       <CalendarDays className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="font-medium">Work Days (This Month):&nbsp;</span>
+                      <span className="font-medium">Work Days (Selected Month):&nbsp;</span>
                       <span>{monthlyWorkDays} day{monthlyWorkDays === 1 ? "" : "s"}</span>
                     </div>
                     <div className="flex items-center">
                       <CalendarOff className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="font-medium">Leave Days (This Month):&nbsp;</span>
+                      <span className="font-medium">Leave Days (Selected Month):&nbsp;</span>
                       <span>{monthlyLeaveDays} day{monthlyLeaveDays === 1 ? "" : "s"}</span>
                     </div>
                      <div className="flex items-center">
-                      <ListFilter className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="font-medium">Approved Leave Applications (This Month):&nbsp;</span>
-                      <span>{monthlyLeaveRequestsCount}</span>
+                      <ListChecks className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="font-medium">Approved Leave Applications (Selected Month):&nbsp;</span>
+                      <span>{monthlyLeaveApplicationsCount}</span>
                     </div>
                   </div>
                 )}
@@ -415,27 +437,27 @@ export default function ViewEmployeeLeaveRequestsPage() {
             <Card className="shadow-lg mt-8">
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <ListChecks className="mr-2 h-5 w-5 text-primary" />
-                  Leave Requests for {selectedEmployee.name}
+                  <Eye className="mr-2 h-5 w-5 text-primary" />
+                  Leave Requests for {selectedEmployee.name} ({format(currentMonthDate, "MMMM yyyy")})
                 </CardTitle>
                 <CardDescription>
-                  All submitted leave requests.
+                  Leave requests overlapping with the selected month.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {isLoadingRequests ? (
+                {isLoadingLeaveRequests ? (
                   <div className="flex justify-center items-center h-40">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     <p className="ml-3 text-muted-foreground">Loading requests...</p>
                   </div>
-                ) : employeeRequests.length > 0 ? (
+                ) : employeeLeaveRequests.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Leave Type</TableHead>
                         <TableHead>Start Date</TableHead>
                         <TableHead>End Date</TableHead>
-                        <TableHead>Number of Days</TableHead>
+                        <TableHead>Days in Month</TableHead>
                         <TableHead>Reason</TableHead>
                         <TableHead>Submitted On</TableHead>
                         <TableHead>Manager Notes</TableHead>
@@ -443,16 +465,16 @@ export default function ViewEmployeeLeaveRequestsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {employeeRequests.map((request) => {
+                      {employeeLeaveRequests.map((request) => {
                         const startDate = request.startDate.toDate();
                         const endDate = request.endDate.toDate();
-                        const numberOfDays = differenceInCalendarDays(endDate, startDate) + 1;
+                        const daysInSelectedMonth = calculateLeaveDaysInMonth(startDate, endDate, startOfMonth(currentMonthDate), endOfMonth(currentMonthDate));
                         return (
                           <TableRow key={request.id}>
                             <TableCell>{request.leaveType}</TableCell>
                             <TableCell>{format(startDate, "PPP")}</TableCell>
                             <TableCell>{format(endDate, "PPP")}</TableCell>
-                            <TableCell>{numberOfDays}</TableCell>
+                            <TableCell>{daysInSelectedMonth}</TableCell>
                             <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
                             <TableCell>{request.submittedAt ? format(request.submittedAt.toDate(), "PPP p") : "-"}</TableCell>
                             <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>
@@ -465,7 +487,7 @@ export default function ViewEmployeeLeaveRequestsPage() {
                     </TableBody>
                   </Table>
                 ) : (
-                  <p className="text-center text-muted-foreground py-4">No leave requests found for {selectedEmployee.name}.</p>
+                  <p className="text-center text-muted-foreground py-4">No leave requests found for {selectedEmployee.name} in {format(currentMonthDate, "MMMM yyyy")}.</p>
                 )}
               </CardContent>
             </Card>
@@ -475,3 +497,4 @@ export default function ViewEmployeeLeaveRequestsPage() {
     </AppLayout>
   );
 }
+

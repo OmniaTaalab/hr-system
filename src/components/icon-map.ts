@@ -19,8 +19,11 @@ import {
   LogOut, 
   CalendarOff, 
   UserMinus, 
-  Clock, // Added Clock for work hours
-  CalendarDays, // Added CalendarDays for work/leave days
+  Clock, 
+  CalendarDays, 
+  Activity, // Added for monthly summary title
+  ListFilter, // Added for month/year selection title
+  Eye, // Added for leave requests table title
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -44,5 +47,8 @@ export const iconMap: { [key: string]: LucideIcon } = {
   UserMinus,
   Clock,
   CalendarDays,
+  Activity,
+  ListFilter,
+  Eye,
 };
 
