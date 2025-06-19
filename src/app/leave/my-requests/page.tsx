@@ -317,22 +317,19 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
           where("employeeDocId", "==", selectedEmployee.id),
           where("date", "==", Timestamp.fromDate(dayUTCStart)) 
         );
-        console.log(`[MyRequestsPage] Querying daily attendance for ${selectedEmployee.name} on ${dayUTCStart.toISOString()} (Specific Day Snapshot)`);
         const dailySnapshot = await getDocs(dailyAttendanceQuery);
         let totalDailyMinutes = 0;
         dailySnapshot.forEach(docLoop => {
           const record = docLoop.data() as AttendanceRecord;
-          console.log(`[MyRequestsPage] Daily record found (Snapshot): ID=${docLoop.id}, Status=${record.status}, Duration=${record.workDurationMinutes}`);
           if (record.status === "Completed" && record.workDurationMinutes != null && typeof record.workDurationMinutes === 'number') {
             totalDailyMinutes += record.workDurationMinutes;
           }
         });
-        console.log(`[MyRequestsPage] Total daily minutes calculated (Snapshot): ${totalDailyMinutes}`);
         setSpecificDayWorkHours(totalDailyMinutes); 
       } catch (e: any) {
         console.error("Error fetching specific day attendance:", e);
         setSpecificDayWorkHours(null);
-        toast({ title: "Error", description: `Could not fetch work hours for the selected day. Details: ${e.message}`, variant = "destructive"});
+        toast({ title: "Error", description: `Could not fetch work hours for the selected day. Details: ${e.message}`, variant: "destructive"});
       } finally {
         setIsLoadingSpecificDayHours(false);
       }
