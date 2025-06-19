@@ -16,15 +16,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { format, differenceInCalendarDays, startOfMonth, endOfMonth, startOfDay, endOfDay, max, min, getYear, getMonth, setYear, setMonth, isSameMonth, isToday, isValid } from "date-fns";
+import { format, differenceInCalendarDays, startOfMonth, endOfMonth, max, min, getYear, getMonth, setYear, setMonth, isSameMonth, isToday, isValid, startOfDay as dateFnsStartOfDay, endOfDay as dateFnsEndOfDay } from "date-fns";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, where, Timestamp, orderBy, DocumentData, getDocs, limit } from 'firebase/firestore';
 import { cn } from "@/lib/utils";
+import { CalendarOff, ListChecks } from "lucide-react"; // Added CalendarOff & ListChecks
 
 interface AttendanceRecord {
   id: string;
   employeeDocId: string;
-  employeeName: string; // Retained for potential future use, though not primary for this detailed table
+  employeeName: string; 
   date: Timestamp;
   clockInTime?: Timestamp | null;
   clockOutTime?: Timestamp | null;
@@ -68,10 +69,10 @@ function AttendanceStatusBadge({ status }: { status: AttendanceRecord["status"] 
       return <Badge variant="secondary" className="bg-sky-100 text-sky-800"><iconMap.LogIn className="mr-1 h-3 w-3" />Clocked In</Badge>;
     case "ManuallyCleared":
         return <Badge variant="outline" className="border-orange-500 text-orange-500"><iconMap.XCircle className="mr-1 h-3 w-3" />Cleared</Badge>;
-    case "Absent": // Should ideally not appear in 'attendanceRecords' if they are only for clock-ins
+    case "Absent": 
         return <Badge variant="destructive"><iconMap.XCircle className="mr-1 h-3 w-3" />Absent</Badge>;
-    case "OnLeave": // Should ideally not appear in 'attendanceRecords'
-        return <Badge variant="outline" className="border-blue-500 text-blue-500"><iconMap.CalendarOff className="mr-1 h-3 w-3" />On Leave</Badge>;
+    case "OnLeave": 
+        return <Badge variant="outline" className="border-blue-500 text-blue-500"><CalendarOff className="mr-1 h-3 w-3" />On Leave</Badge>;
     default:
       return <Badge>{status}</Badge>;
   }
@@ -112,8 +113,8 @@ const calculateLeaveDaysInMonth = (
   monthStartDate: Date,
   monthEndDate: Date
 ): number => {
-  const effectiveLeaveStart = max([startOfDay(leaveStart), monthStartDate]);
-  const effectiveLeaveEnd = min([endOfDay(leaveEnd), monthEndDate]);
+  const effectiveLeaveStart = max([dateFnsStartOfDay(leaveStart), monthStartDate]);
+  const effectiveLeaveEnd = min([dateFnsEndOfDay(leaveEnd), monthEndDate]);
 
   if (effectiveLeaveStart > effectiveLeaveEnd) {
     return 0; 
@@ -191,28 +192,33 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
     setIsLoadingAttendanceDetails(true);
 
     const monthStart = startOfMonth(currentMonthDate);
-    const monthEnd = endOfDay(endOfMonth(currentMonthDate)); // Ensure end of day for monthEnd
+    const monthEnd = dateFnsEndOfDay(endOfMonth(currentMonthDate)); 
     const today = new Date();
 
     const fetchAllData = async () => {
       try {
         // Fetch Daily Work Hours if selected month is current month and today
         if (isSameMonth(currentMonthDate, today) && isToday(today)) {
+          // Get UTC start of today for querying the 'date' field
+          const todayUTCStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 0, 0, 0, 0));
+          
           const dailyAttendanceQuery = query(
             collection(db, "attendanceRecords"),
             where("employeeDocId", "==", selectedEmployee.id),
-            where("date", ">=", Timestamp.fromDate(startOfDay(today))),
-            where("date", "<=", Timestamp.fromDate(endOfDay(today))),
-            where("status", "==", "Completed"),
-            limit(1)
+            where("date", "==", Timestamp.fromDate(todayUTCStart)) 
           );
+          console.log(`[MyRequestsPage] Querying daily attendance for ${selectedEmployee.name} on ${todayUTCStart.toISOString()}`);
           const dailySnapshot = await getDocs(dailyAttendanceQuery);
-          if (!dailySnapshot.empty) {
-            const record = dailySnapshot.docs[0].data() as AttendanceRecord;
-            setDailyWorkHoursToday(record.workDurationMinutes ?? 0);
-          } else {
-            setDailyWorkHoursToday(null);
-          }
+          let totalDailyMinutes = 0;
+          dailySnapshot.forEach(docLoop => {
+            const record = docLoop.data() as AttendanceRecord;
+            console.log(`[MyRequestsPage] Daily record found: ID=${docLoop.id}, Status=${record.status}, Duration=${record.workDurationMinutes}`);
+            if (record.status === "Completed" && record.workDurationMinutes != null && typeof record.workDurationMinutes === 'number') {
+              totalDailyMinutes += record.workDurationMinutes;
+            }
+          });
+          console.log(`[MyRequestsPage] Total daily minutes calculated: ${totalDailyMinutes}`);
+          setDailyWorkHoursToday(totalDailyMinutes > 0 ? totalDailyMinutes : null);
         } else {
           setDailyWorkHoursToday(null); 
         }
@@ -221,8 +227,8 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
         const monthlyAttendanceQuery = query(
           collection(db, "attendanceRecords"),
           where("employeeDocId", "==", selectedEmployee.id),
-          where("date", ">=", Timestamp.fromDate(monthStart)),
-          where("date", "<=", Timestamp.fromDate(monthEnd)),
+          where("date", ">=", Timestamp.fromDate(monthStart)), // monthStart is already UTC start of month
+          where("date", "<=", Timestamp.fromDate(monthEnd)),   // monthEnd is already UTC end of month
           orderBy("date", "asc") 
         );
         const monthlyAttendanceSnapshot = await getDocs(monthlyAttendanceQuery);
@@ -237,6 +243,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
           if (record.status === "Completed" && record.workDurationMinutes != null && typeof record.workDurationMinutes === 'number') {
             totalMinutes += record.workDurationMinutes;
             if (record.date) {
+               // The date field is already UTC midnight, format it to get unique calendar days
               workDaysSet.add(format(record.date.toDate(), "yyyy-MM-dd"));
             }
           }
@@ -250,7 +257,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
         setMonthlyWorkHours(0);
         setMonthlyWorkDays(0);
         setMonthlyAttendanceDetails([]);
-        toast({ title: "Error", description: `Could not fetch monthly work stats/details. Index might be needed. Details: ${e.message}`, variant: "destructive"});
+        toast({ title: "Error", description: `Could not fetch monthly work stats/details. Firestore Index might be needed. Details: ${e.message}`, variant: "destructive"});
       } finally {
         setIsLoadingMonthlyStats(false);
         setIsLoadingAttendanceDetails(false);
@@ -258,6 +265,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
 
       // Fetch Monthly Leave Stats and Leave Requests for Table
       try {
+        // Query for approved leaves that *overlap* with the selected month
         const overlappingLeavesQuery = query(
           collection(db, "leaveRequests"),
           where("requestingEmployeeDocId", "==", selectedEmployee.id),
@@ -276,15 +284,16 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
           const leaveStartDate = leave.startDate.toDate();
           const leaveEndDate = leave.endDate.toDate();
 
+          // Further filter: ensure the leave's end date is on or after the month's start
           if (leaveEndDate >= monthStart) { 
             const daysInMonth = calculateLeaveDaysInMonth(
               leaveStartDate,
               leaveEndDate,
-              monthStart,
-              monthEnd
+              monthStart, // Already UTC start of month
+              monthEnd    // Already UTC end of month
             );
             if (daysInMonth > 0) {
-              if(leave.status === "Approved") {
+              if(leave.status === "Approved") { // Double check, though query already filters
                  totalLeaveDaysInMonth += daysInMonth;
                  approvedLeaveApplicationsInMonth.add(leave.id);
               }
@@ -294,6 +303,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
         });
         setMonthlyLeaveDays(totalLeaveDaysInMonth);
         setMonthlyLeaveApplicationsCount(approvedLeaveApplicationsInMonth.size);
+        // Sort the filtered requests for display
         setEmployeeLeaveRequests(filteredLeaveRequestsForTable.sort((a,b) => b.startDate.toMillis() - a.startDate.toMillis()));
 
       } catch (e:any) {
@@ -301,7 +311,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
         setMonthlyLeaveDays(0);
         setMonthlyLeaveApplicationsCount(0);
         setEmployeeLeaveRequests([]);
-        toast({ title: "Error", description: `Could not fetch monthly leave data. Index might be needed. Details: ${e.message}`, variant: "destructive"});
+        toast({ title: "Error", description: `Could not fetch monthly leave data. Firestore Index might be needed. Details: ${e.message}`, variant: "destructive"});
       } finally {
         setIsLoadingLeaveRequests(false);
       }
@@ -318,12 +328,16 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
   
   const handleYearChange = (yearString: string) => {
     const year = parseInt(yearString, 10);
-    setCurrentMonthDate(prev => setYear(prev, year));
+    if (!isNaN(year)) {
+        setCurrentMonthDate(prev => setYear(prev, year));
+    }
   };
 
   const handleMonthChange = (monthString: string) => {
     const monthIndex = parseInt(monthString, 10);
-    setCurrentMonthDate(prev => setMonth(prev, monthIndex));
+     if (!isNaN(monthIndex) && monthIndex >= 0 && monthIndex <= 11) {
+        setCurrentMonthDate(prev => setMonth(prev, monthIndex));
+    }
   };
 
   return (
@@ -437,12 +451,12 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
                       <span>{monthlyWorkDays} day{monthlyWorkDays === 1 ? "" : "s"}</span>
                     </div>
                     <div className="flex items-center">
-                      <iconMap.CalendarOff className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <CalendarOff className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <span className="font-medium">Approved Leave Days (Selected Month):&nbsp;</span>
                       <span>{monthlyLeaveDays} day{monthlyLeaveDays === 1 ? "" : "s"}</span>
                     </div>
                      <div className="flex items-center">
-                      <iconMap.ListChecks className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <ListChecks className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <span className="font-medium">Approved Leave Applications (Selected Month):&nbsp;</span>
                       <span>{monthlyLeaveApplicationsCount}</span>
                     </div>
@@ -481,7 +495,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
                             <TableBody>
                                 {monthlyAttendanceDetails.map((record) => (
                                     <TableRow key={record.id}>
-                                        <TableCell>{format(record.date.toDate(), "PPP")}</TableCell>
+                                        <TableCell>{record.date ? format(record.date.toDate(), "PPP") : "-"}</TableCell>
                                         <TableCell><AttendanceStatusBadge status={record.status} /></TableCell>
                                         <TableCell>
                                             {record.clockInTime && isValid(record.clockInTime.toDate()) 
@@ -546,9 +560,9 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
                         return (
                           <TableRow key={request.id}>
                             <TableCell>{request.leaveType}</TableCell>
-                            <TableCell>{format(startDate, "PPP")}</TableCell>
-                            <TableCell>{format(endDate, "PPP")}</TableCell>
-                            <TableCell>{daysInSelectedMonth}</TableCell>
+                            <TableCell>{request.startDate ? format(startDate, "PPP") : "-"}</TableCell>
+                            <TableCell>{request.endDate ? format(endDate, "PPP") : "-"}</TableCell>
+                            <TableCell>{daysInSelectedMonth > 0 ? daysInSelectedMonth : "-"}</TableCell>
                             <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
                             <TableCell>{request.submittedAt ? format(request.submittedAt.toDate(), "PPP p") : "-"}</TableCell>
                             <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>
@@ -561,7 +575,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
                     </TableBody>
                   </Table>
                 ) : (
-                  <p className="text-center text-muted-foreground py-4">No leave requests found for {selectedEmployee.name} in {format(currentMonthDate, "MMMM yyyy")}.</p>
+                  <p className="text-center text-muted-foreground py-4">No leave requests found for {selectedEmployee.name} overlapping with {format(currentMonthDate, "MMMM yyyy")}.</p>
                 )}
               </CardContent>
             </Card>
@@ -571,5 +585,3 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
     </AppLayout>
   );
 }
-
-    
