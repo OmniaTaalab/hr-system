@@ -60,7 +60,7 @@ export async function clockInAction(
       if (!existingRecord.clockOutTime) {
         return {
           errors: { form: [`${employeeName} is already clocked in today.`] },
-          message: 'Clock-in failed.',
+          message: `${employeeName} is already clocked in today.`,
           success: false,
         };
       }
@@ -68,7 +68,7 @@ export async function clockInAction(
        // For now, let's prevent re-clock-in if a full record exists.
         return {
           errors: { form: [`${employeeName} has already completed a shift today.`] },
-          message: 'Clock-in failed.',
+          message: `${employeeName} has already completed a shift today.`,
           success: false,
         };
     }
@@ -93,9 +93,19 @@ export async function clockInAction(
     };
   } catch (error: any) {
     console.error('Firestore Clock In Error:', error);
+    let specificErrorMessage = "Clock-in failed. An unexpected error occurred.";
+    if (error.code && error.message) {
+      if (!error.message.includes('INTERNAL ASSERTION FAILED')) {
+        specificErrorMessage = `Clock-in failed: ${error.message} (Code: ${error.code})`;
+      } else {
+        specificErrorMessage = `Clock-in failed. An unexpected error occurred (Code: ${error.code}).`;
+      }
+    } else if (error.message && !error.message.includes('INTERNAL ASSERTION FAILED')) {
+      specificErrorMessage = `Clock-in failed: ${error.message}`;
+    }
     return {
-      errors: { form: ["Failed to clock in. An unexpected error occurred."] },
-      message: 'Clock-in failed.',
+      errors: { form: ["An unexpected error occurred during clock-in. Please check console or try again."] },
+      message: specificErrorMessage,
       success: false,
     };
   }
@@ -141,12 +151,15 @@ export async function clockOutAction(
 
   try {
     const attendanceRef = doc(db, "attendanceRecords", attendanceRecordId);
+    // Verify the record belongs to the employee and exists
+    // Using getDocs with a query to ensure we are only updating the correct employee's record
     const attendanceSnap = await getDocs(query(collection(db, "attendanceRecords"), where("__name__", "==", attendanceRecordId), where("employeeDocId", "==", employeeDocId)));
+
 
     if (attendanceSnap.empty) {
       return {
         errors: { form: ["Attendance record not found or does not belong to this employee."] },
-        message: 'Clock-out failed.',
+        message: 'Clock-out failed: Record not found or mismatch.',
         success: false,
       };
     }
@@ -157,26 +170,26 @@ export async function clockOutAction(
     if (!attendanceData.clockInTime) {
        return {
         errors: { form: ["Cannot clock out. No clock-in time recorded."] },
-        message: 'Clock-out failed.',
+        message: 'Clock-out failed: No clock-in time recorded.',
         success: false,
       };
     }
     if (attendanceData.clockOutTime) {
       return {
         errors: { form: [`${employeeName} has already clocked out.`] },
-        message: 'Clock-out failed.',
+        message: `${employeeName} has already clocked out.`,
         success: false,
       };
     }
 
     const clockInTimestamp = attendanceData.clockInTime as Timestamp;
-    const clockOutTimestamp = Timestamp.now(); // Use serverTimestamp for field, but calculate duration with current time
+    const clockOutTimestamp = Timestamp.now(); 
 
     const durationMs = clockOutTimestamp.toMillis() - clockInTimestamp.toMillis();
     const durationMinutes = Math.floor(durationMs / 60000);
 
     await updateDoc(attendanceRef, {
-      clockOutTime: clockOutTimestamp, // Use client-generated now() for immediate calculation consistency. serverTimestamp() for update timestamp
+      clockOutTime: clockOutTimestamp, 
       workDurationMinutes: durationMinutes,
       status: "Completed",
       lastUpdatedAt: serverTimestamp()
@@ -188,9 +201,19 @@ export async function clockOutAction(
     };
   } catch (error: any) {
     console.error('Firestore Clock Out Error:', error);
+     let specificErrorMessage = "Clock-out failed. An unexpected error occurred.";
+     if (error.code && error.message) {
+      if (!error.message.includes('INTERNAL ASSERTION FAILED')) {
+        specificErrorMessage = `Clock-out failed: ${error.message} (Code: ${error.code})`;
+      } else {
+        specificErrorMessage = `Clock-out failed. An unexpected error occurred (Code: ${error.code}).`;
+      }
+    } else if (error.message && !error.message.includes('INTERNAL ASSERTION FAILED')) {
+      specificErrorMessage = `Clock-out failed: ${error.message}`;
+    }
     return {
-      errors: { form: ["Failed to clock out. An unexpected error occurred."] },
-      message: 'Clock-out failed.',
+      errors: { form: ["An unexpected error occurred during clock-out. Please check console or try again."] },
+      message: specificErrorMessage,
       success: false,
     };
   }
@@ -207,8 +230,8 @@ export async function getOpenAttendanceRecordForEmployee(employeeDocId: string):
       where("employeeDocId", "==", employeeDocId),
       where("date", ">=", Timestamp.fromDate(todayStart)),
       where("date", "<=", Timestamp.fromDate(todayEnd)),
-      where("clockOutTime", "==", null),
-      orderBy("clockInTime", "desc"),
+      where("clockOutTime", "==", null), // Only records that are not clocked out
+      orderBy("clockInTime", "desc"), // Get the latest one if multiple (should ideally not happen for open records)
       limit(1)
     );
     const querySnapshot = await getDocs(q);
@@ -219,6 +242,8 @@ export async function getOpenAttendanceRecordForEmployee(employeeDocId: string):
     return null;
   } catch (error) {
     console.error("Error fetching open attendance record:", error);
-    return null; // Or throw error
+    // Depending on how critical this is, you might want to throw the error
+    // or return null and let the calling function handle it.
+    return null; 
   }
 }
