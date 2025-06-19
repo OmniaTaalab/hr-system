@@ -11,11 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, orderBy, doc, getDoc, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, getDoc, Timestamp, where } from 'firebase/firestore'; // Added where
 import { getYear, getMonth, format as formatDateFns, startOfMonth, endOfMonth } from 'date-fns';
 import { Loader2, Calculator, Save, DollarSign, Hourglass, CalendarCheck2 } from "lucide-react";
 import { savePayrollAction, type PayrollState, getTotalWorkHoursForMonth, getApprovedLeaveDaysForMonth, getExistingPayrollData } from "@/app/actions/payroll-actions";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 interface Employee {
   id: string;
@@ -357,3 +358,4 @@ export default function PayrollCalculationPage() {
   );
 }
 
+    
