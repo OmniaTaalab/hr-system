@@ -121,12 +121,9 @@ export async function clockInAction(
     }
     
     let returnedMessage: string;
-    // If the error is 'failed-precondition' and an error message exists, use it directly
-    // as it likely contains the Firestore index creation link.
     if (error.code === 'failed-precondition' && error.message) {
-      returnedMessage = error.message;
+      returnedMessage = error.message; // Show full Firebase error message with index link
     } else if (error.message) { 
-      // For other errors with a message
       returnedMessage = `Clock-in failed: ${error.message}`;
       if (error.code) {
         returnedMessage += ` (Code: ${error.code})`;
@@ -135,10 +132,8 @@ export async function clockInAction(
         returnedMessage += " This might be due to Firestore security rules. Check server logs.";
       }
     } else if (error.code) {
-      // For errors with only a code
       returnedMessage = `Clock-in failed due to an error. Code: ${error.code}. Check server logs for details.`;
     } else {
-      // Generic fallback
       returnedMessage = "Clock-in failed. An unexpected error occurred. Please check the server terminal for more details, especially if it mentions a required index or permission issues.";
     }
     
@@ -209,12 +204,25 @@ export async function clockOutAction(
     const attendanceData = attendanceDoc.data();
 
     if (!attendanceData.clockInTime) {
+       console.error('Clock-out failed: No clock-in time recorded for record:', attendanceDoc.id);
        return {
         errors: { form: ["Cannot clock out. No clock-in time recorded."] },
         message: 'Clock-out failed: No clock-in time recorded.',
         success: false,
       };
     }
+    
+    // Robust check for clockInTime validity
+    if (typeof attendanceData.clockInTime.toMillis !== 'function') {
+        console.error('CRITICAL: clockInTime is NOT a valid Firestore Timestamp or is missing toMillis method. Record ID:', attendanceDoc.id, 'Value:', attendanceData.clockInTime);
+        return {
+            errors: { form: ["Clock-out failed: Clock-in time data is corrupted or missing."] },
+            message: 'Clock-out failed: Clock-in time data is corrupted in the database. Cannot calculate work duration.',
+            success: false,
+        };
+    }
+
+
     if (attendanceData.clockOutTime) {
       return {
         errors: { form: [`${employeeName} has already clocked out.`] },
@@ -229,10 +237,10 @@ export async function clockOutAction(
     console.log('Clock In Time (from Firestore):', attendanceData.clockInTime);
 
     const clockInTimestamp = attendanceData.clockInTime as Timestamp;
-    const clockOutTimestamp = Timestamp.now(); // Server-side timestamp for clock-out. Firestore handles this correctly.
+    const clockOutTimestamp = Timestamp.now(); 
 
     console.log('Clock In Timestamp (JS Date):', clockInTimestamp.toDate());
-    console.log('Clock Out Timestamp (JS Date):', clockOutTimestamp.toDate()); // This will be server time
+    console.log('Clock Out Timestamp (JS Date):', clockOutTimestamp.toDate());
 
     const durationMs = clockOutTimestamp.toMillis() - clockInTimestamp.toMillis();
     const durationMinutes = Math.floor(durationMs / 60000);
@@ -241,10 +249,10 @@ export async function clockOutAction(
     console.log('Duration (minutes) to be saved:', durationMinutes);
 
     if (isNaN(durationMinutes) || durationMinutes < 0) {
-        console.error('Calculated durationMinutes is invalid:', durationMinutes, 'Saving 0 instead.');
+        console.error('Calculated durationMinutes is invalid:', durationMinutes, 'for record:', attendanceDoc.id, 'Saving 0 instead.');
         await updateDoc(doc(db, "attendanceRecords", attendanceDoc.id), { 
           clockOutTime: clockOutTimestamp, 
-          workDurationMinutes: 0, // Save 0 if calculation is off
+          workDurationMinutes: 0, 
           status: "Completed",
           lastUpdatedAt: serverTimestamp()
         });
@@ -292,7 +300,7 @@ export async function clockOutAction(
 
     let returnedMessage: string;
     if (error.code === 'failed-precondition' && error.message) {
-      returnedMessage = error.message;
+      returnedMessage = error.message; // Show full Firebase error message with index link
     } else if (error.message) { 
       returnedMessage = `Clock-out failed: ${error.message}`;
       if (error.code) {
@@ -371,3 +379,4 @@ export async function getOpenAttendanceRecordForEmployee(employeeDocId: string):
     return null; 
   }
 }
+
