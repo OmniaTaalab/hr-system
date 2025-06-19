@@ -306,6 +306,8 @@ export async function manualUpdateAttendanceAction(
     originalRecordId: formData.get('originalRecordId') || undefined,
   };
 
+  console.log('[ManualUpdateAttendanceAction] Raw form data received:', rawData);
+
   const validatedFields = ManualUpdateAttendanceSchema.safeParse(rawData);
 
   if (!validatedFields.success) {
@@ -317,6 +319,7 @@ export async function manualUpdateAttendanceAction(
         if (errors.clockInTime) fieldErrors[employeeId].clockInTime = errors.clockInTime.join(', ');
         if (errors.clockOutTime) fieldErrors[employeeId].clockOutTime = errors.clockOutTime.join(', ');
     }
+    console.error('[ManualUpdateAttendanceAction] Validation failed:', validatedFields.error.flatten());
     return {
       message: "Validation failed. Please check time formats (HH:MM).",
       success: false,
@@ -335,11 +338,15 @@ export async function manualUpdateAttendanceAction(
     originalRecordId 
   } = validatedFields.data;
 
+  console.log('[ManualUpdateAttendanceAction] Validated data:', { employeeDocId, employeeName, selectedDateString, clockInString, clockOutString, originalRecordId });
+
   const baseDate = parseDateFns(selectedDateString, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx", new Date());
   if (!isValidDateFns(baseDate)) {
+    console.error('[ManualUpdateAttendanceAction] Invalid selected date string:', selectedDateString);
     return { message: "Invalid selected date.", success: false, errors: { form: ["Invalid selected date provided."] }, updatedEmployeeDocId: employeeDocId };
   }
-  const recordDate = startOfDay(baseDate); // Ensure the date is at the start of the day for querying/storing
+  const recordDate = startOfDay(baseDate); 
+  console.log('[ManualUpdateAttendanceAction] Parsed recordDate (start of day):', recordDate);
 
   let finalClockInTime: Timestamp | null = null;
   let finalClockOutTime: Timestamp | null = null;
@@ -353,7 +360,7 @@ export async function manualUpdateAttendanceAction(
     if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
       finalClockInTime = Timestamp.fromDate(setMilliseconds(setSeconds(setMinutes(setHours(recordDate, hours), minutes),0),0));
     } else {
-      fieldErrorsForEmployee.clockInTime = "Invalid clock-in time format.";
+      fieldErrorsForEmployee.clockInTime = "Invalid clock-in time format (parsed).";
     }
   }
 
@@ -362,11 +369,15 @@ export async function manualUpdateAttendanceAction(
      if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
       finalClockOutTime = Timestamp.fromDate(setMilliseconds(setSeconds(setMinutes(setHours(recordDate, hours), minutes),0),0));
     } else {
-      fieldErrorsForEmployee.clockOutTime = "Invalid clock-out time format.";
+      fieldErrorsForEmployee.clockOutTime = "Invalid clock-out time format (parsed).";
     }
   }
   
+  console.log('[ManualUpdateAttendanceAction] Parsed finalClockInTime:', finalClockInTime?.toDate());
+  console.log('[ManualUpdateAttendanceAction] Parsed finalClockOutTime:', finalClockOutTime?.toDate());
+
   if (Object.keys(fieldErrorsForEmployee).length > 0) {
+    console.error('[ManualUpdateAttendanceAction] Field errors after time parsing:', fieldErrorsForEmployee);
     return {
         message: "Invalid time format(s).",
         success: false,
@@ -382,19 +393,19 @@ export async function manualUpdateAttendanceAction(
       workDurationMinutes = Math.round(durationMs / 60000);
       status = "Completed";
     } else {
-      workDurationMinutes = 0; // Clock out is not after clock in
-      status = "Completed"; // Still completed, but duration is 0
-      // Potentially add a field error for this case if desired
-      // fieldErrorsForEmployee.clockOutTime = "Clock-out must be after clock-in.";
+      workDurationMinutes = 0; 
+      status = "Completed"; 
     }
   } else if (finalClockInTime) {
     status = "ClockedIn";
-    workDurationMinutes = null; // Duration not applicable if not clocked out
-  } else { // Neither clockIn nor clockOut provided, or only clockOut (which we treat as cleared)
+    workDurationMinutes = null; 
+  } else { 
     status = "ManuallyCleared";
     workDurationMinutes = null;
   }
 
+  console.log('[ManualUpdateAttendanceAction] Determined workDurationMinutes:', workDurationMinutes);
+  console.log('[ManualUpdateAttendanceAction] Determined status:', status);
 
   try {
     const attendanceEntry = {
@@ -407,23 +418,21 @@ export async function manualUpdateAttendanceAction(
       status,
       lastUpdatedAt: serverTimestamp(),
     };
+    
+    console.log('[ManualUpdateAttendanceAction] Attendance entry to be saved:', attendanceEntry);
 
     if (originalRecordId) {
-      // Update existing record
+      console.log('[ManualUpdateAttendanceAction] Updating existing record ID:', originalRecordId);
       const recordRef = doc(db, "attendanceRecords", originalRecordId);
       await updateDoc(recordRef, attendanceEntry);
       return { message: `Attendance for ${employeeName} on ${format(recordDate, 'P')} updated.`, success: true, updatedEmployeeDocId: employeeDocId };
-    } else if (finalClockInTime || finalClockOutTime) { // Only create if there's at least one time
-      // Create new record
+    } else if (finalClockInTime || finalClockOutTime) { 
+      console.log('[ManualUpdateAttendanceAction] Creating new record.');
       await addDoc(collection(db, "attendanceRecords"), attendanceEntry);
       return { message: `Attendance for ${employeeName} on ${format(recordDate, 'P')} saved.`, success: true, updatedEmployeeDocId: employeeDocId };
     } else {
-      // No times provided and no original record - do nothing or inform user
-      // If an originalRecordId was provided but times were cleared, it's handled by status "ManuallyCleared" during update
-      // If no original record and no times, this typically means no action if form submitted empty.
-      // For now, we consider this a "clear" if an original record existed, or no action if new & empty.
-      // The above logic handles this implicitly by not calling addDoc.
-       if(originalRecordId) { // This means an existing record was cleared
+       if(originalRecordId) { 
+         console.log('[ManualUpdateAttendanceAction] Clearing existing record ID (no times provided):', originalRecordId);
          const recordRef = doc(db, "attendanceRecords", originalRecordId);
          await updateDoc(recordRef, {
             clockInTime: null,
@@ -434,12 +443,12 @@ export async function manualUpdateAttendanceAction(
          });
          return { message: `Attendance entry for ${employeeName} on ${format(recordDate, 'P')} cleared.`, success: true, updatedEmployeeDocId: employeeDocId };
        }
-       return { message: `No time entered for ${employeeName}. No changes made.`, success: true, updatedEmployeeDocId: employeeDocId }; // Or false if this should be an error
+       console.log('[ManualUpdateAttendanceAction] No times entered for new record. No changes made.');
+       return { message: `No time entered for ${employeeName}. No changes made.`, success: true, updatedEmployeeDocId: employeeDocId }; 
     }
 
   } catch (error: any) {
-    console.error("Error saving manual attendance:", error);
-    // Check if the error is 'format is not defined' specifically or a generic error
+    console.error("[ManualUpdateAttendanceAction] Error saving manual attendance:", error);
     const errorMessage = error.message || "An unexpected error occurred.";
     return {
       message: `Failed to save attendance: ${errorMessage}`,
@@ -479,5 +488,3 @@ export async function getOpenAttendanceRecordForEmployee(employeeDocId: string):
     return null; 
   }
 }
-
-    
