@@ -13,6 +13,10 @@ const CreateEmployeeFormSchema = z.object({
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
   phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
+  hourlyRate: z.preprocess(
+    (val) => parseFloat(z.string().parse(val)),
+    z.number().positive({ message: "Hourly rate must be a positive number." })
+  ).optional(),
 });
 
 export type CreateEmployeeState = {
@@ -23,6 +27,7 @@ export type CreateEmployeeState = {
     department?: string[];
     role?: string[];
     phone?: string[];
+    hourlyRate?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -39,6 +44,7 @@ export async function createEmployeeAction(
     department: formData.get('department'),
     role: formData.get('role'),
     phone: formData.get('phone'),
+    hourlyRate: formData.get('hourlyRate') || undefined,
   });
 
   if (!validatedFields.success) {
@@ -48,7 +54,7 @@ export async function createEmployeeAction(
     };
   }
 
-  const { name, email, employeeId, department, role, phone } = validatedFields.data;
+  const { name, email, employeeId, department, role, phone, hourlyRate } = validatedFields.data;
 
   try {
     const employeeData = {
@@ -58,11 +64,11 @@ export async function createEmployeeAction(
       department,
       role,
       phone,
+      hourlyRate: hourlyRate ?? 0, // Default to 0 if not provided
       status: "Active", 
       createdAt: serverTimestamp(),
     };
     
-    // Add a new document with a generated ID to the "employy" collection
     const docRef = await addDoc(collection(db, "employy"), employeeData);
     
     console.log('Employee data saved to Firestore in "employy" collection with ID:', docRef.id);
@@ -95,6 +101,10 @@ const UpdateEmployeeFormSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
   phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
   status: z.enum(["Active", "On Leave", "Terminated"]),
+  hourlyRate: z.preprocess(
+    (val) => parseFloat(z.string().parse(val)),
+    z.number().positive({ message: "Hourly rate must be a positive number." })
+  ).optional(),
 });
 
 export type UpdateEmployeeState = {
@@ -106,6 +116,7 @@ export type UpdateEmployeeState = {
     email?: string[];
     phone?: string[];
     status?: string[];
+    hourlyRate?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -123,6 +134,7 @@ export async function updateEmployeeAction(
     email: formData.get('email'),
     phone: formData.get('phone'),
     status: formData.get('status'),
+    hourlyRate: formData.get('hourlyRate') || undefined,
   });
 
   if (!validatedFields.success) {
@@ -132,7 +144,7 @@ export async function updateEmployeeAction(
     };
   }
 
-  const { employeeDocId, name, department, role, email, phone, status } = validatedFields.data;
+  const { employeeDocId, name, department, role, email, phone, status, hourlyRate } = validatedFields.data;
 
   try {
     const employeeRef = doc(db, "employy", employeeDocId);
@@ -143,7 +155,7 @@ export async function updateEmployeeAction(
       email,
       phone,
       status,
-      // employeeId is not updated here as it's an identifier, if needed, handle separately
+      hourlyRate: hourlyRate ?? 0, // Default to 0 if not provided
     });
     
     return { message: `Employee "${name}" updated successfully.` };

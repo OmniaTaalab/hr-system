@@ -26,7 +26,11 @@ import {
   Eye,
   XCircle, 
   CalendarClock,
-  Loader2, // Added Loader2
+  Loader2,
+  Calculator, // Added Calculator icon
+  Save,
+  DollarSign,
+  CalendarCheck2,
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -55,7 +59,11 @@ export const iconMap: { [key: string]: LucideIcon } = {
   Eye,
   XCircle,
   CalendarClock,
-  Loader2, // Added Loader2
+  Loader2,
+  Calculator, // Added Calculator icon
+  Save,
+  DollarSign,
+  CalendarCheck2,
 };
 
     

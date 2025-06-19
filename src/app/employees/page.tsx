@@ -26,7 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, type UpdateEmployeeState } from "@/app/actions/employee-actions";
@@ -44,6 +44,7 @@ interface Employee {
   role: string;
   email: string;
   phone: string;
+  hourlyRate?: number;
   status: "Active" | "On Leave" | "Terminated";
   createdAt?: Timestamp; 
 }
@@ -108,7 +109,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         action={formAction}
         className="flex flex-col overflow-hidden"
       >
-        <ScrollArea className="flex-grow min-h-[150px] max-h-[300px]">
+        <ScrollArea className="flex-grow min-h-[150px] max-h-[350px]"> {/* Increased max-h */}
           <div className="space-y-4 p-4 pr-2">
             <div className="space-y-2">
               <Label htmlFor="add-name">Full Name</Label>
@@ -139,6 +140,11 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               <Label htmlFor="add-phone">Phone</Label>
               <Input id="add-phone" name="phone" placeholder="e.g., 5550107 (Numbers only)" />
               {serverState?.errors?.phone && <p className="text-sm text-destructive">{serverState.errors.phone.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-hourlyRate">Hourly Rate (Optional)</Label>
+              <Input id="add-hourlyRate" name="hourlyRate" type="number" step="0.01" placeholder="e.g., 25.50" />
+              {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
             </div>
             
             {(formClientError || serverState?.errors?.form) && (
@@ -202,7 +208,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         className="flex flex-col overflow-hidden"
       >
         <input type="hidden" name="employeeDocId" defaultValue={employee.id} />
-        <ScrollArea className="flex-grow min-h-[150px] max-h-[300px]">
+        <ScrollArea className="flex-grow min-h-[150px] max-h-[350px]"> {/* Increased max-h */}
           <div className="space-y-4 p-4 pr-2">
             <div className="space-y-2">
               <Label htmlFor="edit-name">Full Name</Label>
@@ -232,6 +238,11 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
               <Label htmlFor="edit-phone">Phone</Label>
               <Input id="edit-phone" name="phone" defaultValue={employee.phone} placeholder="Numbers only" />
               {serverState?.errors?.phone && <p className="text-sm text-destructive">{serverState.errors.phone.join(', ')}</p>}
+            </div>
+             <div className="space-y-2">
+              <Label htmlFor="edit-hourlyRate">Hourly Rate (Optional)</Label>
+              <Input id="edit-hourlyRate" name="hourlyRate" type="number" step="0.01" defaultValue={employee.hourlyRate?.toString() ?? ""} placeholder="e.g., 25.50" />
+              {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-status">Status</Label>
@@ -333,7 +344,7 @@ export default function EmployeeManagementPage() {
 
 
   const openAddDialog = () => {
-    setAddFormKey(prevKey => prevKey + 1); // Reset form state by changing key
+    setAddFormKey(prevKey => prevKey + 1); 
     setIsAddDialogOpen(true);
   }
   const closeAddDialog = () => {
@@ -342,7 +353,7 @@ export default function EmployeeManagementPage() {
 
   const openEditDialog = (employee: Employee) => {
     setEditingEmployee(employee);
-    setEditFormKey(prevKey => prevKey + 1); // Reset form state
+    setEditFormKey(prevKey => prevKey + 1); 
     setIsEditDialogOpen(true);
   };
   const closeEditDialog = () => {
@@ -468,6 +479,7 @@ export default function EmployeeManagementPage() {
                   <TableHead>Role</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
+                  <TableHead>Hourly Rate</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -482,6 +494,9 @@ export default function EmployeeManagementPage() {
                       <TableCell>{employee.role}</TableCell>
                       <TableCell>{employee.email}</TableCell>
                       <TableCell>{employee.phone}</TableCell>
+                      <TableCell>
+                        {employee.hourlyRate ? `$${employee.hourlyRate.toFixed(2)}` : "-"}
+                      </TableCell>
                       <TableCell>
                         <EmployeeStatusBadge status={employee.status} />
                       </TableCell>
@@ -509,7 +524,7 @@ export default function EmployeeManagementPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center"> {/* Increased colSpan */}
                       {searchTerm ? "No employees found matching your search." : "No employees found. Try adding some!"}
                     </TableCell>
                   </TableRow>
@@ -523,7 +538,7 @@ export default function EmployeeManagementPage() {
 
       {isAddDialogOpen && (
         <AlertDialog open={isAddDialogOpen} onOpenChange={(open) => { if(!open) closeAddDialog(); else setIsAddDialogOpen(true); }}>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-lg">
             <AddEmployeeFormContent key={`add-form-${addFormKey}`} onSuccess={closeAddDialog} />
           </AlertDialogContent>
         </AlertDialog>
@@ -531,7 +546,7 @@ export default function EmployeeManagementPage() {
       
       {isEditDialogOpen && editingEmployee && (
         <AlertDialog open={isEditDialogOpen} onOpenChange={(open) => { if(!open) closeEditDialog(); else setIsEditDialogOpen(true); }}>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-lg">
              <EditEmployeeFormContent key={`edit-form-${editFormKey}-${editingEmployee.id}`} employee={editingEmployee} onSuccess={closeEditDialog} />
           </AlertDialogContent>
         </AlertDialog>

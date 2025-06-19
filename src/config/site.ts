@@ -2,7 +2,7 @@
 export interface NavItem {
   title: string;
   href: string;
-  iconName: string; // Changed from icon: LucideIcon
+  iconName: string; 
   disabled?: boolean;
 }
 
@@ -23,7 +23,7 @@ export const navItems: NavItem[] = [
     iconName: 'CalendarPlus',
   },
   {
-    title: 'Employee Work & Leave Summary', // Changed from 'ملخص الإجازات والعمل للموظف'
+    title: 'Employee Work & Leave Summary', 
     href: '/leave/my-requests',
     iconName: 'ClipboardList', 
   },
@@ -36,6 +36,11 @@ export const navItems: NavItem[] = [
     title: 'Attendance',
     href: '/attendance',
     iconName: 'CheckCircle2',
+  },
+  {
+    title: 'Payroll Calculation',
+    href: '/payroll',
+    iconName: 'Calculator', // Added new icon
   },
   {
     title: 'Job Board',
