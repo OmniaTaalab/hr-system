@@ -99,24 +99,44 @@ export async function clockInAction(
     if (error && typeof error === 'object') {
       console.error('Error Name:', error.name);
       console.error('Error Message:', error.message);
-      console.error('Error Code:', error.code);
+      console.error('Error Code:', error.code); // Crucial for Firebase errors
       console.error('Error Stack:', error.stack);
       try {
-        console.error('All Error Properties (JSON):', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+        // Attempt to serialize all properties of the error object
+        const errorProperties = Object.getOwnPropertyNames(error).reduce((acc, key) => {
+          // @ts-ignore
+          acc[key] = error[key];
+          return acc;
+        }, {});
+        console.error('All Error Properties (JSON):', JSON.stringify(errorProperties, null, 2));
       } catch (e) {
-        console.error('Could not stringify error properties:', e);
+        console.error('Could not stringify all error properties:', e);
+        // Fallback if full stringification fails
+        const simplifiedError = {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            stack: error.stack ? error.stack.substring(0, 500) + '...' : undefined // Truncate stack
+        };
+        console.error('Simplified Error Properties (JSON):', JSON.stringify(simplifiedError, null, 2));
       }
     }
     
-    let detailedErrorMessage = "Clock-in failed. An unexpected error occurred. Please check the browser console for more details from Firebase, especially if it mentions a required index.";
+    let detailedErrorMessage = "Clock-in failed. An unexpected error occurred. Please check the server terminal for more details, especially if it mentions a required index or permission issues.";
 
     if (error.message) { 
         detailedErrorMessage = `Clock-in failed: ${error.message}`;
         if (error.code) {
             detailedErrorMessage += ` (Code: ${error.code})`;
         }
+        // Specifically check for Firestore permission denied or failed precondition (often index-related)
+        if (error.code === 'permission-denied') {
+            detailedErrorMessage += " This might be due to Firestore security rules. Check server logs.";
+        } else if (error.code === 'failed-precondition') {
+             detailedErrorMessage += " This often indicates a missing Firestore index. Check server logs for a link to create it.";
+        }
     } else if (error.code) {
-        detailedErrorMessage = `Clock-in failed due to an error. Code: ${error.code}. Check browser console for details.`;
+        detailedErrorMessage = `Clock-in failed due to an error. Code: ${error.code}. Check server logs for details.`;
     }
     
     return {
@@ -166,18 +186,10 @@ export async function clockOutAction(
   const { attendanceRecordId, employeeDocId, employeeName } = validatedFields.data;
 
   try {
-    const attendanceRef = doc(db, "attendanceRecords", attendanceRecordId);
-    // It's better to fetch the document directly by ID to ensure it exists and belongs to the employee before updating.
-    // However, the original query was attempting to verify employeeDocId as well.
-    // For clock out, we primarily need the attendanceRecordId. Let's assume it's correct.
-    // A more robust check would involve fetching the doc and verifying employeeDocId if needed.
-    // const attendanceSnap = await getDoc(attendanceRef);
-    
-    // For consistency with original logic, let's keep a check, though slightly different:
     const qExisting = query(
         collection(db, "attendanceRecords"),
-        where("__name__", "==", attendanceRecordId), // Check if document with this ID exists
-        where("employeeDocId", "==", employeeDocId)   // And belongs to this employee
+        where("__name__", "==", attendanceRecordId), 
+        where("employeeDocId", "==", employeeDocId)
     );
     const attendanceSnap = await getDocs(qExisting);
 
@@ -214,7 +226,7 @@ export async function clockOutAction(
     const durationMs = clockOutTimestamp.toMillis() - clockInTimestamp.toMillis();
     const durationMinutes = Math.floor(durationMs / 60000);
 
-    await updateDoc(doc(db, "attendanceRecords", attendanceDoc.id), { // Use attendanceDoc.id to be certain
+    await updateDoc(doc(db, "attendanceRecords", attendanceDoc.id), { 
       clockOutTime: clockOutTimestamp, 
       workDurationMinutes: durationMinutes,
       status: "Completed",
@@ -236,21 +248,38 @@ export async function clockOutAction(
       console.error('Error Code:', error.code);
       console.error('Error Stack:', error.stack);
       try {
-        console.error('All Error Properties (JSON):', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+        const errorProperties = Object.getOwnPropertyNames(error).reduce((acc, key) => {
+          // @ts-ignore
+          acc[key] = error[key];
+          return acc;
+        }, {});
+        console.error('All Error Properties (JSON):', JSON.stringify(errorProperties, null, 2));
       } catch (e) {
-        console.error('Could not stringify error properties:', e);
+        console.error('Could not stringify all error properties:', e);
+        const simplifiedError = {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            stack: error.stack ? error.stack.substring(0, 500) + '...' : undefined
+        };
+        console.error('Simplified Error Properties (JSON):', JSON.stringify(simplifiedError, null, 2));
       }
     }
 
-     let detailedErrorMessage = "Clock-out failed. An unexpected error occurred. Please check the browser console for more details from Firebase, especially if it mentions a required index.";
+     let detailedErrorMessage = "Clock-out failed. An unexpected error occurred. Please check the server terminal for more details.";
 
      if (error.message) { 
         detailedErrorMessage = `Clock-out failed: ${error.message}`;
         if (error.code) {
             detailedErrorMessage += ` (Code: ${error.code})`;
         }
+        if (error.code === 'permission-denied') {
+            detailedErrorMessage += " This might be due to Firestore security rules. Check server logs.";
+        } else if (error.code === 'failed-precondition') {
+             detailedErrorMessage += " This often indicates a missing Firestore index. Check server logs for a link to create it.";
+        }
     } else if (error.code) {
-        detailedErrorMessage = `Clock-out failed due to an error. Code: ${error.code}. Check browser console for details.`;
+        detailedErrorMessage = `Clock-out failed due to an error. Code: ${error.code}. Check server logs for details.`;
     }
 
     return {
@@ -291,12 +320,24 @@ export async function getOpenAttendanceRecordForEmployee(employeeDocId: string):
     if (error && typeof error === 'object') {
       console.error('Error Name:', error.name);
       console.error('Error Message:', error.message);
-      console.error('Error Code:', error.code);
+      console.error('Error Code:', error.code); // Crucial for Firebase errors
       console.error('Error Stack:', error.stack);
       try {
-        console.error('All Error Properties (JSON):', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+        const errorProperties = Object.getOwnPropertyNames(error).reduce((acc, key) => {
+          // @ts-ignore
+          acc[key] = error[key];
+          return acc;
+        }, {});
+        console.error('All Error Properties (JSON):', JSON.stringify(errorProperties, null, 2));
       } catch (e) {
-        console.error('Could not stringify error properties:', e);
+        console.error('Could not stringify all error properties:', e);
+         const simplifiedError = {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            stack: error.stack ? error.stack.substring(0, 500) + '...' : undefined
+        };
+        console.error('Simplified Error Properties (JSON):', JSON.stringify(simplifiedError, null, 2));
       }
     }
     // This function is called internally by the client, so it doesn't return a state for the form.
@@ -305,3 +346,4 @@ export async function getOpenAttendanceRecordForEmployee(employeeDocId: string):
     return null; 
   }
 }
+
