@@ -1,3 +1,4 @@
+
 import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard,
@@ -12,8 +13,12 @@ import {
   Hourglass,
   BarChartBig,
   UserCog,
-  ShieldCheck, // Added ShieldCheck
-  ShieldX, // Added ShieldX
+  ShieldCheck,
+  ShieldX,
+  LogIn, // Added LogIn
+  LogOut, // Added LogOut
+  CalendarOff, // Added CalendarOff
+  UserMinus, // Added UserMinus
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -31,4 +36,8 @@ export const iconMap: { [key: string]: LucideIcon } = {
   UserCog,
   ShieldCheck,
   ShieldX,
+  LogIn,
+  LogOut,
+  CalendarOff,
+  UserMinus,
 };
