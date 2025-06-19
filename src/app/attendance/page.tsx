@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useActionState, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useCallback, useTransition } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -114,6 +114,7 @@ export default function ManualAttendancePage() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const { toast } = useToast();
+  const [_isTransitionPending, startTransition] = useTransition();
   const [updateState, formAction, isFormPending] = useActionState(manualUpdateAttendanceAction, initialManualUpdateState);
 
   // Fetch active employees
@@ -273,7 +274,9 @@ export default function ManualAttendancePage() {
       formData.append('originalRecordId', employeeData.attendanceRecordId);
     }
     
-    formAction(formData);
+    startTransition(() => {
+        formAction(formData);
+    });
   };
 
   useEffect(() => {
