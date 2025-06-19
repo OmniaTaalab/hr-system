@@ -15,10 +15,12 @@ import {
   UserCog,
   ShieldCheck,
   ShieldX,
-  LogIn, // Added LogIn
-  LogOut, // Added LogOut
-  CalendarOff, // Added CalendarOff
-  UserMinus, // Added UserMinus
+  LogIn, 
+  LogOut, 
+  CalendarOff, 
+  UserMinus, 
+  Clock, // Added Clock for work hours
+  CalendarDays, // Added CalendarDays for work/leave days
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -40,4 +42,7 @@ export const iconMap: { [key: string]: LucideIcon } = {
   LogOut,
   CalendarOff,
   UserMinus,
+  Clock,
+  CalendarDays,
 };
+
