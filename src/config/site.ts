@@ -23,7 +23,7 @@ export const navItems: NavItem[] = [
     iconName: 'CalendarPlus',
   },
   {
-    title: 'Leave Request Details', // Renamed
+    title: 'ملخص الإجازات والعمل للموظف', // Changed from 'Leave Request Details'
     href: '/leave/my-requests',
     iconName: 'ClipboardList', 
   },
