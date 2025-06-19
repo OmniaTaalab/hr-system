@@ -14,9 +14,9 @@ import {
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ShieldCheck, ShieldX, Hourglass, Users, ListFilter, Clock, CalendarDays, Activity, CalendarOff, ListChecks, Eye } from "lucide-react";
+import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { format, differenceInCalendarDays, startOfMonth, endOfMonth, startOfDay, endOfDay, max, min, getYear, getMonth, setYear, setMonth, isSameMonth, isToday } from "date-fns";
+import { format, differenceInCalendarDays, startOfMonth, endOfMonth, startOfDay, endOfDay, max, min, getYear, getMonth, setYear, setMonth, isSameMonth, isToday, isValid } from "date-fns";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, where, Timestamp, orderBy, DocumentData, getDocs, limit } from 'firebase/firestore';
 import { cn } from "@/lib/utils";
@@ -24,12 +24,12 @@ import { cn } from "@/lib/utils";
 interface AttendanceRecord {
   id: string;
   employeeDocId: string;
-  employeeName: string;
+  employeeName: string; // Retained for potential future use, though not primary for this detailed table
   date: Timestamp;
-  clockInTime?: Timestamp;
-  clockOutTime?: Timestamp;
-  workDurationMinutes?: number;
-  status: "ClockedIn" | "Completed" | "Absent" | "OnLeave";
+  clockInTime?: Timestamp | null;
+  clockOutTime?: Timestamp | null;
+  workDurationMinutes?: number | null;
+  status: "ClockedIn" | "Completed" | "Absent" | "OnLeave" | "ManuallyCleared";
 }
 
 
@@ -50,11 +50,28 @@ export interface LeaveRequestEntry {
 function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
   switch (status) {
     case "Approved":
-      return <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"><ShieldCheck className="mr-1 h-3 w-3" />Approved</Badge>;
+      return <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"><iconMap.ShieldCheck className="mr-1 h-3 w-3" />Approved</Badge>;
     case "Pending":
-      return <Badge variant="outline" className="border-yellow-500 text-yellow-600 dark:border-yellow-400 dark:text-yellow-300"><Hourglass className="mr-1 h-3 w-3" />Pending</Badge>;
+      return <Badge variant="outline" className="border-yellow-500 text-yellow-600 dark:border-yellow-400 dark:text-yellow-300"><iconMap.Hourglass className="mr-1 h-3 w-3" />Pending</Badge>;
     case "Rejected":
-      return <Badge variant="destructive"><ShieldX className="mr-1 h-3 w-3" />Rejected</Badge>;
+      return <Badge variant="destructive"><iconMap.ShieldX className="mr-1 h-3 w-3" />Rejected</Badge>;
+    default:
+      return <Badge>{status}</Badge>;
+  }
+}
+
+function AttendanceStatusBadge({ status }: { status: AttendanceRecord["status"] }) {
+  switch (status) {
+    case "Completed":
+      return <Badge variant="secondary" className="bg-green-100 text-green-800"><iconMap.CheckCircle2 className="mr-1 h-3 w-3" />Completed</Badge>;
+    case "ClockedIn":
+      return <Badge variant="secondary" className="bg-sky-100 text-sky-800"><iconMap.LogIn className="mr-1 h-3 w-3" />Clocked In</Badge>;
+    case "ManuallyCleared":
+        return <Badge variant="outline" className="border-orange-500 text-orange-500"><iconMap.XCircle className="mr-1 h-3 w-3" />Cleared</Badge>;
+    case "Absent": // Should ideally not appear in 'attendanceRecords' if they are only for clock-ins
+        return <Badge variant="destructive"><iconMap.XCircle className="mr-1 h-3 w-3" />Absent</Badge>;
+    case "OnLeave": // Should ideally not appear in 'attendanceRecords'
+        return <Badge variant="outline" className="border-blue-500 text-blue-500"><iconMap.CalendarOff className="mr-1 h-3 w-3" />On Leave</Badge>;
     default:
       return <Badge>{status}</Badge>;
   }
@@ -70,23 +87,23 @@ interface Employee {
 }
 
 const formatDurationFromMinutes = (totalMinutes: number | null | undefined): string => {
-  if (totalMinutes == null || totalMinutes < 0) {
-    return "N/A";
+  if (totalMinutes == null || totalMinutes < 0 || isNaN(totalMinutes)) {
+    return "-";
   }
   if (totalMinutes === 0) {
-    return "0 minutes";
+    return "0m";
   }
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   let result = "";
   if (hours > 0) {
-    result += `${hours} hour${hours > 1 ? "s" : ""}`;
+    result += `${hours}h`;
   }
   if (minutes > 0) {
     if (hours > 0) result += " ";
-    result += `${minutes} minute${minutes > 1 ? "s" : ""}`;
+    result += `${minutes}m`;
   }
-  return result || "0 minutes"; 
+  return result || "0m"; 
 };
 
 const calculateLeaveDaysInMonth = (
@@ -106,7 +123,7 @@ const calculateLeaveDaysInMonth = (
 
 
 const currentYear = getYear(new Date());
-const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i); // Current year +/- 2 years
+const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 const months = Array.from({ length: 12 }, (_, i) => ({
   value: i,
   label: format(new Date(0, i), "MMMM"),
@@ -129,6 +146,9 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
   const [monthlyLeaveDays, setMonthlyLeaveDays] = useState<number>(0);
   const [monthlyLeaveApplicationsCount, setMonthlyLeaveApplicationsCount] = useState<number>(0);
   const [isLoadingMonthlyStats, setIsLoadingMonthlyStats] = useState(false);
+
+  const [monthlyAttendanceDetails, setMonthlyAttendanceDetails] = useState<AttendanceRecord[]>([]);
+  const [isLoadingAttendanceDetails, setIsLoadingAttendanceDetails] = useState(false);
   
   const { toast } = useToast();
 
@@ -142,9 +162,6 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
       });
       setEmployees(employeesData);
       setIsLoadingEmployees(false);
-      if (employeesData.length > 0 && !selectedEmployee) {
-         // setSelectedEmployee(employeesData[0]); // Optionally auto-select first employee
-      }
     }, (error) => {
       console.error("Error fetching employees: ", error);
       toast({
@@ -155,7 +172,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
       setIsLoadingEmployees(false);
     });
     return () => unsubscribe();
-  }, [toast, selectedEmployee]);
+  }, [toast]);
 
   useEffect(() => {
     if (!selectedEmployee) {
@@ -165,20 +182,22 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
       setMonthlyWorkDays(0);
       setMonthlyLeaveDays(0);
       setMonthlyLeaveApplicationsCount(0);
+      setMonthlyAttendanceDetails([]);
       return;
     }
 
     setIsLoadingLeaveRequests(true);
     setIsLoadingMonthlyStats(true);
+    setIsLoadingAttendanceDetails(true);
 
     const monthStart = startOfMonth(currentMonthDate);
-    const monthEnd = endOfMonth(currentMonthDate);
+    const monthEnd = endOfDay(endOfMonth(currentMonthDate)); // Ensure end of day for monthEnd
     const today = new Date();
 
-    const fetchMonthlyStatsAndLeaves = async () => {
-      // Fetch Daily Work Hours if selected month is current month and today
-      if (isSameMonth(currentMonthDate, today) && isToday(today)) {
-        try {
+    const fetchAllData = async () => {
+      try {
+        // Fetch Daily Work Hours if selected month is current month and today
+        if (isSameMonth(currentMonthDate, today) && isToday(today)) {
           const dailyAttendanceQuery = query(
             collection(db, "attendanceRecords"),
             where("employeeDocId", "==", selectedEmployee.id),
@@ -194,56 +213,56 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
           } else {
             setDailyWorkHoursToday(null);
           }
-        } catch (e: any) {
-          console.error("Error fetching daily attendance:", e);
-          setDailyWorkHoursToday(null);
-          toast({ title: "Error", description: `Could not fetch today's work hours. Index might be needed for 'attendanceRecords' on (employeeDocId, date, status). Details: ${e.message}`, variant: "destructive"});
+        } else {
+          setDailyWorkHoursToday(null); 
         }
-      } else {
-        setDailyWorkHoursToday(null); // Not current day or month
-      }
 
-      // Fetch Monthly Work Stats (Attendance)
-      try {
+        // Fetch Monthly Work Stats (Attendance) & Detailed Attendance
         const monthlyAttendanceQuery = query(
           collection(db, "attendanceRecords"),
           where("employeeDocId", "==", selectedEmployee.id),
-          where("status", "==", "Completed"),
           where("date", ">=", Timestamp.fromDate(monthStart)),
-          where("date", "<=", Timestamp.fromDate(monthEnd))
+          where("date", "<=", Timestamp.fromDate(monthEnd)),
+          orderBy("date", "asc") 
         );
         const monthlyAttendanceSnapshot = await getDocs(monthlyAttendanceQuery);
+        
         let totalMinutes = 0;
         const workDaysSet = new Set<string>();
+        const detailedRecords: AttendanceRecord[] = [];
+
         monthlyAttendanceSnapshot.forEach(docLoop => {
-          const record = docLoop.data() as AttendanceRecord;
-          if (record.workDurationMinutes !== undefined && record.workDurationMinutes !== null && typeof record.workDurationMinutes === 'number') {
+          const record = { id: docLoop.id, ...docLoop.data() } as AttendanceRecord;
+          detailedRecords.push(record);
+          if (record.status === "Completed" && record.workDurationMinutes != null && typeof record.workDurationMinutes === 'number') {
             totalMinutes += record.workDurationMinutes;
-          }
-          if (record.date) {
-            workDaysSet.add(format(record.date.toDate(), "yyyy-MM-dd"));
+            if (record.date) {
+              workDaysSet.add(format(record.date.toDate(), "yyyy-MM-dd"));
+            }
           }
         });
         setMonthlyWorkHours(totalMinutes);
         setMonthlyWorkDays(workDaysSet.size);
+        setMonthlyAttendanceDetails(detailedRecords);
+
       } catch (e: any) {
-        console.error("Error fetching monthly attendance:", e);
+        console.error("Error fetching monthly attendance/details:", e);
         setMonthlyWorkHours(0);
         setMonthlyWorkDays(0);
-        toast({ title: "Error", description: `Could not fetch monthly work stats. Index might be needed for 'attendanceRecords' on (employeeDocId, status, date). Details: ${e.message}`, variant: "destructive"});
+        setMonthlyAttendanceDetails([]);
+        toast({ title: "Error", description: `Could not fetch monthly work stats/details. Index might be needed. Details: ${e.message}`, variant: "destructive"});
+      } finally {
+        setIsLoadingMonthlyStats(false);
+        setIsLoadingAttendanceDetails(false);
       }
 
       // Fetch Monthly Leave Stats and Leave Requests for Table
       try {
-        // Query for leave requests that overlap with the selected month
         const overlappingLeavesQuery = query(
           collection(db, "leaveRequests"),
           where("requestingEmployeeDocId", "==", selectedEmployee.id),
-          where("status", "==", "Approved"), // For stats, only approved
-          where("startDate", "<=", Timestamp.fromDate(monthEnd)), // Starts before or during month
-          // Firestore doesn't support two range filters on different fields directly.
-          // So, we fetch broadly by startDate and filter endDate client-side for stats.
-          // For the table, we can do a more specific query or filter client-side.
+          where("status", "==", "Approved"), 
+          where("startDate", "<=", Timestamp.fromDate(monthEnd)), 
           orderBy("startDate", "desc") 
         );
         
@@ -257,8 +276,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
           const leaveStartDate = leave.startDate.toDate();
           const leaveEndDate = leave.endDate.toDate();
 
-          // Check if leave overlaps with the selected month
-          if (leaveEndDate >= monthStart) { // Ends after or during month start (already filtered by startDate <= monthEnd)
+          if (leaveEndDate >= monthStart) { 
             const daysInMonth = calculateLeaveDaysInMonth(
               leaveStartDate,
               leaveEndDate,
@@ -266,11 +284,11 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
               monthEnd
             );
             if (daysInMonth > 0) {
-              if(leave.status === "Approved") { // Double check status for stats
+              if(leave.status === "Approved") {
                  totalLeaveDaysInMonth += daysInMonth;
                  approvedLeaveApplicationsInMonth.add(leave.id);
               }
-              filteredLeaveRequestsForTable.push(leave); // Add to table list if it overlaps
+              filteredLeaveRequestsForTable.push(leave);
             }
           }
         });
@@ -283,14 +301,13 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
         setMonthlyLeaveDays(0);
         setMonthlyLeaveApplicationsCount(0);
         setEmployeeLeaveRequests([]);
-        toast({ title: "Error", description: `Could not fetch monthly leave data. Index might be needed for 'leaveRequests' on (requestingEmployeeDocId, status, startDate). Details: ${e.message}`, variant: "destructive"});
+        toast({ title: "Error", description: `Could not fetch monthly leave data. Index might be needed. Details: ${e.message}`, variant: "destructive"});
+      } finally {
+        setIsLoadingLeaveRequests(false);
       }
-      
-      setIsLoadingMonthlyStats(false);
-      setIsLoadingLeaveRequests(false);
     };
     
-    fetchMonthlyStatsAndLeaves();
+    fetchAllData();
 
   }, [selectedEmployee, currentMonthDate, toast]);
 
@@ -324,14 +341,14 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Users className="mr-2 h-5 w-5 text-primary" />
+              <iconMap.Users className="mr-2 h-5 w-5 text-primary" />
               Select Employee
             </CardTitle>
           </CardHeader>
           <CardContent>
             {isLoadingEmployees ? (
               <div className="flex justify-center items-center h-20">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <iconMap.Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : employees.length > 0 ? (
               <Select onValueChange={handleEmployeeSelect} value={selectedEmployee?.id || ""}>
@@ -356,7 +373,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
         <Card className="shadow-lg">
             <CardHeader>
                 <CardTitle className="flex items-center">
-                    <ListFilter className="mr-2 h-5 w-5 text-primary" />
+                    <iconMap.ListFilter className="mr-2 h-5 w-5 text-primary" />
                     Select Month and Year
                 </CardTitle>
             </CardHeader>
@@ -387,7 +404,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
             <Card className="shadow-lg mt-8">
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Activity className="mr-2 h-5 w-5 text-primary" />
+                  <iconMap.Activity className="mr-2 h-5 w-5 text-primary" />
                   Monthly Summary for {selectedEmployee.name} ({format(currentMonthDate, "MMMM yyyy")})
                 </CardTitle>
                 <CardDescription>
@@ -397,35 +414,35 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
               <CardContent>
                 {isLoadingMonthlyStats ? (
                   <div className="flex justify-center items-center h-40">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <iconMap.Loader2 className="h-8 w-8 animate-spin text-primary" />
                     <p className="ml-3 text-muted-foreground">Loading summary...</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
                     {isSameMonth(currentMonthDate, new Date()) && isToday(new Date()) && dailyWorkHoursToday !== null && (
                         <div className="flex items-center">
-                        <Clock className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <iconMap.Clock className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
                         <span className="font-medium">Work Hours (Today):&nbsp;</span>
                         <span>{formatDurationFromMinutes(dailyWorkHoursToday)}</span>
                         </div>
                     )}
                     <div className="flex items-center">
-                      <Clock className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <iconMap.Clock className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <span className="font-medium">Work Hours (Selected Month):&nbsp;</span>
                       <span>{formatDurationFromMinutes(monthlyWorkHours)}</span>
                     </div>
                     <div className="flex items-center">
-                      <CalendarDays className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <iconMap.CalendarDays className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <span className="font-medium">Work Days (Selected Month):&nbsp;</span>
                       <span>{monthlyWorkDays} day{monthlyWorkDays === 1 ? "" : "s"}</span>
                     </div>
                     <div className="flex items-center">
-                      <CalendarOff className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="font-medium">Leave Days (Selected Month):&nbsp;</span>
+                      <iconMap.CalendarOff className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="font-medium">Approved Leave Days (Selected Month):&nbsp;</span>
                       <span>{monthlyLeaveDays} day{monthlyLeaveDays === 1 ? "" : "s"}</span>
                     </div>
                      <div className="flex items-center">
-                      <ListChecks className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <iconMap.ListChecks className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <span className="font-medium">Approved Leave Applications (Selected Month):&nbsp;</span>
                       <span>{monthlyLeaveApplicationsCount}</span>
                     </div>
@@ -435,9 +452,66 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
             </Card>
 
             <Card className="shadow-lg mt-8">
+                <CardHeader>
+                    <CardTitle className="flex items-center">
+                        <iconMap.CalendarClock className="mr-2 h-5 w-5 text-primary" />
+                        Monthly Attendance Details for {selectedEmployee.name} ({format(currentMonthDate, "MMMM yyyy")})
+                    </CardTitle>
+                    <CardDescription>
+                        Day-by-day clock-in, clock-out, and duration for the selected month.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoadingAttendanceDetails ? (
+                        <div className="flex justify-center items-center h-40">
+                            <iconMap.Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <p className="ml-3 text-muted-foreground">Loading attendance details...</p>
+                        </div>
+                    ) : monthlyAttendanceDetails.length > 0 ? (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Clock In</TableHead>
+                                    <TableHead>Clock Out</TableHead>
+                                    <TableHead className="text-right">Duration</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {monthlyAttendanceDetails.map((record) => (
+                                    <TableRow key={record.id}>
+                                        <TableCell>{format(record.date.toDate(), "PPP")}</TableCell>
+                                        <TableCell><AttendanceStatusBadge status={record.status} /></TableCell>
+                                        <TableCell>
+                                            {record.clockInTime && isValid(record.clockInTime.toDate()) 
+                                                ? format(record.clockInTime.toDate(), "p") 
+                                                : "-"}
+                                        </TableCell>
+                                        <TableCell>
+                                            {record.clockOutTime && isValid(record.clockOutTime.toDate())
+                                                ? format(record.clockOutTime.toDate(), "p") 
+                                                : "-"}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            {formatDurationFromMinutes(record.workDurationMinutes)}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    ) : (
+                        <p className="text-center text-muted-foreground py-4">
+                            No attendance records found for {selectedEmployee.name} in {format(currentMonthDate, "MMMM yyyy")}.
+                        </p>
+                    )}
+                </CardContent>
+            </Card>
+
+            <Card className="shadow-lg mt-8">
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Eye className="mr-2 h-5 w-5 text-primary" />
+                  <iconMap.Eye className="mr-2 h-5 w-5 text-primary" />
                   Leave Requests for {selectedEmployee.name} ({format(currentMonthDate, "MMMM yyyy")})
                 </CardTitle>
                 <CardDescription>
@@ -447,7 +521,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
               <CardContent>
                 {isLoadingLeaveRequests ? (
                   <div className="flex justify-center items-center h-40">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <iconMap.Loader2 className="h-8 w-8 animate-spin text-primary" />
                     <p className="ml-3 text-muted-foreground">Loading requests...</p>
                   </div>
                 ) : employeeLeaveRequests.length > 0 ? (
@@ -498,3 +572,4 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
   );
 }
 
+    

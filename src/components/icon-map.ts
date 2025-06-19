@@ -21,9 +21,11 @@ import {
   UserMinus, 
   Clock, 
   CalendarDays, 
-  Activity, // Added for monthly summary title
-  ListFilter, // Added for month/year selection title
-  Eye, // Added for leave requests table title
+  Activity, 
+  ListFilter, 
+  Eye, 
+  XCircle, // Added for manual attendance "Cleared" status
+  CalendarClock, // Added for new monthly attendance details card
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -50,5 +52,8 @@ export const iconMap: { [key: string]: LucideIcon } = {
   Activity,
   ListFilter,
   Eye,
+  XCircle,
+  CalendarClock,
 };
 
+    
