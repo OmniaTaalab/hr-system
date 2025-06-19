@@ -4,7 +4,7 @@
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, query, where, getDocs, serverTimestamp, Timestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
-import { startOfDay, endOfDay, parse as parseDateFns, isValid as isValidDateFns, setHours, setMinutes, setSeconds, setMilliseconds } from 'date-fns';
+import { startOfDay, endOfDay, parse as parseDateFns, isValid as isValidDateFns, setHours, setMinutes, setSeconds, setMilliseconds, format } from 'date-fns';
 
 // --- Existing ClockIn/ClockOut Actions (largely unchanged but kept for potential other uses) ---
 
@@ -439,10 +439,12 @@ export async function manualUpdateAttendanceAction(
 
   } catch (error: any) {
     console.error("Error saving manual attendance:", error);
+    // Check if the error is 'format is not defined' specifically or a generic error
+    const errorMessage = error.message || "An unexpected error occurred.";
     return {
-      message: `Failed to save attendance: ${error.message}`,
+      message: `Failed to save attendance: ${errorMessage}`,
       success: false,
-      errors: { form: [`Failed to save attendance: ${error.message}`] },
+      errors: { form: [`Failed to save attendance: ${errorMessage}`] },
       updatedEmployeeDocId: employeeDocId,
     };
   }
