@@ -231,6 +231,7 @@ export async function getApprovedLeaveDaysForMonth(employeeDocId: string, year: 
 
 // Helper function to get existing payroll data
 export async function getExistingPayrollData(employeeDocId: string, monthYear: string) {
+  try {
     const q = query(
         collection(db, "monthlyPayrolls"),
         where("employeeDocId", "==", employeeDocId),
@@ -242,7 +243,7 @@ export async function getExistingPayrollData(employeeDocId: string, monthYear: s
         const docId = snapshot.docs[0].id;
         const data = snapshot.docs[0].data();
         
-        // Convert Timestamps to ISO strings
+        // Convert Timestamps to ISO strings to make the object "plain"
         const processedData: {[key: string]: any} = { ...data };
         if (data.calculatedAt instanceof Timestamp) {
             processedData.calculatedAt = data.calculatedAt.toDate().toISOString();
@@ -255,5 +256,9 @@ export async function getExistingPayrollData(employeeDocId: string, monthYear: s
         return { id: docId, ...processedData };
     }
     return null;
+  } catch (error) {
+    console.error("Error fetching existing payroll data for", employeeDocId, monthYear, error);
+    return null; // Return null in case of an error to prevent crashing the action
+  }
 }
 
