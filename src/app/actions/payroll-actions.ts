@@ -90,7 +90,7 @@ export async function savePayrollAction(
   const netSalaryCalculated = baseSalaryCalculated + bonus - deductions;
 
   try {
-    const payrollData = {
+    const payrollData: any = { // Use 'any' temporarily or define a more specific type for Firestore data
       employeeDocId,
       employeeName,
       monthYear, // Storing as YYYY-MM string
@@ -104,12 +104,6 @@ export async function savePayrollAction(
       notes: notes || "",
       lastUpdatedAt: serverTimestamp(),
     };
-
-    // Check if a payroll record for this employee and monthYear already exists
-    // We'll use monthYear as the document ID for simplicity within a subcollection or a specific query pattern
-    // For now, let's assume one record per employee per monthYear combo.
-    // A good way to ensure uniqueness is to create a specific document ID like `${employeeDocId}_${monthYear}`
-    // or query for existing.
 
     const payrollCollectionRef = collection(db, "monthlyPayrolls");
     const q = query(
@@ -137,10 +131,8 @@ export async function savePayrollAction(
       };
     } else {
       // Create new record
-      const newPayrollDocRef = await addDoc(payrollCollectionRef, {
-        ...payrollData,
-        calculatedAt: serverTimestamp(), // Add calculatedAt only for new records
-      });
+      payrollData.calculatedAt = serverTimestamp(); // Add calculatedAt only for new records
+      const newPayrollDocRef = await addDoc(payrollCollectionRef, payrollData);
       return {
         message: `Payroll for ${employeeName} for ${monthYear} saved successfully.`,
         success: true,
@@ -247,7 +239,20 @@ export async function getExistingPayrollData(employeeDocId: string, monthYear: s
     );
     const snapshot = await getDocs(q);
     if (!snapshot.empty) {
-        return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+        const docId = snapshot.docs[0].id;
+        const data = snapshot.docs[0].data();
+        
+        // Convert Timestamps to ISO strings
+        const processedData: {[key: string]: any} = { ...data };
+        if (data.calculatedAt instanceof Timestamp) {
+            processedData.calculatedAt = data.calculatedAt.toDate().toISOString();
+        }
+        if (data.lastUpdatedAt instanceof Timestamp) {
+            processedData.lastUpdatedAt = data.lastUpdatedAt.toDate().toISOString();
+        }
+        // Process any other Timestamp fields if they exist
+
+        return { id: docId, ...processedData };
     }
     return null;
 }
