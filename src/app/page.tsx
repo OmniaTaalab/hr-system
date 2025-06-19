@@ -14,11 +14,8 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-  ChartStyle
 } from "@/components/ui/chart";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -105,29 +102,33 @@ export default function HRDashboardPage() {
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const [activeEmployees, setActiveEmployees] = useState<number | null>(null);
   const [pendingLeaveRequests, setPendingLeaveRequests] = useState<number | null>(null);
+  const [approvedLeaveRequests, setApprovedLeaveRequests] = useState<number | null>(null);
+  const [rejectedLeaveRequests, setRejectedLeaveRequests] = useState<number | null>(null);
   const [departmentData, setDepartmentData] = useState<DepartmentData[]>([]);
 
   const [isLoadingTotalEmp, setIsLoadingTotalEmp] = useState(true);
   const [isLoadingActiveEmp, setIsLoadingActiveEmp] = useState(true);
   const [isLoadingPendingLeaves, setIsLoadingPendingLeaves] = useState(true);
+  const [isLoadingApprovedLeaves, setIsLoadingApprovedLeaves] = useState(true);
+  const [isLoadingRejectedLeaves, setIsLoadingRejectedLeaves] = useState(true);
   const [isLoadingDeptData, setIsLoadingDeptData] = useState(true);
 
   useEffect(() => {
     const fetchCounts = async () => {
+      // Total Employees
       try {
-        // Total Employees
         const empCol = collection(db, "employy");
         const empSnapshot = await getCountFromServer(empCol);
         setTotalEmployees(empSnapshot.data().count);
       } catch (error) {
         console.error("Error fetching total employees count:", error);
-        setTotalEmployees(0); // Fallback
+        setTotalEmployees(0);
       } finally {
         setIsLoadingTotalEmp(false);
       }
 
+      // Active Employees
       try {
-        // Active Employees
         const activeEmpQuery = query(collection(db, "employy"), where("status", "==", "Active"));
         const activeEmpSnapshot = await getCountFromServer(activeEmpQuery);
         setActiveEmployees(activeEmpSnapshot.data().count);
@@ -138,8 +139,8 @@ export default function HRDashboardPage() {
         setIsLoadingActiveEmp(false);
       }
 
+      // Pending Leave Requests
       try {
-        // Pending Leave Requests
         const pendingLeavesQuery = query(collection(db, "leaveRequests"), where("status", "==", "Pending"));
         const pendingLeavesSnapshot = await getCountFromServer(pendingLeavesQuery);
         setPendingLeaveRequests(pendingLeavesSnapshot.data().count);
@@ -148,6 +149,30 @@ export default function HRDashboardPage() {
         setPendingLeaveRequests(0);
       } finally {
         setIsLoadingPendingLeaves(false);
+      }
+
+      // Approved Leave Requests
+      try {
+        const approvedLeavesQuery = query(collection(db, "leaveRequests"), where("status", "==", "Approved"));
+        const approvedLeavesSnapshot = await getCountFromServer(approvedLeavesQuery);
+        setApprovedLeaveRequests(approvedLeavesSnapshot.data().count);
+      } catch (error) {
+        console.error("Error fetching approved leave requests count:", error);
+        setApprovedLeaveRequests(0);
+      } finally {
+        setIsLoadingApprovedLeaves(false);
+      }
+
+      // Rejected Leave Requests
+      try {
+        const rejectedLeavesQuery = query(collection(db, "leaveRequests"), where("status", "==", "Rejected"));
+        const rejectedLeavesSnapshot = await getCountFromServer(rejectedLeavesQuery);
+        setRejectedLeaveRequests(rejectedLeavesSnapshot.data().count);
+      } catch (error) {
+        console.error("Error fetching rejected leave requests count:", error);
+        setRejectedLeaveRequests(0);
+      } finally {
+        setIsLoadingRejectedLeaves(false);
       }
     };
 
@@ -184,25 +209,38 @@ export default function HRDashboardPage() {
       isLoadingStatistic: isLoadingTotalEmp,
       href: "/employees",
       linkText: "Manage Employees",
-      className: "md:col-span-1",
     },
     {
       title: "Active Employees",
       iconName: "UserCheck",
       statistic: activeEmployees ?? 0,
       isLoadingStatistic: isLoadingActiveEmp,
-      href: "/employees", // Could filter to active if that page supports it
+      href: "/employees",
       linkText: "View Active",
-      className: "md:col-span-1",
     },
     {
       title: "Pending Leaves",
       iconName: "Hourglass",
       statistic: pendingLeaveRequests ?? 0,
       isLoadingStatistic: isLoadingPendingLeaves,
-      href: "/leave/all-requests", // Could filter to pending if that page supports it
+      href: "/leave/all-requests", 
       linkText: "Review Requests",
-      className: "md:col-span-1",
+    },
+    {
+      title: "Approved Leaves",
+      iconName: "ShieldCheck",
+      statistic: approvedLeaveRequests ?? 0,
+      isLoadingStatistic: isLoadingApprovedLeaves,
+      href: "/leave/all-requests",
+      linkText: "View Approved",
+    },
+    {
+      title: "Rejected Leaves",
+      iconName: "ShieldX",
+      statistic: rejectedLeaveRequests ?? 0,
+      isLoadingStatistic: isLoadingRejectedLeaves,
+      href: "/leave/all-requests",
+      linkText: "View Rejected",
     },
   ];
 
@@ -260,7 +298,7 @@ export default function HRDashboardPage() {
           <h2 id="statistics-title" className="text-2xl font-semibold font-headline mb-4">
             Key Statistics
           </h2>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {statisticCards.map((card) => (
               <DashboardCard key={card.title} {...card} />
             ))}
@@ -286,26 +324,28 @@ export default function HRDashboardPage() {
                 </div>
               ) : departmentData.length > 0 ? (
                 <ChartContainer config={chartConfig} className="h-[350px] w-full">
-                  <BarChart accessibilityLayer data={departmentData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="name"
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      angle={-35}
-                      textAnchor="end"
-                      height={70}
-                      interval={0}
-                      tickFormatter={(value) => value.length > 15 ? `${value.substring(0,12)}...` : value}
-                    />
-                    <YAxis tickLine={false} axisLine={false} tickMargin={8} />
-                    <ChartTooltip
-                      cursor={false}
-                      content={<ChartTooltipContent indicator="dashed" />}
-                    />
-                    <Bar dataKey="count" fill="var(--color-employees)" radius={4} />
-                  </BarChart>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart accessibilityLayer data={departmentData} margin={{ top: 5, right: 0, left: -20, bottom: 70 }}> {/* Increased bottom margin */}
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="name"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        angle={-45} // Angle for better readability
+                        textAnchor="end"
+                        interval={0} // Show all labels
+                        height={80} // Allocate more height for angled labels
+                        tickFormatter={(value) => value.length > 15 ? `${value.substring(0,12)}...` : value}
+                      />
+                      <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} />
+                      <ChartTooltip
+                        cursor={false}
+                        content={<ChartTooltipContent indicator="dashed" />}
+                      />
+                      <Bar dataKey="count" fill="var(--color-employees)" radius={4} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </ChartContainer>
               ) : (
                 <p className="text-center text-muted-foreground py-10">No department data available to display chart.</p>

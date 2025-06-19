@@ -8,10 +8,12 @@ import {
   Users,
   ListChecks, 
   ClipboardList,
-  UserCheck, // Added UserCheck
-  Hourglass, // Added Hourglass
-  BarChartBig, // Added BarChartBig
-  UserCog, // Added UserCog for potentially different employee management icon
+  UserCheck,
+  Hourglass,
+  BarChartBig,
+  UserCog,
+  ShieldCheck, // Added ShieldCheck
+  ShieldX, // Added ShieldX
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -27,4 +29,6 @@ export const iconMap: { [key: string]: LucideIcon } = {
   Hourglass,
   BarChartBig,
   UserCog,
+  ShieldCheck,
+  ShieldX,
 };
