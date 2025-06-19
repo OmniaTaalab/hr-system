@@ -102,7 +102,6 @@ export async function clockInAction(
       console.error('Error Code:', error.code); // Crucial for Firebase errors
       console.error('Error Stack:', error.stack);
       try {
-        // Attempt to serialize all properties of the error object
         const errorProperties = Object.getOwnPropertyNames(error).reduce((acc, key) => {
           // @ts-ignore
           acc[key] = error[key];
@@ -111,7 +110,6 @@ export async function clockInAction(
         console.error('All Error Properties (JSON):', JSON.stringify(errorProperties, null, 2));
       } catch (e) {
         console.error('Could not stringify all error properties:', e);
-        // Fallback if full stringification fails
         const simplifiedError = {
             name: error.name,
             message: error.message,
@@ -122,26 +120,31 @@ export async function clockInAction(
       }
     }
     
-    let detailedErrorMessage = "Clock-in failed. An unexpected error occurred. Please check the server terminal for more details, especially if it mentions a required index or permission issues.";
-
-    if (error.message) { 
-        detailedErrorMessage = `Clock-in failed: ${error.message}`;
-        if (error.code) {
-            detailedErrorMessage += ` (Code: ${error.code})`;
-        }
-        // Specifically check for Firestore permission denied or failed precondition (often index-related)
-        if (error.code === 'permission-denied') {
-            detailedErrorMessage += " This might be due to Firestore security rules. Check server logs.";
-        } else if (error.code === 'failed-precondition') {
-             detailedErrorMessage += " This often indicates a missing Firestore index. Check server logs for a link to create it.";
-        }
+    let returnedMessage: string;
+    // If the error is 'failed-precondition' and an error message exists, use it directly
+    // as it likely contains the Firestore index creation link.
+    if (error.code === 'failed-precondition' && error.message) {
+      returnedMessage = error.message;
+    } else if (error.message) { 
+      // For other errors with a message
+      returnedMessage = `Clock-in failed: ${error.message}`;
+      if (error.code) {
+        returnedMessage += ` (Code: ${error.code})`;
+      }
+      if (error.code === 'permission-denied') {
+        returnedMessage += " This might be due to Firestore security rules. Check server logs.";
+      }
     } else if (error.code) {
-        detailedErrorMessage = `Clock-in failed due to an error. Code: ${error.code}. Check server logs for details.`;
+      // For errors with only a code
+      returnedMessage = `Clock-in failed due to an error. Code: ${error.code}. Check server logs for details.`;
+    } else {
+      // Generic fallback
+      returnedMessage = "Clock-in failed. An unexpected error occurred. Please check the server terminal for more details, especially if it mentions a required index or permission issues.";
     }
     
     return {
-      errors: { form: [detailedErrorMessage] }, 
-      message: detailedErrorMessage, 
+      errors: { form: [returnedMessage] }, 
+      message: returnedMessage, 
       success: false,
     };
   }
@@ -266,25 +269,26 @@ export async function clockOutAction(
       }
     }
 
-     let detailedErrorMessage = "Clock-out failed. An unexpected error occurred. Please check the server terminal for more details.";
-
-     if (error.message) { 
-        detailedErrorMessage = `Clock-out failed: ${error.message}`;
-        if (error.code) {
-            detailedErrorMessage += ` (Code: ${error.code})`;
-        }
-        if (error.code === 'permission-denied') {
-            detailedErrorMessage += " This might be due to Firestore security rules. Check server logs.";
-        } else if (error.code === 'failed-precondition') {
-             detailedErrorMessage += " This often indicates a missing Firestore index. Check server logs for a link to create it.";
-        }
+    let returnedMessage: string;
+    if (error.code === 'failed-precondition' && error.message) {
+      returnedMessage = error.message;
+    } else if (error.message) { 
+      returnedMessage = `Clock-out failed: ${error.message}`;
+      if (error.code) {
+        returnedMessage += ` (Code: ${error.code})`;
+      }
+      if (error.code === 'permission-denied') {
+        returnedMessage += " This might be due to Firestore security rules. Check server logs.";
+      }
     } else if (error.code) {
-        detailedErrorMessage = `Clock-out failed due to an error. Code: ${error.code}. Check server logs for details.`;
+      returnedMessage = `Clock-out failed due to an error. Code: ${error.code}. Check server logs for details.`;
+    } else {
+      returnedMessage = "Clock-out failed. An unexpected error occurred. Please check the server terminal for more details.";
     }
 
     return {
-      errors: { form: [detailedErrorMessage] },
-      message: detailedErrorMessage,
+      errors: { form: [returnedMessage] },
+      message: returnedMessage,
       success: false,
     };
   }
