@@ -87,12 +87,16 @@ function calculateDuration(clockInStr: string, clockOutStr: string, selectedDate
   if (inHours < 0 || inHours > 23 || inMinutes < 0 || inMinutes > 59 ||
       outHours < 0 || outHours > 23 || outMinutes < 0 || outMinutes > 59) return "-";
       
-  const clockInDate = setMilliseconds(setSeconds(setMinutes(setHours(selectedDate, inHours), inMinutes),0),0);
-  const clockOutDate = setMilliseconds(setSeconds(setMinutes(setHours(selectedDate, outHours), outMinutes),0),0);
+  // Using Date.UTC to ensure calculations are based on UTC if selectedDate is also UTC-aligned
+  // However, for display duration, local interpretation of selectedDate might be fine if it matches user context.
+  // For consistency with how server might calculate, let's assume selectedDate is the calendar day.
+  const clockInDateTime = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), inHours, inMinutes);
+  const clockOutDateTime = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), outHours, outMinutes);
 
-  if (!isValid(clockInDate) || !isValid(clockOutDate) || clockOutDate <= clockInDate) return "0 min";
+
+  if (!isValid(clockInDateTime) || !isValid(clockOutDateTime) || clockOutDateTime <= clockInDateTime) return "0 min";
   
-  const diffMs = clockOutDate.getTime() - clockInDate.getTime();
+  const diffMs = clockOutDateTime.getTime() - clockInDateTime.getTime();
   const diffMinutes = Math.round(diffMs / 60000);
   
   const hours = Math.floor(diffMinutes / 60);
@@ -140,15 +144,16 @@ export default function ManualAttendancePage() {
     }
 
     setIsLoadingRecords(true);
-    const dateStart = startOfDay(selectedDate);
-    const dateEnd = endOfDay(selectedDate);
+    // Construct date range for Firestore query (UTC midnight to UTC end of day)
+    const dateForQueryStart = new Date(Date.UTC(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 0, 0, 0, 0));
+    const dateForQueryEnd = new Date(Date.UTC(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 23, 59, 59, 999));
+
 
     // Fetch attendance records for the selected date
     const attendanceQuery = query(
       collection(db, "attendanceRecords"),
-      where("date", ">=", Timestamp.fromDate(dateStart)),
-      where("date", "<=", Timestamp.fromDate(dateEnd))
-      // employeeDocId will be filtered client-side after fetching all for the day
+      where("date", ">=", Timestamp.fromDate(dateForQueryStart)),
+      where("date", "<=", Timestamp.fromDate(dateForQueryEnd))
     );
     const unsubAttendance = onSnapshot(attendanceQuery, (snapshot) => {
       const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
@@ -157,19 +162,18 @@ export default function ManualAttendancePage() {
       const leavesQuery = query(
         collection(db, "leaveRequests"),
         where("status", "==", "Approved"),
-        where("startDate", "<=", Timestamp.fromDate(dateEnd))
+        where("startDate", "<=", Timestamp.fromDate(dateForQueryEnd)) 
       );
       const unsubLeaves = onSnapshot(leavesQuery, (leaveSnapshot) => {
         const relevantLeaves: LeaveRequestEntry[] = [];
         leaveSnapshot.forEach(doc => {
           const leave = { id: doc.id, ...doc.data() } as LeaveRequestEntry;
-          if (leave.endDate && leave.endDate.toDate() >= dateStart) { // Leave period overlaps with selectedDate
+          if (leave.endDate && leave.endDate.toDate() >= dateForQueryStart) { 
               relevantLeaves.push(leave);
           }
         });
-        setTodaysLeaves(relevantLeaves); // Store for use in map
+        setTodaysLeaves(relevantLeaves); 
         
-        // Combine employees with their attendance and leave status
         const combinedData = allEmployees.map(emp => {
           const empAttendance = records.find(r => r.employeeDocId === emp.id);
           const empLeave = relevantLeaves.find(l => l.requestingEmployeeDocId === emp.id);
@@ -184,8 +188,13 @@ export default function ManualAttendancePage() {
           } else if (empLeave) {
             displayStatus = "On Approved Leave";
           } else if (empAttendance) {
-            if (empAttendance.clockInTime) inputClockIn = format(empAttendance.clockInTime.toDate(), "HH:mm");
-            if (empAttendance.clockOutTime) inputClockOut = format(empAttendance.clockOutTime.toDate(), "HH:mm");
+            // Ensure clockInTime/OutTime are valid dates before formatting
+            if (empAttendance.clockInTime && isValid(empAttendance.clockInTime.toDate())) {
+                inputClockIn = format(empAttendance.clockInTime.toDate(), "HH:mm");
+            }
+            if (empAttendance.clockOutTime && isValid(empAttendance.clockOutTime.toDate())) {
+                inputClockOut = format(empAttendance.clockOutTime.toDate(), "HH:mm");
+            }
             
             if (empAttendance.status === "ManuallyCleared") {
                  displayStatus = "Entry Cleared";
@@ -194,7 +203,8 @@ export default function ManualAttendancePage() {
             } else if (inputClockIn) {
                  displayStatus = "Clocked In (Only)";
             }
-            calculatedDuration = calculateDuration(inputClockIn, inputClockOut, selectedDate);
+            // Pass the original selectedDate for client-side duration calculation display
+            calculatedDuration = calculateDuration(inputClockIn, inputClockOut, selectedDate); 
           }
           
           return {
@@ -205,7 +215,7 @@ export default function ManualAttendancePage() {
             inputClockIn,
             inputClockOut,
             calculatedDuration,
-            isSaving: false, // For individual row saving spinner
+            isSaving: false, 
           };
         });
         setAttendanceData(combinedData);
@@ -214,19 +224,19 @@ export default function ManualAttendancePage() {
       }, error => {
         console.error("Error fetching leave requests:", error);
         toast({ variant: "destructive", title: "Error", description: "Could not load leave requests. Check Firestore indexes." });
-        setIsLoadingRecords(false); // Ensure loading stops on error
+        setIsLoadingRecords(false); 
       });
 
-      return () => unsubLeaves(); // Cleanup leaves subscription
+      return () => unsubLeaves(); 
 
     }, error => {
       console.error("Error fetching attendance:", error);
       toast({ variant: "destructive", title: "Error", description: "Could not load attendance records for selected date." });
-      setAttendanceData([]); // Clear data on error
+      setAttendanceData([]); 
       setIsLoadingRecords(false);
     });
 
-    return () => unsubAttendance(); // Cleanup attendance subscription
+    return () => unsubAttendance(); 
   }, [selectedDate, allEmployees, toast]);
 
 
@@ -238,16 +248,14 @@ export default function ManualAttendancePage() {
           updatedEmp.calculatedDuration = calculateDuration(
             field === 'inputClockIn' ? value : updatedEmp.inputClockIn,
             field === 'inputClockOut' ? value : updatedEmp.inputClockOut,
-            selectedDate
+            selectedDate // Use the client's selectedDate for display calculation
           );
-          // Recalculate display status based on new times
           if (updatedEmp.displayStatus !== "On Approved Leave" && updatedEmp.displayStatus !== "Inactive Employee") {
             if (updatedEmp.inputClockIn && updatedEmp.inputClockOut) {
               updatedEmp.displayStatus = "Times Entered";
             } else if (updatedEmp.inputClockIn) {
               updatedEmp.displayStatus = "Clocked In (Only)";
             } else if (!updatedEmp.inputClockIn && !updatedEmp.inputClockOut && updatedEmp.attendanceRecordId) {
-               // This condition means user cleared both, and there was an original record
                updatedEmp.displayStatus = "Entry Cleared";
             }
              else {
@@ -267,7 +275,8 @@ export default function ManualAttendancePage() {
     const formData = new FormData();
     formData.append('employeeDocId', employeeData.id);
     formData.append('employeeName', employeeData.name);
-    formData.append('selectedDate', selectedDate.toISOString());
+    // Send date as YYYY-MM-DD string to avoid timezone issues from toISOString()
+    formData.append('selectedDate', format(selectedDate, "yyyy-MM-dd")); 
     formData.append('clockInTime', employeeData.inputClockIn);
     formData.append('clockOutTime', employeeData.inputClockOut);
     if (employeeData.attendanceRecordId) {
@@ -288,7 +297,7 @@ export default function ManualAttendancePage() {
       });
       if(updateState.updatedEmployeeDocId) {
         setAttendanceData(prev => prev.map(e => e.id === updateState.updatedEmployeeDocId ? {...e, isSaving: false} : e));
-      } else { // If no specific employee ID, stop all saving indicators
+      } else { 
         setAttendanceData(prev => prev.map(e => ({...e, isSaving: false})));
       }
     }
@@ -442,5 +451,3 @@ export default function ManualAttendancePage() {
     </AppLayout>
   );
 }
-
-    
