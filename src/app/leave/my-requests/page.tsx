@@ -20,7 +20,11 @@ import { format, differenceInCalendarDays, startOfMonth, endOfMonth, max, min, g
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, where, Timestamp, orderBy, DocumentData, getDocs, limit } from 'firebase/firestore';
 import { cn } from "@/lib/utils";
-import { CalendarOff, ListChecks } from "lucide-react"; // Added CalendarOff & ListChecks
+import { CalendarOff, ListChecks } from "lucide-react"; 
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
+
 
 interface AttendanceRecord {
   id: string;
@@ -141,7 +145,13 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
 
   const [currentMonthDate, setCurrentMonthDate] = useState<Date>(startOfMonth(new Date()));
 
-  const [dailyWorkHoursToday, setDailyWorkHoursToday] = useState<number | null>(null);
+  // State for specific day work hours snapshot
+  const [specificDayForSnapshot, setSpecificDayForSnapshot] = useState<Date>(new Date());
+  const [specificDayWorkHours, setSpecificDayWorkHours] = useState<number | null>(null);
+  const [isLoadingSpecificDayHours, setIsLoadingSpecificDayHours] = useState(false);
+  const [isSpecificDayCalendarOpen, setIsSpecificDayCalendarOpen] = useState(false);
+  
+  // State for monthly stats (excluding specific day snapshot)
   const [monthlyWorkHours, setMonthlyWorkHours] = useState<number>(0);
   const [monthlyWorkDays, setMonthlyWorkDays] = useState<number>(0);
   const [monthlyLeaveDays, setMonthlyLeaveDays] = useState<number>(0);
@@ -175,10 +185,10 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
     return () => unsubscribe();
   }, [toast]);
 
+  // useEffect for monthly summary (work, leave, attendance details table)
   useEffect(() => {
     if (!selectedEmployee) {
       setEmployeeLeaveRequests([]);
-      setDailyWorkHoursToday(null);
       setMonthlyWorkHours(0);
       setMonthlyWorkDays(0);
       setMonthlyLeaveDays(0);
@@ -193,42 +203,15 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
 
     const monthStart = startOfMonth(currentMonthDate);
     const monthEnd = dateFnsEndOfDay(endOfMonth(currentMonthDate)); 
-    const today = new Date();
 
-    const fetchAllData = async () => {
+    const fetchMonthlyData = async () => {
       try {
-        // Fetch Daily Work Hours if selected month is current month and today
-        if (isSameMonth(currentMonthDate, today) && isToday(today)) {
-          // Get UTC start of today for querying the 'date' field
-          const todayUTCStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 0, 0, 0, 0));
-          
-          const dailyAttendanceQuery = query(
-            collection(db, "attendanceRecords"),
-            where("employeeDocId", "==", selectedEmployee.id),
-            where("date", "==", Timestamp.fromDate(todayUTCStart)) 
-          );
-          console.log(`[MyRequestsPage] Querying daily attendance for ${selectedEmployee.name} on ${todayUTCStart.toISOString()}`);
-          const dailySnapshot = await getDocs(dailyAttendanceQuery);
-          let totalDailyMinutes = 0;
-          dailySnapshot.forEach(docLoop => {
-            const record = docLoop.data() as AttendanceRecord;
-            console.log(`[MyRequestsPage] Daily record found: ID=${docLoop.id}, Status=${record.status}, Duration=${record.workDurationMinutes}`);
-            if (record.status === "Completed" && record.workDurationMinutes != null && typeof record.workDurationMinutes === 'number') {
-              totalDailyMinutes += record.workDurationMinutes;
-            }
-          });
-          console.log(`[MyRequestsPage] Total daily minutes calculated: ${totalDailyMinutes}`);
-          setDailyWorkHoursToday(totalDailyMinutes > 0 ? totalDailyMinutes : null);
-        } else {
-          setDailyWorkHoursToday(null); 
-        }
-
         // Fetch Monthly Work Stats (Attendance) & Detailed Attendance
         const monthlyAttendanceQuery = query(
           collection(db, "attendanceRecords"),
           where("employeeDocId", "==", selectedEmployee.id),
-          where("date", ">=", Timestamp.fromDate(monthStart)), // monthStart is already UTC start of month
-          where("date", "<=", Timestamp.fromDate(monthEnd)),   // monthEnd is already UTC end of month
+          where("date", ">=", Timestamp.fromDate(monthStart)), 
+          where("date", "<=", Timestamp.fromDate(monthEnd)),   
           orderBy("date", "asc") 
         );
         const monthlyAttendanceSnapshot = await getDocs(monthlyAttendanceQuery);
@@ -243,7 +226,6 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
           if (record.status === "Completed" && record.workDurationMinutes != null && typeof record.workDurationMinutes === 'number') {
             totalMinutes += record.workDurationMinutes;
             if (record.date) {
-               // The date field is already UTC midnight, format it to get unique calendar days
               workDaysSet.add(format(record.date.toDate(), "yyyy-MM-dd"));
             }
           }
@@ -265,7 +247,6 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
 
       // Fetch Monthly Leave Stats and Leave Requests for Table
       try {
-        // Query for approved leaves that *overlap* with the selected month
         const overlappingLeavesQuery = query(
           collection(db, "leaveRequests"),
           where("requestingEmployeeDocId", "==", selectedEmployee.id),
@@ -284,16 +265,15 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
           const leaveStartDate = leave.startDate.toDate();
           const leaveEndDate = leave.endDate.toDate();
 
-          // Further filter: ensure the leave's end date is on or after the month's start
           if (leaveEndDate >= monthStart) { 
             const daysInMonth = calculateLeaveDaysInMonth(
               leaveStartDate,
               leaveEndDate,
-              monthStart, // Already UTC start of month
-              monthEnd    // Already UTC end of month
+              monthStart, 
+              monthEnd    
             );
             if (daysInMonth > 0) {
-              if(leave.status === "Approved") { // Double check, though query already filters
+              if(leave.status === "Approved") { 
                  totalLeaveDaysInMonth += daysInMonth;
                  approvedLeaveApplicationsInMonth.add(leave.id);
               }
@@ -303,7 +283,6 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
         });
         setMonthlyLeaveDays(totalLeaveDaysInMonth);
         setMonthlyLeaveApplicationsCount(approvedLeaveApplicationsInMonth.size);
-        // Sort the filtered requests for display
         setEmployeeLeaveRequests(filteredLeaveRequestsForTable.sort((a,b) => b.startDate.toMillis() - a.startDate.toMillis()));
 
       } catch (e:any) {
@@ -317,9 +296,51 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
       }
     };
     
-    fetchAllData();
+    fetchMonthlyData();
 
   }, [selectedEmployee, currentMonthDate, toast]);
+
+  // useEffect for specific day work hours snapshot
+  useEffect(() => {
+    if (!selectedEmployee) {
+      setSpecificDayWorkHours(null);
+      return;
+    }
+
+    setIsLoadingSpecificDayHours(true);
+    const fetchSpecificDayData = async () => {
+      try {
+        const dayUTCStart = new Date(Date.UTC(specificDayForSnapshot.getUTCFullYear(), specificDayForSnapshot.getUTCMonth(), specificDayForSnapshot.getUTCDate(), 0, 0, 0, 0));
+        
+        const dailyAttendanceQuery = query(
+          collection(db, "attendanceRecords"),
+          where("employeeDocId", "==", selectedEmployee.id),
+          where("date", "==", Timestamp.fromDate(dayUTCStart)) 
+        );
+        console.log(`[MyRequestsPage] Querying daily attendance for ${selectedEmployee.name} on ${dayUTCStart.toISOString()} (Specific Day Snapshot)`);
+        const dailySnapshot = await getDocs(dailyAttendanceQuery);
+        let totalDailyMinutes = 0;
+        dailySnapshot.forEach(docLoop => {
+          const record = docLoop.data() as AttendanceRecord;
+          console.log(`[MyRequestsPage] Daily record found (Snapshot): ID=${docLoop.id}, Status=${record.status}, Duration=${record.workDurationMinutes}`);
+          if (record.status === "Completed" && record.workDurationMinutes != null && typeof record.workDurationMinutes === 'number') {
+            totalDailyMinutes += record.workDurationMinutes;
+          }
+        });
+        console.log(`[MyRequestsPage] Total daily minutes calculated (Snapshot): ${totalDailyMinutes}`);
+        setSpecificDayWorkHours(totalDailyMinutes); 
+      } catch (e: any) {
+        console.error("Error fetching specific day attendance:", e);
+        setSpecificDayWorkHours(null);
+        toast({ title: "Error", description: `Could not fetch work hours for the selected day. Details: ${e.message}`, variant = "destructive"});
+      } finally {
+        setIsLoadingSpecificDayHours(false);
+      }
+    };
+
+    fetchSpecificDayData();
+  }, [selectedEmployee, specificDayForSnapshot, toast]);
+
 
   const handleEmployeeSelect = (employeeId: string) => {
     const employee = employees.find(e => e.id === employeeId);
@@ -388,7 +409,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
             <CardHeader>
                 <CardTitle className="flex items-center">
                     <iconMap.ListFilter className="mr-2 h-5 w-5 text-primary" />
-                    Select Month and Year
+                    Select Month and Year for Monthly Summary
                 </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row gap-4">
@@ -419,49 +440,84 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <iconMap.Activity className="mr-2 h-5 w-5 text-primary" />
-                  Monthly Summary for {selectedEmployee.name} ({format(currentMonthDate, "MMMM yyyy")})
+                  Summary for {selectedEmployee.name}
                 </CardTitle>
                 <CardDescription>
-                  Overview of work and leave for the selected month.
+                  Overview of work and leave. Monthly stats are for ({format(currentMonthDate, "MMMM yyyy")}).
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {isLoadingMonthlyStats ? (
-                  <div className="flex justify-center items-center h-40">
-                    <iconMap.Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="ml-3 text-muted-foreground">Loading summary...</p>
-                  </div>
-                ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
-                    {isSameMonth(currentMonthDate, new Date()) && isToday(new Date()) && dailyWorkHoursToday !== null && (
-                        <div className="flex items-center">
-                        <iconMap.Clock className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <span className="font-medium">Work Hours (Today):&nbsp;</span>
-                        <span>{formatDurationFromMinutes(dailyWorkHoursToday)}</span>
+                    {/* Specific Day Work Hours Snapshot */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between col-span-1 md:col-span-2 border-b pb-4 mb-4">
+                        <div className="flex items-center mb-2 sm:mb-0">
+                            <iconMap.Clock className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span className="font-medium">Work Hours ({specificDayForSnapshot ? format(specificDayForSnapshot, 'PPP') : 'Select Day'}):&nbsp;</span>
+                            {isLoadingSpecificDayHours ? (
+                            <iconMap.Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                            <span>{formatDurationFromMinutes(specificDayWorkHours)}</span>
+                            )}
                         </div>
+                        <Popover open={isSpecificDayCalendarOpen} onOpenChange={setIsSpecificDayCalendarOpen}>
+                            <PopoverTrigger asChild>
+                            <Button
+                                variant={"outline"}
+                                size="sm"
+                                className={cn(
+                                "w-full sm:w-[200px] justify-start text-left font-normal",
+                                !specificDayForSnapshot && "text-muted-foreground"
+                                )}
+                            >
+                                <iconMap.CalendarDays className="mr-2 h-4 w-4" />
+                                {specificDayForSnapshot ? format(specificDayForSnapshot, "PPP") : <span>Pick a day</span>}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                            <Calendar
+                                mode="single"
+                                selected={specificDayForSnapshot}
+                                onSelect={(date) => {
+                                if (date) setSpecificDayForSnapshot(date);
+                                setIsSpecificDayCalendarOpen(false);
+                                }}
+                                initialFocus
+                            />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+
+                    {/* Monthly Statistics */}
+                    {isLoadingMonthlyStats ? (
+                         <div className="col-span-1 md:col-span-2 flex justify-center items-center h-20">
+                            <iconMap.Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <p className="ml-3 text-muted-foreground">Loading monthly summary...</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="flex items-center">
+                            <iconMap.Clock className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span className="font-medium">Total Work Hours ({format(currentMonthDate, "MMMM")}):&nbsp;</span>
+                            <span>{formatDurationFromMinutes(monthlyWorkHours)}</span>
+                            </div>
+                            <div className="flex items-center">
+                            <iconMap.CalendarDays className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span className="font-medium">Total Work Days ({format(currentMonthDate, "MMMM")}):&nbsp;</span>
+                            <span>{monthlyWorkDays} day{monthlyWorkDays === 1 ? "" : "s"}</span>
+                            </div>
+                            <div className="flex items-center">
+                            <CalendarOff className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span className="font-medium">Approved Leave Days ({format(currentMonthDate, "MMMM")}):&nbsp;</span>
+                            <span>{monthlyLeaveDays} day{monthlyLeaveDays === 1 ? "" : "s"}</span>
+                            </div>
+                            <div className="flex items-center">
+                            <ListChecks className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span className="font-medium">Approved Leave Applications ({format(currentMonthDate, "MMMM")}):&nbsp;</span>
+                            <span>{monthlyLeaveApplicationsCount}</span>
+                            </div>
+                        </>
                     )}
-                    <div className="flex items-center">
-                      <iconMap.Clock className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="font-medium">Work Hours (Selected Month):&nbsp;</span>
-                      <span>{formatDurationFromMinutes(monthlyWorkHours)}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <iconMap.CalendarDays className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="font-medium">Work Days (Selected Month):&nbsp;</span>
-                      <span>{monthlyWorkDays} day{monthlyWorkDays === 1 ? "" : "s"}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <CalendarOff className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="font-medium">Approved Leave Days (Selected Month):&nbsp;</span>
-                      <span>{monthlyLeaveDays} day{monthlyLeaveDays === 1 ? "" : "s"}</span>
-                    </div>
-                     <div className="flex items-center">
-                      <ListChecks className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="font-medium">Approved Leave Applications (Selected Month):&nbsp;</span>
-                      <span>{monthlyLeaveApplicationsCount}</span>
-                    </div>
                   </div>
-                )}
               </CardContent>
             </Card>
 
@@ -585,3 +641,4 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
     </AppLayout>
   );
 }
+
