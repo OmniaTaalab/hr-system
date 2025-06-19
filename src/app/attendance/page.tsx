@@ -160,16 +160,15 @@ export default function AttendancePage() {
       toast({ variant: "destructive", title: "Error", description: "Could not load attendance records." });
     });
 
-    // Fetch today's approved leave requests (modified query)
+    // Fetch today's approved leave requests
     const leavesQuery = query(
       collection(db, "leaveRequests"),
       where("status", "==", "Approved"),
-      where("startDate", "<=", Timestamp.fromDate(todayEnd)) // Leaves that started on or before today
-      // The second date condition (endDate >= todayStart) will be applied client-side
+      where("startDate", "<=", Timestamp.fromDate(todayEnd)), // Leaves that started on or before today
+      orderBy("startDate", "asc") // Added orderBy to be more explicit
     );
     const unsubLeaves = onSnapshot(leavesQuery, (snapshot) => {
       const relevantLeaves: LeaveRequestEntry[] = [];
-      // Use the same todayStart for client-side filtering
       const currentDayStart = startOfDay(new Date()); 
 
       snapshot.forEach(doc => {
