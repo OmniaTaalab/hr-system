@@ -92,7 +92,22 @@ export async function clockInAction(
       attendanceRecordId: docRef.id 
     };
   } catch (error: any) {
-    console.error('Firestore Clock In Error:', error); 
+    console.error('--- CLOCK IN ACTION SERVER-SIDE ERROR ---');
+    console.error('Timestamp of Error:', new Date().toISOString());
+    console.error('Error Object:', error); 
+    console.error('Error Type:', typeof error);
+    if (error && typeof error === 'object') {
+      console.error('Error Name:', error.name);
+      console.error('Error Message:', error.message);
+      console.error('Error Code:', error.code);
+      console.error('Error Stack:', error.stack);
+      try {
+        console.error('All Error Properties (JSON):', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      } catch (e) {
+        console.error('Could not stringify error properties:', e);
+      }
+    }
+    
     let detailedErrorMessage = "Clock-in failed. An unexpected error occurred. Please check the browser console for more details from Firebase, especially if it mentions a required index.";
 
     if (error.message) { 
@@ -152,7 +167,20 @@ export async function clockOutAction(
 
   try {
     const attendanceRef = doc(db, "attendanceRecords", attendanceRecordId);
-    const attendanceSnap = await getDocs(query(collection(db, "attendanceRecords"), where("__name__", "==", attendanceRecordId), where("employeeDocId", "==", employeeDocId)));
+    // It's better to fetch the document directly by ID to ensure it exists and belongs to the employee before updating.
+    // However, the original query was attempting to verify employeeDocId as well.
+    // For clock out, we primarily need the attendanceRecordId. Let's assume it's correct.
+    // A more robust check would involve fetching the doc and verifying employeeDocId if needed.
+    // const attendanceSnap = await getDoc(attendanceRef);
+    
+    // For consistency with original logic, let's keep a check, though slightly different:
+    const qExisting = query(
+        collection(db, "attendanceRecords"),
+        where("__name__", "==", attendanceRecordId), // Check if document with this ID exists
+        where("employeeDocId", "==", employeeDocId)   // And belongs to this employee
+    );
+    const attendanceSnap = await getDocs(qExisting);
+
 
     if (attendanceSnap.empty) {
       return {
@@ -186,7 +214,7 @@ export async function clockOutAction(
     const durationMs = clockOutTimestamp.toMillis() - clockInTimestamp.toMillis();
     const durationMinutes = Math.floor(durationMs / 60000);
 
-    await updateDoc(attendanceRef, {
+    await updateDoc(doc(db, "attendanceRecords", attendanceDoc.id), { // Use attendanceDoc.id to be certain
       clockOutTime: clockOutTimestamp, 
       workDurationMinutes: durationMinutes,
       status: "Completed",
@@ -198,7 +226,22 @@ export async function clockOutAction(
       success: true 
     };
   } catch (error: any) {
-    console.error('Firestore Clock Out Error:', error);
+    console.error('--- CLOCK OUT ACTION SERVER-SIDE ERROR ---');
+    console.error('Timestamp of Error:', new Date().toISOString());
+    console.error('Error Object:', error);
+    console.error('Error Type:', typeof error);
+     if (error && typeof error === 'object') {
+      console.error('Error Name:', error.name);
+      console.error('Error Message:', error.message);
+      console.error('Error Code:', error.code);
+      console.error('Error Stack:', error.stack);
+      try {
+        console.error('All Error Properties (JSON):', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      } catch (e) {
+        console.error('Could not stringify error properties:', e);
+      }
+    }
+
      let detailedErrorMessage = "Clock-out failed. An unexpected error occurred. Please check the browser console for more details from Firebase, especially if it mentions a required index.";
 
      if (error.message) { 
@@ -239,8 +282,26 @@ export async function getOpenAttendanceRecordForEmployee(employeeDocId: string):
       return { id: doc.id, data: doc.data() };
     }
     return null;
-  } catch (error) {
-    console.error("Error fetching open attendance record:", error);
+  } catch (error: any) {
+    console.error("--- GET OPEN ATTENDANCE RECORD SERVER-SIDE ERROR ---");
+    console.error("Error fetching open attendance record for employeeDocId:", employeeDocId);
+    console.error('Timestamp of Error:', new Date().toISOString());
+    console.error('Error Object:', error);
+    console.error('Error Type:', typeof error);
+    if (error && typeof error === 'object') {
+      console.error('Error Name:', error.name);
+      console.error('Error Message:', error.message);
+      console.error('Error Code:', error.code);
+      console.error('Error Stack:', error.stack);
+      try {
+        console.error('All Error Properties (JSON):', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      } catch (e) {
+        console.error('Could not stringify error properties:', e);
+      }
+    }
+    // This function is called internally by the client, so it doesn't return a state for the form.
+    // It should throw the error or return null/handle as appropriate for the caller.
+    // For now, just logging and returning null.
     return null; 
   }
 }
