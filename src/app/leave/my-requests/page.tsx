@@ -13,13 +13,25 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ShieldCheck, ShieldX, Hourglass, Users, ListFilter, Clock, CalendarDays, Activity } from "lucide-react"; // Added Activity for general stats
+import { Loader2, ShieldCheck, ShieldX, Hourglass, Users, ListFilter, Clock, CalendarDays, Activity, CalendarOff, ListChecks } from "lucide-react"; // Added CalendarOff and ListChecks
 import React, { useState, useEffect, useCallback } from "react";
 import { format, differenceInCalendarDays, startOfMonth, endOfMonth, startOfDay, endOfDay, max, min } from "date-fns";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, where, Timestamp, orderBy, DocumentData, getDocs, limit } from 'firebase/firestore';
 import { cn } from "@/lib/utils";
-import type { AttendanceRecord } from "@/app/attendance/page"; // Assuming structure is similar
+// import type { AttendanceRecord } from "@/app/attendance/page"; // Assuming structure is similar
+// Temporary AttendanceRecord type to avoid circular dependency or if attendance page structure is complex
+interface AttendanceRecord {
+  id: string;
+  employeeDocId: string;
+  employeeName: string;
+  date: Timestamp;
+  clockInTime?: Timestamp;
+  clockOutTime?: Timestamp;
+  workDurationMinutes?: number;
+  status: "ClockedIn" | "Completed" | "Absent" | "OnLeave";
+}
+
 
 export interface LeaveRequestEntry {
   id: string; 
@@ -74,7 +86,7 @@ const formatDurationFromMinutes = (totalMinutes: number | null | undefined): str
     if (hours > 0) result += " ";
     result += `${minutes} minute${minutes > 1 ? "s" : ""}`;
   }
-  return result;
+  return result || "0 minutes"; // Ensure "0 minutes" if both are zero after logic
 };
 
 const calculateLeaveDaysInMonth = (
