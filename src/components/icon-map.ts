@@ -27,10 +27,11 @@ import {
   XCircle, 
   CalendarClock,
   Loader2,
-  Calculator, // Added Calculator icon
+  Calculator,
   Save,
   DollarSign,
   CalendarCheck2,
+  Sheet, // Added Sheet icon for reports
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -60,10 +61,9 @@ export const iconMap: { [key: string]: LucideIcon } = {
   XCircle,
   CalendarClock,
   Loader2,
-  Calculator, // Added Calculator icon
+  Calculator,
   Save,
   DollarSign,
   CalendarCheck2,
+  Sheet, // Added Sheet icon for reports
 };
-
-    

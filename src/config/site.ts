@@ -40,7 +40,12 @@ export const navItems: NavItem[] = [
   {
     title: 'Payroll Calculation',
     href: '/payroll',
-    iconName: 'Calculator', // Added new icon
+    iconName: 'Calculator',
+  },
+  {
+    title: 'Annual Payroll Report',
+    href: '/reports/annual-payroll',
+    iconName: 'Sheet', // New Report Page
   },
   {
     title: 'Job Board',
