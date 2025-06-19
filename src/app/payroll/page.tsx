@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useActionState, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useCallback, useTransition } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, orderBy, doc, getDoc, Timestamp, where } from 'firebase/firestore'; // Added where
+import { collection, onSnapshot, query, orderBy, doc, getDoc, Timestamp, where } from 'firebase/firestore'; 
 import { getYear, getMonth, format as formatDateFns, startOfMonth, endOfMonth } from 'date-fns';
 import { Loader2, Calculator, Save, DollarSign, Hourglass, CalendarCheck2 } from "lucide-react";
 import { savePayrollAction, type PayrollState, getTotalWorkHoursForMonth, getApprovedLeaveDaysForMonth, getExistingPayrollData } from "@/app/actions/payroll-actions";
@@ -47,6 +47,8 @@ const months = Array.from({ length: 12 }, (_, i) => ({
 export default function PayrollCalculationPage() {
   const { toast } = useToast();
   const [serverState, formAction, isSaving] = useActionState(savePayrollAction, initialPayrollState);
+  const [_isTransitionPending, startTransition] = useTransition();
+
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
@@ -218,7 +220,9 @@ export default function PayrollCalculationPage() {
     formData.set('totalWorkHoursFetched', totalWorkHours.toString());
     // hourlyRateForCalc, bonus, deductions, finalNetSalary, notes are already on formData from inputs
 
-    formAction(formData);
+    startTransition(() => {
+      formAction(formData);
+    });
   };
   
   const formatCurrency = (value: number | undefined | null) => {
@@ -357,5 +361,3 @@ export default function PayrollCalculationPage() {
     </AppLayout>
   );
 }
-
-    
