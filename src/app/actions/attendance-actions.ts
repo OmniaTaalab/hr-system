@@ -4,9 +4,10 @@
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, query, where, getDocs, serverTimestamp, Timestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
-import { startOfDay, endOfDay } from 'date-fns';
+import { startOfDay, endOfDay, parse as parseDateFns, isValid as isValidDateFns, setHours, setMinutes, setSeconds, setMilliseconds } from 'date-fns';
 
-// Schema for clocking in
+// --- Existing ClockIn/ClockOut Actions (largely unchanged but kept for potential other uses) ---
+
 const ClockInFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee document ID is required."),
   employeeName: z.string().min(1, "Employee name is required."),
@@ -22,7 +23,6 @@ export type ClockInState = {
   attendanceRecordId?: string;
 };
 
-// Server action for clocking in an employee
 export async function clockInAction(
   prevState: ClockInState,
   formData: FormData
@@ -46,7 +46,6 @@ export async function clockInAction(
   const todayEnd = endOfDay(today);
 
   try {
-    // Check if already clocked in today or has a completed record for today
     const qExisting = query(
       collection(db, "attendanceRecords"),
       where("employeeDocId", "==", employeeDocId),
@@ -60,20 +59,17 @@ export async function clockInAction(
       if (!existingRecord.clockOutTime) {
         return {
           errors: { form: [`${employeeName} is already clocked in today.`] },
-          message: `${employeeName} is already clocked in today.`,
+          message: `${employeeName} is already clocked in today. (Error Code: failed-precondition)`,
           success: false,
         };
       }
-       // If they have a completed record, we could prevent multiple clock-ins per day or allow it based on policy.
-       // For now, let's prevent re-clock-in if a full record exists.
         return {
           errors: { form: [`${employeeName} has already completed a shift today.`] },
-          message: `${employeeName} has already completed a shift today.`,
+          message: `${employeeName} has already completed a shift today. (Error Code: failed-precondition)`,
           success: false,
         };
     }
     
-    // Create new attendance record
     const attendanceData = {
       employeeDocId,
       employeeName, 
@@ -99,42 +95,18 @@ export async function clockInAction(
     if (error && typeof error === 'object') {
       console.error('Error Name:', error.name);
       console.error('Error Message:', error.message);
-      console.error('Error Code:', error.code); // Crucial for Firebase errors
+      console.error('Error Code:', error.code);
       console.error('Error Stack:', error.stack);
-      try {
-        const errorProperties = Object.getOwnPropertyNames(error).reduce((acc, key) => {
-          // @ts-ignore
-          acc[key] = error[key];
-          return acc;
-        }, {});
-        console.error('All Error Properties (JSON):', JSON.stringify(errorProperties, null, 2));
-      } catch (e) {
-        console.error('Could not stringify all error properties:', e);
-        const simplifiedError = {
-            name: error.name,
-            message: error.message,
-            code: error.code,
-            stack: error.stack ? error.stack.substring(0, 500) + '...' : undefined // Truncate stack
-        };
-        console.error('Simplified Error Properties (JSON):', JSON.stringify(simplifiedError, null, 2));
-      }
     }
     
-    let returnedMessage: string;
+    let returnedMessage: string = "Clock-in failed. An unexpected error occurred. Please check the server terminal for more details.";
     if (error.code === 'failed-precondition' && error.message) {
-      returnedMessage = error.message; // Show full Firebase error message with index link
+      returnedMessage = error.message; 
     } else if (error.message) { 
       returnedMessage = `Clock-in failed: ${error.message}`;
-      if (error.code) {
-        returnedMessage += ` (Code: ${error.code})`;
-      }
-      if (error.code === 'permission-denied') {
-        returnedMessage += " This might be due to Firestore security rules. Check server logs.";
-      }
+      if (error.code) returnedMessage += ` (Code: ${error.code})`;
     } else if (error.code) {
       returnedMessage = `Clock-in failed due to an error. Code: ${error.code}. Check server logs for details.`;
-    } else {
-      returnedMessage = "Clock-in failed. An unexpected error occurred. Please check the server terminal for more details, especially if it mentions a required index or permission issues.";
     }
     
     return {
@@ -145,7 +117,6 @@ export async function clockInAction(
   }
 }
 
-// Schema for clocking out
 const ClockOutFormSchema = z.object({
   attendanceRecordId: z.string().min(1, "Attendance record ID is required."),
   employeeDocId: z.string().min(1, "Employee document ID is required."),
@@ -162,7 +133,6 @@ export type ClockOutState = {
   success?: boolean;
 };
 
-// Server action for clocking out an employee
 export async function clockOutAction(
   prevState: ClockOutState,
   formData: FormData
@@ -191,7 +161,6 @@ export async function clockOutAction(
     );
     const attendanceSnap = await getDocs(qExisting);
 
-
     if (attendanceSnap.empty) {
       return {
         errors: { form: ["Attendance record not found or does not belong to this employee."] },
@@ -212,8 +181,7 @@ export async function clockOutAction(
       };
     }
     
-    // Robust check for clockInTime validity
-    if (typeof attendanceData.clockInTime.toMillis !== 'function') {
+    if (typeof attendanceData.clockInTime?.toMillis !== 'function') {
         console.error('CRITICAL: clockInTime is NOT a valid Firestore Timestamp or is missing toMillis method. Record ID:', attendanceDoc.id, 'Value:', attendanceData.clockInTime);
         return {
             errors: { form: ["Clock-out failed: Clock-in time data is corrupted or missing."] },
@@ -221,7 +189,6 @@ export async function clockOutAction(
             success: false,
         };
     }
-
 
     if (attendanceData.clockOutTime) {
       return {
@@ -243,30 +210,25 @@ export async function clockOutAction(
     console.log('Clock Out Timestamp (JS Date):', clockOutTimestamp.toDate());
 
     const durationMs = clockOutTimestamp.toMillis() - clockInTimestamp.toMillis();
-    const durationMinutes = Math.floor(durationMs / 60000);
+    let durationMinutes = Math.floor(durationMs / 60000);
 
     console.log('Duration (ms):', durationMs);
     console.log('Duration (minutes) to be saved:', durationMinutes);
 
     if (isNaN(durationMinutes) || durationMinutes < 0) {
         console.error('Calculated durationMinutes is invalid:', durationMinutes, 'for record:', attendanceDoc.id, 'Saving 0 instead.');
-        await updateDoc(doc(db, "attendanceRecords", attendanceDoc.id), { 
-          clockOutTime: clockOutTimestamp, 
-          workDurationMinutes: 0, 
-          status: "Completed",
-          lastUpdatedAt: serverTimestamp()
-        });
-    } else {
-        await updateDoc(doc(db, "attendanceRecords", attendanceDoc.id), { 
-          clockOutTime: clockOutTimestamp, 
-          workDurationMinutes: durationMinutes,
-          status: "Completed",
-          lastUpdatedAt: serverTimestamp()
-        });
+        durationMinutes = 0;
     }
     
+    await updateDoc(doc(db, "attendanceRecords", attendanceDoc.id), { 
+      clockOutTime: clockOutTimestamp, 
+      workDurationMinutes: durationMinutes,
+      status: "Completed",
+      lastUpdatedAt: serverTimestamp()
+    });
+    
     return { 
-      message: `${employeeName} clocked out successfully. Duration: ${durationMinutes >= 0 ? durationMinutes : 0} minutes.`, 
+      message: `${employeeName} clocked out successfully. Duration: ${durationMinutes} minutes.`, 
       success: true 
     };
   } catch (error: any) {
@@ -279,40 +241,16 @@ export async function clockOutAction(
       console.error('Error Message:', error.message);
       console.error('Error Code:', error.code);
       console.error('Error Stack:', error.stack);
-      try {
-        const errorProperties = Object.getOwnPropertyNames(error).reduce((acc, key) => {
-          // @ts-ignore
-          acc[key] = error[key];
-          return acc;
-        }, {});
-        console.error('All Error Properties (JSON):', JSON.stringify(errorProperties, null, 2));
-      } catch (e) {
-        console.error('Could not stringify all error properties:', e);
-        const simplifiedError = {
-            name: error.name,
-            message: error.message,
-            code: error.code,
-            stack: error.stack ? error.stack.substring(0, 500) + '...' : undefined
-        };
-        console.error('Simplified Error Properties (JSON):', JSON.stringify(simplifiedError, null, 2));
-      }
     }
 
-    let returnedMessage: string;
+    let returnedMessage: string = "Clock-out failed. An unexpected error occurred. Please check the server terminal for details.";
     if (error.code === 'failed-precondition' && error.message) {
-      returnedMessage = error.message; // Show full Firebase error message with index link
+      returnedMessage = error.message;
     } else if (error.message) { 
       returnedMessage = `Clock-out failed: ${error.message}`;
-      if (error.code) {
-        returnedMessage += ` (Code: ${error.code})`;
-      }
-      if (error.code === 'permission-denied') {
-        returnedMessage += " This might be due to Firestore security rules. Check server logs.";
-      }
+      if (error.code) returnedMessage += ` (Code: ${error.code})`;
     } else if (error.code) {
       returnedMessage = `Clock-out failed due to an error. Code: ${error.code}. Check server logs for details.`;
-    } else {
-      returnedMessage = "Clock-out failed. An unexpected error occurred. Please check the server terminal for more details.";
     }
 
     return {
@@ -323,7 +261,195 @@ export async function clockOutAction(
   }
 }
 
-// Server action to get today's open attendance record for an employee
+// --- New Manual Update Attendance Action ---
+
+const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // HH:MM format
+
+const ManualUpdateAttendanceSchema = z.object({
+  employeeDocId: z.string().min(1, "Employee document ID is required."),
+  employeeName: z.string().min(1, "Employee name is required."),
+  selectedDate: z.string().datetime("Selected date must be a valid ISO date string."),
+  clockInTime: z.string().optional(),
+  clockOutTime: z.string().optional(),
+  originalRecordId: z.string().optional(),
+}).refine(data => !data.clockInTime || timeRegex.test(data.clockInTime), {
+  message: "Clock-in time must be in HH:MM format or empty.",
+  path: ["clockInTime"],
+}).refine(data => !data.clockOutTime || timeRegex.test(data.clockOutTime), {
+  message: "Clock-out time must be in HH:MM format or empty.",
+  path: ["clockOutTime"],
+});
+
+export type ManualUpdateAttendanceState = {
+  message?: string | null;
+  success?: boolean;
+  errors?: { form?: string[] };
+  fieldErrors?: {
+    [employeeId: string]: {
+      clockInTime?: string;
+      clockOutTime?: string;
+    }
+  };
+  updatedEmployeeDocId?: string;
+};
+
+export async function manualUpdateAttendanceAction(
+  prevState: ManualUpdateAttendanceState,
+  formData: FormData
+): Promise<ManualUpdateAttendanceState> {
+  const rawData = {
+    employeeDocId: formData.get('employeeDocId'),
+    employeeName: formData.get('employeeName'),
+    selectedDate: formData.get('selectedDate'),
+    clockInTime: formData.get('clockInTime') || undefined, // Ensure empty strings become undefined
+    clockOutTime: formData.get('clockOutTime') || undefined,
+    originalRecordId: formData.get('originalRecordId') || undefined,
+  };
+
+  const validatedFields = ManualUpdateAttendanceSchema.safeParse(rawData);
+
+  if (!validatedFields.success) {
+    const fieldErrors: ManualUpdateAttendanceState["fieldErrors"] = {};
+    const employeeId = rawData.employeeDocId as string;
+    if (employeeId) {
+        fieldErrors[employeeId] = {};
+        const errors = validatedFields.error.flatten().fieldErrors;
+        if (errors.clockInTime) fieldErrors[employeeId].clockInTime = errors.clockInTime.join(', ');
+        if (errors.clockOutTime) fieldErrors[employeeId].clockOutTime = errors.clockOutTime.join(', ');
+    }
+    return {
+      message: "Validation failed. Please check time formats (HH:MM).",
+      success: false,
+      errors: { form: ["Validation failed. Please check time formats (HH:MM)."] },
+      fieldErrors,
+      updatedEmployeeDocId: employeeId,
+    };
+  }
+
+  const { 
+    employeeDocId, 
+    employeeName, 
+    selectedDate: selectedDateString, 
+    clockInTime: clockInString, 
+    clockOutTime: clockOutString,
+    originalRecordId 
+  } = validatedFields.data;
+
+  const baseDate = parseDateFns(selectedDateString, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx", new Date());
+  if (!isValidDateFns(baseDate)) {
+    return { message: "Invalid selected date.", success: false, errors: { form: ["Invalid selected date provided."] }, updatedEmployeeDocId: employeeDocId };
+  }
+  const recordDate = startOfDay(baseDate); // Ensure the date is at the start of the day for querying/storing
+
+  let finalClockInTime: Timestamp | null = null;
+  let finalClockOutTime: Timestamp | null = null;
+  let workDurationMinutes: number | null = null;
+  let status: "ClockedIn" | "Completed" | "ManuallyCleared" = "ManuallyCleared";
+
+  const fieldErrorsForEmployee: { clockInTime?: string; clockOutTime?: string } = {};
+
+  if (clockInString) {
+    const [hours, minutes] = clockInString.split(':').map(Number);
+    if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+      finalClockInTime = Timestamp.fromDate(setMilliseconds(setSeconds(setMinutes(setHours(recordDate, hours), minutes),0),0));
+    } else {
+      fieldErrorsForEmployee.clockInTime = "Invalid clock-in time format.";
+    }
+  }
+
+  if (clockOutString) {
+    const [hours, minutes] = clockOutString.split(':').map(Number);
+     if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+      finalClockOutTime = Timestamp.fromDate(setMilliseconds(setSeconds(setMinutes(setHours(recordDate, hours), minutes),0),0));
+    } else {
+      fieldErrorsForEmployee.clockOutTime = "Invalid clock-out time format.";
+    }
+  }
+  
+  if (Object.keys(fieldErrorsForEmployee).length > 0) {
+    return {
+        message: "Invalid time format(s).",
+        success: false,
+        fieldErrors: { [employeeDocId]: fieldErrorsForEmployee },
+        updatedEmployeeDocId: employeeDocId,
+    };
+  }
+
+
+  if (finalClockInTime && finalClockOutTime) {
+    if (finalClockOutTime.toMillis() > finalClockInTime.toMillis()) {
+      const durationMs = finalClockOutTime.toMillis() - finalClockInTime.toMillis();
+      workDurationMinutes = Math.round(durationMs / 60000);
+      status = "Completed";
+    } else {
+      workDurationMinutes = 0; // Clock out is not after clock in
+      status = "Completed"; // Still completed, but duration is 0
+      // Potentially add a field error for this case if desired
+      // fieldErrorsForEmployee.clockOutTime = "Clock-out must be after clock-in.";
+    }
+  } else if (finalClockInTime) {
+    status = "ClockedIn";
+    workDurationMinutes = null; // Duration not applicable if not clocked out
+  } else { // Neither clockIn nor clockOut provided, or only clockOut (which we treat as cleared)
+    status = "ManuallyCleared";
+    workDurationMinutes = null;
+  }
+
+
+  try {
+    const attendanceEntry = {
+      employeeDocId,
+      employeeName,
+      date: Timestamp.fromDate(recordDate),
+      clockInTime: finalClockInTime,
+      clockOutTime: finalClockOutTime,
+      workDurationMinutes,
+      status,
+      lastUpdatedAt: serverTimestamp(),
+    };
+
+    if (originalRecordId) {
+      // Update existing record
+      const recordRef = doc(db, "attendanceRecords", originalRecordId);
+      await updateDoc(recordRef, attendanceEntry);
+      return { message: `Attendance for ${employeeName} on ${format(recordDate, 'P')} updated.`, success: true, updatedEmployeeDocId: employeeDocId };
+    } else if (finalClockInTime || finalClockOutTime) { // Only create if there's at least one time
+      // Create new record
+      await addDoc(collection(db, "attendanceRecords"), attendanceEntry);
+      return { message: `Attendance for ${employeeName} on ${format(recordDate, 'P')} saved.`, success: true, updatedEmployeeDocId: employeeDocId };
+    } else {
+      // No times provided and no original record - do nothing or inform user
+      // If an originalRecordId was provided but times were cleared, it's handled by status "ManuallyCleared" during update
+      // If no original record and no times, this typically means no action if form submitted empty.
+      // For now, we consider this a "clear" if an original record existed, or no action if new & empty.
+      // The above logic handles this implicitly by not calling addDoc.
+       if(originalRecordId) { // This means an existing record was cleared
+         const recordRef = doc(db, "attendanceRecords", originalRecordId);
+         await updateDoc(recordRef, {
+            clockInTime: null,
+            clockOutTime: null,
+            workDurationMinutes: null,
+            status: "ManuallyCleared",
+            lastUpdatedAt: serverTimestamp(),
+         });
+         return { message: `Attendance entry for ${employeeName} on ${format(recordDate, 'P')} cleared.`, success: true, updatedEmployeeDocId: employeeDocId };
+       }
+       return { message: `No time entered for ${employeeName}. No changes made.`, success: true, updatedEmployeeDocId: employeeDocId }; // Or false if this should be an error
+    }
+
+  } catch (error: any) {
+    console.error("Error saving manual attendance:", error);
+    return {
+      message: `Failed to save attendance: ${error.message}`,
+      success: false,
+      errors: { form: [`Failed to save attendance: ${error.message}`] },
+      updatedEmployeeDocId: employeeDocId,
+    };
+  }
+}
+
+
+// Existing getOpenAttendanceRecordForEmployee (can be kept or removed if no longer used)
 export async function getOpenAttendanceRecordForEmployee(employeeDocId: string): Promise<{ id: string; data: any } | null> {
   const todayStart = startOfDay(new Date());
   const todayEnd = endOfDay(new Date());
@@ -347,36 +473,9 @@ export async function getOpenAttendanceRecordForEmployee(employeeDocId: string):
   } catch (error: any) {
     console.error("--- GET OPEN ATTENDANCE RECORD SERVER-SIDE ERROR ---");
     console.error("Error fetching open attendance record for employeeDocId:", employeeDocId);
-    console.error('Timestamp of Error:', new Date().toISOString());
     console.error('Error Object:', error);
-    console.error('Error Type:', typeof error);
-    if (error && typeof error === 'object') {
-      console.error('Error Name:', error.name);
-      console.error('Error Message:', error.message);
-      console.error('Error Code:', error.code); // Crucial for Firebase errors
-      console.error('Error Stack:', error.stack);
-      try {
-        const errorProperties = Object.getOwnPropertyNames(error).reduce((acc, key) => {
-          // @ts-ignore
-          acc[key] = error[key];
-          return acc;
-        }, {});
-        console.error('All Error Properties (JSON):', JSON.stringify(errorProperties, null, 2));
-      } catch (e) {
-        console.error('Could not stringify all error properties:', e);
-         const simplifiedError = {
-            name: error.name,
-            message: error.message,
-            code: error.code,
-            stack: error.stack ? error.stack.substring(0, 500) + '...' : undefined
-        };
-        console.error('Simplified Error Properties (JSON):', JSON.stringify(simplifiedError, null, 2));
-      }
-    }
-    // This function is called internally by the client, so it doesn't return a state for the form.
-    // It should throw the error or return null/handle as appropriate for the caller.
-    // For now, just logging and returning null.
     return null; 
   }
 }
 
+    
