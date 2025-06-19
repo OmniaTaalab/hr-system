@@ -223,21 +223,42 @@ export async function clockOutAction(
       };
     }
 
+    console.log('--- CLOCK OUT ACTION - DURATION CALCULATION ---');
+    console.log('Employee Name:', employeeName);
+    console.log('Attendance Record ID:', attendanceDoc.id);
+    console.log('Clock In Time (from Firestore):', attendanceData.clockInTime);
+
     const clockInTimestamp = attendanceData.clockInTime as Timestamp;
-    const clockOutTimestamp = Timestamp.now(); 
+    const clockOutTimestamp = Timestamp.now(); // Server-side timestamp for clock-out. Firestore handles this correctly.
+
+    console.log('Clock In Timestamp (JS Date):', clockInTimestamp.toDate());
+    console.log('Clock Out Timestamp (JS Date):', clockOutTimestamp.toDate()); // This will be server time
 
     const durationMs = clockOutTimestamp.toMillis() - clockInTimestamp.toMillis();
     const durationMinutes = Math.floor(durationMs / 60000);
 
-    await updateDoc(doc(db, "attendanceRecords", attendanceDoc.id), { 
-      clockOutTime: clockOutTimestamp, 
-      workDurationMinutes: durationMinutes,
-      status: "Completed",
-      lastUpdatedAt: serverTimestamp()
-    });
+    console.log('Duration (ms):', durationMs);
+    console.log('Duration (minutes) to be saved:', durationMinutes);
+
+    if (isNaN(durationMinutes) || durationMinutes < 0) {
+        console.error('Calculated durationMinutes is invalid:', durationMinutes, 'Saving 0 instead.');
+        await updateDoc(doc(db, "attendanceRecords", attendanceDoc.id), { 
+          clockOutTime: clockOutTimestamp, 
+          workDurationMinutes: 0, // Save 0 if calculation is off
+          status: "Completed",
+          lastUpdatedAt: serverTimestamp()
+        });
+    } else {
+        await updateDoc(doc(db, "attendanceRecords", attendanceDoc.id), { 
+          clockOutTime: clockOutTimestamp, 
+          workDurationMinutes: durationMinutes,
+          status: "Completed",
+          lastUpdatedAt: serverTimestamp()
+        });
+    }
     
     return { 
-      message: `${employeeName} clocked out successfully. Duration: ${durationMinutes} minutes.`, 
+      message: `${employeeName} clocked out successfully. Duration: ${durationMinutes >= 0 ? durationMinutes : 0} minutes.`, 
       success: true 
     };
   } catch (error: any) {
@@ -350,4 +371,3 @@ export async function getOpenAttendanceRecordForEmployee(employeeDocId: string):
     return null; 
   }
 }
-

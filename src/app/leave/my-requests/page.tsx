@@ -204,8 +204,10 @@ export default function ViewEmployeeLeaveRequestsPage() {
         const dailySnapshot = await getDocs(dailyAttendanceQuery);
         if (!dailySnapshot.empty) {
           const record = dailySnapshot.docs[0].data() as AttendanceRecord;
-          setDailyWorkHoursToday(record.workDurationMinutes || 0);
+          console.log('[MyRequestsPage] Daily attendance record for today:', record.id, 'workDurationMinutes:', record.workDurationMinutes);
+          setDailyWorkHoursToday(record.workDurationMinutes !== undefined && record.workDurationMinutes !== null ? record.workDurationMinutes : 0);
         } else {
+          console.log('[MyRequestsPage] No "Completed" daily attendance record found for today.');
           setDailyWorkHoursToday(null); // No completed record for today
         }
       } catch (e: any) {
@@ -226,13 +228,20 @@ export default function ViewEmployeeLeaveRequestsPage() {
         const monthlyAttendanceSnapshot = await getDocs(monthlyAttendanceQuery);
         let totalMinutes = 0;
         const workDays = new Set<string>();
-        monthlyAttendanceSnapshot.forEach(doc => {
-          const record = doc.data() as AttendanceRecord;
-          totalMinutes += record.workDurationMinutes || 0;
+        console.log(`[MyRequestsPage] Found ${monthlyAttendanceSnapshot.size} "Completed" monthly attendance records for employee ${selectedEmployee.id}.`);
+        monthlyAttendanceSnapshot.forEach(docLoop => {
+          const record = docLoop.data() as AttendanceRecord;
+          console.log('[MyRequestsPage] Processing monthly record:', record.id, 'workDurationMinutes:', record.workDurationMinutes, 'date:', record.date.toDate());
+          if (record.workDurationMinutes !== undefined && record.workDurationMinutes !== null && typeof record.workDurationMinutes === 'number') {
+            totalMinutes += record.workDurationMinutes;
+          } else {
+            console.warn('[MyRequestsPage] Monthly record has invalid workDurationMinutes:', record.id, record.workDurationMinutes);
+          }
           if (record.date) {
             workDays.add(format(record.date.toDate(), "yyyy-MM-dd"));
           }
         });
+        console.log('[MyRequestsPage] Total monthly minutes calculated:', totalMinutes);
         setMonthlyWorkHours(totalMinutes);
         setMonthlyWorkDays(workDays.size);
       } catch (e: any) {
@@ -466,4 +475,3 @@ export default function ViewEmployeeLeaveRequestsPage() {
     </AppLayout>
   );
 }
-
