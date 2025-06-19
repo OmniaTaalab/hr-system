@@ -1,77 +1,246 @@
+
+"use client";
+
 import { AppLayout } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight } from "lucide-react"; // Keep direct import for icons used directly
+import { ArrowRight, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { iconMap } from "@/components/icon-map"; // Import the icon map
+import { iconMap } from "@/components/icon-map";
+import React, { useState, useEffect, useMemo } from "react";
+import { db } from "@/lib/firebase/config";
+import { collection, getDocs, query, where, getCountFromServer, type Timestamp } from 'firebase/firestore';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  ChartStyle
+} from "@/components/ui/chart";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+
+interface Employee {
+  id: string;
+  name: string;
+  department: string;
+  status: "Active" | "On Leave" | "Terminated";
+  // other fields if necessary
+}
 
 interface DashboardCardProps {
   title: string;
-  description: string;
-  iconName: string; // Changed from icon: React.ElementType
-  href: string;
-  linkText: string;
+  description?: string;
+  iconName: string;
+  href?: string;
+  linkText?: string;
+  statistic?: string | number;
+  statisticLabel?: string;
+  isLoadingStatistic?: boolean;
+  className?: string;
 }
 
-function DashboardCard({ title, description, iconName, href, linkText }: DashboardCardProps) {
-  const IconComponent = iconMap[iconName]; // Get icon component from map
+function DashboardCard({
+  title,
+  description,
+  iconName,
+  href,
+  linkText,
+  statistic,
+  statisticLabel,
+  isLoadingStatistic,
+  className
+}: DashboardCardProps) {
+  const IconComponent = iconMap[iconName];
+
   return (
-    <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
+    <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", className)}>
       <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between">
           <CardTitle className="font-headline text-xl">{title}</CardTitle>
-          {IconComponent ? <IconComponent className="h-8 w-8 text-primary" /> : <span className="h-8 w-8" /> /* Fallback */}
+          {IconComponent ? <IconComponent className="h-7 w-7 text-primary flex-shrink-0" /> : <span className="h-7 w-7" />}
         </div>
-        <CardDescription>{description}</CardDescription>
+        {statistic !== undefined && (
+          <div className="mt-1">
+            {isLoadingStatistic ? (
+              <Skeleton className="h-8 w-1/4" />
+            ) : (
+              <p className="text-3xl font-bold text-primary">{statistic}</p>
+            )}
+            {statisticLabel && <p className="text-xs text-muted-foreground">{statisticLabel}</p>}
+          </div>
+        )}
+        {description && <CardDescription className={cn(statistic !== undefined && "mt-2")}>{description}</CardDescription>}
       </CardHeader>
-      <CardContent className="flex-grow flex flex-col justify-end">
-        <Button asChild variant="outline" className="w-full mt-auto group">
-          <Link href={href}>
-            {linkText}
-            <ArrowRight className="ml-2 h-4 w-4 transform transition-transform group-hover:translate-x-1" />
-          </Link>
-        </Button>
+      <CardContent className="flex-grow flex flex-col justify-end pt-0">
+        {href && linkText && (
+          <Button asChild variant="outline" className="w-full mt-auto group">
+            <Link href={href}>
+              {linkText}
+              <ArrowRight className="ml-2 h-4 w-4 transform transition-transform group-hover:translate-x-1" />
+            </Link>
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
 }
 
+interface DepartmentData {
+  name: string;
+  count: number;
+}
+
+const chartConfig = {
+  employees: {
+    label: "Employees",
+    color: "hsl(var(--chart-1))",
+  },
+} satisfies Record<string, unknown>;
+
+
 export default function HRDashboardPage() {
-  const dashboardCards: DashboardCardProps[] = [
+  const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
+  const [activeEmployees, setActiveEmployees] = useState<number | null>(null);
+  const [pendingLeaveRequests, setPendingLeaveRequests] = useState<number | null>(null);
+  const [departmentData, setDepartmentData] = useState<DepartmentData[]>([]);
+
+  const [isLoadingTotalEmp, setIsLoadingTotalEmp] = useState(true);
+  const [isLoadingActiveEmp, setIsLoadingActiveEmp] = useState(true);
+  const [isLoadingPendingLeaves, setIsLoadingPendingLeaves] = useState(true);
+  const [isLoadingDeptData, setIsLoadingDeptData] = useState(true);
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        // Total Employees
+        const empCol = collection(db, "employy");
+        const empSnapshot = await getCountFromServer(empCol);
+        setTotalEmployees(empSnapshot.data().count);
+      } catch (error) {
+        console.error("Error fetching total employees count:", error);
+        setTotalEmployees(0); // Fallback
+      } finally {
+        setIsLoadingTotalEmp(false);
+      }
+
+      try {
+        // Active Employees
+        const activeEmpQuery = query(collection(db, "employy"), where("status", "==", "Active"));
+        const activeEmpSnapshot = await getCountFromServer(activeEmpQuery);
+        setActiveEmployees(activeEmpSnapshot.data().count);
+      } catch (error) {
+        console.error("Error fetching active employees count:", error);
+        setActiveEmployees(0);
+      } finally {
+        setIsLoadingActiveEmp(false);
+      }
+
+      try {
+        // Pending Leave Requests
+        const pendingLeavesQuery = query(collection(db, "leaveRequests"), where("status", "==", "Pending"));
+        const pendingLeavesSnapshot = await getCountFromServer(pendingLeavesQuery);
+        setPendingLeaveRequests(pendingLeavesSnapshot.data().count);
+      } catch (error) {
+        console.error("Error fetching pending leave requests count:", error);
+        setPendingLeaveRequests(0);
+      } finally {
+        setIsLoadingPendingLeaves(false);
+      }
+    };
+
+    const fetchDepartmentData = async () => {
+      try {
+        const empCol = collection(db, "employy");
+        const empDocsSnapshot = await getDocs(empCol);
+        const employees = empDocsSnapshot.docs.map(doc => doc.data() as Employee);
+
+        const counts: { [key: string]: number } = {};
+        employees.forEach(emp => {
+          counts[emp.department] = (counts[emp.department] || 0) + 1;
+        });
+
+        const formattedData = Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a,b) => b.count - a.count);
+        setDepartmentData(formattedData);
+      } catch (error) {
+        console.error("Error fetching department data:", error);
+        setDepartmentData([]);
+      } finally {
+        setIsLoadingDeptData(false);
+      }
+    };
+
+    fetchCounts();
+    fetchDepartmentData();
+  }, []);
+
+  const statisticCards: DashboardCardProps[] = [
     {
-      title: "Leave Management",
-      description: "Submit and track leave requests.",
-      iconName: "CalendarPlus",
-      href: "/leave/request",
-      linkText: "Request Leave",
+      title: "Total Employees",
+      iconName: "Users",
+      statistic: totalEmployees ?? 0,
+      isLoadingStatistic: isLoadingTotalEmp,
+      href: "/employees",
+      linkText: "Manage Employees",
+      className: "md:col-span-1",
     },
     {
-      title: "Attendance Records",
-      description: "View employee attendance and history.",
+      title: "Active Employees",
+      iconName: "UserCheck",
+      statistic: activeEmployees ?? 0,
+      isLoadingStatistic: isLoadingActiveEmp,
+      href: "/employees", // Could filter to active if that page supports it
+      linkText: "View Active",
+      className: "md:col-span-1",
+    },
+    {
+      title: "Pending Leaves",
+      iconName: "Hourglass",
+      statistic: pendingLeaveRequests ?? 0,
+      isLoadingStatistic: isLoadingPendingLeaves,
+      href: "/leave/all-requests", // Could filter to pending if that page supports it
+      linkText: "Review Requests",
+      className: "md:col-span-1",
+    },
+  ];
+
+  const actionCards: DashboardCardProps[] = [
+     {
+      title: "Submit Leave",
+      description: "Request time off.",
+      iconName: "CalendarPlus",
+      href: "/leave/request",
+      linkText: "Request Now",
+    },
+    {
+      title: "All Leave Requests",
+      description: "View and manage all requests.",
+      iconName: "ListChecks",
+      href: "/leave/all-requests",
+      linkText: "View All Requests",
+    },
+    {
+      title: "Attendance",
+      description: "Track employee attendance.",
       iconName: "CheckCircle2",
       href: "/attendance",
       linkText: "View Attendance",
     },
     {
       title: "Job Board",
-      description: "Explore current job openings.",
+      description: "Explore current openings.",
       iconName: "Briefcase",
       href: "/jobs",
       linkText: "See Openings",
     },
     {
       title: "AI Career Advisor",
-      description: "Get personalized career development suggestions.",
+      description: "Get development suggestions.",
       iconName: "Lightbulb",
       href: "/career-advisor",
-      linkText: "Get Suggestions",
-    },
-     {
-      title: "Employee Management",
-      description: "Manage employee details and records.",
-      iconName: "Users",
-      href: "#", // Placeholder, not implemented
-      linkText: "Manage Employees",
+      linkText: "Get Advice",
     },
   ];
 
@@ -83,15 +252,79 @@ export default function HRDashboardPage() {
             HR Dashboard
           </h1>
           <p className="text-muted-foreground">
-            Welcome to the Streamlined HR Assistant. Access key HR functions below.
+            Welcome! Here's an overview of key HR metrics and quick actions.
           </p>
         </header>
-        
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {dashboardCards.map((card) => (
-            <DashboardCard key={card.title} {...card} />
-          ))}
-        </div>
+
+        <section aria-labelledby="statistics-title">
+          <h2 id="statistics-title" className="text-2xl font-semibold font-headline mb-4">
+            Key Statistics
+          </h2>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {statisticCards.map((card) => (
+              <DashboardCard key={card.title} {...card} />
+            ))}
+          </div>
+        </section>
+
+        <section aria-labelledby="charts-title" className="mt-8">
+           <h2 id="charts-title" className="text-2xl font-semibold font-headline mb-4">
+            Visualizations
+          </h2>
+          <Card className="shadow-lg col-span-1 lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="font-headline text-xl flex items-center">
+                <iconMap.BarChartBig className="mr-2 h-6 w-6 text-primary" />
+                Employee Distribution by Department
+              </CardTitle>
+              <CardDescription>Number of employees in each department.</CardDescription>
+            </CardHeader>
+            <CardContent className="pl-2 pr-6">
+              {isLoadingDeptData ? (
+                <div className="flex justify-center items-center h-[350px]">
+                  <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                </div>
+              ) : departmentData.length > 0 ? (
+                <ChartContainer config={chartConfig} className="h-[350px] w-full">
+                  <BarChart accessibilityLayer data={departmentData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="name"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      angle={-35}
+                      textAnchor="end"
+                      height={70}
+                      interval={0}
+                      tickFormatter={(value) => value.length > 15 ? `${value.substring(0,12)}...` : value}
+                    />
+                    <YAxis tickLine={false} axisLine={false} tickMargin={8} />
+                    <ChartTooltip
+                      cursor={false}
+                      content={<ChartTooltipContent indicator="dashed" />}
+                    />
+                    <Bar dataKey="count" fill="var(--color-employees)" radius={4} />
+                  </BarChart>
+                </ChartContainer>
+              ) : (
+                <p className="text-center text-muted-foreground py-10">No department data available to display chart.</p>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        <section aria-labelledby="quick-actions-title" className="mt-8">
+          <h2 id="quick-actions-title" className="text-2xl font-semibold font-headline mb-4">
+            Quick Actions
+          </h2>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {actionCards.map((card) => (
+              <DashboardCard key={card.title} {...card} />
+            ))}
+          </div>
+        </section>
+
       </div>
     </AppLayout>
   );

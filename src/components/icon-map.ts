@@ -1,4 +1,3 @@
-
 import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard,
@@ -8,7 +7,11 @@ import {
   Lightbulb,
   Users,
   ListChecks, 
-  ClipboardList, // Added ClipboardList icon
+  ClipboardList,
+  UserCheck, // Added UserCheck
+  Hourglass, // Added Hourglass
+  BarChartBig, // Added BarChartBig
+  UserCog, // Added UserCog for potentially different employee management icon
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -19,5 +22,9 @@ export const iconMap: { [key: string]: LucideIcon } = {
   Lightbulb,
   Users,
   ListChecks,
-  ClipboardList, // Mapped ClipboardList
+  ClipboardList,
+  UserCheck,
+  Hourglass,
+  BarChartBig,
+  UserCog,
 };
