@@ -18,9 +18,9 @@ import { CheckCircle2, XCircle, Clock, LogIn, LogOut, UserMinus, Loader2, Calend
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, where, Timestamp, orderBy, doc } from 'firebase/firestore';
-import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns';
 import { clockInAction, clockOutAction, type ClockInState, type ClockOutState, getOpenAttendanceRecordForEmployee } from "@/app/actions/attendance-actions";
-import type { LeaveRequestEntry } from "@/app/leave/all-requests/page"; // Reuse if structure is same
+import type { LeaveRequestEntry } from "@/app/leave/all-requests/page"; 
 import { cn } from "@/lib/utils";
 
 interface Employee {
@@ -35,19 +35,19 @@ interface AttendanceRecord {
   id: string;
   employeeDocId: string;
   employeeName: string;
-  date: Timestamp; // Should be start of day
+  date: Timestamp; 
   clockInTime?: Timestamp;
   clockOutTime?: Timestamp;
   workDurationMinutes?: number;
-  status: "ClockedIn" | "Completed" | "Absent" | "OnLeave"; // This status reflects Firestore record
+  status: "ClockedIn" | "Completed" | "Absent" | "OnLeave"; 
 }
 
 type EmployeeAttendanceStatus = "On Approved Leave" | "Clocked In" | "Shift Completed" | "Not Clocked In" | "Inactive Employee";
 
 interface DisplayEmployee extends Employee {
   todayAttendanceStatus: EmployeeAttendanceStatus;
-  attendanceRecord?: AttendanceRecord | null; // Current day's record
-  leaveRecord?: LeaveRequestEntry | null; // Current day's leave
+  attendanceRecord?: AttendanceRecord | null; 
+  leaveRecord?: LeaveRequestEntry | null; 
   actionButton: JSX.Element | null;
   clockInDisplay?: string;
   clockOutDisplay?: string;
@@ -143,9 +143,11 @@ export default function AttendancePage() {
       setIsLoading(false);
     });
 
-    // Fetch today's attendance records
+    // Define today's date boundaries
     const todayStart = startOfDay(new Date());
     const todayEnd = endOfDay(new Date());
+
+    // Fetch today's attendance records
     const attendanceQuery = query(
       collection(db, "attendanceRecords"),
       where("date", ">=", Timestamp.fromDate(todayStart)),
@@ -158,26 +160,29 @@ export default function AttendancePage() {
       toast({ variant: "destructive", title: "Error", description: "Could not load attendance records." });
     });
 
-    // Fetch today's approved leave requests
+    // Fetch today's approved leave requests (modified query)
     const leavesQuery = query(
       collection(db, "leaveRequests"),
       where("status", "==", "Approved"),
-      where("startDate", "<=", Timestamp.fromDate(todayEnd)), // Leave starts on or before today end
-      where("endDate", ">=", Timestamp.fromDate(todayStart)) // Leave ends on or after today start
+      where("startDate", "<=", Timestamp.fromDate(todayEnd)) // Leaves that started on or before today
+      // The second date condition (endDate >= todayStart) will be applied client-side
     );
     const unsubLeaves = onSnapshot(leavesQuery, (snapshot) => {
       const relevantLeaves: LeaveRequestEntry[] = [];
+      // Use the same todayStart for client-side filtering
+      const currentDayStart = startOfDay(new Date()); 
+
       snapshot.forEach(doc => {
         const leave = { id: doc.id, ...doc.data() } as LeaveRequestEntry;
-        // Further client-side check if leave period actually includes today
-        if (isWithinInterval(todayStart, { start: leave.startDate.toDate(), end: leave.endDate.toDate() })) {
+        // Client-side filter: ensure the leave also ends on or after today starts
+        if (leave.endDate && leave.endDate.toDate() >= currentDayStart) {
             relevantLeaves.push(leave);
         }
       });
       setTodaysLeaves(relevantLeaves);
     }, error => {
       console.error("Error fetching leave requests:", error);
-      toast({ variant: "destructive", title: "Error", description: "Could not load leave requests." });
+      toast({ variant: "destructive", title: "Error", description: "Could not load leave requests. Check Firestore indexes." });
     });
     
     return () => {
@@ -304,7 +309,7 @@ export default function AttendancePage() {
                 <p>2. Employees marked "On Leave" have an approved leave request covering today.</p>
                 <p>3. "Not Clocked In" means the employee is active but has no attendance record or leave for today.</p>
                 <p>4. To view historical attendance or submit/manage leave requests, please use the respective sections from the sidebar.</p>
-                <p>5. New Firestore indexes might be required for optimal performance. Check browser console for Firebase links if you encounter errors or slow loading.</p>
+                <p>5. New Firestore indexes might be required for optimal performance. Check browser console for Firebase links if you encounter errors or slow loading. For example, an index on `leaveRequests` for `status` (ASC) and `startDate` (ASC) might be needed.</p>
             </CardContent>
         </Card>
       </div>
