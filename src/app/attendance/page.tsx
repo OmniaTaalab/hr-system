@@ -59,15 +59,16 @@ interface DisplayEmployee extends Employee {
 const initialManualUpdateState: ManualUpdateAttendanceState = { message: null, errors: {}, success: false, fieldErrors: {} };
 
 const formatUTCTimestampToHHMM = (ts: Timestamp | null | undefined): string => {
-  if (!ts || typeof ts.toDate !== 'function') return "";
-  const date = ts.toDate();
-  if (!isValid(date)) return "";
+    if (!ts || typeof ts.toMillis !== 'function') return "";
+    // Create a date object from epoch milliseconds, which is inherently UTC
+    const date = new Date(ts.toMillis());
+    if (!isValid(date)) return "";
 
-  // Get hours and minutes from the date object in its UTC representation
-  const hours = date.getUTCHours().toString().padStart(2, '0');
-  const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+    // Use built-in UTC methods to format, avoiding local timezone conversion
+    const hours = date.getUTCHours().toString().padStart(2, '0');
+    const minutes = date.getUTCMinutes().toString().padStart(2, '0');
 
-  return `${hours}:${minutes}`;
+    return `${hours}:${minutes}`;
 };
 
 function AttendanceStatusDisplayBadge({ status }: { status: EmployeeAttendanceDisplayStatus; }) {
@@ -89,35 +90,29 @@ function AttendanceStatusDisplayBadge({ status }: { status: EmployeeAttendanceDi
   }
 }
 
-function calculateDuration(clockInStr: string, clockOutStr: string, selectedDate: Date): string {
-  if (!clockInStr || !clockOutStr) return "-";
-  
-  const [inHours, inMinutes] = clockInStr.split(':').map(Number);
-  const [outHours, outMinutes] = clockOutStr.split(':').map(Number);
+function calculateDuration(clockInStr: string, clockOutStr: string): string {
+    if (!clockInStr || !clockOutStr) return "-";
+    
+    const [inHours, inMinutes] = clockInStr.split(':').map(Number);
+    const [outHours, outMinutes] = clockOutStr.split(':').map(Number);
 
-  if (isNaN(inHours) || isNaN(inMinutes) || isNaN(outHours) || isNaN(outMinutes)) return "-";
-  if (inHours < 0 || inHours > 23 || inMinutes < 0 || inMinutes > 59 ||
-      outHours < 0 || outHours > 23 || outMinutes < 0 || outMinutes > 59) return "-";
-      
-  // Using Date.UTC to ensure calculations are based on UTC if selectedDate is also UTC-aligned
-  // However, for display duration, local interpretation of selectedDate might be fine if it matches user context.
-  // For consistency with how server might calculate, let's assume selectedDate is the calendar day.
-  const clockInDateTime = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), inHours, inMinutes);
-  const clockOutDateTime = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), outHours, outMinutes);
+    if (isNaN(inHours) || isNaN(inMinutes) || isNaN(outHours) || isNaN(outMinutes)) return "-";
+    
+    const inTotalMinutes = inHours * 60 + inMinutes;
+    const outTotalMinutes = outHours * 60 + outMinutes;
 
+    if (outTotalMinutes <= inTotalMinutes) return "0 min";
 
-  if (!isValid(clockInDateTime) || !isValid(clockOutDateTime) || clockOutDateTime <= clockInDateTime) return "0 min";
-  
-  const diffMs = clockOutDateTime.getTime() - clockInDateTime.getTime();
-  const diffMinutes = Math.round(diffMs / 60000);
-  
-  const hours = Math.floor(diffMinutes / 60);
-  const minutes = diffMinutes % 60;
+    const diffMinutes = outTotalMinutes - inTotalMinutes;
+    
+    const hours = Math.floor(diffMinutes / 60);
+    const minutes = diffMinutes % 60;
 
-  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
-  if (hours > 0) return `${hours}h`;
-  return `${minutes}m`;
+    if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+    if (hours > 0) return `${hours}h`;
+    return `${minutes}m`;
 }
+
 
 export default function ManualAttendancePage() {
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
@@ -213,8 +208,7 @@ export default function ManualAttendancePage() {
             } else if (inputClockIn) {
                  displayStatus = "Clocked In (Only)";
             }
-            // Pass the original selectedDate for client-side duration calculation display
-            calculatedDuration = calculateDuration(inputClockIn, inputClockOut, selectedDate); 
+            calculatedDuration = calculateDuration(inputClockIn, inputClockOut); 
           }
           
           return {
@@ -257,8 +251,7 @@ export default function ManualAttendancePage() {
           const updatedEmp = { ...emp, [field]: value };
           updatedEmp.calculatedDuration = calculateDuration(
             field === 'inputClockIn' ? value : updatedEmp.inputClockIn,
-            field === 'inputClockOut' ? value : updatedEmp.inputClockOut,
-            selectedDate // Use the client's selectedDate for display calculation
+            field === 'inputClockOut' ? value : updatedEmp.inputClockOut
           );
           if (updatedEmp.displayStatus !== "On Approved Leave" && updatedEmp.displayStatus !== "Inactive Employee") {
             if (updatedEmp.inputClockIn && updatedEmp.inputClockOut) {

@@ -342,63 +342,34 @@ export async function manualUpdateAttendanceAction(
 
   console.log('[ManualUpdateAttendanceAction] Validated data:', { employeeDocId, employeeName, yyyyMmDdDateString, clockInString, clockOutString, originalRecordId });
 
-  // Construct Date object representing UTC midnight for the selected YYYY-MM-DD
-  const dateParts = yyyyMmDdDateString.split('-').map(Number);
-  if (dateParts.length !== 3 || dateParts.some(isNaN)) {
-      console.error('[ManualUpdateAttendanceAction] Invalid yyyyMmDdDateString after validation:', yyyyMmDdDateString);
-      return { message: "Invalid date format processed.", success: false, errors: { form: ["Invalid date format processed by server."] }, updatedEmployeeDocId: employeeDocId };
-  }
-  // year, month (0-indexed), day
-  const recordDateUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], 0, 0, 0, 0));
+  // Use Date.UTC to get milliseconds for a specific date and time, ensuring it's timezone-agnostic.
+  const getUTCMillis = (timeString?: string): number | null => {
+      if (!timeString) return null;
+      const [hours, minutes] = timeString.split(':').map(Number);
+      if (isNaN(hours) || isNaN(minutes)) return null;
 
-  if (!isValidDateFns(recordDateUTC)) {
-    console.error('[ManualUpdateAttendanceAction] Invalid recordDateUTC constructed:', recordDateUTC, 'from string:', yyyyMmDdDateString);
-    return { message: "Invalid date after server processing.", success: false, errors: { form: ["Invalid date after server processing."] }, updatedEmployeeDocId: employeeDocId };
+      const [year, month, day] = yyyyMmDdDateString.split('-').map(Number);
+      if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+
+      // Date.UTC takes month 0-indexed
+      return Date.UTC(year, month - 1, day, hours, minutes, 0, 0);
+  };
+
+  const recordDateMillis = Date.UTC(...(yyyyMmDdDateString.split('-').map((n, i) => i === 1 ? parseInt(n) - 1 : parseInt(n)) as [number, number, number]));
+  if (isNaN(recordDateMillis)) {
+       return { message: "Invalid date format processed by server.", success: false, errors: { form: ["Invalid date format processed by server."] }, updatedEmployeeDocId: employeeDocId };
   }
+  const recordDateTimestamp = Timestamp.fromMillis(recordDateMillis);
+
+
+  const clockInMillis = getUTCMillis(clockInString);
+  const clockOutMillis = getUTCMillis(clockOutString);
+
+  const finalClockInTime = clockInMillis ? Timestamp.fromMillis(clockInMillis) : null;
+  const finalClockOutTime = clockOutMillis ? Timestamp.fromMillis(clockOutMillis) : null;
   
-  let finalClockInTime: Timestamp | null = null;
-  let finalClockOutTime: Timestamp | null = null;
   let workDurationMinutes: number | null = null;
   let status: "ClockedIn" | "Completed" | "ManuallyCleared" = "ManuallyCleared";
-
-  const fieldErrorsForEmployee: { clockInTime?: string; clockOutTime?: string } = {};
-
-  if (clockInString) {
-    const [hours, minutes] = clockInString.split(':').map(Number);
-    if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
-      // Build date from scratch with all UTC components to ensure accuracy
-      const clockInDateTimeUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], hours, minutes, 0, 0));
-      finalClockInTime = Timestamp.fromDate(clockInDateTimeUTC);
-    } else {
-      fieldErrorsForEmployee.clockInTime = "Invalid clock-in time components.";
-    }
-  }
-
-  if (clockOutString) {
-    const [hours, minutes] = clockOutString.split(':').map(Number);
-     if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
-      // Build date from scratch with all UTC components
-      const clockOutDateTimeUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], hours, minutes, 0, 0));
-      finalClockOutTime = Timestamp.fromDate(clockOutDateTimeUTC);
-    } else {
-      fieldErrorsForEmployee.clockOutTime = "Invalid clock-out time components.";
-    }
-  }
-  
-  console.log('[ManualUpdateAttendanceAction] Parsed finalClockInTime (UTC):', finalClockInTime?.toDate().toISOString());
-  console.log('[ManualUpdateAttendanceAction] Parsed finalClockOutTime (UTC):', finalClockOutTime?.toDate().toISOString());
-
-
-  if (Object.keys(fieldErrorsForEmployee).length > 0) {
-    console.error('[ManualUpdateAttendanceAction] Field errors after time parsing:', fieldErrorsForEmployee);
-    return {
-        message: "Invalid time format(s) (parsed).",
-        success: false,
-        fieldErrors: { [employeeDocId]: fieldErrorsForEmployee },
-        updatedEmployeeDocId: employeeDocId,
-    };
-  }
-
 
   if (finalClockInTime && finalClockOutTime) {
     if (finalClockOutTime.toMillis() > finalClockInTime.toMillis()) {
@@ -406,16 +377,15 @@ export async function manualUpdateAttendanceAction(
       workDurationMinutes = Math.round(durationMs / 60000);
       status = "Completed";
     } else {
-      // Clock out is not after clock in, or same time
       workDurationMinutes = 0; 
-      status = "Completed"; // Still mark as completed for record keeping, duration is 0
-      console.warn(`[ManualUpdateAttendanceAction] Clock out time (${finalClockOutTime.toDate().toISOString()}) is not after clock in time (${finalClockInTime.toDate().toISOString()}). Duration set to 0.`);
+      status = "Completed";
+      console.warn(`[ManualUpdateAttendanceAction] Clock out time is not after clock in time. Duration set to 0.`);
     }
   } else if (finalClockInTime) {
     status = "ClockedIn";
     workDurationMinutes = null; 
   } else { 
-    status = "ManuallyCleared"; // No times entered, or only clock-out without clock-in
+    status = "ManuallyCleared";
     workDurationMinutes = null;
   }
 
@@ -426,7 +396,7 @@ export async function manualUpdateAttendanceAction(
     const attendanceEntry = {
       employeeDocId,
       employeeName,
-      date: Timestamp.fromDate(recordDateUTC), // Store UTC midnight
+      date: recordDateTimestamp, // Store UTC midnight
       clockInTime: finalClockInTime,
       clockOutTime: finalClockOutTime,
       workDurationMinutes,
@@ -434,34 +404,30 @@ export async function manualUpdateAttendanceAction(
       lastUpdatedAt: serverTimestamp(),
     };
     
-    console.log('[ManualUpdateAttendanceAction] Attendance entry to be saved:', JSON.parse(JSON.stringify(attendanceEntry))); // For better Timestamp logging
+    console.log('[ManualUpdateAttendanceAction] Attendance entry to be saved:', JSON.parse(JSON.stringify(attendanceEntry)));
 
     if (originalRecordId) {
       console.log('[ManualUpdateAttendanceAction] Updating existing record ID:', originalRecordId);
       const recordRef = doc(db, "attendanceRecords", originalRecordId);
       await updateDoc(recordRef, attendanceEntry);
-      return { message: `Attendance for ${employeeName} on ${format(recordDateUTC, 'P')} updated.`, success: true, updatedEmployeeDocId: employeeDocId };
+      return { message: `Attendance for ${employeeName} on ${yyyyMmDdDateString} updated.`, success: true, updatedEmployeeDocId: employeeDocId };
     } else if (finalClockInTime || finalClockOutTime) { 
       console.log('[ManualUpdateAttendanceAction] Creating new record.');
       await addDoc(collection(db, "attendanceRecords"), attendanceEntry);
-      return { message: `Attendance for ${employeeName} on ${format(recordDateUTC, 'P')} saved.`, success: true, updatedEmployeeDocId: employeeDocId };
+      return { message: `Attendance for ${employeeName} on ${yyyyMmDdDateString} saved.`, success: true, updatedEmployeeDocId: employeeDocId };
     } else {
-       // This case means no clockIn and no clockOut time was provided for a new record
-       // OR for an existing record, both fields were cleared.
        if(originalRecordId) { 
          console.log('[ManualUpdateAttendanceAction] Clearing existing record ID (no times provided):', originalRecordId);
          const recordRef = doc(db, "attendanceRecords", originalRecordId);
-         // Update specific fields to null and status to ManuallyCleared
          await updateDoc(recordRef, {
             clockInTime: null,
             clockOutTime: null,
             workDurationMinutes: null,
-            status: "ManuallyCleared", // Explicitly set status for cleared records
+            status: "ManuallyCleared",
             lastUpdatedAt: serverTimestamp(),
          });
-         return { message: `Attendance entry for ${employeeName} on ${format(recordDateUTC, 'P')} cleared.`, success: true, updatedEmployeeDocId: employeeDocId };
+         return { message: `Attendance entry for ${employeeName} on ${yyyyMmDdDateString} cleared.`, success: true, updatedEmployeeDocId: employeeDocId };
        }
-       // No original record, and no times entered - do nothing.
        console.log('[ManualUpdateAttendanceAction] No times entered for new record. No changes made.');
        return { message: `No time entered for ${employeeName}. No changes made.`, success: true, updatedEmployeeDocId: employeeDocId }; 
     }
