@@ -15,9 +15,12 @@ const CreateEmployeeFormSchema = z.object({
   role: z.string().min(1, "Role is required."),
   phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
   hourlyRate: z.preprocess(
-    (val) => parseFloat(z.string().parse(val)),
-    z.number().positive({ message: "Hourly rate must be a positive number." })
-  ).optional(),
+    (val) => {
+      if (val === '' || val === null || val === undefined) return undefined;
+      return parseFloat(z.string().parse(val));
+    },
+    z.number().positive({ message: "Hourly rate must be a positive number." }).optional()
+  ),
   dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
   joiningDate: z.coerce.date({ required_error: "Joining date is required." }),
 });
@@ -105,7 +108,7 @@ export async function createEmployeeAction(
     console.log('Employee data saved to Firestore in "employy" collection with ID:', docRef.id);
     console.log('Employee data:', employeeData);
 
-    return { message: `Employee "${name}" created successfully and saved to Firestore collection 'employy'.` };
+    return { message: `Employee "${name}" created successfully.` };
   } catch (error: any) {
     console.error('Firestore Create Employee Error:', error); 
     let specificErrorMessage = 'Failed to create employee in Firestore. An unexpected error occurred.';
@@ -133,12 +136,15 @@ const UpdateEmployeeFormSchema = z.object({
   phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
   status: z.enum(["Active", "On Leave", "Terminated"]),
   hourlyRate: z.preprocess(
-    (val) => parseFloat(z.string().parse(val)),
-    z.number().positive({ message: "Hourly rate must be a positive number." })
-  ).optional(),
+    (val) => {
+      if (val === '' || val === null || val === undefined) return undefined;
+      return parseFloat(z.string().parse(val));
+    },
+    z.number().positive({ message: "Hourly rate must be a positive number." }).optional()
+  ),
   dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
   joiningDate: z.coerce.date({ required_error: "Joining date is required." }),
-  leavingDate: z.string().optional(), // String from form, will be converted to Date or null
+  leavingDate: z.string().optional().nullable(),
   userId: z.string().optional(),
 });
 
@@ -176,7 +182,7 @@ export async function updateEmployeeAction(
     hourlyRate: formData.get('hourlyRate') || undefined,
     dateOfBirth: formData.get('dateOfBirth'),
     joiningDate: formData.get('joiningDate'),
-    leavingDate: formData.get('leavingDate') || undefined,
+    leavingDate: formData.get('leavingDate') || null,
     userId: formData.get('userId') || undefined,
   });
 
@@ -215,7 +221,7 @@ export async function updateEmployeeAction(
       if (isValid(parsedLeavingDate)) {
         updateData.leavingDate = Timestamp.fromDate(parsedLeavingDate);
       } else {
-        // Handle invalid date string if necessary, here we just don't update it
+         updateData.leavingDate = null;
       }
     } else {
       updateData.leavingDate = null;

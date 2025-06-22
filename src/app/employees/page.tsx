@@ -88,29 +88,40 @@ const initialCreateAuthState: CreateAuthUserState = {
   success: false,
 };
 
+const initialAddFormState = {
+    name: "",
+    email: "",
+    employeeId: "",
+    department: "",
+    role: "",
+    phone: "",
+    hourlyRate: "",
+    dateOfBirth: undefined as Date | undefined,
+    joiningDate: undefined as Date | undefined,
+};
+
 // Internal component for Add Employee Form content
 function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
-  const [formClientError, setFormClientError] = useState<string | null>(null);
-  
-  const [joiningDate, setJoiningDate] = useState<Date | undefined>();
-  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
+  const [formData, setFormData] = useState(initialAddFormState);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
   useEffect(() => {
     if (!serverState) return;
 
-    if (serverState.message && !serverState.errors?.form && !Object.keys(serverState.errors || {}).filter(k => k !== 'form').length) {
+    if (serverState.message && !serverState.errors) {
       toast({
         title: "Employee Added",
         description: serverState.message,
       });
       onSuccess();
-    } else if (serverState.errors?.form) {
-      setFormClientError(serverState.errors.form.join(', '));
     } else if (serverState.errors && Object.keys(serverState.errors).length > 0) {
-      const fieldErrors = Object.values(serverState.errors).flat().filter(Boolean).join('; ');
-      setFormClientError(fieldErrors || "An error occurred. Please check the details.");
+        // Errors exist, do nothing here. The UI will pick them up and display them inline.
     }
   }, [serverState, toast, onSuccess]);
 
@@ -131,40 +142,40 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
           <div className="space-y-4 p-4 pr-6">
             <div className="space-y-2">
               <Label htmlFor="add-name">Full Name</Label>
-              <Input id="add-name" name="name" placeholder="e.g., John Doe" />
+              <Input id="add-name" name="name" placeholder="e.g., John Doe" value={formData.name} onChange={handleInputChange} />
               {serverState?.errors?.name && <p className="text-sm text-destructive">{serverState.errors.name.join(', ')}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="add-email">Email</Label>
-              <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" />
+              <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" value={formData.email} onChange={handleInputChange} />
               {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="add-employeeId">Employee ID</Label>
-              <Input id="add-employeeId" name="employeeId" placeholder="e.g., 007 (Numbers only)" />
+              <Input id="add-employeeId" name="employeeId" placeholder="e.g., 007 (Numbers only)" value={formData.employeeId} onChange={handleInputChange} />
               {serverState?.errors?.employeeId && <p className="text-sm text-destructive">{serverState.errors.employeeId.join(', ')}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="add-department">Department</Label>
-                    <Input id="add-department" name="department" placeholder="e.g., Technology" />
+                    <Input id="add-department" name="department" placeholder="e.g., Technology" value={formData.department} onChange={handleInputChange}/>
                     {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="add-role">Role</Label>
-                    <Input id="add-role" name="role" placeholder="e.g., Software Developer" />
+                    <Input id="add-role" name="role" placeholder="e.g., Software Developer" value={formData.role} onChange={handleInputChange} />
                     {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
                 </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="add-phone">Phone</Label>
-                    <Input id="add-phone" name="phone" placeholder="e.g., 5550107 (Numbers only)" />
+                    <Input id="add-phone" name="phone" placeholder="e.g., 5550107 (Numbers only)" value={formData.phone} onChange={handleInputChange} />
                     {serverState?.errors?.phone && <p className="text-sm text-destructive">{serverState.errors.phone.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="add-hourlyRate">Hourly Rate (Optional)</Label>
-                    <Input id="add-hourlyRate" name="hourlyRate" type="number" step="0.01" placeholder="e.g., 25.50" />
+                    <Input id="add-hourlyRate" name="hourlyRate" type="number" step="0.01" placeholder="e.g., 25.50" value={formData.hourlyRate} onChange={handleInputChange} />
                     {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
                 </div>
             </div>
@@ -173,46 +184,46 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                     <Label htmlFor="add-dateOfBirth">Date of Birth</Label>
                     <Popover>
                         <PopoverTrigger asChild>
-                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
+                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !formData.dateOfBirth && "text-muted-foreground")}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
-                                {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
+                                {formData.dateOfBirth ? format(formData.dateOfBirth, "PPP") : <span>Pick a date</span>}
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
+                            <Calendar mode="single" selected={formData.dateOfBirth} onSelect={(date) => setFormData(prev => ({...prev, dateOfBirth: date}))} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
                         </PopoverContent>
                     </Popover>
-                    <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
+                    <input type="hidden" name="dateOfBirth" value={formData.dateOfBirth?.toISOString() ?? ''} />
                     {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="add-joiningDate">Joining Date</Label>
                      <Popover>
                         <PopoverTrigger asChild>
-                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !joiningDate && "text-muted-foreground")}>
+                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !formData.joiningDate && "text-muted-foreground")}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
-                                {joiningDate ? format(joiningDate, "PPP") : <span>Pick a date</span>}
+                                {formData.joiningDate ? format(formData.joiningDate, "PPP") : <span>Pick a date</span>}
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} initialFocus />
+                            <Calendar mode="single" selected={formData.joiningDate} onSelect={(date) => setFormData(prev => ({...prev, joiningDate: date}))} initialFocus />
                         </PopoverContent>
                     </Popover>
-                    <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
+                    <input type="hidden" name="joiningDate" value={formData.joiningDate?.toISOString() ?? ''} />
                     {serverState?.errors?.joiningDate && <p className="text-sm text-destructive">{serverState.errors.joiningDate.join(', ')}</p>}
                 </div>
             </div>
             
-            {(formClientError || serverState?.errors?.form) && (
+            {serverState?.errors?.form && (
               <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
                 <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-                <span>{formClientError || serverState?.errors?.form?.join(', ')}</span>
+                <span>{serverState.errors.form.join(', ')}</span>
               </div>
             )}
           </div>
         </ScrollArea>
         <AlertDialogFooter className="pt-4 flex-shrink-0 border-t">
-          <AlertDialogCancel type="button" onClick={() => { onSuccess(); setFormClientError(null); }}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel type="button" onClick={() => { onSuccess(); }}>Cancel</AlertDialogCancel>
           <Button type="submit" form="add-employee-form" disabled={isPending}>
             {isPending ? (
               <>
@@ -240,7 +251,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   useEffect(() => {
     if (!serverState) return;
     
-    if (serverState.message && !serverState.errors?.form && !Object.keys(serverState.errors || {}).filter(k => k !== 'form').length) {
+    if (serverState.message && !serverState.errors) {
       toast({
         title: "Employee Updated",
         description: serverState.message,
@@ -249,6 +260,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
     } else if (serverState.errors?.form) {
       setFormClientError(serverState.errors.form.join(', '));
     } else if (serverState.errors && Object.keys(serverState.errors).length > 0) {
+      // This is now only for the general error display, specific errors are handled inline.
       const fieldErrors = Object.values(serverState.errors).flat().filter(Boolean).join('; ');
       setFormClientError(fieldErrors || "An error occurred while updating. Please check the details.");
     }
