@@ -3,7 +3,8 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { isValid } from 'date-fns';
 
 // Schema for validating form data for creating an employee
 const CreateEmployeeFormSchema = z.object({
@@ -17,6 +18,8 @@ const CreateEmployeeFormSchema = z.object({
     (val) => parseFloat(z.string().parse(val)),
     z.number().positive({ message: "Hourly rate must be a positive number." })
   ).optional(),
+  dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
+  joiningDate: z.coerce.date({ required_error: "Joining date is required." }),
 });
 
 export type CreateEmployeeState = {
@@ -28,6 +31,8 @@ export type CreateEmployeeState = {
     role?: string[];
     phone?: string[];
     hourlyRate?: string[];
+    dateOfBirth?: string[];
+    joiningDate?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -45,6 +50,8 @@ export async function createEmployeeAction(
     role: formData.get('role'),
     phone: formData.get('phone'),
     hourlyRate: formData.get('hourlyRate') || undefined,
+    dateOfBirth: formData.get('dateOfBirth'),
+    joiningDate: formData.get('joiningDate'),
   });
 
   if (!validatedFields.success) {
@@ -54,7 +61,7 @@ export async function createEmployeeAction(
     };
   }
 
-  const { name, email, employeeId, department, role, phone, hourlyRate } = validatedFields.data;
+  const { name, email, employeeId, department, role, phone, hourlyRate, dateOfBirth, joiningDate } = validatedFields.data;
 
   try {
     const employeeData = {
@@ -64,8 +71,12 @@ export async function createEmployeeAction(
       department,
       role,
       phone,
-      hourlyRate: hourlyRate ?? 0, // Default to 0 if not provided
+      hourlyRate: hourlyRate ?? 0,
       status: "Active", 
+      dateOfBirth: Timestamp.fromDate(dateOfBirth),
+      joiningDate: Timestamp.fromDate(joiningDate),
+      leavingDate: null,
+      userId: null,
       createdAt: serverTimestamp(),
     };
     
@@ -105,6 +116,10 @@ const UpdateEmployeeFormSchema = z.object({
     (val) => parseFloat(z.string().parse(val)),
     z.number().positive({ message: "Hourly rate must be a positive number." })
   ).optional(),
+  dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
+  joiningDate: z.coerce.date({ required_error: "Joining date is required." }),
+  leavingDate: z.string().optional(), // String from form, will be converted to Date or null
+  userId: z.string().optional(),
 });
 
 export type UpdateEmployeeState = {
@@ -117,6 +132,10 @@ export type UpdateEmployeeState = {
     phone?: string[];
     status?: string[];
     hourlyRate?: string[];
+    dateOfBirth?: string[];
+    joiningDate?: string[];
+    leavingDate?: string[];
+    userId?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -135,6 +154,10 @@ export async function updateEmployeeAction(
     phone: formData.get('phone'),
     status: formData.get('status'),
     hourlyRate: formData.get('hourlyRate') || undefined,
+    dateOfBirth: formData.get('dateOfBirth'),
+    joiningDate: formData.get('joiningDate'),
+    leavingDate: formData.get('leavingDate') || undefined,
+    userId: formData.get('userId') || undefined,
   });
 
   if (!validatedFields.success) {
@@ -144,19 +167,41 @@ export async function updateEmployeeAction(
     };
   }
 
-  const { employeeDocId, name, department, role, email, phone, status, hourlyRate } = validatedFields.data;
+  const { 
+    employeeDocId, name, department, role, email, phone, status, hourlyRate,
+    dateOfBirth, joiningDate, leavingDate: leavingDateString, userId
+  } = validatedFields.data;
 
   try {
     const employeeRef = doc(db, "employy", employeeDocId);
-    await updateDoc(employeeRef, {
+
+    // Using 'any' to build the update object dynamically
+    const updateData: { [key: string]: any } = {
       name,
       department,
       role,
       email,
       phone,
       status,
-      hourlyRate: hourlyRate ?? 0, // Default to 0 if not provided
-    });
+      hourlyRate: hourlyRate ?? 0,
+      dateOfBirth: Timestamp.fromDate(dateOfBirth),
+      joiningDate: Timestamp.fromDate(joiningDate),
+      userId: userId || null,
+    };
+    
+    // Handle optional leavingDate
+    if (leavingDateString) {
+      const parsedLeavingDate = new Date(leavingDateString);
+      if (isValid(parsedLeavingDate)) {
+        updateData.leavingDate = Timestamp.fromDate(parsedLeavingDate);
+      } else {
+        // Handle invalid date string if necessary, here we just don't update it
+      }
+    } else {
+      updateData.leavingDate = null;
+    }
+
+    await updateDoc(employeeRef, updateData);
     
     return { message: `Employee "${name}" updated successfully.` };
   } catch (error: any) {
@@ -175,4 +220,3 @@ export async function updateEmployeeAction(
     };
   }
 }
-

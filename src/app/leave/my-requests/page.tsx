@@ -89,6 +89,10 @@ interface Employee {
   department: string;
   role: string;
   status: string;
+  userId?: string | null;
+  dateOfBirth?: Timestamp;
+  joiningDate?: Timestamp;
+  leavingDate?: Timestamp | null;
 }
 
 const formatDurationFromMinutes = (totalMinutes: number | null | undefined): string => {
@@ -363,7 +367,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
       <div className="space-y-8">
         <header>
           <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-            Employee Leave & Work Summary
+            Employee Work & Leave Summary
           </h1>
           <p className="text-muted-foreground">
             Select an employee and month to view their summary.
@@ -638,4 +642,3 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
     </AppLayout>
   );
 }
-

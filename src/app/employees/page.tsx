@@ -26,7 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, type UpdateEmployeeState } from "@/app/actions/employee-actions";
@@ -34,6 +34,10 @@ import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, deleteDoc, doc, type Timestamp } from 'firebase/firestore';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 interface Employee {
@@ -46,6 +50,10 @@ interface Employee {
   phone: string;
   hourlyRate?: number;
   status: "Active" | "On Leave" | "Terminated";
+  userId?: string | null;
+  dateOfBirth?: Timestamp;
+  joiningDate?: Timestamp;
+  leavingDate?: Timestamp | null;
   createdAt?: Timestamp; 
 }
 
@@ -78,6 +86,9 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
   const [formClientError, setFormClientError] = useState<string | null>(null);
+  
+  const [joiningDate, setJoiningDate] = useState<Date | undefined>();
+  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
 
   useEffect(() => {
     if (!serverState) return;
@@ -109,8 +120,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         action={formAction}
         className="flex flex-col overflow-hidden"
       >
-        <ScrollArea className="flex-grow min-h-[150px] max-h-[350px]"> {/* Increased max-h */}
-          <div className="space-y-4 p-4 pr-2">
+        <ScrollArea className="flex-grow min-h-[150px] max-h-[500px]">
+          <div className="space-y-4 p-4 pr-6">
             <div className="space-y-2">
               <Label htmlFor="add-name">Full Name</Label>
               <Input id="add-name" name="name" placeholder="e.g., John Doe" />
@@ -126,25 +137,63 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               <Input id="add-employeeId" name="employeeId" placeholder="e.g., 007 (Numbers only)" />
               {serverState?.errors?.employeeId && <p className="text-sm text-destructive">{serverState.errors.employeeId.join(', ')}</p>}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="add-department">Department</Label>
-              <Input id="add-department" name="department" placeholder="e.g., Technology" />
-              {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="add-department">Department</Label>
+                    <Input id="add-department" name="department" placeholder="e.g., Technology" />
+                    {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="add-role">Role</Label>
+                    <Input id="add-role" name="role" placeholder="e.g., Software Developer" />
+                    {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
+                </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="add-role">Role</Label>
-              <Input id="add-role" name="role" placeholder="e.g., Software Developer" />
-              {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="add-phone">Phone</Label>
+                    <Input id="add-phone" name="phone" placeholder="e.g., 5550107 (Numbers only)" />
+                    {serverState?.errors?.phone && <p className="text-sm text-destructive">{serverState.errors.phone.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="add-hourlyRate">Hourly Rate (Optional)</Label>
+                    <Input id="add-hourlyRate" name="hourlyRate" type="number" step="0.01" placeholder="e.g., 25.50" />
+                    {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
+                </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="add-phone">Phone</Label>
-              <Input id="add-phone" name="phone" placeholder="e.g., 5550107 (Numbers only)" />
-              {serverState?.errors?.phone && <p className="text-sm text-destructive">{serverState.errors.phone.join(', ')}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="add-hourlyRate">Hourly Rate (Optional)</Label>
-              <Input id="add-hourlyRate" name="hourlyRate" type="number" step="0.01" placeholder="e.g., 25.50" />
-              {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="add-dateOfBirth">Date of Birth</Label>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
+                        </PopoverContent>
+                    </Popover>
+                    <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString()} />
+                    {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="add-joiningDate">Joining Date</Label>
+                     <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !joiningDate && "text-muted-foreground")}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {joiningDate ? format(joiningDate, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} initialFocus />
+                        </PopoverContent>
+                    </Popover>
+                    <input type="hidden" name="joiningDate" value={joiningDate?.toISOString()} />
+                    {serverState?.errors?.joiningDate && <p className="text-sm text-destructive">{serverState.errors.joiningDate.join(', ')}</p>}
+                </div>
             </div>
             
             {(formClientError || serverState?.errors?.form) && (
@@ -177,6 +226,10 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   const [serverState, formAction, isPending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
   const [formClientError, setFormClientError] = useState<string | null>(null);
 
+  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(employee.dateOfBirth?.toDate());
+  const [joiningDate, setJoiningDate] = useState<Date | undefined>(employee.joiningDate?.toDate());
+  const [leavingDate, setLeavingDate] = useState<Date | undefined>(employee.leavingDate?.toDate());
+
   useEffect(() => {
     if (!serverState) return;
     
@@ -199,7 +252,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
       <AlertDialogHeader>
         <AlertDialogTitle>Edit Employee: {employee.name}</AlertDialogTitle>
         <AlertDialogDescription>
-          Update the details for {employee.name}. All fields are required except Employee ID.
+          Update the details for {employee.name}.
         </AlertDialogDescription>
       </AlertDialogHeader>
       <form
@@ -208,8 +261,8 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         className="flex flex-col overflow-hidden"
       >
         <input type="hidden" name="employeeDocId" defaultValue={employee.id} />
-        <ScrollArea className="flex-grow min-h-[150px] max-h-[350px]"> {/* Increased max-h */}
-          <div className="space-y-4 p-4 pr-2">
+        <ScrollArea className="flex-grow min-h-[150px] max-h-[500px]">
+          <div className="space-y-4 p-4 pr-6">
             <div className="space-y-2">
               <Label htmlFor="edit-name">Full Name</Label>
               <Input id="edit-name" name="name" defaultValue={employee.name}  />
@@ -219,39 +272,101 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
               <Label htmlFor="edit-employeeIdDisplay">Employee ID (Company Given)</Label>
               <Input id="edit-employeeIdDisplay" name="employeeIdDisplay" defaultValue={employee.employeeId} readOnly className="bg-muted/50" />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-department">Department</Label>
-              <Input id="edit-department" name="department" defaultValue={employee.department}  />
-              {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                <Label htmlFor="edit-department">Department</Label>
+                <Input id="edit-department" name="department" defaultValue={employee.department}  />
+                {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                <Label htmlFor="edit-role">Role</Label>
+                <Input id="edit-role" name="role" defaultValue={employee.role}  />
+                {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
+                </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                <Label htmlFor="edit-email">Email</Label>
+                <Input id="edit-email" name="email" type="email" defaultValue={employee.email}  />
+                {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                <Label htmlFor="edit-phone">Phone</Label>
+                <Input id="edit-phone" name="phone" defaultValue={employee.phone} placeholder="Numbers only" />
+                {serverState?.errors?.phone && <p className="text-sm text-destructive">{serverState.errors.phone.join(', ')}</p>}
+                </div>
+            </div>
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="edit-hourlyRate">Hourly Rate (Optional)</Label>
+                    <Input id="edit-hourlyRate" name="hourlyRate" type="number" step="0.01" defaultValue={employee.hourlyRate?.toString() ?? ""} placeholder="e.g., 25.50" />
+                    {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="edit-status">Status</Label>
+                    <select id="edit-status" name="status" defaultValue={employee.status} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" >
+                        <option value="Active">Active</option>
+                        <option value="On Leave">On Leave</option>
+                        <option value="Terminated">Terminated</option>
+                    </select>
+                    {serverState?.errors?.status && <p className="text-sm text-destructive">{serverState.errors.status.join(', ')}</p>}
+                </div>
+            </div>
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="edit-dateOfBirth">Date of Birth</Label>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
+                        </PopoverContent>
+                    </Popover>
+                    <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString()} />
+                    {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="edit-joiningDate">Joining Date</Label>
+                     <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !joiningDate && "text-muted-foreground")}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {joiningDate ? format(joiningDate, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} initialFocus />
+                        </PopoverContent>
+                    </Popover>
+                    <input type="hidden" name="joiningDate" value={joiningDate?.toISOString()} />
+                    {serverState?.errors?.joiningDate && <p className="text-sm text-destructive">{serverState.errors.joiningDate.join(', ')}</p>}
+                </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-role">Role</Label>
-              <Input id="edit-role" name="role" defaultValue={employee.role}  />
-              {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
+                <Label htmlFor="edit-leavingDate">Leaving Date (Optional)</Label>
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !leavingDate && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {leavingDate ? format(leavingDate, "PPP") : <span>Pick a date</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                        <Calendar mode="single" selected={leavingDate} onSelect={setLeavingDate} />
+                    </PopoverContent>
+                </Popover>
+                <input type="hidden" name="leavingDate" value={leavingDate?.toISOString() ?? ""} />
+                {serverState?.errors?.leavingDate && <p className="text-sm text-destructive">{serverState.errors.leavingDate.join(', ')}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-email">Email</Label>
-              <Input id="edit-email" name="email" type="email" defaultValue={employee.email}  />
-              {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-phone">Phone</Label>
-              <Input id="edit-phone" name="phone" defaultValue={employee.phone} placeholder="Numbers only" />
-              {serverState?.errors?.phone && <p className="text-sm text-destructive">{serverState.errors.phone.join(', ')}</p>}
-            </div>
-             <div className="space-y-2">
-              <Label htmlFor="edit-hourlyRate">Hourly Rate (Optional)</Label>
-              <Input id="edit-hourlyRate" name="hourlyRate" type="number" step="0.01" defaultValue={employee.hourlyRate?.toString() ?? ""} placeholder="e.g., 25.50" />
-              {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-status">Status</Label>
-              <select id="edit-status" name="status" defaultValue={employee.status} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" >
-                <option value="Active">Active</option>
-                <option value="On Leave">On Leave</option>
-                <option value="Terminated">Terminated</option>
-              </select>
-              {serverState?.errors?.status && <p className="text-sm text-destructive">{serverState.errors.status.join(', ')}</p>}
+                <Label htmlFor="edit-userId">Auth User ID (Optional)</Label>
+                <Input id="edit-userId" name="userId" defaultValue={employee.userId ?? ""} placeholder="Paste UID from Firebase Auth" />
+                <p className="text-xs text-muted-foreground">Link this employee to a Firebase Authentication user account.</p>
+                {serverState?.errors?.userId && <p className="text-sm text-destructive">{serverState.errors.userId.join(', ')}</p>}
             </div>
 
             {(formClientError || serverState?.errors?.form) && (
@@ -390,6 +505,18 @@ export default function EmployeeManagementPage() {
       closeDeleteConfirmDialog();
     }
   };
+  
+  const calculateAge = (dobTimestamp?: Timestamp): number | null => {
+    if (!dobTimestamp) return null;
+    const dob = dobTimestamp.toDate();
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+      age--;
+    }
+    return age;
+  };
 
 
   return (
@@ -451,7 +578,7 @@ export default function EmployeeManagementPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Search employees (name, ID, department, role...)"
+                  placeholder="Search employees (name, ID, department...)"
                   className="w-full pl-10"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -475,12 +602,12 @@ export default function EmployeeManagementPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Employee ID</TableHead>
-                  <TableHead>Department</TableHead>
                   <TableHead>Role</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Hourly Rate</TableHead>
+                  <TableHead>Age</TableHead>
+                  <TableHead>Joining Date</TableHead>
+                  <TableHead>Leaving Date</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Account</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -490,15 +617,24 @@ export default function EmployeeManagementPage() {
                     <TableRow key={employee.id}>
                       <TableCell className="font-medium">{employee.name}</TableCell>
                       <TableCell>{employee.employeeId}</TableCell>
-                      <TableCell>{employee.department}</TableCell>
                       <TableCell>{employee.role}</TableCell>
-                      <TableCell>{employee.email}</TableCell>
-                      <TableCell>{employee.phone}</TableCell>
-                      <TableCell>
-                        {employee.hourlyRate ? `$${employee.hourlyRate.toFixed(2)}` : "-"}
-                      </TableCell>
+                      <TableCell>{calculateAge(employee.dateOfBirth) ?? '-'}</TableCell>
+                      <TableCell>{employee.joiningDate ? format(employee.joiningDate.toDate(), "PPP") : '-'}</TableCell>
+                      <TableCell>{employee.leavingDate ? format(employee.leavingDate.toDate(), "PPP") : '-'}</TableCell>
                       <TableCell>
                         <EmployeeStatusBadge status={employee.status} />
+                      </TableCell>
+                      <TableCell>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger>
+                                    {employee.userId ? <UserCheck className="h-5 w-5 text-green-500" /> : <UserX className="h-5 w-5 text-muted-foreground" />}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{employee.userId ? `Linked to Auth UID: ${employee.userId}` : "No user account linked."}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -524,7 +660,7 @@ export default function EmployeeManagementPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center"> {/* Increased colSpan */}
+                    <TableCell colSpan={9} className="h-24 text-center">
                       {searchTerm ? "No employees found matching your search." : "No employees found. Try adding some!"}
                     </TableCell>
                   </TableRow>
@@ -538,7 +674,7 @@ export default function EmployeeManagementPage() {
 
       {isAddDialogOpen && (
         <AlertDialog open={isAddDialogOpen} onOpenChange={(open) => { if(!open) closeAddDialog(); else setIsAddDialogOpen(true); }}>
-          <AlertDialogContent className="max-w-lg">
+          <AlertDialogContent className="max-w-2xl">
             <AddEmployeeFormContent key={`add-form-${addFormKey}`} onSuccess={closeAddDialog} />
           </AlertDialogContent>
         </AlertDialog>
@@ -546,7 +682,7 @@ export default function EmployeeManagementPage() {
       
       {isEditDialogOpen && editingEmployee && (
         <AlertDialog open={isEditDialogOpen} onOpenChange={(open) => { if(!open) closeEditDialog(); else setIsEditDialogOpen(true); }}>
-          <AlertDialogContent className="max-w-lg">
+          <AlertDialogContent className="max-w-2xl">
              <EditEmployeeFormContent key={`edit-form-${editFormKey}-${editingEmployee.id}`} employee={editingEmployee} onSuccess={closeEditDialog} />
           </AlertDialogContent>
         </AlertDialog>
@@ -577,4 +713,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
