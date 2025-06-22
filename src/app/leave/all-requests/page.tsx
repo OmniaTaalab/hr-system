@@ -664,14 +664,14 @@ export default function AllLeaveRequestsPage() {
               )}
               <AlertDialogFooter className="mt-4">
                 <AlertDialogCancel type="button" onClick={closeDeleteDialog}>Cancel</AlertDialogCancel>
-                <AlertDialogAction
+                <Button
                   type="submit"
                   form="delete-leave-request-form"
-                  className={cn(buttonVariants({ variant: "destructive" }), "bg-destructive text-destructive-foreground hover:bg-destructive/90")}
+                  variant="destructive"
                   disabled={isDeletePending}
                 >
                   {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Request"}
-                </AlertDialogAction>
+                </Button>
               </AlertDialogFooter>
             </form>
           </AlertDialogContent>
@@ -681,5 +681,3 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
-
-    
