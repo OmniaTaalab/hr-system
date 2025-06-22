@@ -32,6 +32,7 @@ import {
   DollarSign,
   CalendarCheck2,
   Sheet, // Added Sheet icon for reports
+  UserPlus,
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -66,4 +67,5 @@ export const iconMap: { [key: string]: LucideIcon } = {
   DollarSign,
   CalendarCheck2,
   Sheet, // Added Sheet icon for reports
+  UserPlus,
 };

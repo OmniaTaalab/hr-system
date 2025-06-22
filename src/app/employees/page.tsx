@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,10 +26,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown } from "lucide-react";
-import React, { useState, useEffect, useMemo, useActionState } from "react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, Copy, ShieldCheck } from "lucide-react";
+import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, type UpdateEmployeeState } from "@/app/actions/employee-actions";
+import { createAuthUserForEmployeeAction, type CreateAuthUserState } from "@/app/actions/auth-creation-actions";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, deleteDoc, doc, type Timestamp } from 'firebase/firestore';
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -79,6 +80,12 @@ const initialCreateEmployeeState: CreateEmployeeState = {
 const initialEditEmployeeState: UpdateEmployeeState = {
   message: null,
   errors: {},
+};
+
+const initialCreateAuthState: CreateAuthUserState = {
+  message: null,
+  errors: {},
+  success: false,
 };
 
 // Internal component for Add Employee Form content
@@ -410,6 +417,10 @@ export default function EmployeeManagementPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
 
+  const [isCreateLoginDialogOpen, setIsCreateLoginDialogOpen] = useState(false);
+  const [employeeToCreateLogin, setEmployeeToCreateLogin] = useState<Employee | null>(null);
+  const [createLoginServerState, createLoginFormAction, isCreateLoginPending] = useActionState(createAuthUserForEmployeeAction, initialCreateAuthState);
+  const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
 
   useEffect(() => {
     setIsLoading(true);
@@ -433,6 +444,21 @@ export default function EmployeeManagementPage() {
 
     return () => unsubscribe();
   }, [toast]);
+  
+  useEffect(() => {
+    if (createLoginServerState?.message) {
+      if (createLoginServerState.success) {
+        setIsCreateLoginDialogOpen(false); // Close the confirmation dialog
+        setIsSuccessDialogOpen(true); // Open the success dialog
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Failed to Create Login",
+          description: createLoginServerState.errors?.form?.join(", ") || createLoginServerState.message,
+        });
+      }
+    }
+  }, [createLoginServerState, toast]);
 
 
   const filteredEmployees = useMemo(() => {
@@ -485,6 +511,16 @@ export default function EmployeeManagementPage() {
     setEmployeeToDelete(null);
     setIsDeleteDialogOpen(false);
   };
+  
+  const openCreateLoginDialog = (employee: Employee) => {
+    setEmployeeToCreateLogin(employee);
+    setIsCreateLoginDialogOpen(true);
+  };
+  
+  const closeCreateLoginDialog = () => {
+    setEmployeeToCreateLogin(null);
+    setIsCreateLoginDialogOpen(false);
+  };
 
   const confirmDeleteEmployee = async () => {
     if (!employeeToDelete) return;
@@ -516,6 +552,14 @@ export default function EmployeeManagementPage() {
       age--;
     }
     return age;
+  };
+  
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast({ title: "Copied!", description: "Password copied to clipboard." });
+    }, (err) => {
+      toast({ variant: "destructive", title: "Copy Failed", description: "Could not copy password." });
+    });
   };
 
 
@@ -649,6 +693,11 @@ export default function EmployeeManagementPage() {
                               <Edit3 className="mr-2 h-4 w-4" />
                               Edit
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openCreateLoginDialog(employee)} disabled={!!employee.userId}>
+                              <UserPlus className="mr-2 h-4 w-4" />
+                              Create Login
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => openDeleteConfirmDialog(employee)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
                               <Trash2 className="mr-2 h-4 w-4" />
                               Delete
@@ -707,6 +756,62 @@ export default function EmployeeManagementPage() {
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {isCreateLoginDialogOpen && employeeToCreateLogin && (
+        <AlertDialog open={isCreateLoginDialogOpen} onOpenChange={(open) => { if (!open) closeCreateLoginDialog(); }}>
+          <AlertDialogContent>
+            <form action={createLoginFormAction}>
+              <input type="hidden" name="employeeDocId" value={employeeToCreateLogin.id} />
+              <input type="hidden" name="email" value={employeeToCreateLogin.email} />
+              <input type="hidden" name="name" value={employeeToCreateLogin.name} />
+              <AlertDialogHeader>
+                <AlertDialogTitle>Create Login Account?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will create a new user account in Firebase Authentication for <strong>{employeeToCreateLogin.name}</strong> with the email <strong>{employeeToCreateLogin.email}</strong>. A temporary password will be generated. Are you sure you want to proceed?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {createLoginServerState?.errors?.form && (
+                <div className="text-sm text-destructive mt-2">{createLoginServerState.errors.form.join(", ")}</div>
+              )}
+              <AlertDialogFooter className="mt-4">
+                <AlertDialogCancel type="button" onClick={closeCreateLoginDialog}>Cancel</AlertDialogCancel>
+                <Button type="submit" disabled={isCreateLoginPending}>
+                  {isCreateLoginPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirm & Create"}
+                </Button>
+              </AlertDialogFooter>
+            </form>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      
+      {isSuccessDialogOpen && createLoginServerState?.success && (
+        <AlertDialog open={isSuccessDialogOpen} onOpenChange={setIsSuccessDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                        <ShieldCheck className="h-6 w-6 text-green-500" />
+                        Login Created Successfully!
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        A login account for <strong>{createLoginServerState.employeeName}</strong> has been created. Please provide them with their temporary password below and advise them to change it upon first login.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="my-4">
+                    <Label htmlFor="temp-password">Temporary Password</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                        <Input id="temp-password" value={createLoginServerState.tempPassword ?? ""} readOnly className="font-mono" />
+                        <Button type="button" variant="outline" size="icon" onClick={() => copyToClipboard(createLoginServerState.tempPassword ?? "")}>
+                            <Copy className="h-4 w-4" />
+                            <span className="sr-only">Copy password</span>
+                        </Button>
+                    </div>
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogAction onClick={() => setIsSuccessDialogOpen(false)}>Close</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
         </AlertDialog>
       )}
 
