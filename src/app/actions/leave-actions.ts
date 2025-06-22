@@ -150,6 +150,7 @@ const EditLeaveRequestFormSchema = z.object({
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." }),
   reason: z.string().min(10, "Reason must be at least 10 characters.").max(500, "Reason must be at most 500 characters."),
+  status: z.enum(["Pending", "Approved", "Rejected"], { required_error: "Status is required." }),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
   path: ["endDate"],
@@ -162,6 +163,7 @@ export type EditLeaveRequestState = {
     startDate?: string[];
     endDate?: string[];
     reason?: string[];
+    status?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -178,6 +180,7 @@ export async function editLeaveRequestAction(
     startDate: formData.get('startDate') ? new Date(formData.get('startDate') as string) : undefined,
     endDate: formData.get('endDate') ? new Date(formData.get('endDate') as string) : undefined,
     reason: formData.get('reason'),
+    status: formData.get('status'),
   };
 
   const validatedFields = EditLeaveRequestFormSchema.safeParse(rawFormData);
@@ -190,7 +193,7 @@ export async function editLeaveRequestAction(
     };
   }
 
-  const { requestId, leaveType, startDate, endDate, reason } = validatedFields.data;
+  const { requestId, leaveType, startDate, endDate, reason, status } = validatedFields.data;
 
   try {
     const requestRef = doc(db, "leaveRequests", requestId);
@@ -199,6 +202,7 @@ export async function editLeaveRequestAction(
       startDate: Timestamp.fromDate(startDate),
       endDate: Timestamp.fromDate(endDate),
       reason,
+      status,
       updatedAt: serverTimestamp(),
     });
 

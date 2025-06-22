@@ -164,6 +164,7 @@ const editLeaveRequestClientSchema = z.object({
   startDate: z.date({ required_error: "Start date is required" }),
   endDate: z.date({ required_error: "End date is required" }),
   reason: z.string().min(10, "Reason must be at least 10 characters").max(500, "Reason must be at most 500 characters"),
+  status: z.enum(["Pending", "Approved", "Rejected"], { required_error: "Status is required" }),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date",
   path: ["endDate"],
@@ -190,6 +191,7 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
       startDate: request.startDate.toDate(),
       endDate: request.endDate.toDate(),
       reason: request.reason || "",
+      status: request.status || "Pending",
     },
   });
    
@@ -200,6 +202,7 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
         startDate: request.startDate.toDate(),
         endDate: request.endDate.toDate(),
         reason: request.reason || "",
+        status: request.status || "Pending",
       });
     }
   }, [request, form, open]);
@@ -223,6 +226,7 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
     formData.set('endDate', data.endDate.toISOString());
     formData.set('leaveType', data.leaveType);
     formData.set('reason', data.reason);
+    formData.set('status', data.status);
     startTransition(() => {
       formAction(formData);
     });
@@ -324,6 +328,28 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
                     <Textarea placeholder="Reason for leave" className="resize-none" {...field} value={field.value || ""} rows={3} />
                   </FormControl>
                   <FormMessage>{serverState?.errors?.reason?.[0] || form.formState.errors.reason?.message}</FormMessage>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || "Pending"}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a status" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Pending">Pending</SelectItem>
+                      <SelectItem value="Approved">Approved</SelectItem>
+                      <SelectItem value="Rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage>{serverState?.errors?.status?.[0] || form.formState.errors.status?.message}</FormMessage>
                 </FormItem>
               )}
             />
@@ -603,13 +629,11 @@ export default function AllLeaveRequestsPage() {
                                     </>
                                 )}
 
-                                {(request.status === "Pending" || request.status === "Approved") && (
-                                    <DropdownMenuItem onClick={() => openEditDialog(request)}>
-                                        <Edit3 className="mr-2 h-4 w-4" /> Edit
-                                    </DropdownMenuItem>
-                                )}
+                                <DropdownMenuItem onClick={() => openEditDialog(request)}>
+                                    <Edit3 className="mr-2 h-4 w-4" /> Edit
+                                </DropdownMenuItem>
                                 
-                                {(request.status === "Pending" || request.status === "Approved") && (
+                                {(request.status === "Pending") && (
                                     <DropdownMenuSeparator />
                                 )}
 
