@@ -175,7 +175,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                             <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
                         </PopoverContent>
                     </Popover>
-                    <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString()} />
+                    <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
                     {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
@@ -191,7 +191,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                             <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} initialFocus />
                         </PopoverContent>
                     </Popover>
-                    <input type="hidden" name="joiningDate" value={joiningDate?.toISOString()} />
+                    <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
                     {serverState?.errors?.joiningDate && <p className="text-sm text-destructive">{serverState.errors.joiningDate.join(', ')}</p>}
                 </div>
             </div>
@@ -326,7 +326,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                             <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
                         </PopoverContent>
                     </Popover>
-                    <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString()} />
+                    <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
                     {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
@@ -342,7 +342,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                             <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} initialFocus />
                         </PopoverContent>
                     </Popover>
-                    <input type="hidden" name="joiningDate" value={joiningDate?.toISOString()} />
+                    <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
                     {serverState?.errors?.joiningDate && <p className="text-sm text-destructive">{serverState.errors.joiningDate.join(', ')}</p>}
                 </div>
             </div>
@@ -359,7 +359,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                         <Calendar mode="single" selected={leavingDate} onSelect={setLeavingDate} />
                     </PopoverContent>
                 </Popover>
-                <input type="hidden" name="leavingDate" value={leavingDate?.toISOString() ?? ""} />
+                <input type="hidden" name="leavingDate" value={leavingDate?.toISOString() ?? ''} />
                 {serverState?.errors?.leavingDate && <p className="text-sm text-destructive">{serverState.errors.leavingDate.join(', ')}</p>}
             </div>
             <div className="space-y-2">
