@@ -33,6 +33,7 @@ import {
   CalendarCheck2,
   Sheet, // Added Sheet icon for reports
   UserPlus,
+  KeyRound,
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -68,4 +69,5 @@ export const iconMap: { [key: string]: LucideIcon } = {
   CalendarCheck2,
   Sheet, // Added Sheet icon for reports
   UserPlus,
+  KeyRound,
 };

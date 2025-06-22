@@ -194,3 +194,80 @@ export async function deleteAuthUserAction(
     };
   }
 }
+
+// --- New Update Auth Password Action ---
+
+const UpdateAuthPasswordSchema = z.object({
+  userId: z.string().min(1, 'User ID is required.'),
+  password: z.string().min(6, 'Password must be at least 6 characters long.'),
+  confirmPassword: z.string().min(6, 'Password confirmation is required.'),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match.",
+  path: ["confirmPassword"],
+});
+
+export type UpdateAuthPasswordState = {
+  errors?: {
+    form?: string[];
+    password?: string[];
+    confirmPassword?: string[];
+  };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function updateAuthUserPasswordAction(
+  prevState: UpdateAuthPasswordState,
+  formData: FormData
+): Promise<UpdateAuthPasswordState> {
+  if (!adminAuth) {
+    const errorMessage = "Firebase Admin SDK is not configured on the server.";
+    console.error(errorMessage);
+    return {
+      errors: { form: [errorMessage] },
+      message: 'Failed to update password.',
+      success: false,
+    };
+  }
+  
+  const validatedFields = UpdateAuthPasswordSchema.safeParse({
+    userId: formData.get('userId'),
+    password: formData.get('password'),
+    confirmPassword: formData.get('confirmPassword'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Validation failed.',
+      success: false,
+    };
+  }
+
+  const { userId, password } = validatedFields.data;
+
+  try {
+    await adminAuth.updateUser(userId, {
+      password: password,
+    });
+    
+    return {
+      success: true,
+      message: `Password updated successfully.`,
+    };
+
+  } catch (error: any) {
+    console.error('Error updating Firebase Auth user password:', error);
+    let errorMessage = 'An unexpected error occurred while updating the password.';
+     if (error.code === 'auth/user-not-found') {
+      errorMessage = 'The user was not found. They may have been deleted.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    return {
+      errors: { form: [errorMessage] },
+      message: 'Failed to update password.',
+      success: false,
+    };
+  }
+}

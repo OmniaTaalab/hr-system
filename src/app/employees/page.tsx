@@ -27,13 +27,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, type UpdateEmployeeState } from "@/app/actions/employee-actions";
 import { 
   createAuthUserForEmployeeAction, type CreateAuthUserState,
-  deleteAuthUserAction, type DeleteAuthUserState 
+  deleteAuthUserAction, type DeleteAuthUserState,
+  updateAuthUserPasswordAction, type UpdateAuthPasswordState
 } from "@/app/actions/auth-creation-actions";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, deleteDoc, doc, type Timestamp } from 'firebase/firestore';
@@ -93,6 +94,12 @@ const initialCreateAuthState: CreateAuthUserState = {
 };
 
 const initialDeleteAuthState: DeleteAuthUserState = {
+  message: null,
+  errors: {},
+  success: false,
+};
+
+const initialUpdatePasswordState: UpdateAuthPasswordState = {
   message: null,
   errors: {},
   success: false,
@@ -449,6 +456,10 @@ export default function EmployeeManagementPage() {
   const [employeeToDeleteLogin, setEmployeeToDeleteLogin] = useState<Employee | null>(null);
   const [deleteLoginServerState, deleteLoginFormAction, isDeleteLoginPending] = useActionState(deleteAuthUserAction, initialDeleteAuthState);
 
+  const [isChangePasswordDialogOpen, setIsChangePasswordDialogOpen] = useState(false);
+  const [employeeToChangePassword, setEmployeeToChangePassword] = useState<Employee | null>(null);
+  const [changePasswordServerState, changePasswordFormAction, isChangePasswordPending] = useActionState(updateAuthUserPasswordAction, initialUpdatePasswordState);
+
   const [showPassword, setShowPassword] = useState(false);
 
 
@@ -510,6 +521,24 @@ export default function EmployeeManagementPage() {
         }
     }
   }, [deleteLoginServerState, toast]);
+
+  useEffect(() => {
+    if (changePasswordServerState?.message) {
+      if (changePasswordServerState.success) {
+        toast({
+          title: "Success!",
+          description: changePasswordServerState.message,
+        });
+        closeChangePasswordDialog();
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Failed to Change Password",
+          description: changePasswordServerState.errors?.form?.join(", ") || changePasswordServerState.message,
+        });
+      }
+    }
+  }, [changePasswordServerState, toast]);
 
 
   const filteredEmployees = useMemo(() => {
@@ -582,6 +611,17 @@ export default function EmployeeManagementPage() {
   const closeDeleteLoginDialog = () => {
     setEmployeeToDeleteLogin(null);
     setIsDeleteLoginDialogOpen(false);
+  };
+
+  const openChangePasswordDialog = (employee: Employee) => {
+    setEmployeeToChangePassword(employee);
+    setIsChangePasswordDialogOpen(true);
+  };
+
+  const closeChangePasswordDialog = () => {
+    setEmployeeToChangePassword(null);
+    setIsChangePasswordDialogOpen(false);
+    setShowPassword(false);
   };
 
   const confirmDeleteEmployee = async () => {
@@ -750,6 +790,10 @@ export default function EmployeeManagementPage() {
                               <UserPlus className="mr-2 h-4 w-4" />
                               Create Login
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openChangePasswordDialog(employee)} disabled={!employee.userId}>
+                              <KeyRound className="mr-2 h-4 w-4" />
+                              Change Password
+                            </DropdownMenuItem>
                              <DropdownMenuItem onClick={() => openDeleteLoginDialog(employee)} disabled={!employee.userId} className="text-destructive focus:text-destructive">
                                 <UserMinus className="mr-2 h-4 w-4" />
                                 Delete Login
@@ -914,7 +958,7 @@ export default function EmployeeManagementPage() {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     {deleteLoginServerState?.errors?.form && (
-                        <p className="text-sm text-destructive mt-2">{deleteLoginServerState.errors.form.join(", ")}</p>
+                        <p className="text-sm font-medium text-destructive mt-2">{deleteLoginServerState.errors.form.join(", ")}</p>
                     )}
                     <AlertDialogFooter className="mt-4">
                         <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
@@ -925,6 +969,89 @@ export default function EmployeeManagementPage() {
                 </form>
             </AlertDialogContent>
         </AlertDialog>
+      )}
+
+      {isChangePasswordDialogOpen && employeeToChangePassword && (
+        <Dialog open={isChangePasswordDialogOpen} onOpenChange={(open) => { if (!open) closeChangePasswordDialog(); }}>
+          <DialogContent>
+            <form action={changePasswordFormAction}>
+              <DialogHeader>
+                <DialogTitle>Change Password for {employeeToChangePassword.name}</DialogTitle>
+                <DialogDescription>
+                  Enter a new secure password for <strong>{employeeToChangePassword.email}</strong>.
+                </DialogDescription>
+              </DialogHeader>
+              
+              <input type="hidden" name="userId" value={employeeToChangePassword.userId ?? ''} />
+              
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="change-password">New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="change-password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowPassword(prev => !prev)}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                    </Button>
+                  </div>
+                  {changePasswordServerState?.errors?.password && (
+                      <p className="text-sm text-destructive mt-1">{changePasswordServerState.errors.password.join(', ')}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="change-confirmPassword">Confirm New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="change-confirmPassword"
+                      name="confirmPassword"
+                      type={showPassword ? "text" : "password"}
+                      className="pr-10"
+                    />
+                     <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowPassword(prev => !prev)}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                    </Button>
+                  </div>
+                   {changePasswordServerState?.errors?.confirmPassword && (
+                      <p className="text-sm text-destructive mt-1">{changePasswordServerState.errors.confirmPassword.join(', ')}</p>
+                  )}
+                </div>
+              </div>
+              
+              {changePasswordServerState?.errors?.form && (
+                <div className="text-sm text-destructive text-center mb-2">{changePasswordServerState.errors.form.join(", ")}</div>
+              )}
+              
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" onClick={closeChangePasswordDialog}>Cancel</Button>
+                </DialogClose>
+                <Button type="submit" disabled={isChangePasswordPending}>
+                  {isChangePasswordPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Update Password"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       )}
 
     </AppLayout>
