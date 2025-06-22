@@ -79,9 +79,12 @@ export default function PayrollCalculationPage() {
   // Fetch employees
   useEffect(() => {
     setIsLoadingEmployees(true);
-    const q = query(collection(db, "employee"), where("status", "==", "Active"), orderBy("name"));
+    const q = query(collection(db, "employee"), where("status", "==", "Active"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setEmployees(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
+      const employeesData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Employee))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setEmployees(employeesData);
       setIsLoadingEmployees(false);
     }, (error) => {
       console.error("Error fetching employees:", error);

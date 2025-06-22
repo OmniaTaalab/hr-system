@@ -124,9 +124,12 @@ export default function ManualAttendancePage() {
   // Fetch active employees
   useEffect(() => {
     setIsLoadingEmployees(true);
-    const empQuery = query(collection(db, "employy"), where("status", "==", "Active"), orderBy("name"));
+    const empQuery = query(collection(db, "employee"), where("status", "==", "Active"));
     const unsubEmployees = onSnapshot(empQuery, (snapshot) => {
-      setAllEmployees(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
+      const employeesData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Employee))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setAllEmployees(employeesData);
       setIsLoadingEmployees(false);
     }, error => {
       console.error("Error fetching employees:", error);

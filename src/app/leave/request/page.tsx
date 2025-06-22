@@ -98,9 +98,11 @@ export default function LeaveRequestPage() {
     const fetchEmployees = async () => {
       setIsLoadingEmployees(true);
       try {
-        const q = query(collection(db, "employee"), where("status", "==", "Active"), orderBy("name"));
+        const q = query(collection(db, "employee"), where("status", "==", "Active"));
         const querySnapshot = await getDocs(q);
-        const employeesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        const employeesData = querySnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as Employee))
+          .sort((a, b) => a.name.localeCompare(b.name));
         setActiveEmployees(employeesData);
       } catch (error) {
         console.error("Error fetching active employees:", error);
