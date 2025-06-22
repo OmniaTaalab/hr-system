@@ -99,7 +99,6 @@ interface UpdateStatusFormProps {
 
 function UpdateStatusForm({ request, actionType, onClose }: UpdateStatusFormProps) {
   const { toast } = useToast();
-  const formRef = useRef<HTMLFormElement>(null);
   const [serverState, formAction, isPending] = useActionState(updateLeaveRequestStatusAction, initialUpdateStatusState);
   const [managerNotes, setManagerNotes] = useState(request.managerNotes || "");
 
@@ -113,17 +112,12 @@ function UpdateStatusForm({ request, actionType, onClose }: UpdateStatusFormProp
       }
     }
   }, [serverState, toast, onClose]);
-
-  const handleSubmit = () => {
-    if (!formRef.current) return;
-    const formData = new FormData(formRef.current);
-    formData.set('requestId', request.id);
-    formData.set('newStatus', actionType);
-    formAction(formData);
-  };
   
   return (
-    <form ref={formRef} onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+    <form action={formAction}>
+      <input type="hidden" name="requestId" value={request.id} />
+      <input type="hidden" name="newStatus" value={actionType} />
+
       <AlertDialogHeader>
         <AlertDialogTitle>Confirm {actionType === "Approved" ? "Approval" : "Rejection"}</AlertDialogTitle>
         <AlertDialogDescription>
@@ -687,3 +681,5 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
+
+    
