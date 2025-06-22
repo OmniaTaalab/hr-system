@@ -37,7 +37,7 @@ import {
   updateAuthUserPasswordAction, type UpdateAuthPasswordState
 } from "@/app/actions/auth-creation-actions";
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, deleteDoc, doc, type Timestamp, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, deleteDoc, doc, Timestamp, where } from 'firebase/firestore';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
