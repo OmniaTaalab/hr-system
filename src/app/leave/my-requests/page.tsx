@@ -169,7 +169,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
 
   useEffect(() => {
     setIsLoadingEmployees(true);
-    const q = query(collection(db, "employy"), orderBy("name"));
+    const q = query(collection(db, "employee"), orderBy("name"));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const employeesData: Employee[] = [];
       querySnapshot.forEach((doc) => {

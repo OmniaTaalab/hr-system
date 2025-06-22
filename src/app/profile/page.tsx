@@ -51,9 +51,9 @@ export default function ProfilePage() {
       if (user) {
         setAuthUser(user);
         try {
-          // Query the 'employy' collection to find the document with matching userId
+          // Query the 'employee' collection to find the document with matching userId
           const q = query(
-            collection(db, "employy"),
+            collection(db, "employee"),
             where("userId", "==", user.uid),
             limit(1)
           );

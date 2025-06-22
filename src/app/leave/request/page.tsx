@@ -98,7 +98,7 @@ export default function LeaveRequestPage() {
     const fetchEmployees = async () => {
       setIsLoadingEmployees(true);
       try {
-        const q = query(collection(db, "employy"), where("status", "==", "Active"), orderBy("name"));
+        const q = query(collection(db, "employee"), where("status", "==", "Active"), orderBy("name"));
         const querySnapshot = await getDocs(q);
         const employeesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
         setActiveEmployees(employeesData);

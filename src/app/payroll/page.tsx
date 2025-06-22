@@ -79,7 +79,7 @@ export default function PayrollCalculationPage() {
   // Fetch employees
   useEffect(() => {
     setIsLoadingEmployees(true);
-    const q = query(collection(db, "employy"), where("status", "==", "Active"), orderBy("name"));
+    const q = query(collection(db, "employee"), where("status", "==", "Active"), orderBy("name"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setEmployees(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
       setIsLoadingEmployees(false);
@@ -113,7 +113,7 @@ export default function PayrollCalculationPage() {
       setExistingPayrollRecordId(null); // Reset before fetching
 
       // Fetch employee's default hourly rate
-      const employeeDocRef = doc(db, "employy", selectedEmployee.id);
+      const employeeDocRef = doc(db, "employee", selectedEmployee.id);
       const employeeDocSnap = await getDoc(employeeDocRef);
       const employeeData = employeeDocSnap.data() as Employee | undefined;
       const defaultHourlyRate = employeeData?.hourlyRate ?? 0;

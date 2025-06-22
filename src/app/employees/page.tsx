@@ -465,7 +465,7 @@ export default function EmployeeManagementPage() {
 
   useEffect(() => {
     setIsLoading(true);
-    const q = query(collection(db, "employy"));
+    const q = query(collection(db, "employee"));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const employeesData: Employee[] = [];
       querySnapshot.forEach((doc) => {
@@ -627,7 +627,7 @@ export default function EmployeeManagementPage() {
   const confirmDeleteEmployee = async () => {
     if (!employeeToDelete) return;
     try {
-      await deleteDoc(doc(db, "employy", employeeToDelete.id));
+      await deleteDoc(doc(db, "employee", employeeToDelete.id));
       toast({
         title: "Employee Deleted",
         description: `Employee ${employeeToDelete.name} has been removed successfully.`,

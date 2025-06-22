@@ -117,7 +117,7 @@ export default function HRDashboardPage() {
     const fetchCounts = async () => {
       // Total Employees
       try {
-        const empCol = collection(db, "employy");
+        const empCol = collection(db, "employee");
         const empSnapshot = await getCountFromServer(empCol);
         setTotalEmployees(empSnapshot.data().count);
       } catch (error) {
@@ -129,7 +129,7 @@ export default function HRDashboardPage() {
 
       // Active Employees
       try {
-        const activeEmpQuery = query(collection(db, "employy"), where("status", "==", "Active"));
+        const activeEmpQuery = query(collection(db, "employee"), where("status", "==", "Active"));
         const activeEmpSnapshot = await getCountFromServer(activeEmpQuery);
         setActiveEmployees(activeEmpSnapshot.data().count);
       } catch (error) {
@@ -178,7 +178,7 @@ export default function HRDashboardPage() {
 
     const fetchDepartmentData = async () => {
       try {
-        const empCol = collection(db, "employy");
+        const empCol = collection(db, "employee");
         const empDocsSnapshot = await getDocs(empCol);
         const employees = empDocsSnapshot.docs.map(doc => doc.data() as Employee);
 

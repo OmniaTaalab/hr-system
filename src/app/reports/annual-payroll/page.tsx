@@ -104,7 +104,7 @@ export default function AnnualPayrollReportPage() {
   // Fetch all active employees
   useEffect(() => {
     setIsLoadingEmployees(true);
-    const q = query(collection(db, "employy"), where("status", "==", "Active"), orderBy("name"));
+    const q = query(collection(db, "employee"), where("status", "==", "Active"), orderBy("name"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setAllEmployees(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
       setIsLoadingEmployees(false);

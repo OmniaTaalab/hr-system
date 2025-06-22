@@ -66,10 +66,10 @@ export async function createEmployeeAction(
   const { name, email, department, role, phone, hourlyRate, dateOfBirth, joiningDate } = validatedFields.data;
 
   try {
-    const employyCollectionRef = collection(db, "employy");
+    const employeeCollectionRef = collection(db, "employee");
 
     // Check for unique email
-    const emailQuery = query(employyCollectionRef, where("email", "==", email), limit(1));
+    const emailQuery = query(employeeCollectionRef, where("email", "==", email), limit(1));
     const emailSnapshot = await getDocs(emailQuery);
     if (!emailSnapshot.empty) {
       return {
@@ -79,7 +79,7 @@ export async function createEmployeeAction(
     }
     
     // Auto-generate a unique Employee ID
-    const countSnapshot = await getCountFromServer(employyCollectionRef);
+    const countSnapshot = await getCountFromServer(employeeCollectionRef);
     const employeeCount = countSnapshot.data().count;
     const employeeId = (1001 + employeeCount).toString(); // Start IDs from 1001 for a more professional look
 
@@ -99,9 +99,9 @@ export async function createEmployeeAction(
       createdAt: serverTimestamp(),
     };
     
-    const docRef = await addDoc(collection(db, "employy"), employeeData);
+    const docRef = await addDoc(collection(db, "employee"), employeeData);
     
-    console.log('Employee data saved to Firestore in "employy" collection with ID:', docRef.id);
+    console.log('Employee data saved to Firestore in "employee" collection with ID:', docRef.id);
     console.log('Employee data:', employeeData);
 
     return { message: `Employee "${name}" created successfully.` };
@@ -195,7 +195,7 @@ export async function updateEmployeeAction(
   } = validatedFields.data;
 
   try {
-    const employeeRef = doc(db, "employy", employeeDocId);
+    const employeeRef = doc(db, "employee", employeeDocId);
 
     let finalStatus = status;
     let finalLeavingDate: Timestamp | null = null;

@@ -62,7 +62,7 @@ export async function createAuthUserForEmployeeAction(
   const { employeeDocId, email, name, password } = validatedFields.data;
   
   try {
-    const employeeRef = doc(db, 'employy', employeeDocId);
+    const employeeRef = doc(db, 'employee', employeeDocId);
     const employeeSnap = await getDoc(employeeRef);
 
     if (!employeeSnap.exists()) {
@@ -86,7 +86,7 @@ export async function createAuthUserForEmployeeAction(
 
     const newUserId = userRecord.uid;
 
-    const employeeDocRef = doc(db, "employy", employeeDocId);
+    const employeeDocRef = doc(db, "employee", employeeDocId);
     await updateDoc(employeeDocRef, {
       userId: newUserId,
     });
@@ -161,7 +161,7 @@ export async function deleteAuthUserAction(
     await adminAuth.deleteUser(userId);
 
     // Update the employee document in Firestore to remove the UID
-    const employeeDocRef = doc(db, "employy", employeeDocId);
+    const employeeDocRef = doc(db, "employee", employeeDocId);
     await updateDoc(employeeDocRef, {
       userId: null,
     });
@@ -178,7 +178,7 @@ export async function deleteAuthUserAction(
         errorMessage = 'The user to delete was not found in Firebase Authentication. Unlinking from employee record.';
         // If user doesn't exist in Auth, still unlink them from Firestore
         try {
-            const employeeDocRef = doc(db, "employy", employeeDocId);
+            const employeeDocRef = doc(db, "employee", employeeDocId);
             await updateDoc(employeeDocRef, { userId: null });
             return { success: true, message: errorMessage };
         } catch (unlinkError: any) {
