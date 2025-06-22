@@ -6,7 +6,6 @@ import { AppLayout } from "@/components/layout/app-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -25,6 +24,7 @@ import type { LeaveRequestEntry } from "@/app/leave/all-requests/page";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { TimePicker } from "@/components/ui/time-picker";
 
 interface Employee {
   id: string;
@@ -57,6 +57,18 @@ interface DisplayEmployee extends Employee {
 }
 
 const initialManualUpdateState: ManualUpdateAttendanceState = { message: null, errors: {}, success: false, fieldErrors: {} };
+
+const formatUTCTimestampToHHMM = (ts: Timestamp | null | undefined): string => {
+  if (!ts || typeof ts.toDate !== 'function') return "";
+  const date = ts.toDate();
+  if (!isValid(date)) return "";
+
+  // Get hours and minutes from the date object in its UTC representation
+  const hours = date.getUTCHours().toString().padStart(2, '0');
+  const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+
+  return `${hours}:${minutes}`;
+};
 
 function AttendanceStatusDisplayBadge({ status }: { status: EmployeeAttendanceDisplayStatus; }) {
   switch (status) {
@@ -191,13 +203,8 @@ export default function ManualAttendancePage() {
           } else if (empLeave) {
             displayStatus = "On Approved Leave";
           } else if (empAttendance) {
-            // Ensure clockInTime/OutTime are valid dates before formatting
-            if (empAttendance.clockInTime && isValid(empAttendance.clockInTime.toDate())) {
-                inputClockIn = format(empAttendance.clockInTime.toDate(), "HH:mm");
-            }
-            if (empAttendance.clockOutTime && isValid(empAttendance.clockOutTime.toDate())) {
-                inputClockOut = format(empAttendance.clockOutTime.toDate(), "HH:mm");
-            }
+            inputClockIn = formatUTCTimestampToHHMM(empAttendance.clockInTime);
+            inputClockOut = formatUTCTimestampToHHMM(empAttendance.clockOutTime);
             
             if (empAttendance.status === "ManuallyCleared") {
                  displayStatus = "Entry Cleared";
@@ -359,7 +366,7 @@ export default function ManualAttendancePage() {
           <CardHeader>
             <CardTitle>Attendance for {format(selectedDate, "PPP")}</CardTitle>
             <CardDescription>
-              Enter times in HH:MM format (24-hour). Example: 09:00 or 17:30. Click Save per row.
+              Use the dropdowns to select times. Click Save per row.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -374,8 +381,8 @@ export default function ManualAttendancePage() {
                 <TableRow>
                   <TableHead className="w-[200px]">Employee Name</TableHead>
                   <TableHead className="w-[100px]">Employee ID</TableHead>
-                  <TableHead className="w-[130px]">Clock In (HH:MM)</TableHead>
-                  <TableHead className="w-[130px]">Clock Out (HH:MM)</TableHead>
+                  <TableHead className="w-[180px]">Clock In</TableHead>
+                  <TableHead className="w-[180px]">Clock Out</TableHead>
                   <TableHead className="w-[100px]">Duration</TableHead>
                   <TableHead className="w-[180px]">Status</TableHead>
                   <TableHead className="text-right w-[100px]">Action</TableHead>
@@ -387,23 +394,17 @@ export default function ManualAttendancePage() {
                     <TableCell className="font-medium">{emp.name}</TableCell>
                     <TableCell>{emp.employeeId}</TableCell>
                     <TableCell>
-                      <Input
-                        type="text"
-                        placeholder="HH:MM"
+                      <TimePicker
                         value={emp.inputClockIn}
-                        onChange={(e) => handleTimeChange(emp.id, 'inputClockIn', e.target.value)}
-                        className={cn("h-8", updateState?.fieldErrors?.[emp.id]?.clockInTime && "border-red-500")}
+                        onChange={(value) => handleTimeChange(emp.id, 'inputClockIn', value)}
                         disabled={emp.displayStatus === "On Approved Leave" || emp.displayStatus === "Inactive Employee" || emp.isSaving || isFormPending}
                       />
                       {updateState?.fieldErrors?.[emp.id]?.clockInTime && <p className="text-xs text-red-500 mt-1">{updateState.fieldErrors[emp.id].clockInTime}</p>}
                     </TableCell>
                     <TableCell>
-                      <Input
-                        type="text"
-                        placeholder="HH:MM"
+                      <TimePicker
                         value={emp.inputClockOut}
-                        onChange={(e) => handleTimeChange(emp.id, 'inputClockOut', e.target.value)}
-                        className={cn("h-8", updateState?.fieldErrors?.[emp.id]?.clockOutTime && "border-red-500")}
+                        onChange={(value) => handleTimeChange(emp.id, 'inputClockOut', value)}
                         disabled={emp.displayStatus === "On Approved Leave" || emp.displayStatus === "Inactive Employee" || emp.isSaving || isFormPending}
                       />
                        {updateState?.fieldErrors?.[emp.id]?.clockOutTime && <p className="text-xs text-red-500 mt-1">{updateState.fieldErrors[emp.id].clockOutTime}</p>}
@@ -443,7 +444,7 @@ export default function ManualAttendancePage() {
                 <CardTitle>Important Notes</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground space-y-2">
-                <p>1. Use 24-hour format (HH:MM) for clock-in and clock-out times (e.g., 09:00 for 9 AM, 17:30 for 5:30 PM).</p>
+                <p>1. Times are entered and saved in UTC to avoid timezone issues. The picker uses 5-minute intervals.</p>
                 <p>2. Duration is calculated automatically. Invalid time entries or clock-out before clock-in will result in 0 minutes.</p>
                 <p>3. Employees marked "On Leave" have an approved leave request covering the selected date. Their time entries will be disabled.</p>
                 <p>4. Click "Save" for each employee row to persist changes. Clearing both times and saving will mark the entry as "Cleared".</p>
