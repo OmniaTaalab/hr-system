@@ -18,7 +18,7 @@ import { Calendar as CalendarIcon, CheckCircle2, XCircle, Clock, LogIn, LogOut, 
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, where, Timestamp, orderBy, doc } from 'firebase/firestore';
-import { format, startOfDay, endOfDay, isValid, parse as parseDate, setHours, setMinutes, setSeconds, setMilliseconds } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { manualUpdateAttendanceAction, type ManualUpdateAttendanceState } from "@/app/actions/attendance-actions";
 import type { LeaveRequestEntry } from "@/app/leave/all-requests/page";
 import { cn } from "@/lib/utils";
@@ -58,18 +58,19 @@ interface DisplayEmployee extends Employee {
 
 const initialManualUpdateState: ManualUpdateAttendanceState = { message: null, errors: {}, success: false, fieldErrors: {} };
 
-const formatUTCTimestampToHHMM = (ts: Timestamp | null | undefined): string => {
+const formatTimestampToLocalHHMM = (ts: Timestamp | null | undefined): string => {
     if (!ts || typeof ts.toMillis !== 'function') return "";
-    // Create a date object from epoch milliseconds, which is inherently UTC
+    // Create a date object from epoch milliseconds, this will be in the browser's local timezone
     const date = new Date(ts.toMillis());
     if (!isValid(date)) return "";
 
-    // Use built-in UTC methods to format, avoiding local timezone conversion
-    const hours = date.getUTCHours().toString().padStart(2, '0');
-    const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+    // Use local time methods
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
 
     return `${hours}:${minutes}`;
 };
+
 
 function AttendanceStatusDisplayBadge({ status }: { status: EmployeeAttendanceDisplayStatus; }) {
   switch (status) {
@@ -198,8 +199,8 @@ export default function ManualAttendancePage() {
           } else if (empLeave) {
             displayStatus = "On Approved Leave";
           } else if (empAttendance) {
-            inputClockIn = formatUTCTimestampToHHMM(empAttendance.clockInTime);
-            inputClockOut = formatUTCTimestampToHHMM(empAttendance.clockOutTime);
+            inputClockIn = formatTimestampToLocalHHMM(empAttendance.clockInTime);
+            inputClockOut = formatTimestampToLocalHHMM(empAttendance.clockOutTime);
             
             if (empAttendance.status === "ManuallyCleared") {
                  displayStatus = "Entry Cleared";
@@ -272,16 +273,27 @@ export default function ManualAttendancePage() {
     );
   };
   
+  const createISOString = (date: Date, timeString: string): string => {
+      if (!timeString) return "";
+      const [hours, minutes] = timeString.split(':').map(Number);
+      if (isNaN(hours) || isNaN(minutes)) return "";
+      const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes);
+      return localDate.toISOString();
+  };
+
   const handleSave = (employeeData: DisplayEmployee) => {
     setAttendanceData(prev => prev.map(e => e.id === employeeData.id ? {...e, isSaving: true} : e));
 
     const formData = new FormData();
     formData.append('employeeDocId', employeeData.id);
     formData.append('employeeName', employeeData.name);
-    // Send date as YYYY-MM-DD string to avoid timezone issues from toISOString()
-    formData.append('selectedDate', format(selectedDate, "yyyy-MM-dd")); 
-    formData.append('clockInTime', employeeData.inputClockIn);
-    formData.append('clockOutTime', employeeData.inputClockOut);
+    formData.append('selectedDate', format(selectedDate, "yyyy-MM-dd"));
+    
+    const clockInISO = createISOString(selectedDate, employeeData.inputClockIn);
+    const clockOutISO = createISOString(selectedDate, employeeData.inputClockOut);
+    formData.append('clockInISO', clockInISO);
+    formData.append('clockOutISO', clockOutISO);
+
     if (employeeData.attendanceRecordId) {
       formData.append('originalRecordId', employeeData.attendanceRecordId);
     }
@@ -437,7 +449,7 @@ export default function ManualAttendancePage() {
                 <CardTitle>Important Notes</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground space-y-2">
-                <p>1. Times are entered and saved in UTC to avoid timezone issues. The picker uses 5-minute intervals.</p>
+                <p>1. Times are entered and displayed in your local timezone. They are stored in UTC on the server.</p>
                 <p>2. Duration is calculated automatically. Invalid time entries or clock-out before clock-in will result in 0 minutes.</p>
                 <p>3. Employees marked "On Leave" have an approved leave request covering the selected date. Their time entries will be disabled.</p>
                 <p>4. Click "Save" for each employee row to persist changes. Clearing both times and saving will mark the entry as "Cleared".</p>

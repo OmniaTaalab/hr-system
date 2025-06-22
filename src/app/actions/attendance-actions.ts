@@ -4,7 +4,7 @@
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, query, where, getDocs, serverTimestamp, Timestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
-import { startOfDay, endOfDay, parse as parseDateFns, isValid as isValidDateFns, setHours, setMinutes, setSeconds, setMilliseconds, format } from 'date-fns';
+import { isValid } from 'date-fns';
 
 // --- Existing ClockIn/ClockOut Actions (largely unchanged but kept for potential other uses) ---
 
@@ -263,23 +263,15 @@ export async function clockOutAction(
 }
 
 // --- New Manual Update Attendance Action ---
-
-const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // HH:MM format
-
 const ManualUpdateAttendanceSchema = z.object({
   employeeDocId: z.string().min(1, "Employee document ID is required."),
   employeeName: z.string().min(1, "Employee name is required."),
-  selectedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Selected date must be in YYYY-MM-DD format."), // Changed from datetime
-  clockInTime: z.string().optional(),
-  clockOutTime: z.string().optional(),
+  selectedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Selected date must be in YYYY-MM-DD format."),
+  clockInISO: z.string().optional(),
+  clockOutISO: z.string().optional(),
   originalRecordId: z.string().optional(),
-}).refine(data => !data.clockInTime || timeRegex.test(data.clockInTime), {
-  message: "Clock-in time must be in HH:MM format or empty.",
-  path: ["clockInTime"],
-}).refine(data => !data.clockOutTime || timeRegex.test(data.clockOutTime), {
-  message: "Clock-out time must be in HH:MM format or empty.",
-  path: ["clockOutTime"],
 });
+
 
 export type ManualUpdateAttendanceState = {
   message?: string | null;
@@ -301,9 +293,9 @@ export async function manualUpdateAttendanceAction(
   const rawData = {
     employeeDocId: formData.get('employeeDocId'),
     employeeName: formData.get('employeeName'),
-    selectedDate: formData.get('selectedDate'), // This will be "YYYY-MM-DD" string
-    clockInTime: formData.get('clockInTime') || undefined, 
-    clockOutTime: formData.get('clockOutTime') || undefined,
+    selectedDate: formData.get('selectedDate'),
+    clockInISO: formData.get('clockInISO') || undefined,
+    clockOutISO: formData.get('clockOutISO') || undefined,
     originalRecordId: formData.get('originalRecordId') || undefined,
   };
 
@@ -312,61 +304,36 @@ export async function manualUpdateAttendanceAction(
   const validatedFields = ManualUpdateAttendanceSchema.safeParse(rawData);
 
   if (!validatedFields.success) {
-    const fieldErrors: ManualUpdateAttendanceState["fieldErrors"] = {};
-    const employeeId = rawData.employeeDocId as string;
-    if (employeeId) {
-        fieldErrors[employeeId] = {};
-        const errors = validatedFields.error.flatten().fieldErrors;
-        if (errors.selectedDate) fieldErrors[employeeId].clockInTime = (fieldErrors[employeeId].clockInTime || "") + " Invalid date format on server. "; // Generic error for date
-        if (errors.clockInTime) fieldErrors[employeeId].clockInTime = (fieldErrors[employeeId].clockInTime || "") + errors.clockInTime.join(', ');
-        if (errors.clockOutTime) fieldErrors[employeeId].clockOutTime = (fieldErrors[employeeId].clockOutTime || "") + errors.clockOutTime.join(', ');
-    }
     console.error('[ManualUpdateAttendanceAction] Validation failed:', validatedFields.error.flatten());
     return {
-      message: "Validation failed. Please check time formats (HH:MM) and ensure date is correct.",
+      message: "Validation failed. Please ensure date is correct.",
       success: false,
-      errors: { form: ["Validation failed. Please check time formats (HH:MM) and ensure date is correct."] },
-      fieldErrors,
-      updatedEmployeeDocId: employeeId,
+      errors: { form: ["Validation failed. Please ensure date is correct."] },
+      updatedEmployeeDocId: rawData.employeeDocId as string,
     };
   }
 
   const { 
     employeeDocId, 
     employeeName, 
-    selectedDate: yyyyMmDdDateString, // This is "YYYY-MM-DD"
-    clockInTime: clockInString, 
-    clockOutTime: clockOutString,
+    selectedDate: yyyyMmDdDateString,
+    clockInISO, 
+    clockOutISO,
     originalRecordId 
   } = validatedFields.data;
 
-  console.log('[ManualUpdateAttendanceAction] Validated data:', { employeeDocId, employeeName, yyyyMmDdDateString, clockInString, clockOutString, originalRecordId });
+  console.log('[ManualUpdateAttendanceAction] Validated data:', { employeeDocId, employeeName, yyyyMmDdDateString, clockInISO, clockOutISO, originalRecordId });
 
-  // Use Date.UTC to get milliseconds for a specific date and time, ensuring it's timezone-agnostic.
-  const getUTCMillis = (timeString?: string): number | null => {
-      if (!timeString) return null;
-      const [hours, minutes] = timeString.split(':').map(Number);
-      if (isNaN(hours) || isNaN(minutes)) return null;
-
-      const [year, month, day] = yyyyMmDdDateString.split('-').map(Number);
-      if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
-
-      // Date.UTC takes month 0-indexed
-      return Date.UTC(year, month - 1, day, hours, minutes, 0, 0);
-  };
-
-  const recordDateMillis = Date.UTC(...(yyyyMmDdDateString.split('-').map((n, i) => i === 1 ? parseInt(n) - 1 : parseInt(n)) as [number, number, number]));
-  if (isNaN(recordDateMillis)) {
-       return { message: "Invalid date format processed by server.", success: false, errors: { form: ["Invalid date format processed by server."] }, updatedEmployeeDocId: employeeDocId };
+  // Get UTC midnight timestamp for the 'date' field, used for querying
+  const [year, month, day] = yyyyMmDdDateString.split('-').map((n, i) => i === 1 ? parseInt(n) - 1 : parseInt(n)) as [number, number, number];
+  if (isNaN(year) || isNaN(month) || isNaN(day)) {
+    return { message: "Invalid date format processed by server.", success: false, errors: { form: ["Invalid date format processed by server."] }, updatedEmployeeDocId: employeeDocId };
   }
-  const recordDateTimestamp = Timestamp.fromMillis(recordDateMillis);
+  const recordDateTimestamp = Timestamp.fromDate(new Date(Date.UTC(year, month, day)));
 
-
-  const clockInMillis = getUTCMillis(clockInString);
-  const clockOutMillis = getUTCMillis(clockOutString);
-
-  const finalClockInTime = clockInMillis ? Timestamp.fromMillis(clockInMillis) : null;
-  const finalClockOutTime = clockOutMillis ? Timestamp.fromMillis(clockOutMillis) : null;
+  // Convert ISO strings from client to Timestamps. The client is responsible for creating the correct local date.
+  const finalClockInTime = clockInISO && isValid(new Date(clockInISO)) ? Timestamp.fromDate(new Date(clockInISO)) : null;
+  const finalClockOutTime = clockOutISO && isValid(new Date(clockOutISO)) ? Timestamp.fromDate(new Date(clockOutISO)) : null;
   
   let workDurationMinutes: number | null = null;
   let status: "ClockedIn" | "Completed" | "ManuallyCleared" = "ManuallyCleared";
@@ -396,7 +363,7 @@ export async function manualUpdateAttendanceAction(
     const attendanceEntry = {
       employeeDocId,
       employeeName,
-      date: recordDateTimestamp, // Store UTC midnight
+      date: recordDateTimestamp, // Store UTC midnight for querying
       clockInTime: finalClockInTime,
       clockOutTime: finalClockOutTime,
       workDurationMinutes,
@@ -475,4 +442,3 @@ export async function getOpenAttendanceRecordForEmployee(employeeDocId: string):
     return null; 
   }
 }
-
