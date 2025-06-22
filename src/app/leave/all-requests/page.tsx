@@ -42,7 +42,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send, Filter } from "lucide-react";
-import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, Timestamp, orderBy } from 'firebase/firestore';
@@ -181,6 +181,7 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const [serverState, formAction, isPending] = useActionState(editLeaveRequestAction, initialEditState);
+  const [_isTransitionPending, startTransition] = useTransition();
 
   const form = useForm<EditLeaveRequestFormValues>({
     resolver: zodResolver(editLeaveRequestClientSchema),
@@ -222,7 +223,9 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
     formData.set('endDate', data.endDate.toISOString());
     formData.set('leaveType', data.leaveType);
     formData.set('reason', data.reason);
-    formAction(formData);
+    startTransition(() => {
+      formAction(formData);
+    });
   };
 
   return (
