@@ -231,7 +231,7 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
         <DialogHeader>
           <DialogTitle>Edit Leave Request</DialogTitle>
           <DialogDescription>
-            Editing leave request for <strong>{request.employeeName}</strong>. Only for 'Pending' requests.
+            Editing leave request for <strong>{request.employeeName}</strong>.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -588,20 +588,28 @@ export default function AllLeaveRequestsPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                
                                 {request.status === "Pending" && (
-                                  <>
+                                    <>
                                     <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Approved")}>
-                                      <ShieldCheck className="mr-2 h-4 w-4" /> Approve
+                                        <ShieldCheck className="mr-2 h-4 w-4" /> Approve
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Rejected")}>
-                                      <ShieldX className="mr-2 h-4 w-4" /> Reject
+                                        <ShieldX className="mr-2 h-4 w-4" /> Reject
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => openEditDialog(request)}>
-                                      <Edit3 className="mr-2 h-4 w-4" /> Edit
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                  </>
+                                    </>
                                 )}
+
+                                {(request.status === "Pending" || request.status === "Approved") && (
+                                    <DropdownMenuItem onClick={() => openEditDialog(request)}>
+                                        <Edit3 className="mr-2 h-4 w-4" /> Edit
+                                    </DropdownMenuItem>
+                                )}
+                                
+                                {(request.status === "Pending" || request.status === "Approved") && (
+                                    <DropdownMenuSeparator />
+                                )}
+
                                 <DropdownMenuItem onClick={() => openDeleteDialog(request)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
                                   <Trash2 className="mr-2 h-4 w-4" /> Delete
                                 </DropdownMenuItem>
