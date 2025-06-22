@@ -1,44 +1,76 @@
-
 "use client";
 
-import { useActionState } from "react";
-import { useFormStatus } from "react-dom"; // Corrected import for useFormStatus
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { loginUser, type LoginState } from "@/app/actions/auth-actions";
-import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { ArrowRight, LogInIcon } from "lucide-react";
-import { Icons } from "@/components/icons"; // Import the Icons component
-
-const initialState: LoginState = { message: null, errors: {} };
-
-function LoginButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" className="w-full group" aria-disabled={pending} disabled={pending}>
-      {pending ? "Signing In..." : "Sign In"}
-      <LogInIcon className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-    </Button>
-  );
-}
+import { ArrowRight, LogInIcon, Loader2 } from "lucide-react";
+import { Icons } from "@/components/icons";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/lib/firebase/config";
 
 export default function LoginPage() {
-  const [state, dispatch] = useActionState(loginUser, initialState);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const router = useRouter();
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (state?.errors?.form && state.errors.form.length > 0) {
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      // On successful login, Firebase automatically persists the session.
+      // Now we can redirect.
+      router.push("/");
+    } catch (err: any) {
+      let errorMessage = "An unexpected error occurred.";
+      if (err.code) {
+        switch (err.code) {
+          case "auth/invalid-credential":
+          case "auth/user-not-found":
+          case "auth/wrong-password":
+            errorMessage = "Invalid email or password. Please try again.";
+            break;
+          case "auth/invalid-email":
+            errorMessage = "Invalid email address format.";
+            break;
+          case "auth/too-many-requests":
+            errorMessage = "Too many login attempts. Please try again later.";
+            break;
+          case "auth/user-disabled":
+            errorMessage = "This user account has been disabled.";
+            break;
+          default:
+            errorMessage = `Login failed. An unexpected error occurred.`;
+            break;
+        }
+      }
+      setError(errorMessage);
       toast({
         variant: "destructive",
         title: "Login Failed",
-        description: state.errors.form.join(", "),
+        description: errorMessage,
       });
+      setIsLoading(false);
     }
-  }, [state, toast]);
+  };
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 selection:bg-primary/20">
@@ -47,10 +79,14 @@ export default function LoginPage() {
       </div>
       <Card className="w-full max-w-sm shadow-xl">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold font-headline">Sign In</CardTitle>
-          <CardDescription>Enter your credentials to access your account.</CardDescription>
+          <CardTitle className="text-2xl font-bold font-headline">
+            Sign In
+          </CardTitle>
+          <CardDescription>
+            Enter your credentials to access your account.
+          </CardDescription>
         </CardHeader>
-        <form action={dispatch}>
+        <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -59,13 +95,10 @@ export default function LoginPage() {
                 name="email"
                 type="email"
                 placeholder="user@example.com"
-                aria-describedby="email-error"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
               />
-              {state?.errors?.email && (
-                <p id="email-error" className="text-sm font-medium text-destructive">
-                  {state.errors.email.join(", ")}
-                </p>
-              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -74,38 +107,57 @@ export default function LoginPage() {
                 name="password"
                 type="password"
                 placeholder="••••••••"
-                aria-describedby="password-error"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
               />
-              {state?.errors?.password && (
-                <p id="password-error" className="text-sm font-medium text-destructive">
-                  {state.errors.password.join(", ")}
-                </p>
-              )}
             </div>
-             {state?.errors?.form && state.errors.form.length > 0 && (
+            {error && (
               <p className="text-sm font-medium text-destructive text-center">
-                {state.errors.form.join(", ")}
+                {error}
               </p>
             )}
           </CardContent>
           <CardFooter className="flex flex-col gap-4 pt-2">
-            <LoginButton />
-             <p className="text-center text-sm text-muted-foreground">
-              Don&apos;t have an account?{' '}
-              <Link href="#" className="font-medium text-primary hover:underline">
+            <Button
+              type="submit"
+              className="w-full group"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing In...
+                </>
+              ) : (
+                <>
+                  Sign In
+                  <LogInIcon className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </>
+              )}
+            </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              Don&apos;t have an account?{" "}
+              <Link
+                href="#"
+                className="font-medium text-primary hover:underline"
+              >
                 Sign up
               </Link>
             </p>
           </CardFooter>
         </form>
       </Card>
-       <Button variant="link" asChild className="mt-8 text-muted-foreground hover:text-primary">
+      <Button
+        variant="link"
+        asChild
+        className="mt-8 text-muted-foreground hover:text-primary"
+      >
         <Link href="/">
-           Back to Dashboard
+          Back to Dashboard
           <ArrowRight className="ml-2 h-4 w-4" />
         </Link>
       </Button>
     </div>
   );
 }
-
