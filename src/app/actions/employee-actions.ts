@@ -3,14 +3,14 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer } from 'firebase/firestore';
 import { isValid } from 'date-fns';
 
 // Schema for validating form data for creating an employee
 const CreateEmployeeFormSchema = z.object({
   name: z.string().min(1, "Full name is required."),
   email: z.string().email({ message: 'Invalid email address.' }),
-  employeeId: z.string().min(1, "Employee ID is required.").regex(/^\d+$/, "Employee ID must contain only numbers."),
+  // Employee ID is now auto-generated
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
   phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
@@ -29,7 +29,7 @@ export type CreateEmployeeState = {
   errors?: {
     name?: string[];
     email?: string[];
-    employeeId?: string[];
+    // employeeId error removed
     department?: string[];
     role?: string[];
     phone?: string[];
@@ -48,7 +48,6 @@ export async function createEmployeeAction(
   const validatedFields = CreateEmployeeFormSchema.safeParse({
     name: formData.get('name'),
     email: formData.get('email'),
-    employeeId: formData.get('employeeId'),
     department: formData.get('department'),
     role: formData.get('role'),
     phone: formData.get('phone'),
@@ -64,11 +63,13 @@ export async function createEmployeeAction(
     };
   }
 
-  const { name, email, employeeId, department, role, phone, hourlyRate, dateOfBirth, joiningDate } = validatedFields.data;
+  const { name, email, department, role, phone, hourlyRate, dateOfBirth, joiningDate } = validatedFields.data;
 
   try {
+    const employyCollectionRef = collection(db, "employy");
+
     // Check for unique email
-    const emailQuery = query(collection(db, "employy"), where("email", "==", email), limit(1));
+    const emailQuery = query(employyCollectionRef, where("email", "==", email), limit(1));
     const emailSnapshot = await getDocs(emailQuery);
     if (!emailSnapshot.empty) {
       return {
@@ -76,16 +77,11 @@ export async function createEmployeeAction(
         message: 'Employee creation failed due to duplicate data.',
       };
     }
-
-    // Check for unique Employee ID
-    const employeeIdQuery = query(collection(db, "employy"), where("employeeId", "==", employeeId), limit(1));
-    const employeeIdSnapshot = await getDocs(employeeIdQuery);
-    if (!employeeIdSnapshot.empty) {
-      return {
-        errors: { employeeId: ["This Employee ID is already assigned to another employee."] },
-        message: 'Employee creation failed due to duplicate data.',
-      };
-    }
+    
+    // Auto-generate a unique Employee ID
+    const countSnapshot = await getCountFromServer(employyCollectionRef);
+    const employeeCount = countSnapshot.data().count;
+    const employeeId = (1001 + employeeCount).toString(); // Start IDs from 1001 for a more professional look
 
     const employeeData = {
       name,

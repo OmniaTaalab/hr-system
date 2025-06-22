@@ -91,7 +91,6 @@ const initialCreateAuthState: CreateAuthUserState = {
 const initialAddFormState = {
     name: "",
     email: "",
-    employeeId: "",
     department: "",
     role: "",
     phone: "",
@@ -120,8 +119,15 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         description: serverState.message,
       });
       onSuccess();
+    } else if (serverState.errors && serverState.errors.email) {
+      // If there's an email error, just show that toast. The field will be highlighted.
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: serverState.errors.email.join(', '),
+      });
     } else if (serverState.errors && Object.keys(serverState.errors).length > 0) {
-        // Errors exist, do nothing here. The UI will pick them up and display them inline.
+        // For other errors, handle as needed, but the field-specific errors are now primary.
     }
   }, [serverState, toast, onSuccess]);
 
@@ -130,7 +136,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       <AlertDialogHeader>
         <AlertDialogTitle>Add New Employee</AlertDialogTitle>
         <AlertDialogDescription>
-          Fill in the details below to add a new employee. All fields are required.
+          Fill in the details below. The Employee ID will be generated automatically.
         </AlertDialogDescription>
       </AlertDialogHeader>
       <form
@@ -149,11 +155,6 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               <Label htmlFor="add-email">Email</Label>
               <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" value={formData.email} onChange={handleInputChange} />
               {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="add-employeeId">Employee ID</Label>
-              <Input id="add-employeeId" name="employeeId" placeholder="e.g., 007 (Numbers only)" value={formData.employeeId} onChange={handleInputChange} />
-              {serverState?.errors?.employeeId && <p className="text-sm text-destructive">{serverState.errors.employeeId.join(', ')}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
