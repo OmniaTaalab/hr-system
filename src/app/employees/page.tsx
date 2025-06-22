@@ -37,7 +37,7 @@ import {
   updateAuthUserPasswordAction, type UpdateAuthPasswordState
 } from "@/app/actions/auth-creation-actions";
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, deleteDoc, doc, type Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, deleteDoc, doc, type Timestamp, where } from 'firebase/firestore';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -61,6 +61,15 @@ interface Employee {
   joiningDate?: Timestamp;
   leavingDate?: Timestamp | null;
   createdAt?: Timestamp; 
+}
+
+// Interface for leave requests to determine current status
+interface LeaveRequestEntry {
+  id: string; 
+  requestingEmployeeDocId: string;
+  startDate: Timestamp;
+  endDate: Timestamp;
+  status: "Pending" | "Approved" | "Rejected";
 }
 
 
@@ -435,6 +444,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
 export default function EmployeeManagementPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [approvedLeaves, setApprovedLeaves] = useState<LeaveRequestEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -481,6 +491,38 @@ export default function EmployeeManagementPage() {
         description: "Could not load employee data from Firestore. Please try again later.",
       });
       setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
+  
+  useEffect(() => {
+    const today = new Date();
+    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+    const endOfToday = new Date(today.setHours(23, 59, 59, 999));
+
+    const leavesQuery = query(
+      collection(db, "leaveRequests"),
+      where("status", "==", "Approved"),
+      where("startDate", "<=", Timestamp.fromDate(endOfToday))
+    );
+
+    const unsubscribe = onSnapshot(leavesQuery, (snapshot) => {
+      const relevantLeaves: LeaveRequestEntry[] = [];
+      snapshot.forEach(doc => {
+        const leaveData = doc.data();
+        if (leaveData.endDate && leaveData.endDate.toDate() >= startOfToday) {
+          relevantLeaves.push({ id: doc.id, ...leaveData } as LeaveRequestEntry);
+        }
+      });
+      setApprovedLeaves(relevantLeaves);
+    }, (error) => {
+        console.error("Error fetching leave requests for status check:", error);
+        toast({
+            variant: "destructive",
+            title: "Could Not Check Leave Statuses",
+            description: "Failed to fetch leave data to update employee statuses.",
+        });
     });
 
     return () => unsubscribe();
@@ -540,28 +582,40 @@ export default function EmployeeManagementPage() {
     }
   }, [changePasswordServerState, toast]);
 
-
+  const processedEmployees = useMemo(() => {
+    return employees.map(emp => {
+      const isOnLeaveToday = approvedLeaves.some(
+        leave => leave.requestingEmployeeDocId === emp.id
+      );
+      const displayStatus = (emp.status === "Active" && isOnLeaveToday) ? "On Leave" : emp.status;
+      return { ...emp, displayStatus };
+    });
+  }, [employees, approvedLeaves]);
+  
   const filteredEmployees = useMemo(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
-    return employees.filter(employee =>
+    if (!searchTerm.trim()) {
+      return processedEmployees;
+    }
+    return processedEmployees.filter(employee =>
       Object.values(employee).some(value =>
         String(value).toLowerCase().includes(lowercasedFilter)
       )
     );
-  }, [employees, searchTerm]);
+  }, [processedEmployees, searchTerm]);
 
   const employeeStats = useMemo(() => {
-    return employees.reduce(
+    return processedEmployees.reduce(
       (acc, emp) => {
-        if (emp.status === "Active") acc.active++;
-        else if (emp.status === "On Leave") acc.onLeave++;
-        else if (emp.status === "Terminated") acc.terminated++;
+        if (emp.displayStatus === "Active") acc.active++;
+        else if (emp.displayStatus === "On Leave") acc.onLeave++;
+        else if (emp.displayStatus === "Terminated") acc.terminated++;
         acc.total++;
         return acc;
       },
       { active: 0, onLeave: 0, terminated: 0, total: 0 }
     );
-  }, [employees]);
+  }, [processedEmployees]);
 
 
   const openAddDialog = () => {
@@ -759,7 +813,7 @@ export default function EmployeeManagementPage() {
                       <TableCell>{employee.joiningDate ? format(employee.joiningDate.toDate(), "PPP") : '-'}</TableCell>
                       <TableCell>{employee.leavingDate ? format(employee.leavingDate.toDate(), "PPP") : '-'}</TableCell>
                       <TableCell>
-                        <EmployeeStatusBadge status={employee.status} />
+                        <EmployeeStatusBadge status={employee.displayStatus} />
                       </TableCell>
                       <TableCell>
                         <TooltipProvider>
