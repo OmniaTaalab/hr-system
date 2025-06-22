@@ -793,6 +793,7 @@ export default function EmployeeManagementPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Employee ID</TableHead>
+                  <TableHead>Department</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Age</TableHead>
                   <TableHead>Joining Date</TableHead>
@@ -808,6 +809,7 @@ export default function EmployeeManagementPage() {
                     <TableRow key={employee.id}>
                       <TableCell className="font-medium">{employee.name}</TableCell>
                       <TableCell>{employee.employeeId}</TableCell>
+                      <TableCell>{employee.department}</TableCell>
                       <TableCell>{employee.role}</TableCell>
                       <TableCell>{calculateAge(employee.dateOfBirth) ?? '-'}</TableCell>
                       <TableCell>{employee.joiningDate ? format(employee.joiningDate.toDate(), "PPP") : '-'}</TableCell>
@@ -864,7 +866,7 @@ export default function EmployeeManagementPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center">
+                    <TableCell colSpan={10} className="h-24 text-center">
                       {searchTerm ? "No employees found matching your search." : "No employees found. Try adding some!"}
                     </TableCell>
                   </TableRow>
