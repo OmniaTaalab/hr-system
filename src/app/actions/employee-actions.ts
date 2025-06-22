@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit } from 'firebase/firestore';
 import { isValid } from 'date-fns';
 
 // Schema for validating form data for creating an employee
@@ -64,6 +64,26 @@ export async function createEmployeeAction(
   const { name, email, employeeId, department, role, phone, hourlyRate, dateOfBirth, joiningDate } = validatedFields.data;
 
   try {
+    // Check for unique email
+    const emailQuery = query(collection(db, "employy"), where("email", "==", email), limit(1));
+    const emailSnapshot = await getDocs(emailQuery);
+    if (!emailSnapshot.empty) {
+      return {
+        errors: { email: ["This email address is already in use by another employee."] },
+        message: 'Employee creation failed due to duplicate data.',
+      };
+    }
+
+    // Check for unique Employee ID
+    const employeeIdQuery = query(collection(db, "employy"), where("employeeId", "==", employeeId), limit(1));
+    const employeeIdSnapshot = await getDocs(employeeIdQuery);
+    if (!employeeIdSnapshot.empty) {
+      return {
+        errors: { employeeId: ["This Employee ID is already assigned to another employee."] },
+        message: 'Employee creation failed due to duplicate data.',
+      };
+    }
+
     const employeeData = {
       name,
       email,
