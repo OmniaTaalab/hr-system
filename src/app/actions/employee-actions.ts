@@ -197,6 +197,24 @@ export async function updateEmployeeAction(
   try {
     const employeeRef = doc(db, "employy", employeeDocId);
 
+    let finalStatus = status;
+    let finalLeavingDate: Timestamp | null = null;
+
+    // Handle optional leavingDate and automatically adjust status
+    if (leavingDateString) {
+      const parsedLeavingDate = new Date(leavingDateString);
+      if (isValid(parsedLeavingDate)) {
+        finalLeavingDate = Timestamp.fromDate(parsedLeavingDate);
+        finalStatus = "Terminated"; // If there's a leaving date, status must be Terminated
+      }
+    } else {
+      // If leavingDate is cleared and status was Terminated, revert it to Active.
+      // Otherwise, respect the submitted status (e.g. user might want to set to 'On Leave').
+      if (finalStatus === "Terminated") {
+        finalStatus = "Active";
+      }
+    }
+
     // Using 'any' to build the update object dynamically
     const updateData: { [key: string]: any } = {
       name,
@@ -204,25 +222,14 @@ export async function updateEmployeeAction(
       role,
       email,
       phone,
-      status,
+      status: finalStatus, // Use the derived status
       hourlyRate: hourlyRate ?? 0,
       dateOfBirth: Timestamp.fromDate(dateOfBirth),
       joiningDate: Timestamp.fromDate(joiningDate),
+      leavingDate: finalLeavingDate, // Use the derived leaving date
       userId: userId || null,
     };
     
-    // Handle optional leavingDate
-    if (leavingDateString) {
-      const parsedLeavingDate = new Date(leavingDateString);
-      if (isValid(parsedLeavingDate)) {
-        updateData.leavingDate = Timestamp.fromDate(parsedLeavingDate);
-      } else {
-         updateData.leavingDate = null;
-      }
-    } else {
-      updateData.leavingDate = null;
-    }
-
     await updateDoc(employeeRef, updateData);
     
     return { message: `Employee "${name}" updated successfully.` };
