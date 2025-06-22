@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -11,12 +12,18 @@ const CreateAuthUserSchema = z.object({
   email: z.string().email('A valid email is required.'),
   name: z.string().min(1, 'Employee name is required.'),
   password: z.string().min(6, 'Password must be at least 6 characters long.'),
+  confirmPassword: z.string().min(6, 'Password confirmation is required.'),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match.",
+  path: ["confirmPassword"], // Set the error on the confirmPassword field
 });
+
 
 export type CreateAuthUserState = {
   errors?: {
     form?: string[];
     password?: string[];
+    confirmPassword?: string[];
   };
   message?: string | null;
   success?: boolean;
@@ -41,6 +48,7 @@ export async function createAuthUserForEmployeeAction(
     email: formData.get('email'),
     name: formData.get('name'),
     password: formData.get('password'),
+    confirmPassword: formData.get('confirmPassword'),
   });
 
   if (!validatedFields.success) {

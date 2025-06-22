@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, type UpdateEmployeeState } from "@/app/actions/employee-actions";
@@ -449,6 +449,8 @@ export default function EmployeeManagementPage() {
   const [employeeToDeleteLogin, setEmployeeToDeleteLogin] = useState<Employee | null>(null);
   const [deleteLoginServerState, deleteLoginFormAction, isDeleteLoginPending] = useActionState(deleteAuthUserAction, initialDeleteAuthState);
 
+  const [showPassword, setShowPassword] = useState(false);
+
 
   useEffect(() => {
     setIsLoading(true);
@@ -569,6 +571,7 @@ export default function EmployeeManagementPage() {
   const closeCreateLoginDialog = () => {
     setEmployeeToCreateLogin(null);
     setIsCreateLoginDialogOpen(false);
+    setShowPassword(false);
   };
 
   const openDeleteLoginDialog = (employee: Employee) => {
@@ -820,7 +823,7 @@ export default function EmployeeManagementPage() {
               <DialogHeader>
                 <DialogTitle>Create Login for {employeeToCreateLogin.name}</DialogTitle>
                 <DialogDescription>
-                  A new user account will be created in Firebase Authentication with the email <strong>{employeeToCreateLogin.email}</strong>.
+                  Create a secure password for <strong>{employeeToCreateLogin.email}</strong>.
                 </DialogDescription>
               </DialogHeader>
               
@@ -829,21 +832,55 @@ export default function EmployeeManagementPage() {
               <input type="hidden" name="name" value={employeeToCreateLogin.name} />
               
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="password" className="text-right">
-                    Password
-                  </Label>
-                  <div className="col-span-3">
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
                     <Input
                       id="password"
                       name="password"
-                      type="password"
-                      className="w-full"
+                      type={showPassword ? "text" : "password"}
+                      className="pr-10"
                     />
-                     {createLoginServerState?.errors?.password && (
-                        <p className="text-sm text-destructive mt-1">{createLoginServerState.errors.password.join(', ')}</p>
-                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowPassword(prev => !prev)}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                    </Button>
                   </div>
+                  {createLoginServerState?.errors?.password && (
+                      <p className="text-sm text-destructive mt-1">{createLoginServerState.errors.password.join(', ')}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type={showPassword ? "text" : "password"}
+                      className="pr-10"
+                    />
+                     <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowPassword(prev => !prev)}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                    </Button>
+                  </div>
+                   {createLoginServerState?.errors?.confirmPassword && (
+                      <p className="text-sm text-destructive mt-1">{createLoginServerState.errors.confirmPassword.join(', ')}</p>
+                  )}
                 </div>
               </div>
               
@@ -853,7 +890,7 @@ export default function EmployeeManagementPage() {
               
               <DialogFooter>
                 <DialogClose asChild>
-                  <Button type="button" variant="outline">Cancel</Button>
+                  <Button type="button" variant="outline" onClick={closeCreateLoginDialog}>Cancel</Button>
                 </DialogClose>
                 <Button type="submit" disabled={isCreateLoginPending}>
                   {isCreateLoginPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Create User"}
