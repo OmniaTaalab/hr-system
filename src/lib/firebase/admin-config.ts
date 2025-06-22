@@ -26,12 +26,8 @@ if (!admin.apps.length) {
 const adminAuth = admin.apps.length ? admin.auth() : null;
 const adminDb = admin.apps.length ? admin.firestore() : null;
 
-
-// Add a check before exporting to avoid runtime errors if initialization failed
-if (!adminAuth || !adminDb) {
-    // This provides a clearer error message if the admin features are used without proper setup.
-    throw new Error("Firebase Admin SDK has not been initialized. Please check your environment variables.");
-}
-
+// The top-level error throw was removed from here.
+// The action that consumes adminAuth is now responsible for checking if it's null.
+// This prevents the entire server from crashing on startup if the admin SDK is not configured.
 
 export { adminAuth, adminDb };

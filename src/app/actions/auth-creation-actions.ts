@@ -26,6 +26,17 @@ export async function createAuthUserForEmployeeAction(
   prevState: CreateAuthUserState,
   formData: FormData
 ): Promise<CreateAuthUserState> {
+  // Add a runtime check to ensure the Admin SDK is configured.
+  if (!adminAuth) {
+    const errorMessage = "Firebase Admin SDK is not configured on the server. Please check environment variables and server logs.";
+    console.error(errorMessage);
+    return {
+        errors: { form: [errorMessage] },
+        message: 'Failed to create user.',
+        success: false,
+    };
+  }
+  
   const validatedFields = CreateAuthUserSchema.safeParse({
     employeeDocId: formData.get('employeeDocId'),
     email: formData.get('email'),
