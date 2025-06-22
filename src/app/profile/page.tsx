@@ -9,18 +9,22 @@ import { Loader2, UserCircle2, AlertTriangle } from "lucide-react";
 import { auth, db } from "@/lib/firebase/config";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { collection, query, where, getDocs, limit, type Timestamp } from 'firebase/firestore';
-import { format } from 'date-fns';
+import { format, getYear, getMonth, getDate } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 
-// Define the Employee interface to include Firestore Timestamp
+// Define the Employee interface to include all necessary fields
 interface EmployeeProfile {
   id: string;
   name: string;
   email: string;
   role: string;
   department: string;
+  employeeId: string;
+  phone: string;
+  status: "Active" | "On Leave" | "Terminated";
+  dateOfBirth?: Timestamp;
   joiningDate?: Timestamp;
-  // Add any other fields you want to display
 }
 
 interface ProfileDetailItemProps {
@@ -38,6 +42,20 @@ function ProfileDetailItem({ label, value, isLoading }: ProfileDetailItemProps) 
       </dd>
     </div>
   );
+}
+
+function EmployeeStatusBadge({ status }: { status: EmployeeProfile["status"] | undefined }) {
+  if (!status) return null;
+  switch (status) {
+    case "Active":
+      return <Badge variant="secondary" className="bg-green-100 text-green-800">Active</Badge>;
+    case "On Leave":
+      return <Badge variant="outline" className="border-yellow-500 text-yellow-600">On Leave</Badge>;
+    case "Terminated":
+      return <Badge variant="destructive">Terminated</Badge>;
+    default:
+      return <Badge>{status}</Badge>;
+  }
 }
 
 export default function ProfilePage() {
@@ -91,8 +109,23 @@ export default function ProfilePage() {
     if (employeeProfile?.joiningDate) {
       return format(employeeProfile.joiningDate.toDate(), "PPP");
     }
-    return "Not specified";
-  }, [employeeProfile]);
+    return undefined;
+  }, [employeeProfile?.joiningDate]);
+  
+  const formattedDob = useMemo(() => {
+    if (employeeProfile?.dateOfBirth) {
+      const dob = employeeProfile.dateOfBirth.toDate();
+      const today = new Date();
+      let age = getYear(today) - getYear(dob);
+      const m = getMonth(today) - getMonth(dob);
+      if (m < 0 || (m === 0 && getDate(today) < getDate(dob))) {
+          age--;
+      }
+      return `${format(dob, "PPP")} (Age: ${age})`;
+    }
+    return undefined;
+  }, [employeeProfile?.dateOfBirth]);
+
 
   return (
     <AppLayout>
@@ -142,6 +175,9 @@ export default function ProfilePage() {
                             </Avatar>
                             <h2 className="text-xl font-semibold font-headline mt-2">{employeeProfile?.name || "N/A"}</h2>
                             <p className="text-sm text-primary font-medium">{employeeProfile?.role || "N/A"}</p>
+                            <div className="mt-2">
+                                <EmployeeStatusBadge status={employeeProfile?.status} />
+                            </div>
                         </>
                     )}
                 </CardContent>
@@ -157,10 +193,13 @@ export default function ProfilePage() {
                 <CardContent>
                     <dl className="divide-y divide-border">
                     <ProfileDetailItem label="Full Name" value={employeeProfile?.name} isLoading={loading} />
+                    <ProfileDetailItem label="Employee ID" value={employeeProfile?.employeeId} isLoading={loading} />
                     <ProfileDetailItem label="Email Address" value={authUser?.email} isLoading={loading} />
+                    <ProfileDetailItem label="Phone" value={employeeProfile?.phone} isLoading={loading} />
                     <ProfileDetailItem label="Role" value={employeeProfile?.role} isLoading={loading} />
                     <ProfileDetailItem label="Department" value={employeeProfile?.department} isLoading={loading} />
-                    <ProfileDetailItem label="Joined Date" value={loading ? undefined : formattedJoiningDate} isLoading={loading} />
+                    <ProfileDetailItem label="Date of Birth" value={formattedDob} isLoading={loading} />
+                    <ProfileDetailItem label="Joined Date" value={formattedJoiningDate} isLoading={loading} />
                     </dl>
                 </CardContent>
                 </Card>
