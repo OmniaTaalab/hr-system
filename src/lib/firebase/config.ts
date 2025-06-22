@@ -27,7 +27,11 @@ if (!getApps().length) {
   auth = getAuth(app);
   db = getFirestore(app); // Initialize Firestore
   if (typeof window !== 'undefined') {
-    analytics = getAnalytics(app);
+    try {
+        analytics = getAnalytics(app);
+     } catch (e) {
+        console.error("Failed to initialize Firebase Analytics", e);
+     }
   }
 } else {
   app = getApps()[0];
