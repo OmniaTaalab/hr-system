@@ -355,9 +355,7 @@ export async function manualUpdateAttendanceAction(
     console.error('[ManualUpdateAttendanceAction] Invalid recordDateUTC constructed:', recordDateUTC, 'from string:', yyyyMmDdDateString);
     return { message: "Invalid date after server processing.", success: false, errors: { form: ["Invalid date after server processing."] }, updatedEmployeeDocId: employeeDocId };
   }
-  console.log('[ManualUpdateAttendanceAction] Parsed recordDateUTC (YYYY-MM-DD to UTC midnight):', recordDateUTC.toISOString());
-
-
+  
   let finalClockInTime: Timestamp | null = null;
   let finalClockOutTime: Timestamp | null = null;
   let workDurationMinutes: number | null = null;
@@ -368,9 +366,9 @@ export async function manualUpdateAttendanceAction(
   if (clockInString) {
     const [hours, minutes] = clockInString.split(':').map(Number);
     if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
-      const clockInDateTime = new Date(recordDateUTC.getTime()); // Clone UTC midnight date
-      clockInDateTime.setUTCHours(hours, minutes, 0, 0); // Set hours/minutes in UTC
-      finalClockInTime = Timestamp.fromDate(clockInDateTime);
+      // Build date from scratch with all UTC components to ensure accuracy
+      const clockInDateTimeUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], hours, minutes, 0, 0));
+      finalClockInTime = Timestamp.fromDate(clockInDateTimeUTC);
     } else {
       fieldErrorsForEmployee.clockInTime = "Invalid clock-in time components.";
     }
@@ -379,9 +377,9 @@ export async function manualUpdateAttendanceAction(
   if (clockOutString) {
     const [hours, minutes] = clockOutString.split(':').map(Number);
      if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
-      const clockOutDateTime = new Date(recordDateUTC.getTime()); // Clone UTC midnight date
-      clockOutDateTime.setUTCHours(hours, minutes, 0, 0); // Set hours/minutes in UTC
-      finalClockOutTime = Timestamp.fromDate(clockOutDateTime);
+      // Build date from scratch with all UTC components
+      const clockOutDateTimeUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], hours, minutes, 0, 0));
+      finalClockOutTime = Timestamp.fromDate(clockOutDateTimeUTC);
     } else {
       fieldErrorsForEmployee.clockOutTime = "Invalid clock-out time components.";
     }
