@@ -25,12 +25,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, Copy, ShieldCheck } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, type UpdateEmployeeState } from "@/app/actions/employee-actions";
-import { createAuthUserForEmployeeAction, type CreateAuthUserState } from "@/app/actions/auth-creation-actions";
+import { 
+  createAuthUserForEmployeeAction, type CreateAuthUserState,
+  deleteAuthUserAction, type DeleteAuthUserState 
+} from "@/app/actions/auth-creation-actions";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, deleteDoc, doc, type Timestamp } from 'firebase/firestore';
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -87,6 +91,13 @@ const initialCreateAuthState: CreateAuthUserState = {
   errors: {},
   success: false,
 };
+
+const initialDeleteAuthState: DeleteAuthUserState = {
+  message: null,
+  errors: {},
+  success: false,
+};
+
 
 const initialAddFormState = {
     name: "",
@@ -433,7 +444,11 @@ export default function EmployeeManagementPage() {
   const [isCreateLoginDialogOpen, setIsCreateLoginDialogOpen] = useState(false);
   const [employeeToCreateLogin, setEmployeeToCreateLogin] = useState<Employee | null>(null);
   const [createLoginServerState, createLoginFormAction, isCreateLoginPending] = useActionState(createAuthUserForEmployeeAction, initialCreateAuthState);
-  const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
+  
+  const [isDeleteLoginDialogOpen, setIsDeleteLoginDialogOpen] = useState(false);
+  const [employeeToDeleteLogin, setEmployeeToDeleteLogin] = useState<Employee | null>(null);
+  const [deleteLoginServerState, deleteLoginFormAction, isDeleteLoginPending] = useActionState(deleteAuthUserAction, initialDeleteAuthState);
+
 
   useEffect(() => {
     setIsLoading(true);
@@ -461,8 +476,11 @@ export default function EmployeeManagementPage() {
   useEffect(() => {
     if (createLoginServerState?.message) {
       if (createLoginServerState.success) {
-        setIsCreateLoginDialogOpen(false); // Close the confirmation dialog
-        setIsSuccessDialogOpen(true); // Open the success dialog
+        toast({
+          title: "Success!",
+          description: createLoginServerState.message,
+        });
+        closeCreateLoginDialog();
       } else {
         toast({
           variant: "destructive",
@@ -472,6 +490,24 @@ export default function EmployeeManagementPage() {
       }
     }
   }, [createLoginServerState, toast]);
+
+  useEffect(() => {
+    if (deleteLoginServerState?.message) {
+        if (deleteLoginServerState.success) {
+            toast({
+                title: "Success",
+                description: deleteLoginServerState.message,
+            });
+            closeDeleteLoginDialog();
+        } else {
+            toast({
+                variant: "destructive",
+                title: "Failed to Delete Login",
+                description: deleteLoginServerState.errors?.form?.join(", ") || deleteLoginServerState.message,
+            });
+        }
+    }
+  }, [deleteLoginServerState, toast]);
 
 
   const filteredEmployees = useMemo(() => {
@@ -535,6 +571,16 @@ export default function EmployeeManagementPage() {
     setIsCreateLoginDialogOpen(false);
   };
 
+  const openDeleteLoginDialog = (employee: Employee) => {
+    setEmployeeToDeleteLogin(employee);
+    setIsDeleteLoginDialogOpen(true);
+  };
+
+  const closeDeleteLoginDialog = () => {
+    setEmployeeToDeleteLogin(null);
+    setIsDeleteLoginDialogOpen(false);
+  };
+
   const confirmDeleteEmployee = async () => {
     if (!employeeToDelete) return;
     try {
@@ -567,15 +613,6 @@ export default function EmployeeManagementPage() {
     return age;
   };
   
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      toast({ title: "Copied!", description: "Password copied to clipboard." });
-    }, (err) => {
-      toast({ variant: "destructive", title: "Copy Failed", description: "Could not copy password." });
-    });
-  };
-
-
   return (
     <AppLayout>
       <div className="space-y-8">
@@ -710,10 +747,14 @@ export default function EmployeeManagementPage() {
                               <UserPlus className="mr-2 h-4 w-4" />
                               Create Login
                             </DropdownMenuItem>
+                             <DropdownMenuItem onClick={() => openDeleteLoginDialog(employee)} disabled={!employee.userId} className="text-destructive focus:text-destructive">
+                                <UserMinus className="mr-2 h-4 w-4" />
+                                Delete Login
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => openDeleteConfirmDialog(employee)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
                               <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
+                              Delete Employee
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -773,57 +814,78 @@ export default function EmployeeManagementPage() {
       )}
 
       {isCreateLoginDialogOpen && employeeToCreateLogin && (
-        <AlertDialog open={isCreateLoginDialogOpen} onOpenChange={(open) => { if (!open) closeCreateLoginDialog(); }}>
-          <AlertDialogContent>
+        <Dialog open={isCreateLoginDialogOpen} onOpenChange={(open) => { if (!open) closeCreateLoginDialog(); }}>
+          <DialogContent>
             <form action={createLoginFormAction}>
+              <DialogHeader>
+                <DialogTitle>Create Login for {employeeToCreateLogin.name}</DialogTitle>
+                <DialogDescription>
+                  A new user account will be created in Firebase Authentication with the email <strong>{employeeToCreateLogin.email}</strong>.
+                </DialogDescription>
+              </DialogHeader>
+              
               <input type="hidden" name="employeeDocId" value={employeeToCreateLogin.id} />
               <input type="hidden" name="email" value={employeeToCreateLogin.email} />
               <input type="hidden" name="name" value={employeeToCreateLogin.name} />
-              <AlertDialogHeader>
-                <AlertDialogTitle>Create Login Account?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will create a new user account in Firebase Authentication for <strong>{employeeToCreateLogin.name}</strong> with the email <strong>{employeeToCreateLogin.email}</strong>. A temporary password will be generated. Are you sure you want to proceed?
-                </AlertDialogDescription>
-              </AlertDialogHeader>
+              
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="password" className="text-right">
+                    Password
+                  </Label>
+                  <div className="col-span-3">
+                    <Input
+                      id="password"
+                      name="password"
+                      type="password"
+                      className="w-full"
+                    />
+                     {createLoginServerState?.errors?.password && (
+                        <p className="text-sm text-destructive mt-1">{createLoginServerState.errors.password.join(', ')}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
               {createLoginServerState?.errors?.form && (
-                <div className="text-sm text-destructive mt-2">{createLoginServerState.errors.form.join(", ")}</div>
+                <div className="text-sm text-destructive text-center mb-2">{createLoginServerState.errors.form.join(", ")}</div>
               )}
-              <AlertDialogFooter className="mt-4">
-                <AlertDialogCancel type="button" onClick={closeCreateLoginDialog}>Cancel</AlertDialogCancel>
+              
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">Cancel</Button>
+                </DialogClose>
                 <Button type="submit" disabled={isCreateLoginPending}>
-                  {isCreateLoginPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirm & Create"}
+                  {isCreateLoginPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Create User"}
                 </Button>
-              </AlertDialogFooter>
+              </DialogFooter>
             </form>
-          </AlertDialogContent>
-        </AlertDialog>
+          </DialogContent>
+        </Dialog>
       )}
       
-      {isSuccessDialogOpen && createLoginServerState?.success && (
-        <AlertDialog open={isSuccessDialogOpen} onOpenChange={setIsSuccessDialogOpen}>
+      {isDeleteLoginDialogOpen && employeeToDeleteLogin && (
+        <AlertDialog open={isDeleteLoginDialogOpen} onOpenChange={closeDeleteLoginDialog}>
             <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2">
-                        <ShieldCheck className="h-6 w-6 text-green-500" />
-                        Login Created Successfully!
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                        A login account for <strong>{createLoginServerState.employeeName}</strong> has been created. Please provide them with their temporary password below and advise them to change it upon first login.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <div className="my-4">
-                    <Label htmlFor="temp-password">Temporary Password</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                        <Input id="temp-password" value={createLoginServerState.tempPassword ?? ""} readOnly className="font-mono" />
-                        <Button type="button" variant="outline" size="icon" onClick={() => copyToClipboard(createLoginServerState.tempPassword ?? "")}>
-                            <Copy className="h-4 w-4" />
-                            <span className="sr-only">Copy password</span>
+                <form action={deleteLoginFormAction}>
+                    <input type="hidden" name="employeeDocId" value={employeeToDeleteLogin.id} />
+                    <input type="hidden" name="userId" value={employeeToDeleteLogin.userId ?? ''} />
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Login Account?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete the login account for <strong>{employeeToDeleteLogin.name}</strong> from Firebase Authentication. The employee record will remain but will be unlinked. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {deleteLoginServerState?.errors?.form && (
+                        <p className="text-sm text-destructive mt-2">{deleteLoginServerState.errors.form.join(", ")}</p>
+                    )}
+                    <AlertDialogFooter className="mt-4">
+                        <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+                        <Button type="submit" variant="destructive" disabled={isDeleteLoginPending}>
+                            {isDeleteLoginPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirm & Delete Login"}
                         </Button>
-                    </div>
-                </div>
-                <AlertDialogFooter>
-                    <AlertDialogAction onClick={() => setIsSuccessDialogOpen(false)}>Close</AlertDialogAction>
-                </AlertDialogFooter>
+                    </AlertDialogFooter>
+                </form>
             </AlertDialogContent>
         </AlertDialog>
       )}
