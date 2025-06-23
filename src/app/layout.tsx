@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { Inter, Space_Grotesk } from 'next/font/google';
 import './globals.css';
@@ -26,7 +27,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const locale = getCurrentLocale();
+  const locale = await getCurrentLocale();
   const dir = locale === 'ar' ? 'rtl' : 'ltr';
 
   return (
