@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, query, where, getDocs, serverTimestamp, Timestamp, doc, updateDoc, limit, setDoc } from 'firebase/firestore';
 import { parse as parseDateFns, isValid as isValidDateFns, startOfMonth, endOfMonth, format as formatDateFns } from 'date-fns';
+import { getWeekendSettings } from './settings-actions';
 
 const PayrollFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee is required."),
@@ -178,51 +179,74 @@ export async function getTotalWorkHoursForMonth(employeeDocId: string, year: num
   }
 }
 
-// Helper function to get approved leave days for an employee in a specific month
+// Helper function to get approved leave days for an employee in a specific month, excluding weekends and holidays
 export async function getApprovedLeaveDaysForMonth(employeeDocId: string, year: number, month: number): Promise<number> {
-  const monthStartDate = startOfMonth(new Date(year, month));
-  const monthEndDate = endOfMonth(new Date(year, month));
+  const monthStartDate = startOfMonth(new Date(Date.UTC(year, month)));
+  const monthEndDate = endOfMonth(new Date(Date.UTC(year, month)));
   
-  const calculateLeaveDaysInMonth = (
-    leaveStart: Date,
-    leaveEnd: Date,
-    currentMonthStart: Date,
-    currentMonthEnd: Date
-  ): number => {
-    const effectiveStart = leaveStart > currentMonthStart ? leaveStart : currentMonthStart;
-    const effectiveEnd = leaveEnd < currentMonthEnd ? leaveEnd : currentMonthEnd;
-  
-    if (effectiveStart > effectiveEnd) {
-      return 0;
-    }
-    // +1 because differenceInCalendarDays is exclusive of the end date for ranges like same day
-    return (effectiveEnd.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60 * 24) + 1;
-  };
+  // Fetch weekend settings
+  const weekendDays = await getWeekendSettings();
+  const weekendSet = new Set(weekendDays);
 
+  // Fetch all holidays within the month
+  const holidaysQuery = query(
+    collection(db, "holidays"),
+    where("date", ">=", Timestamp.fromDate(monthStartDate)),
+    where("date", "<=", Timestamp.fromDate(monthEndDate))
+  );
+  const holidaySnapshots = await getDocs(holidaysQuery);
+  const holidayDates = holidaySnapshots.docs.map(doc => {
+    const ts = doc.data().date as Timestamp;
+    const d = ts.toDate();
+    // Return date string in YYYY-MM-DD format for easy comparison
+    return `${d.getUTCFullYear()}-${(d.getUTCMonth() + 1).toString().padStart(2, '0')}-${d.getUTCDate().toString().padStart(2, '0')}`;
+  });
+  const holidaySet = new Set(holidayDates);
 
+  // Fetch leave requests that overlap with the month
   const leavesQuery = query(
     collection(db, "leaveRequests"),
     where("requestingEmployeeDocId", "==", employeeDocId),
     where("status", "==", "Approved"),
-    where("startDate", "<=", Timestamp.fromDate(monthEndDate)) // Leave starts before or during the month
-    // We need to also check where("endDate", ">=", Timestamp.fromDate(monthStartDate)) but Firestore limitations...
-    // So we filter endDate client-side or after fetching
+    where("startDate", "<=", Timestamp.fromDate(monthEndDate))
   );
 
   try {
     const leaveSnapshot = await getDocs(leavesQuery);
     let totalLeaveDaysInMonth = 0;
-    leaveSnapshot.forEach(doc => {
+
+    for (const doc of leaveSnapshot.docs) {
       const leave = doc.data();
       const leaveStartDate = (leave.startDate as Timestamp).toDate();
       const leaveEndDate = (leave.endDate as Timestamp).toDate();
 
-      // Further filter for leaves that actually end after the month starts
-      if (leaveEndDate >= monthStartDate) {
-        totalLeaveDaysInMonth += calculateLeaveDaysInMonth(leaveStartDate, leaveEndDate, monthStartDate, monthEndDate);
+      // Skip leaves that end before the month starts
+      if (leaveEndDate < monthStartDate) {
+        continue;
       }
-    });
-    return Math.round(totalLeaveDaysInMonth); // Round to nearest whole day
+      
+      // Determine the effective date range for the calculation within the current month
+      const effectiveStart = leaveStartDate < monthStartDate ? monthStartDate : leaveStartDate;
+      const effectiveEnd = leaveEndDate > monthEndDate ? monthEndDate : leaveEndDate;
+
+      // Iterate through each day of the leave within the month's bounds
+      let currentDate = new Date(Date.UTC(effectiveStart.getUTCFullYear(), effectiveStart.getUTCMonth(), effectiveStart.getUTCDate()));
+
+      while (currentDate <= effectiveEnd) {
+        const dayOfWeek = currentDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+        const isWeekend = weekendSet.has(dayOfWeek);
+
+        const dateStr = `${currentDate.getUTCFullYear()}-${(currentDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${currentDate.getUTCDate().toString().padStart(2, '0')}`;
+        const isHoliday = holidaySet.has(dateStr);
+
+        if (!isWeekend && !isHoliday) {
+          totalLeaveDaysInMonth++;
+        }
+
+        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      }
+    }
+    return totalLeaveDaysInMonth;
   } catch (error) {
     console.error("Error fetching approved leave days:", error);
     return 0;
@@ -261,4 +285,3 @@ export async function getExistingPayrollData(employeeDocId: string, monthYear: s
     return null; // Return null in case of an error to prevent crashing the action
   }
 }
-
