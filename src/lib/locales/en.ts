@@ -1,3 +1,4 @@
+
 export default {
   sidebar: {
     dashboard: 'Dashboard',
@@ -10,6 +11,7 @@ export default {
     annual_payroll_report: 'Annual Payroll Report',
     job_board: 'Job Board',
     career_advisor: 'Career Advisor',
+    settings: 'Settings',
   },
   header: {
     my_account: 'My Account',

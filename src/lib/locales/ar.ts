@@ -1,3 +1,4 @@
+
 export default {
   sidebar: {
     dashboard: 'لوحة التحكم',
@@ -10,6 +11,7 @@ export default {
     annual_payroll_report: 'تقرير الرواتب السنوي',
     job_board: 'لوحة الوظائف',
     career_advisor: 'مستشار مهني',
+    settings: 'الإعدادات',
   },
   header: {
     my_account: 'حسابي',

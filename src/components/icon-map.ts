@@ -35,6 +35,7 @@ import {
   UserPlus,
   KeyRound,
   FileDown,
+  Settings, // Added Settings icon
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -72,4 +73,5 @@ export const iconMap: { [key: string]: LucideIcon } = {
   UserPlus,
   KeyRound,
   FileDown,
+  Settings, // Added Settings icon
 };

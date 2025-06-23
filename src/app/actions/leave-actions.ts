@@ -6,6 +6,46 @@ import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, Timestamp, deleteDoc } from 'firebase/firestore';
 import type { User } from 'firebase/auth'; // Assuming you might integrate auth later
 
+// New helper function to calculate working days, excluding weekends and holidays
+async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<number> {
+  // Fetch all holidays within the date range
+  const holidaysQuery = query(
+    collection(db, "holidays"),
+    where("date", ">=", Timestamp.fromDate(startDate)),
+    where("date", "<=", Timestamp.fromDate(endDate))
+  );
+  const holidaySnapshots = await getDocs(holidaysQuery);
+  const holidayDates = holidaySnapshots.docs.map(doc => {
+    const ts = doc.data().date as Timestamp;
+    const d = ts.toDate();
+    // Return date string in YYYY-MM-DD format for easy comparison
+    return `${d.getUTCFullYear()}-${(d.getUTCMonth() + 1).toString().padStart(2, '0')}-${d.getUTCDate().toString().padStart(2, '0')}`;
+  });
+  const holidaySet = new Set(holidayDates);
+
+  let workingDays = 0;
+  let currentDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
+  const finalEndDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
+
+
+  while (currentDate <= finalEndDate) {
+    const dayOfWeek = currentDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+    const dateStr = `${currentDate.getUTCFullYear()}-${(currentDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${currentDate.getUTCDate().toString().padStart(2, '0')}`;
+    const isHoliday = holidaySet.has(dateStr);
+
+    if (!isWeekend && !isHoliday) {
+      workingDays++;
+    }
+
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+  }
+
+  return workingDays;
+}
+
+
 // Schema for validating leave request form data
 const LeaveRequestFormSchema = z.object({
   requestingEmployeeDocId: z.string().min(1, "Employee document ID is required."), // Added for unique employee linking
@@ -60,15 +100,17 @@ export async function submitLeaveRequestAction(
   const { requestingEmployeeDocId, employeeName, leaveType, startDate, endDate, reason } = validatedFields.data;
 
   try {
+    const numberOfDays = await calculateWorkingDays(startDate, endDate);
+
     // The 'employeeId' field in Firestore will now store the unique document ID from 'employy' collection
     await addDoc(collection(db, "leaveRequests"), {
       requestingEmployeeDocId, // Store the unique Firestore document ID of the employee
       employeeName, // Keep employee name for display purposes if needed elsewhere
-      // employeeId: requestingEmployeeDocId, // If you want to rename/repurpose the old employeeId field
       leaveType,
       startDate: Timestamp.fromDate(startDate),
       endDate: Timestamp.fromDate(endDate),
       reason,
+      numberOfDays, // Store calculated working days
       status: "Pending",
       submittedAt: serverTimestamp(),
       managerNotes: "", 
@@ -196,6 +238,8 @@ export async function editLeaveRequestAction(
   const { requestId, leaveType, startDate, endDate, reason, status } = validatedFields.data;
 
   try {
+    const numberOfDays = await calculateWorkingDays(startDate, endDate);
+
     const requestRef = doc(db, "leaveRequests", requestId);
     await updateDoc(requestRef, {
       leaveType,
@@ -203,6 +247,7 @@ export async function editLeaveRequestAction(
       endDate: Timestamp.fromDate(endDate),
       reason,
       status,
+      numberOfDays, // Recalculate and update working days
       updatedAt: serverTimestamp(),
     });
 

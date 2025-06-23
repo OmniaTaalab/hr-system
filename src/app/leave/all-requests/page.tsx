@@ -62,7 +62,6 @@ export interface LeaveRequestEntry {
   id: string; 
   requestingEmployeeDocId: string; // Added this for robust linking
   employeeName: string;
-  // employeeId: string; // Original field, perhaps used differently, now we rely on requestingEmployeeDocId
   leaveType: string;
   startDate: Timestamp;
   endDate: Timestamp;
@@ -71,6 +70,7 @@ export interface LeaveRequestEntry {
   submittedAt: Timestamp;
   managerNotes?: string;
   updatedAt?: Timestamp;
+  numberOfDays?: number; // Number of working days
 }
 
 const initialUpdateStatusState: UpdateLeaveStatusState = { message: null, errors: {}, success: false };
@@ -582,7 +582,7 @@ export default function AllLeaveRequestsPage() {
                     <TableHead>Leave Type</TableHead>
                     <TableHead>Start Date</TableHead>
                     <TableHead>End Date</TableHead>
-                    <TableHead>Number of Days</TableHead>
+                    <TableHead>Working Days</TableHead>
                     <TableHead>Reason</TableHead>
                     <TableHead>Manager Notes</TableHead>
                     <TableHead>Status</TableHead>
@@ -594,14 +594,14 @@ export default function AllLeaveRequestsPage() {
                     filteredRequests.map((request) => {
                       const startDate = request.startDate.toDate();
                       const endDate = request.endDate.toDate();
-                      const numberOfDays = differenceInCalendarDays(endDate, startDate) + 1;
+                      const fallbackDays = differenceInCalendarDays(endDate, startDate) + 1;
                       return (
                         <TableRow key={request.id}>
                           <TableCell className="font-medium">{request.employeeName}</TableCell>
                           <TableCell>{request.leaveType}</TableCell>
                           <TableCell>{format(startDate, "PPP")}</TableCell>
                           <TableCell>{format(endDate, "PPP")}</TableCell>
-                          <TableCell>{numberOfDays}</TableCell>
+                          <TableCell>{request.numberOfDays ?? fallbackDays}</TableCell>
                           <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
                           <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>
                           <TableCell>

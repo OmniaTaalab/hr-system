@@ -57,6 +57,11 @@ export const navItems: NavItem[] = [
     href: '/career-advisor',
     iconName: 'Lightbulb',
   },
+  {
+    i18nKey: 'sidebar.settings',
+    href: '/settings',
+    iconName: 'Settings',
+  },
 ];
 
 export const siteConfig = {
