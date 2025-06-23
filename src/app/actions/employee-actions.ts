@@ -320,9 +320,10 @@ export async function deleteEmployeeAction(
         const fileRef = adminStorage.bucket().file(filePath);
         await fileRef.delete();
       } catch (storageError: any) {
-        // If the file doesn't exist, we don't need to throw an error. Just log it.
         if (storageError.code === 404) {
           console.log(`File not found in storage for employee ${employeeDocId}. Proceeding with Firestore deletion.`);
+        } else if (storageError.message?.includes('Bucket name not specified')) {
+          console.warn(`Skipping photo deletion because storage bucket is not configured on the server: ${storageError.message}`);
         } else {
           // For other storage errors, we halt deletion and return an error.
           console.error('Error deleting employee photo from storage:', storageError);
