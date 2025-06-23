@@ -36,6 +36,7 @@ import {
   KeyRound,
   FileDown,
   Settings, // Added Settings icon
+  Trophy, // Added Trophy Icon
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -74,4 +75,5 @@ export const iconMap: { [key: string]: LucideIcon } = {
   KeyRound,
   FileDown,
   Settings, // Added Settings icon
+  Trophy, // Added Trophy Icon
 };

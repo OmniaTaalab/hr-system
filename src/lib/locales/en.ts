@@ -9,6 +9,7 @@ export default {
     attendance: 'Attendance',
     payroll_calculation: 'Payroll Calculation',
     annual_payroll_report: 'Annual Payroll Report',
+    tpi: 'TPIs',
     job_board: 'Job Board',
     career_advisor: 'Career Advisor',
     settings: 'Settings',

@@ -48,6 +48,11 @@ export const navItems: NavItem[] = [
     iconName: 'Sheet',
   },
   {
+    i18nKey: 'sidebar.tpi',
+    href: '/tpi',
+    iconName: 'Trophy',
+  },
+  {
     i18nKey: 'sidebar.job_board',
     href: '/jobs',
     iconName: 'Briefcase',
