@@ -115,7 +115,7 @@ export default function SettingsPage() {
     });
 
     return () => unsubscribe();
-  }, [toast]);
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   // Toasts for action completions
   useEffect(() => {
