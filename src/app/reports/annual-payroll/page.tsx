@@ -104,9 +104,12 @@ export default function AnnualPayrollReportPage() {
   // Fetch all active employees
   useEffect(() => {
     setIsLoadingEmployees(true);
-    const q = query(collection(db, "employee"), where("status", "==", "Active"), orderBy("name"));
+    const q = query(collection(db, "employee"), where("status", "==", "Active"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setAllEmployees(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
+      const employeesData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Employee))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setAllEmployees(employeesData);
       setIsLoadingEmployees(false);
     }, (error) => {
       console.error("Error fetching employees:", error);
