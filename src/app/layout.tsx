@@ -4,6 +4,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import { I18nProvider } from '@/components/i18n-provider';
+import { getCurrentLocale } from '@/lib/i18n-server';
 
 const fontInter = Inter({
   subsets: ['latin'],
@@ -20,13 +21,16 @@ export const metadata: Metadata = {
   description: 'A modern Human Resource Management System',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = getCurrentLocale();
+  const dir = locale === 'ar' ? 'rtl' : 'ltr';
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} dir={dir} suppressHydrationWarning>
       <head>
         {/* Keep existing Google Fonts links if any, or rely on next/font */}
         {/* Example: <link href="https://fonts.googleapis.com/css2?family=Inter&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" /> */}
@@ -38,7 +42,7 @@ export default function RootLayout({
           fontSpaceGrotesk.variable
         )}
       >
-        <I18nProvider>
+        <I18nProvider locale={locale}>
           {children}
           <Toaster />
         </I18nProvider>
