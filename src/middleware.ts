@@ -1,15 +1,3 @@
-import { createI18nMiddleware } from 'next-international/middleware'
-import type { NextRequest } from 'next/server'
-
-const I18nMiddleware = createI18nMiddleware({
-  locales: ['en', 'ar'],
-  defaultLocale: 'en',
-})
-
-export function middleware(request: NextRequest) {
-  return I18nMiddleware(request)
-}
-
-export const config = {
-  matcher: ['/((?!api|static|.*\\..*|_next).*)'],
-}
+// This file is intentionally left empty to disable the i18n middleware,
+// which was causing routing issues. Language detection is now handled
+// directly in the root layout by reading the 'NEXT_LOCALE' cookie.

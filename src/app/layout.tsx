@@ -5,7 +5,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import { I18nProvider } from '@/components/i18n-provider';
-import { getCurrentLocale } from '@/lib/i18n-server';
+import { cookies } from 'next/headers';
 
 const fontInter = Inter({
   subsets: ['latin'],
@@ -22,12 +22,13 @@ export const metadata: Metadata = {
   description: 'A modern Human Resource Management System',
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const locale = await getCurrentLocale();
+  const cookieStore = cookies();
+  const locale = cookieStore.get('NEXT_LOCALE')?.value || 'en';
   const dir = locale === 'ar' ? 'rtl' : 'ltr';
 
   return (

@@ -1,7 +1,3 @@
-
-import { createI18nServer } from 'next-international/server';
-
-export const { getI18n, getScopedI18n, getCurrentLocale } = createI18nServer({
-  en: () => import('@/lib/locales/en'),
-  ar: () => import('@/lib/locales/ar'),
-});
+// This file is intentionally left empty.
+// The server-side utilities from next-international are no longer needed
+// as language detection has been simplified to reading a cookie in the layout.
