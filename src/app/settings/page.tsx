@@ -96,26 +96,25 @@ export default function SettingsPage() {
     return () => unsubscribe();
   }, [selectedYear, toast]);
 
-  // Fetch weekend settings on component mount
+  // Fetch weekend settings on component mount and listen for real-time updates
   useEffect(() => {
     setIsLoadingWeekend(true);
-    const fetchWeekend = async () => {
-      const settingsRef = doc(db, "settings", "weekend");
-      const docSnap = await getDoc(settingsRef);
-      if (docSnap.exists() && Array.isArray(docSnap.data().days)) {
-        setWeekendDays(docSnap.data().days);
-      } else {
-        // Default to Friday & Saturday if not set
-        setWeekendDays([5, 6]); 
-      }
-      setIsLoadingWeekend(false);
-    };
-    fetchWeekend().catch(err => {
-        console.error("Failed to fetch weekend settings", err);
+    const settingsRef = doc(db, "settings", "weekend");
+    const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
+        if (docSnap.exists() && Array.isArray(docSnap.data().days)) {
+            setWeekendDays(docSnap.data().days);
+        } else {
+            setWeekendDays([5, 6]); 
+        }
+        setIsLoadingWeekend(false);
+    }, (error) => {
+        console.error("Failed to fetch weekend settings", error);
         toast({ variant: 'destructive', title: 'Error', description: 'Could not load weekend settings.' });
-        setWeekendDays([5, 6]); // Default on error
+        setWeekendDays([5, 6]);
         setIsLoadingWeekend(false);
     });
+
+    return () => unsubscribe();
   }, [toast]);
 
   // Toasts for action completions
@@ -167,6 +166,18 @@ export default function SettingsPage() {
     });
   };
   
+  const handleWeekendDayChange = (dayValue: number, isChecked: boolean) => {
+    setWeekendDays(prev => {
+      const newSet = new Set(prev);
+      if (isChecked) {
+        newSet.add(dayValue);
+      } else {
+        newSet.delete(dayValue);
+      }
+      return Array.from(newSet).sort();
+    });
+  };
+  
   return (
     <AppLayout>
       <div className="space-y-8">
@@ -203,7 +214,10 @@ export default function SettingsPage() {
                           id={`day-${day.value}`}
                           name="weekend"
                           value={day.value.toString()}
-                          defaultChecked={weekendDays.includes(day.value)}
+                          checked={weekendDays.includes(day.value)}
+                          onCheckedChange={(isChecked) => {
+                            handleWeekendDayChange(day.value, isChecked as boolean);
+                          }}
                         />
                         <Label htmlFor={`day-${day.value}`}>{day.label}</Label>
                       </div>
