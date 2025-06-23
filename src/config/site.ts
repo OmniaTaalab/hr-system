@@ -1,6 +1,6 @@
 
 export interface NavItem {
-  title: string;
+  i18nKey: string;
   href: string;
   iconName: string; 
   disabled?: boolean;
@@ -8,52 +8,52 @@ export interface NavItem {
 
 export const navItems: NavItem[] = [
   {
-    title: 'Dashboard',
+    i18nKey: 'sidebar.dashboard',
     href: '/',
     iconName: 'LayoutDashboard',
   },
   {
-    title: 'Employee Management', 
+    i18nKey: 'sidebar.employee_management', 
     href: '/employees',
     iconName: 'Users',
   },
   {
-    title: 'Submit Leave Request',
+    i18nKey: 'sidebar.submit_leave_request',
     href: '/leave/request',
     iconName: 'CalendarPlus',
   },
   {
-    title: 'Employee Work & Leave Summary', 
+    i18nKey: 'sidebar.employee_work_leave_summary', 
     href: '/leave/my-requests',
     iconName: 'ClipboardList', 
   },
   {
-    title: 'All Leave Requests',
+    i18nKey: 'sidebar.all_leave_requests',
     href: '/leave/all-requests',
     iconName: 'ListChecks', 
   },
   {
-    title: 'Attendance',
+    i18nKey: 'sidebar.attendance',
     href: '/attendance',
     iconName: 'CheckCircle2',
   },
   {
-    title: 'Payroll Calculation',
+    i18nKey: 'sidebar.payroll_calculation',
     href: '/payroll',
     iconName: 'Calculator',
   },
   {
-    title: 'Annual Payroll Report',
+    i18nKey: 'sidebar.annual_payroll_report',
     href: '/reports/annual-payroll',
-    iconName: 'Sheet', // New Report Page
+    iconName: 'Sheet',
   },
   {
-    title: 'Job Board',
+    i18nKey: 'sidebar.job_board',
     href: '/jobs',
     iconName: 'Briefcase',
   },
   {
-    title: 'Career Advisor',
+    i18nKey: 'sidebar.career_advisor',
     href: '/career-advisor',
     iconName: 'Lightbulb',
   },

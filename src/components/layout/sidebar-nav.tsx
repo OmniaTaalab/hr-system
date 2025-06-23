@@ -3,7 +3,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { NavItem } from "@/config/site";
 import { cn } from "@/lib/utils";
 import {
   SidebarMenu,
@@ -12,24 +11,19 @@ import {
 } from "@/components/ui/sidebar";
 import { Icons } from "@/components/icons";
 import { siteConfig } from "@/config/site";
-import { iconMap } from "@/components/icon-map"; // Import the icon map
+import { iconMap } from "@/components/icon-map";
+import { useI18n } from "@/lib/i18n";
 
-interface SidebarNavProps {
-  items: NavItem[];
-}
-
-export function SidebarNav({ items }: SidebarNavProps) {
+export function SidebarNav() {
   const pathname = usePathname();
-
-  if (!items?.length) {
-    return null;
-  }
+  const t = useI18n();
 
   return (
     <nav className="grid items-start gap-2">
       <SidebarMenu>
-        {items.map((item, index) => {
-          const IconComponent = iconMap[item.iconName]; // Get icon component from map
+        {siteConfig.navItems.map((item, index) => {
+          const IconComponent = iconMap[item.iconName];
+          const title = t(item.i18nKey as any);
           return (
             item.href && (
               <SidebarMenuItem key={index}>
@@ -45,10 +39,10 @@ export function SidebarNav({ items }: SidebarNavProps) {
                       item.disabled && "cursor-not-allowed opacity-80"
                     )}
                     isActive={pathname === item.href}
-                    tooltip={item.title}
+                    tooltip={title}
                   >
                     {IconComponent ? <IconComponent className="mr-2 h-4 w-4" /> : <span className="mr-2 h-4 w-4" /> /* Fallback or empty span */}
-                    <span className="truncate">{item.title}</span>
+                    <span className="truncate">{title}</span>
                   </SidebarMenuButton>
                 </Link>
               </SidebarMenuItem>
@@ -63,11 +57,10 @@ export function SidebarNav({ items }: SidebarNavProps) {
 export function AppLogo() {
   return (
     <Link href="/" className="flex items-center space-x-2 px-2 py-4" aria-label={siteConfig.name}>
-      <Icons.Logo className="h-8 w-8 text-sidebar-foreground" /> {/* Changed h-6 w-6 to h-8 w-8 */}
+      <Icons.Logo className="h-8 w-8 text-sidebar-foreground" />
       <span className="font-headline text-lg font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
         {siteConfig.name}
       </span>
     </Link>
   );
 }
-

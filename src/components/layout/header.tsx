@@ -18,11 +18,14 @@ import Link from "next/link";
 import { onAuthStateChanged, signOut, type User as FirebaseUser } from "firebase/auth";
 import { auth, db } from "@/lib/firebase/config";
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { useI18n } from "@/lib/i18n";
+import { LanguageSwitcher } from "../language-switcher";
 
 export function Header() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const router = useRouter();
+  const t = useI18n();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -67,6 +70,7 @@ export function Header() {
           <SidebarTrigger />
         </div>
         <div className="flex items-center space-x-4">
+          <LanguageSwitcher />
           <Button variant="ghost" size="icon" aria-label="Notifications">
             <Bell className="h-5 w-5" />
           </Button>
@@ -83,22 +87,22 @@ export function Header() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuLabel>{t('header.my_account')}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/profile">
                     <User className="mr-2 h-4 w-4" />
-                    <span>Profile</span>
+                    <span>{t('header.profile')}</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
+                  <span>{t('header.settings')}</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
+                  <span>{t('header.logout')}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
