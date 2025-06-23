@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, doc, Timestamp, setDoc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, doc, Timestamp, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 
 // --- HOLIDAY SETTINGS ---
@@ -97,7 +97,6 @@ export async function deleteHolidayAction(
 
   try {
     await deleteDoc(doc(db, "holidays", holidayId));
-    revalidatePath("/settings");
     return { success: true, message: "Holiday deleted successfully." };
   } catch (error: any) {
     return {
@@ -160,5 +159,92 @@ export async function getWeekendSettings(): Promise<number[]> {
   } catch (error) {
     console.error("Error fetching weekend settings, using default:", error);
     return [5, 6]; // Default on error
+  }
+}
+
+
+// --- ORGANIZATION LISTS (DEPARTMENTS, ROLES, ETC.) ---
+
+const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "departments"]);
+
+const ManageItemSchema = z.object({
+  collectionName: collectionNames,
+  operation: z.enum(['add', 'update', 'delete']),
+  name: z.string().min(1, "Name cannot be empty.").optional(),
+  id: z.string().optional(),
+});
+
+export type ManageListItemState = {
+  errors?: {
+    form?: string[];
+    name?: string[];
+  };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function manageListItemAction(
+  prevState: ManageListItemState,
+  formData: FormData
+): Promise<ManageListItemState> {
+  const validatedFields = ManageItemSchema.safeParse({
+    collectionName: formData.get('collectionName'),
+    operation: formData.get('operation'),
+    name: formData.get('name'),
+    id: formData.get('id'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: { form: ["Invalid data received."] },
+      success: false,
+    };
+  }
+
+  const { collectionName, operation, name, id } = validatedFields.data;
+  const collectionRef = collection(db, collectionName);
+
+  try {
+    switch (operation) {
+      case 'add':
+        if (!name) return { errors: { name: ["Name is required."] }, success: false };
+        
+        const qAdd = query(collectionRef, where("name", "==", name));
+        const addSnapshot = await getDocs(qAdd);
+        if (!addSnapshot.empty) {
+          return { errors: { form: [`An item with the name "${name}" already exists.`] }, success: false };
+        }
+        await addDoc(collectionRef, { name });
+        // No revalidatePath needed, frontend uses onSnapshot for real-time updates
+        return { success: true, message: `"${name}" added successfully.` };
+
+      case 'update':
+        if (!id || !name) return { errors: { form: ["ID and name are required for update."] }, success: false };
+        
+        const qUpdate = query(collectionRef, where("name", "==", name));
+        const updateSnapshot = await getDocs(qUpdate);
+        if (!updateSnapshot.empty && updateSnapshot.docs[0].id !== id) {
+             return { errors: { form: [`An item with the name "${name}" already exists.`] }, success: false };
+        }
+        
+        const docRefUpdate = doc(db, collectionName, id);
+        await updateDoc(docRefUpdate, { name });
+        return { success: true, message: `Item updated to "${name}" successfully.` };
+
+      case 'delete':
+        if (!id) return { errors: { form: ["ID is required for deletion."] }, success: false };
+        const docRefDelete = doc(db, collectionName, id);
+        await deleteDoc(docRefDelete);
+        return { success: true, message: "Item deleted successfully." };
+
+      default:
+        return { errors: { form: ["Invalid operation."] }, success: false };
+    }
+  } catch (error: any) {
+    console.error(`Error performing ${operation} on ${collectionName}:`, error);
+    return {
+      errors: { form: [`Failed to ${operation} item. An unexpected error occurred.`] },
+      success: false,
+    };
   }
 }

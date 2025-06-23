@@ -11,9 +11,11 @@ import { isValid } from 'date-fns';
 const CreateEmployeeFormSchema = z.object({
   name: z.string().min(1, "Full name is required."),
   email: z.string().email({ message: 'Invalid email address.' }),
-  // Employee ID is now auto-generated
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
+  groupName: z.string().min(1, "Group Name is required."),
+  system: z.string().min(1, "System is required."),
+  campus: z.string().min(1, "Campus is required."),
   phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
   hourlyRate: z.preprocess(
     (val) => {
@@ -30,9 +32,11 @@ export type CreateEmployeeState = {
   errors?: {
     name?: string[];
     email?: string[];
-    // employeeId error removed
     department?: string[];
     role?: string[];
+    groupName?: string[];
+    system?: string[];
+    campus?: string[];
     phone?: string[];
     hourlyRate?: string[];
     dateOfBirth?: string[];
@@ -51,6 +55,9 @@ export async function createEmployeeAction(
     email: formData.get('email'),
     department: formData.get('department'),
     role: formData.get('role'),
+    groupName: formData.get('groupName'),
+    system: formData.get('system'),
+    campus: formData.get('campus'),
     phone: formData.get('phone'),
     hourlyRate: formData.get('hourlyRate') || undefined,
     dateOfBirth: formData.get('dateOfBirth'),
@@ -64,7 +71,7 @@ export async function createEmployeeAction(
     };
   }
 
-  const { name, email, department, role, phone, hourlyRate, dateOfBirth, joiningDate } = validatedFields.data;
+  const { name, email, department, role, groupName, system, campus, phone, hourlyRate, dateOfBirth, joiningDate } = validatedFields.data;
 
   try {
     const employeeCollectionRef = collection(db, "employee");
@@ -90,6 +97,9 @@ export async function createEmployeeAction(
       employeeId,
       department,
       role,
+      groupName,
+      system,
+      campus,
       phone,
       photoURL: null,
       hourlyRate: hourlyRate ?? 0,
@@ -130,6 +140,9 @@ const UpdateEmployeeFormSchema = z.object({
   name: z.string().min(1, "Full name is required."),
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
+  groupName: z.string().min(1, "Group Name is required."),
+  system: z.string().min(1, "System is required."),
+  campus: z.string().min(1, "Campus is required."),
   email: z.string().email({ message: 'Invalid email address.' }),
   phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
   status: z.enum(["Active", "On Leave", "Terminated"]),
@@ -151,6 +164,9 @@ export type UpdateEmployeeState = {
     name?: string[];
     department?: string[];
     role?: string[];
+    groupName?: string[];
+    system?: string[];
+    campus?: string[];
     email?: string[];
     phone?: string[];
     status?: string[];
@@ -172,6 +188,9 @@ export async function updateEmployeeAction(
     name: formData.get('name'),
     department: formData.get('department'),
     role: formData.get('role'),
+    groupName: formData.get('groupName'),
+    system: formData.get('system'),
+    campus: formData.get('campus'),
     email: formData.get('email'),
     phone: formData.get('phone'),
     status: formData.get('status'),
@@ -189,7 +208,7 @@ export async function updateEmployeeAction(
   }
 
   const { 
-    employeeDocId, name, department, role, email, phone, status, hourlyRate,
+    employeeDocId, name, department, role, groupName, system, campus, email, phone, status, hourlyRate,
     dateOfBirth, joiningDate, leavingDate: leavingDateString
   } = validatedFields.data;
 
@@ -219,6 +238,9 @@ export async function updateEmployeeAction(
       name,
       department,
       role,
+      groupName,
+      system,
+      campus,
       email,
       phone,
       status: finalStatus, // Use the derived status

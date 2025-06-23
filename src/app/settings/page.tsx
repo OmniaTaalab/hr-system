@@ -17,7 +17,6 @@ import {
   addHolidayAction, 
   deleteHolidayAction, 
   updateWeekendSettingsAction,
-  getWeekendSettings, // Import the new helper function
   type HolidayState,
   type WeekendSettingsState
 } from "@/app/actions/settings-actions";
@@ -27,6 +26,7 @@ import { format, getYear } from 'date-fns';
 import { Calendar as CalendarIcon, PlusCircle, Trash2, Loader2, AlertCircle, Settings as SettingsIcon, Save } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Skeleton } from '@/components/ui/skeleton';
+import { ListManager } from '@/components/settings/list-manager';
 
 interface Holiday {
   id: string;
@@ -59,39 +59,48 @@ export default function SettingsPage() {
   const [addHolidayForm, setAddHolidayForm] = useState<{name: string, date?: Date}>({ name: "" });
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  // --- WEEKEND STATE (NEW LOGIC) ---
-  const [weekendDays, setWeekendDays] = useState<number[]>([]);
+  // --- WEEKEND STATE ---
+  const [savedWeekendDays, setSavedWeekendDays] = useState<number[]>([]);
+  const [formWeekendDays, setFormWeekendDays] = useState<number[]>([]);
   const [isLoadingWeekend, setIsLoadingWeekend] = useState(true);
-  
+
   // --- ACTION STATES ---
   const [addState, addAction, isAddPending] = useActionState(addHolidayAction, initialHolidayState);
   const [deleteState, deleteAction, isDeletePending] = useActionState(deleteHolidayAction, initialHolidayState);
   const [updateWeekendState, updateWeekendAction, isUpdateWeekendPending] = useActionState(updateWeekendSettingsAction, initialWeekendState);
   const [_isPending, startTransition] = useTransition();
 
+  const isWeekendDirty = React.useMemo(() => {
+    const sortedFormDays = [...formWeekendDays].sort();
+    const sortedSavedDays = [...savedWeekendDays].sort();
+    return JSON.stringify(sortedFormDays) !== JSON.stringify(sortedSavedDays);
+  }, [formWeekendDays, savedWeekendDays]);
+
   // --- DATA FETCHING AND EFFECT LOGIC ---
-
-  // Initial fetch for weekend settings
-  const fetchAndUpdateWeekendSettings = async () => {
-    setIsLoadingWeekend(true);
-    try {
-      const days = await getWeekendSettings();
-      setWeekendDays(days);
-    } catch (error) {
-      console.error("Failed to fetch weekend settings", error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Could not load weekend settings.' });
-      setWeekendDays([5, 6]); // Fallback to default
-    } finally {
-      setIsLoadingWeekend(false);
-    }
-  };
-
   useEffect(() => {
-    fetchAndUpdateWeekendSettings();
-    // This effect runs only once on mount to get the initial data.
-    // The eslint-disable is to prevent warnings about missing dependencies, which is intentional here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setIsLoadingWeekend(true);
+    const settingsRef = doc(db, "settings", "weekend");
+    const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
+      let days: number[] = [];
+      if (docSnap.exists() && Array.isArray(docSnap.data().days)) {
+        days = docSnap.data().days as number[];
+      } else {
+        days = [5, 6]; // Default
+      }
+      setSavedWeekendDays(days);
+      setFormWeekendDays(days);
+      setIsLoadingWeekend(false);
+    }, (error) => {
+      console.error("Failed to fetch weekend settings in real-time", error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not load weekend settings.' });
+      const defaultDays = [5, 6];
+      setSavedWeekendDays(defaultDays);
+      setFormWeekendDays(defaultDays);
+      setIsLoadingWeekend(false);
+    });
+    return () => unsubscribe();
+  }, [toast]);
+
 
   // Fetch holidays for the selected year
   useEffect(() => {
@@ -144,7 +153,6 @@ export default function SettingsPage() {
     }
   }, [deleteState, toast]);
   
-  // Effect to handle weekend update response and re-fetch data
   useEffect(() => {
     if (updateWeekendState?.message) {
       toast({
@@ -152,10 +160,6 @@ export default function SettingsPage() {
         description: updateWeekendState.message,
         variant: updateWeekendState.success ? "default" : "destructive",
       });
-      // If the save was successful, re-fetch the data to ensure UI is in sync with DB
-      if (updateWeekendState.success) {
-        fetchAndUpdateWeekendSettings();
-      }
     }
   }, [updateWeekendState, toast]);
 
@@ -174,21 +178,21 @@ export default function SettingsPage() {
   };
 
   const handleWeekendDayChange = (dayValue: number, isChecked: boolean) => {
-    setWeekendDays(prev => {
+    setFormWeekendDays(prev => {
       const newSet = new Set(prev);
       if (isChecked) {
         newSet.add(dayValue);
       } else {
         newSet.delete(dayValue);
       }
-      return Array.from(newSet).sort((a,b) => a-b);
+      return Array.from(newSet);
     });
   };
   
   const handleSaveWeekend = (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       const formData = new FormData();
-      weekendDays.forEach(day => formData.append('weekend', day.toString()));
+      formWeekendDays.forEach(day => formData.append('weekend', day.toString()));
       startTransition(() => {
         updateWeekendAction(formData);
       });
@@ -203,9 +207,23 @@ export default function SettingsPage() {
             Settings
           </h1>
           <p className="text-muted-foreground">
-            Manage company-wide settings like official holidays and weekends.
+            Manage company-wide settings for holidays, weekends, and organization structure.
           </p>
         </header>
+
+        <Card className="shadow-lg">
+            <CardHeader>
+                <CardTitle>Organization Settings</CardTitle>
+                <CardDescription>Manage lists for departments, roles, and other organizational units.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <ListManager title="Departments" collectionName="departments" />
+                <ListManager title="Roles" collectionName="roles" />
+                <ListManager title="Group Names" collectionName="groupNames" />
+                <ListManager title="Systems" collectionName="systems" />
+                <ListManager title="Campuses" collectionName="campuses" />
+            </CardContent>
+        </Card>
         
         <Card className="shadow-lg">
           <CardHeader>
@@ -228,8 +246,7 @@ export default function SettingsPage() {
                       <div key={day.value} className="flex items-center space-x-2">
                         <Checkbox
                           id={`day-${day.value}`}
-                          value={day.value.toString()}
-                          checked={weekendDays.includes(day.value)}
+                          checked={formWeekendDays.includes(day.value)}
                           onCheckedChange={(isChecked) => {
                             handleWeekendDayChange(day.value, isChecked as boolean);
                           }}
@@ -244,7 +261,7 @@ export default function SettingsPage() {
                       {updateWeekendState.errors.form[0]}
                     </div>
                   }
-                  <Button type="submit" disabled={isUpdateWeekendPending}>
+                  <Button type="submit" disabled={isUpdateWeekendPending || !isWeekendDirty}>
                     {isUpdateWeekendPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
                     Save Weekend
                   </Button>

@@ -46,6 +46,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ImageUploader } from "@/components/image-uploader";
+import { useOrganizationLists, type ListItem } from "@/hooks/use-organization-lists";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 interface Employee {
@@ -54,6 +56,9 @@ interface Employee {
   employeeId: string; 
   department: string;
   role: string;
+  groupName: string;
+  system: string;
+  campus: string;
   email: string;
   phone: string;
   hourlyRate?: number;
@@ -129,6 +134,9 @@ const initialAddFormState = {
     email: "",
     department: "",
     role: "",
+    groupName: "",
+    system: "",
+    campus: "",
     phone: "",
     hourlyRate: "",
     dateOfBirth: undefined as Date | undefined,
@@ -140,9 +148,14 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
   const [formData, setFormData] = useState(initialAddFormState);
+  const { departments, roles, groupNames, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (name: keyof typeof initialAddFormState) => (value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -156,14 +169,11 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       });
       onSuccess();
     } else if (serverState.errors && serverState.errors.email) {
-      // If there's an email error, just show that toast. The field will be highlighted.
       toast({
         variant: "destructive",
         title: "Validation Error",
         description: serverState.errors.email.join(', '),
       });
-    } else if (serverState.errors && Object.keys(serverState.errors).length > 0) {
-        // For other errors, handle as needed, but the field-specific errors are now primary.
     }
   }, [serverState, toast, onSuccess]);
 
@@ -180,7 +190,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         action={formAction}
         className="flex flex-col overflow-hidden"
       >
-        <ScrollArea className="flex-grow min-h-[150px] max-h-[500px]">
+        <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-4 p-4 pr-6">
             <div className="space-y-2">
               <Label htmlFor="add-name">Full Name</Label>
@@ -192,18 +202,54 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" value={formData.email} onChange={handleInputChange} />
               {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
             </div>
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="add-department">Department</Label>
-                    <Input id="add-department" name="department" placeholder="e.g., Technology" value={formData.department} onChange={handleInputChange}/>
-                    {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="add-role">Role</Label>
-                    <Input id="add-role" name="role" placeholder="e.g., Software Developer" value={formData.role} onChange={handleInputChange} />
-                    {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
-                </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                  <Label htmlFor="add-department">Department</Label>
+                  <Select name="department" onValueChange={handleSelectChange('department')} value={formData.department} disabled={isLoadingLists}>
+                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Department"} /></SelectTrigger>
+                      <SelectContent>{departments.map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
+              </div>
+              <div className="space-y-2">
+                  <Label htmlFor="add-role">Role</Label>
+                  <Select name="role" onValueChange={handleSelectChange('role')} value={formData.role} disabled={isLoadingLists}>
+                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
+                      <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
+              </div>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                  <Label htmlFor="add-groupName">Group Name</Label>
+                  <Select name="groupName" onValueChange={handleSelectChange('groupName')} value={formData.groupName} disabled={isLoadingLists}>
+                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Group"} /></SelectTrigger>
+                      <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {serverState?.errors?.groupName && <p className="text-sm text-destructive">{serverState.errors.groupName.join(', ')}</p>}
+              </div>
+              <div className="space-y-2">
+                  <Label htmlFor="add-campus">Campus</Label>
+                   <Select name="campus" onValueChange={handleSelectChange('campus')} value={formData.campus} disabled={isLoadingLists}>
+                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger>
+                      <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {serverState?.errors?.campus && <p className="text-sm text-destructive">{serverState.errors.campus.join(', ')}</p>}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+                <Label htmlFor="add-system">System</Label>
+                <Select name="system" onValueChange={handleSelectChange('system')} value={formData.system} disabled={isLoadingLists}>
+                    <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger>
+                    <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                </Select>
+                {serverState?.errors?.system && <p className="text-sm text-destructive">{serverState.errors.system.join(', ')}</p>}
+            </div>
+            
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="add-phone">Phone</Label>
@@ -279,6 +325,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; onSuccess: () => void }) {
   const { toast } = useToast();
   const [serverState, formAction, isPending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
+  const { departments, roles, groupNames, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
   const [formClientError, setFormClientError] = useState<string | null>(null);
 
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(employee.dateOfBirth?.toDate());
@@ -297,7 +344,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
     } else if (serverState.errors?.form) {
       setFormClientError(serverState.errors.form.join(', '));
     } else if (serverState.errors && Object.keys(serverState.errors).length > 0) {
-      // This is now only for the general error display, specific errors are handled inline.
       const fieldErrors = Object.values(serverState.errors).flat().filter(Boolean).join('; ');
       setFormClientError(fieldErrors || "An error occurred while updating. Please check the details.");
     }
@@ -334,21 +380,57 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
               {serverState?.errors?.name && <p className="text-sm text-destructive">{serverState.errors.name.join(', ')}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-employeeIdDisplay">Employee ID (Company Given)</Label>
+              <Label htmlFor="edit-employeeIdDisplay">Employee ID</Label>
               <Input id="edit-employeeIdDisplay" name="employeeIdDisplay" defaultValue={employee.employeeId} readOnly className="bg-muted/50" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                <Label htmlFor="edit-department">Department</Label>
-                <Input id="edit-department" name="department" defaultValue={employee.department}  />
-                {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                <Label htmlFor="edit-role">Role</Label>
-                <Input id="edit-role" name="role" defaultValue={employee.role}  />
-                {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
-                </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="space-y-2">
+                  <Label htmlFor="edit-department">Department</Label>
+                  <Select name="department" defaultValue={employee.department} disabled={isLoadingLists}>
+                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Department"} /></SelectTrigger>
+                      <SelectContent>{departments.map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
+              </div>
+              <div className="space-y-2">
+                  <Label htmlFor="edit-role">Role</Label>
+                  <Select name="role" defaultValue={employee.role} disabled={isLoadingLists}>
+                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
+                      <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
+              </div>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                  <Label htmlFor="edit-groupName">Group Name</Label>
+                  <Select name="groupName" defaultValue={employee.groupName} disabled={isLoadingLists}>
+                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Group"} /></SelectTrigger>
+                      <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {serverState?.errors?.groupName && <p className="text-sm text-destructive">{serverState.errors.groupName.join(', ')}</p>}
+              </div>
+              <div className="space-y-2">
+                  <Label htmlFor="edit-campus">Campus</Label>
+                   <Select name="campus" defaultValue={employee.campus} disabled={isLoadingLists}>
+                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger>
+                      <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {serverState?.errors?.campus && <p className="text-sm text-destructive">{serverState.errors.campus.join(', ')}</p>}
+              </div>
+            </div>
+
+             <div className="space-y-2">
+                <Label htmlFor="edit-system">System</Label>
+                <Select name="system" defaultValue={employee.system} disabled={isLoadingLists}>
+                    <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger>
+                    <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                </Select>
+                {serverState?.errors?.system && <p className="text-sm text-destructive">{serverState.errors.system.join(', ')}</p>}
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                 <Label htmlFor="edit-email">Email</Label>
@@ -809,11 +891,9 @@ export default function EmployeeManagementPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Employee ID</TableHead>
-                  <TableHead>Department</TableHead>
                   <TableHead>Role</TableHead>
-                  <TableHead>Age</TableHead>
-                  <TableHead>Joining Date</TableHead>
-                  <TableHead>Leaving Date</TableHead>
+                  <TableHead>Group Name</TableHead>
+                  <TableHead>Campus</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Account</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -833,11 +913,9 @@ export default function EmployeeManagementPage() {
                         </div>
                       </TableCell>
                       <TableCell>{employee.employeeId}</TableCell>
-                      <TableCell>{employee.department}</TableCell>
                       <TableCell>{employee.role}</TableCell>
-                      <TableCell>{calculateAge(employee.dateOfBirth) ?? '-'}</TableCell>
-                      <TableCell>{employee.joiningDate ? format(employee.joiningDate.toDate(), "PPP") : '-'}</TableCell>
-                      <TableCell>{employee.leavingDate ? format(employee.leavingDate.toDate(), "PPP") : '-'}</TableCell>
+                      <TableCell>{employee.groupName}</TableCell>
+                      <TableCell>{employee.campus}</TableCell>
                       <TableCell>
                         <EmployeeStatusBadge status={employee.displayStatus} />
                       </TableCell>
@@ -890,7 +968,7 @@ export default function EmployeeManagementPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={10} className="h-24 text-center">
+                    <TableCell colSpan={8} className="h-24 text-center">
                       {searchTerm ? "No employees found matching your search." : "No employees found. Try adding some!"}
                     </TableCell>
                   </TableRow>
