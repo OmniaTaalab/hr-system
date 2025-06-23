@@ -42,5 +42,5 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     };
   }, [locale]);
 
-  return <I18nProviderClient locale={locale} key={locale}>{children}</I18nProviderClient>;
+  return <I18nProviderClient locale={locale}>{children}</I18nProviderClient>;
 }
