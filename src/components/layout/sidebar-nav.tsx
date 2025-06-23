@@ -12,18 +12,24 @@ import {
 import { Icons } from "@/components/icons";
 import { siteConfig } from "@/config/site";
 import { iconMap } from "@/components/icon-map";
-import { useI18n } from "@/lib/i18n";
+
+function formatI18nKey(key: string): string {
+  if (!key) return "";
+  // Converts "sidebar.employee_management" to "Employee Management"
+  return key.split('.')[1]
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, l => l.toUpperCase());
+}
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const t = useI18n();
 
   return (
     <nav className="grid items-start gap-2">
       <SidebarMenu>
         {siteConfig.navItems.map((item, index) => {
           const IconComponent = iconMap[item.iconName];
-          const title = t(item.i18nKey as any);
+          const title = formatI18nKey(item.i18nKey);
           return (
             item.href && (
               <SidebarMenuItem key={index}>

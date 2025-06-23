@@ -4,8 +4,6 @@ import { Inter, Space_Grotesk } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
-import { I18nProvider } from '@/components/i18n-provider';
-import { cookies } from 'next/headers';
 
 const fontInter = Inter({
   subsets: ['latin'],
@@ -27,12 +25,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = cookies();
-  const locale = cookieStore.get('NEXT_LOCALE')?.value || 'en';
-  const dir = locale === 'ar' ? 'rtl' : 'ltr';
-
   return (
-    <html lang={locale} dir={dir} suppressHydrationWarning>
+    <html lang="en" dir="ltr" suppressHydrationWarning>
       <head>
         {/* Keep existing Google Fonts links if any, or rely on next/font */}
         {/* Example: <link href="https://fonts.googleapis.com/css2?family=Inter&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" /> */}
@@ -44,10 +38,8 @@ export default function RootLayout({
           fontSpaceGrotesk.variable
         )}
       >
-        <I18nProvider locale={locale}>
-          {children}
-          <Toaster />
-        </I18nProvider>
+        {children}
+        <Toaster />
       </body>
     </html>
   );
