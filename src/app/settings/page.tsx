@@ -48,13 +48,6 @@ const daysOfWeek = [
   { label: 'Saturday', value: 6 },
 ];
 
-function areArraysEqual(arr1: number[], arr2: number[]): boolean {
-    if (arr1.length !== arr2.length) return false;
-    const sorted1 = [...arr1].sort();
-    const sorted2 = [...arr2].sort();
-    return sorted1.every((value, index) => value === sorted2[index]);
-}
-
 export default function SettingsPage() {
   const { toast } = useToast();
   
@@ -66,7 +59,6 @@ export default function SettingsPage() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // --- WEEKEND STATE (REFACTORED) ---
-  const [savedWeekendDays, setSavedWeekendDays] = useState<number[]>([]);
   const [formWeekendDays, setFormWeekendDays] = useState<number[]>([]);
   const [isLoadingWeekend, setIsLoadingWeekend] = useState(true);
   
@@ -108,24 +100,23 @@ export default function SettingsPage() {
   useEffect(() => {
     setIsLoadingWeekend(true);
     const settingsRef = doc(db, "settings", "weekend");
+
     const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
         const daysFromDb = (docSnap.exists() && Array.isArray(docSnap.data().days))
-            ? docSnap.data().days
-            : [5, 6]; // Default
+            ? docSnap.data().days.sort((a: number, b: number) => a - b)
+            : [5, 6]; // Default to Friday, Saturday
             
-        setSavedWeekendDays(daysFromDb);
-        setFormWeekendDays(daysFromDb); // Sync form state with the newly fetched saved state
+        setFormWeekendDays(daysFromDb);
         setIsLoadingWeekend(false);
     }, (error) => {
         console.error("Failed to fetch weekend settings", error);
         toast({ variant: 'destructive', title: 'Error', description: 'Could not load weekend settings.' });
-        setSavedWeekendDays([5, 6]);
         setFormWeekendDays([5, 6]);
         setIsLoadingWeekend(false);
     });
 
     return () => unsubscribe();
-  }, [toast]); // Run only on mount
+  }, []); // Run only once on component mount
 
   // Toasts for action completions
   useEffect(() => {
@@ -152,17 +143,15 @@ export default function SettingsPage() {
   }, [deleteState, toast]);
   
   useEffect(() => {
+    // Only show toast if a message exists from the action state
     if (updateWeekendState?.message) {
       toast({
         title: updateWeekendState.success ? "Success" : "Error",
         description: updateWeekendState.message,
         variant: updateWeekendState.success ? "default" : "destructive",
       });
-      // The onSnapshot listener will handle re-syncing the state, no need to set dirty state here.
     }
   }, [updateWeekendState, toast]);
-
-  const isWeekendFormDirty = !areArraysEqual(savedWeekendDays, formWeekendDays);
 
   // --- HANDLER FUNCTIONS ---
   const handleAddHoliday = (e: React.FormEvent<HTMLFormElement>) => {
@@ -186,7 +175,7 @@ export default function SettingsPage() {
       } else {
         newSet.delete(dayValue);
       }
-      return Array.from(newSet).sort();
+      return Array.from(newSet).sort((a,b) => a-b);
     });
   };
   
@@ -219,7 +208,7 @@ export default function SettingsPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
                     {daysOfWeek.map(day => (
                       <div key={day.value} className="flex items-center space-x-2">
                         <Checkbox
@@ -241,7 +230,7 @@ export default function SettingsPage() {
                       {updateWeekendState.errors.form[0]}
                     </div>
                   }
-                  <Button type="submit" disabled={!isWeekendFormDirty || isUpdateWeekendPending}>
+                  <Button type="submit" disabled={isUpdateWeekendPending}>
                     {isUpdateWeekendPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
                     Save Weekend
                   </Button>
