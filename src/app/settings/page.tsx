@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useActionState, useMemo } from 'react';
+import React, { useState, useEffect, useActionState, useMemo, useTransition } from 'react';
 import { AppLayout } from "@/components/layout/app-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,7 @@ export default function SettingsPage() {
   // useActionState for form submissions
   const [addState, addAction, isAddPending] = useActionState(addHolidayAction, initialHolidayState);
   const [deleteState, deleteAction, isDeletePending] = useActionState(deleteHolidayAction, initialHolidayState);
+  const [_isPending, startTransition] = useTransition();
 
   // Fetch holidays for the selected year
   useEffect(() => {
@@ -102,13 +103,9 @@ export default function SettingsPage() {
     }
     const formData = new FormData(e.currentTarget);
     formData.append('date', addHolidayForm.date.toISOString());
-    addAction(formData);
-  };
-  
-  const handleDeleteHoliday = (holidayId: string) => {
-    const formData = new FormData();
-    formData.append('holidayId', holidayId);
-    deleteAction(formData);
+    startTransition(() => {
+      addAction(formData);
+    });
   };
 
   return (
@@ -221,7 +218,8 @@ export default function SettingsPage() {
                           <TableCell>{format(holiday.date.toDate(), 'PPP')}</TableCell>
                           <TableCell className="font-medium">{holiday.name}</TableCell>
                           <TableCell className="text-right">
-                            <form action={() => handleDeleteHoliday(holiday.id)}>
+                            <form action={deleteAction}>
+                                <input type="hidden" name="holidayId" value={holiday.id} />
                                 <Button type="submit" variant="ghost" size="icon" disabled={isDeletePending} aria-label="Delete holiday">
                                     <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
