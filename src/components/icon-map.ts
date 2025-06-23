@@ -34,6 +34,7 @@ import {
   Sheet, // Added Sheet icon for reports
   UserPlus,
   KeyRound,
+  FileDown,
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -70,4 +71,5 @@ export const iconMap: { [key: string]: LucideIcon } = {
   Sheet, // Added Sheet icon for reports
   UserPlus,
   KeyRound,
+  FileDown,
 };

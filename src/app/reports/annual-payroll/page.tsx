@@ -30,7 +30,10 @@ import {
   min as dateMin,
   getMonth
 } from 'date-fns';
-import { Loader2, Sheet as SheetIcon, DollarSign, CalendarDays, Briefcase } from "lucide-react";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+import { Loader2, Sheet as SheetIcon, DollarSign, CalendarDays, Briefcase, FileDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Employee {
@@ -221,6 +224,100 @@ export default function AnnualPayrollReportPage() {
     if (value === null || value === undefined || isNaN(value)) return "-";
     return `$${value.toFixed(2)}`;
   };
+  
+  const handleExportExcel = () => {
+    if (reportData.length === 0) {
+      toast({
+        title: "No Data",
+        description: "There is no data to export.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const headers = [
+      "Employee Name",
+      "Employee ID",
+      ...monthLabels,
+      "Total Work Hours",
+      "Total Leave Days",
+      "Total Net Salary"
+    ];
+
+    const data = reportData.map(emp => [
+      emp.employeeName,
+      emp.companyEmployeeId,
+      ...emp.monthlySalaries.map(s => s.salary ?? 'N/A'),
+      emp.totalAnnualWorkHours,
+      emp.totalAnnualLeaveDays,
+      emp.totalAnnualNetSalary
+    ]);
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Payroll Report");
+
+    const columnWidths = headers.map((header, i) => {
+        let maxLength = header.length;
+        if(i > 1 && i < 14) {
+            maxLength = 10;
+        } else {
+             const dataLengths = data.map(row => String(row[i]).length);
+             maxLength = Math.max(headerLength, ...dataLengths);
+        }
+        return { wch: maxLength + 2 };
+    });
+    worksheet['!cols'] = columnWidths;
+
+    XLSX.writeFile(workbook, `Annual_Payroll_Report_${selectedYear}.xlsx`);
+  };
+
+  const handleExportPDF = () => {
+    if (reportData.length === 0) {
+      toast({
+        title: "No Data",
+        description: "There is no data to export.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const doc = new jsPDF({
+      orientation: "landscape",
+    });
+
+    doc.setFontSize(18);
+    doc.text(`Annual Payroll Report - ${selectedYear}`, 14, 22);
+
+    const tableHeaders = [
+      "Employee Name",
+      "ID",
+      ...monthLabels,
+      "Total Hours",
+      "Leave Days",
+      "Total Salary"
+    ];
+
+    const tableData = reportData.map(emp => [
+      emp.employeeName,
+      emp.companyEmployeeId,
+      ...emp.monthlySalaries.map(s => formatCurrencyDisplay(s.salary)),
+      emp.totalAnnualWorkHours > 0 ? emp.totalAnnualWorkHours.toFixed(2) : "-",
+      emp.totalAnnualLeaveDays > 0 ? emp.totalAnnualLeaveDays : "-",
+      formatCurrencyDisplay(emp.totalAnnualNetSalary),
+    ]);
+
+    autoTable(doc, {
+      head: [tableHeaders],
+      body: tableData,
+      startY: 30,
+      styles: { fontSize: 5, cellPadding: 1.5 },
+      headStyles: { fontStyle: 'bold', fontSize: 6, halign: 'center' },
+      margin: { top: 30 }
+    });
+
+    doc.save(`Annual_Payroll_Report_${selectedYear}.pdf`);
+  };
 
   return (
     <AppLayout>
@@ -254,10 +351,24 @@ export default function AnnualPayrollReportPage() {
 
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle>Report for {selectedYear}</CardTitle>
-            <CardDescription>
-              Monthly net salaries and annual totals for each employee.
-            </CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div>
+                <CardTitle>Report for {selectedYear}</CardTitle>
+                <CardDescription>
+                  Monthly net salaries and annual totals for each employee.
+                </CardDescription>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <Button onClick={handleExportExcel} variant="outline" disabled={isLoadingReport || reportData.length === 0} className="w-full">
+                      <FileDown className="mr-2 h-4 w-4" />
+                      Export to Excel
+                  </Button>
+                  <Button onClick={handleExportPDF} variant="outline" disabled={isLoadingReport || reportData.length === 0} className="w-full">
+                      <FileDown className="mr-2 h-4 w-4" />
+                      Export to PDF
+                  </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {isLoadingEmployees || isLoadingReport ? (
