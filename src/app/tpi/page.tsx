@@ -13,7 +13,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, where, doc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, getDoc } from 'firestore';
 import { Loader2, Save, Trophy, User, Check } from "lucide-react";
 import { saveTpiDataAction, type TpiState } from "@/app/actions/tpi-actions";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -63,6 +63,7 @@ const initialFormValues = {
 export default function TpiPage() {
   const { toast } = useToast();
   const [serverState, formAction, isSaving] = useActionState(saveTpiDataAction, initialTpiState);
+  const [_isTransitionPending, startTransition] = useTransition();
   
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
@@ -164,7 +165,9 @@ export default function TpiPage() {
     }
     const formData = new FormData(event.currentTarget);
     formData.append('employeeDocId', selectedEmployee.id);
-    formAction(formData);
+    startTransition(() => {
+      formAction(formData);
+    });
   };
   
   const displayData = useMemo(() => {
