@@ -143,7 +143,6 @@ const UpdateEmployeeFormSchema = z.object({
   dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
   joiningDate: z.coerce.date({ required_error: "Joining date is required." }),
   leavingDate: z.string().optional().nullable(),
-  userId: z.string().optional(),
 });
 
 export type UpdateEmployeeState = {
@@ -159,7 +158,6 @@ export type UpdateEmployeeState = {
     dateOfBirth?: string[];
     joiningDate?: string[];
     leavingDate?: string[];
-    userId?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -181,7 +179,6 @@ export async function updateEmployeeAction(
     dateOfBirth: formData.get('dateOfBirth'),
     joiningDate: formData.get('joiningDate'),
     leavingDate: formData.get('leavingDate') || null,
-    userId: formData.get('userId') || undefined,
   });
 
   if (!validatedFields.success) {
@@ -193,7 +190,7 @@ export async function updateEmployeeAction(
 
   const { 
     employeeDocId, name, department, role, email, phone, status, hourlyRate,
-    dateOfBirth, joiningDate, leavingDate: leavingDateString, userId
+    dateOfBirth, joiningDate, leavingDate: leavingDateString
   } = validatedFields.data;
 
   try {
@@ -229,7 +226,6 @@ export async function updateEmployeeAction(
       dateOfBirth: Timestamp.fromDate(dateOfBirth),
       joiningDate: Timestamp.fromDate(joiningDate),
       leavingDate: finalLeavingDate, // Use the derived leaving date
-      userId: userId || null,
     };
     
     await updateDoc(employeeRef, updateData);

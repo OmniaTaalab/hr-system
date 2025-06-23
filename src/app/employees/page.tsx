@@ -427,13 +427,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                 <input type="hidden" name="leavingDate" value={leavingDate?.toISOString() ?? ''} />
                 {serverState?.errors?.leavingDate && <p className="text-sm text-destructive">{serverState.errors.leavingDate.join(', ')}</p>}
             </div>
-            <div className="space-y-2">
-                <Label htmlFor="edit-userId">Auth User ID (Optional)</Label>
-                <Input id="edit-userId" name="userId" defaultValue={employee.userId ?? ""} placeholder="Paste UID from Firebase Auth" />
-                <p className="text-xs text-muted-foreground">Link this employee to a Firebase Authentication user account.</p>
-                {serverState?.errors?.userId && <p className="text-sm text-destructive">{serverState.errors.userId.join(', ')}</p>}
-            </div>
-
+            
             {(formClientError || serverState?.errors?.form) && (
               <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
                 <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
