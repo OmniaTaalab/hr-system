@@ -21,7 +21,7 @@ import {
   type WeekendSettingsState
 } from "@/app/actions/settings-actions";
 import { db } from '@/lib/firebase/config';
-import { collection, query, where, onSnapshot, orderBy, Timestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, Timestamp, doc } from 'firebase/firestore';
 import { format, getYear } from 'date-fns';
 import { Calendar as CalendarIcon, PlusCircle, Trash2, Loader2, AlertCircle, Settings as SettingsIcon, Save } from 'lucide-react';
 import { cn } from "@/lib/utils";
@@ -48,6 +48,13 @@ const daysOfWeek = [
   { label: 'Saturday', value: 6 },
 ];
 
+function areArraysEqual(arr1: number[], arr2: number[]): boolean {
+    if (arr1.length !== arr2.length) return false;
+    const sorted1 = [...arr1].sort();
+    const sorted2 = [...arr2].sort();
+    return sorted1.every((value, index) => value === sorted2[index]);
+}
+
 export default function SettingsPage() {
   const { toast } = useToast();
   
@@ -58,10 +65,10 @@ export default function SettingsPage() {
   const [addHolidayForm, setAddHolidayForm] = useState<{name: string, date?: Date}>({ name: "" });
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  // --- WEEKEND STATE ---
-  const [weekendDays, setWeekendDays] = useState<number[]>([]);
+  // --- WEEKEND STATE (REFACTORED) ---
+  const [savedWeekendDays, setSavedWeekendDays] = useState<number[]>([]);
+  const [formWeekendDays, setFormWeekendDays] = useState<number[]>([]);
   const [isLoadingWeekend, setIsLoadingWeekend] = useState(true);
-  const [isWeekendFormDirty, setIsWeekendFormDirty] = useState(false);
   
   // --- ACTION STATES ---
   const [addState, addAction, isAddPending] = useActionState(addHolidayAction, initialHolidayState);
@@ -97,27 +104,28 @@ export default function SettingsPage() {
     return () => unsubscribe();
   }, [selectedYear, toast]);
 
-  // Fetch weekend settings on component mount
+  // Fetch and sync weekend settings
   useEffect(() => {
     setIsLoadingWeekend(true);
     const settingsRef = doc(db, "settings", "weekend");
     const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
-        if (docSnap.exists() && Array.isArray(docSnap.data().days)) {
-            setWeekendDays(docSnap.data().days);
-        } else {
-            setWeekendDays([5, 6]); 
-        }
+        const daysFromDb = (docSnap.exists() && Array.isArray(docSnap.data().days))
+            ? docSnap.data().days
+            : [5, 6]; // Default
+            
+        setSavedWeekendDays(daysFromDb);
+        setFormWeekendDays(daysFromDb); // Sync form state with the newly fetched saved state
         setIsLoadingWeekend(false);
-        setIsWeekendFormDirty(false); // Reset dirty state on fetch
     }, (error) => {
         console.error("Failed to fetch weekend settings", error);
         toast({ variant: 'destructive', title: 'Error', description: 'Could not load weekend settings.' });
-        setWeekendDays([5, 6]);
+        setSavedWeekendDays([5, 6]);
+        setFormWeekendDays([5, 6]);
         setIsLoadingWeekend(false);
     });
 
     return () => unsubscribe();
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, [toast]); // Run only on mount
 
   // Toasts for action completions
   useEffect(() => {
@@ -150,12 +158,11 @@ export default function SettingsPage() {
         description: updateWeekendState.message,
         variant: updateWeekendState.success ? "default" : "destructive",
       });
-      if (updateWeekendState.success) {
-        setIsWeekendFormDirty(false); // Reset dirty state on successful save
-      }
+      // The onSnapshot listener will handle re-syncing the state, no need to set dirty state here.
     }
   }, [updateWeekendState, toast]);
 
+  const isWeekendFormDirty = !areArraysEqual(savedWeekendDays, formWeekendDays);
 
   // --- HANDLER FUNCTIONS ---
   const handleAddHoliday = (e: React.FormEvent<HTMLFormElement>) => {
@@ -172,7 +179,7 @@ export default function SettingsPage() {
   };
   
   const handleWeekendDayChange = (dayValue: number, isChecked: boolean) => {
-    setWeekendDays(prev => {
+    setFormWeekendDays(prev => {
       const newSet = new Set(prev);
       if (isChecked) {
         newSet.add(dayValue);
@@ -181,7 +188,6 @@ export default function SettingsPage() {
       }
       return Array.from(newSet).sort();
     });
-    setIsWeekendFormDirty(true);
   };
   
   return (
@@ -220,7 +226,7 @@ export default function SettingsPage() {
                           id={`day-${day.value}`}
                           name="weekend"
                           value={day.value.toString()}
-                          checked={weekendDays.includes(day.value)}
+                          checked={formWeekendDays.includes(day.value)}
                           onCheckedChange={(isChecked) => {
                             handleWeekendDayChange(day.value, isChecked as boolean);
                           }}
