@@ -53,6 +53,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 interface Employee {
   id: string; 
   name: string;
+  firstName?: string;
+  lastName?: string;
   employeeId: string; 
   department: string;
   role: string;
@@ -130,7 +132,8 @@ const initialUpdatePasswordState: UpdateAuthPasswordState = {
 
 
 const initialAddFormState = {
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
     department: "",
     role: "",
@@ -192,10 +195,17 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       >
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-4 p-4 pr-6">
-            <div className="space-y-2">
-              <Label htmlFor="add-name">Full Name</Label>
-              <Input id="add-name" name="name" placeholder="e.g., John Doe" value={formData.name} onChange={handleInputChange} />
-              {serverState?.errors?.name && <p className="text-sm text-destructive">{serverState.errors.name.join(', ')}</p>}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="add-firstName">First Name</Label>
+                  <Input id="add-firstName" name="firstName" placeholder="e.g., John" value={formData.firstName} onChange={handleInputChange} />
+                  {serverState?.errors?.firstName && <p className="text-sm text-destructive">{serverState.errors.firstName.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-lastName">Last Name</Label>
+                  <Input id="add-lastName" name="lastName" placeholder="e.g., Doe" value={formData.lastName} onChange={handleInputChange} />
+                  {serverState?.errors?.lastName && <p className="text-sm text-destructive">{serverState.errors.lastName.join(', ')}</p>}
+                </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="add-email">Email</Label>
@@ -371,10 +381,17 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
               />
               <p className="text-xs text-muted-foreground">Upload a square image. Max 5MB. Photo updates are saved immediately.</p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Full Name</Label>
-              <Input id="edit-name" name="name" defaultValue={employee.name}  />
-              {serverState?.errors?.name && <p className="text-sm text-destructive">{serverState.errors.name.join(', ')}</p>}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="edit-firstName">First Name</Label>
+                    <Input id="edit-firstName" name="firstName" defaultValue={employee.firstName || employee.name.split(' ')[0] || ''}  />
+                    {serverState?.errors?.firstName && <p className="text-sm text-destructive">{serverState.errors.firstName.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="edit-lastName">Last Name</Label>
+                    <Input id="edit-lastName" name="lastName" defaultValue={employee.lastName || employee.name.split(' ').slice(1).join(' ') || ''}  />
+                    {serverState?.errors?.lastName && <p className="text-sm text-destructive">{serverState.errors.lastName.join(', ')}</p>}
+                </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-employeeIdDisplay">Employee ID</Label>

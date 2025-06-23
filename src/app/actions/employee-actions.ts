@@ -9,7 +9,8 @@ import { isValid } from 'date-fns';
 
 // Schema for validating form data for creating an employee
 const CreateEmployeeFormSchema = z.object({
-  name: z.string().min(1, "Full name is required."),
+  firstName: z.string().min(1, "First name is required."),
+  lastName: z.string().min(1, "Last name is required."),
   email: z.string().email({ message: 'Invalid email address.' }),
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
@@ -30,7 +31,8 @@ const CreateEmployeeFormSchema = z.object({
 
 export type CreateEmployeeState = {
   errors?: {
-    name?: string[];
+    firstName?: string[];
+    lastName?: string[];
     email?: string[];
     department?: string[];
     role?: string[];
@@ -51,7 +53,8 @@ export async function createEmployeeAction(
   formData: FormData
 ): Promise<CreateEmployeeState> {
   const validatedFields = CreateEmployeeFormSchema.safeParse({
-    name: formData.get('name'),
+    firstName: formData.get('firstName'),
+    lastName: formData.get('lastName'),
     email: formData.get('email'),
     department: formData.get('department'),
     role: formData.get('role'),
@@ -71,7 +74,8 @@ export async function createEmployeeAction(
     };
   }
 
-  const { name, email, department, role, groupName, system, campus, phone, hourlyRate, dateOfBirth, joiningDate } = validatedFields.data;
+  const { firstName, lastName, email, department, role, groupName, system, campus, phone, hourlyRate, dateOfBirth, joiningDate } = validatedFields.data;
+  const name = `${firstName} ${lastName}`;
 
   try {
     const employeeCollectionRef = collection(db, "employee");
@@ -93,6 +97,8 @@ export async function createEmployeeAction(
 
     const employeeData = {
       name,
+      firstName,
+      lastName,
       email,
       employeeId,
       department,
@@ -137,7 +143,8 @@ export async function createEmployeeAction(
 // Schema for validating form data for updating an employee
 const UpdateEmployeeFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee document ID is required."), // Firestore document ID
-  name: z.string().min(1, "Full name is required."),
+  firstName: z.string().min(1, "First name is required."),
+  lastName: z.string().min(1, "Last name is required."),
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
   groupName: z.string().min(1, "Group Name is required."),
@@ -161,7 +168,8 @@ const UpdateEmployeeFormSchema = z.object({
 export type UpdateEmployeeState = {
   errors?: {
     employeeDocId?: string[];
-    name?: string[];
+    firstName?: string[];
+    lastName?: string[];
     department?: string[];
     role?: string[];
     groupName?: string[];
@@ -185,7 +193,8 @@ export async function updateEmployeeAction(
 ): Promise<UpdateEmployeeState> {
   const validatedFields = UpdateEmployeeFormSchema.safeParse({
     employeeDocId: formData.get('employeeDocId'),
-    name: formData.get('name'),
+    firstName: formData.get('firstName'),
+    lastName: formData.get('lastName'),
     department: formData.get('department'),
     role: formData.get('role'),
     groupName: formData.get('groupName'),
@@ -208,9 +217,11 @@ export async function updateEmployeeAction(
   }
 
   const { 
-    employeeDocId, name, department, role, groupName, system, campus, email, phone, status, hourlyRate,
+    employeeDocId, firstName, lastName, department, role, groupName, system, campus, email, phone, status, hourlyRate,
     dateOfBirth, joiningDate, leavingDate: leavingDateString
   } = validatedFields.data;
+
+  const name = `${firstName} ${lastName}`;
 
   try {
     const employeeRef = doc(db, "employee", employeeDocId);
@@ -236,6 +247,8 @@ export async function updateEmployeeAction(
     // Using 'any' to build the update object dynamically
     const updateData: { [key: string]: any } = {
       name,
+      firstName,
+      lastName,
       department,
       role,
       groupName,
