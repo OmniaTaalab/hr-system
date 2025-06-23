@@ -4,7 +4,6 @@
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, doc, Timestamp, setDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { revalidatePath } from 'next/cache';
 
 // --- HOLIDAY SETTINGS ---
 
@@ -63,7 +62,6 @@ export async function addHolidayAction(
       createdAt: serverTimestamp(),
     });
 
-    revalidatePath("/settings"); // Revalidate to show new holiday in the list
     return { success: true, message: `Holiday "${name}" added successfully.` };
   } catch (error: any) {
     return {
@@ -132,9 +130,7 @@ export async function updateWeekendSettingsAction(
   
   try {
     const settingsRef = doc(db, "settings", "weekend");
-    // Use setDoc with merge: true to create or update the document without overwriting other fields if they exist.
-    await setDoc(settingsRef, { days: weekendDays }, { merge: true }); 
-
+    await setDoc(settingsRef, { days: weekendDays }, { merge: true });
     return { success: true, message: "Weekend settings updated successfully." };
   } catch (error: any) {
     return {
@@ -144,6 +140,7 @@ export async function updateWeekendSettingsAction(
     };
   }
 }
+
 
 // Helper function to get weekend settings, can be used by other actions
 export async function getWeekendSettings(): Promise<number[]> {
@@ -170,8 +167,14 @@ const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "d
 const ManageItemSchema = z.object({
   collectionName: collectionNames,
   operation: z.enum(['add', 'update', 'delete']),
-  name: z.string().min(1, "Name cannot be empty.").optional(),
-  id: z.string().optional(),
+  name: z.preprocess(
+    (val) => (val === null || val === '' ? undefined : val),
+    z.string().min(1, "Name cannot be empty.").optional()
+  ),
+  id: z.preprocess(
+    (val) => (val === null ? undefined : val),
+    z.string().optional()
+  ),
 });
 
 export type ManageListItemState = {
@@ -215,7 +218,6 @@ export async function manageListItemAction(
           return { errors: { form: [`An item with the name "${name}" already exists.`] }, success: false };
         }
         await addDoc(collectionRef, { name });
-        // No revalidatePath needed, frontend uses onSnapshot for real-time updates
         return { success: true, message: `"${name}" added successfully.` };
 
       case 'update':
