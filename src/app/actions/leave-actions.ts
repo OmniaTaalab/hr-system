@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, Timestamp, deleteDoc } from 'firebase/firestore';
 import type { User } from 'firebase/auth'; // Assuming you might integrate auth later
+import { getWeekendSettings } from './settings-actions';
 
 // New helper function to calculate working days, excluding weekends and holidays
 async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<number> {
@@ -23,6 +24,10 @@ async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<num
   });
   const holidaySet = new Set(holidayDates);
 
+  // Fetch weekend settings
+  const weekendDays = await getWeekendSettings();
+  const weekendSet = new Set(weekendDays);
+
   let workingDays = 0;
   let currentDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
   const finalEndDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
@@ -30,7 +35,7 @@ async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<num
 
   while (currentDate <= finalEndDate) {
     const dayOfWeek = currentDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isWeekend = weekendSet.has(dayOfWeek);
 
     const dateStr = `${currentDate.getUTCFullYear()}-${(currentDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${currentDate.getUTCDate().toString().padStart(2, '0')}`;
     const isHoliday = holidaySet.has(dateStr);

@@ -3,8 +3,10 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, doc, Timestamp, setDoc, getDoc } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
+
+// --- HOLIDAY SETTINGS ---
 
 const HolidaySchema = z.object({
   name: z.string().min(2, "Holiday name must be at least 2 characters long."),
@@ -103,5 +105,61 @@ export async function deleteHolidayAction(
       message: `Error: ${error.message}`,
       success: false,
     };
+  }
+}
+
+// --- WEEKEND SETTINGS ---
+
+export type WeekendSettingsState = {
+  errors?: { form?: string[] };
+  message?: string | null;
+  success?: boolean;
+};
+
+// Action to update weekend settings
+export async function updateWeekendSettingsAction(
+  prevState: WeekendSettingsState,
+  formData: FormData
+): Promise<WeekendSettingsState> {
+  
+  const weekendDays = formData.getAll('weekend').map(day => parseInt(day as string, 10));
+
+  if (weekendDays.some(isNaN)) {
+     return {
+      errors: { form: ["Invalid data submitted for weekend days."] },
+      success: false,
+    };
+  }
+  
+  try {
+    const settingsRef = doc(db, "settings", "weekend");
+    // Use setDoc with merge: true to create or update the document without overwriting other fields if they exist.
+    await setDoc(settingsRef, { days: weekendDays }, { merge: true }); 
+
+    revalidatePath("/settings");
+    return { success: true, message: "Weekend settings updated successfully." };
+  } catch (error: any) {
+    return {
+      errors: { form: ["Failed to update weekend settings."] },
+      message: `Error: ${error.message}`,
+      success: false,
+    };
+  }
+}
+
+// Helper function to get weekend settings, can be used by other actions
+export async function getWeekendSettings(): Promise<number[]> {
+  try {
+    const settingsRef = doc(db, "settings", "weekend");
+    const docSnap = await getDoc(settingsRef);
+
+    if (docSnap.exists() && Array.isArray(docSnap.data().days)) {
+      return docSnap.data().days as number[];
+    }
+    // Default to Friday and Saturday as per user request
+    return [5, 6]; 
+  } catch (error) {
+    console.error("Error fetching weekend settings, using default:", error);
+    return [5, 6]; // Default on error
   }
 }
