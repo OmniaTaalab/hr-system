@@ -30,20 +30,22 @@ import { Label } from "@/components/ui/label";
 import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, type UpdateEmployeeState } from "@/app/actions/employee-actions";
+import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, type UpdateEmployeeState, deleteEmployeeAction, type DeleteEmployeeState } from "@/app/actions/employee-actions";
 import { 
   createAuthUserForEmployeeAction, type CreateAuthUserState,
   deleteAuthUserAction, type DeleteAuthUserState,
   updateAuthUserPasswordAction, type UpdateAuthPasswordState
 } from "@/app/actions/auth-creation-actions";
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, deleteDoc, doc, Timestamp, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, Timestamp, where } from 'firebase/firestore';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ImageUploader } from "@/components/image-uploader";
 
 
 interface Employee {
@@ -57,6 +59,7 @@ interface Employee {
   hourlyRate?: number;
   status: "Active" | "On Leave" | "Terminated";
   userId?: string | null;
+  photoURL?: string | null;
   dateOfBirth?: Timestamp;
   joiningDate?: Timestamp;
   leavingDate?: Timestamp | null;
@@ -103,6 +106,12 @@ const initialCreateAuthState: CreateAuthUserState = {
 };
 
 const initialDeleteAuthState: DeleteAuthUserState = {
+  message: null,
+  errors: {},
+  success: false,
+};
+
+const initialDeleteEmployeeState: DeleteEmployeeState = {
   message: null,
   errors: {},
   success: false,
@@ -299,7 +308,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
       <AlertDialogHeader>
         <AlertDialogTitle>Edit Employee: {employee.name}</AlertDialogTitle>
         <AlertDialogDescription>
-          Update the details for {employee.name}.
+          Update the details for {employee.name}. Photo is updated separately.
         </AlertDialogDescription>
       </AlertDialogHeader>
       <form
@@ -308,8 +317,17 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         className="flex flex-col overflow-hidden"
       >
         <input type="hidden" name="employeeDocId" defaultValue={employee.id} />
-        <ScrollArea className="flex-grow min-h-[150px] max-h-[500px]">
+        <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-4 p-4 pr-6">
+            <div className="space-y-2">
+              <Label>Employee Photo</Label>
+              <ImageUploader 
+                employeeId={employee.id} 
+                employeeName={employee.name}
+                currentPhotoUrl={employee.photoURL} 
+              />
+              <p className="text-xs text-muted-foreground">Upload a square image. Max 5MB. Photo updates are saved immediately.</p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="edit-name">Full Name</Label>
               <Input id="edit-name" name="name" defaultValue={employee.name}  />
@@ -457,6 +475,7 @@ export default function EmployeeManagementPage() {
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+  const [deleteState, deleteAction, isDeletePending] = useActionState(deleteEmployeeAction, initialDeleteEmployeeState);
 
   const [isCreateLoginDialogOpen, setIsCreateLoginDialogOpen] = useState(false);
   const [employeeToCreateLogin, setEmployeeToCreateLogin] = useState<Employee | null>(null);
@@ -563,6 +582,24 @@ export default function EmployeeManagementPage() {
         }
     }
   }, [deleteLoginServerState, toast]);
+  
+  useEffect(() => {
+    if (deleteState?.message) {
+      if (deleteState.success) {
+        toast({
+          title: "Employee Deleted",
+          description: deleteState.message,
+        });
+        closeDeleteConfirmDialog();
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Deletion Failed",
+          description: deleteState.errors?.form?.join(", ") || deleteState.message,
+        });
+      }
+    }
+  }, [deleteState, toast]);
 
   useEffect(() => {
     if (changePasswordServerState?.message) {
@@ -677,26 +714,6 @@ export default function EmployeeManagementPage() {
     setIsChangePasswordDialogOpen(false);
     setShowPassword(false);
   };
-
-  const confirmDeleteEmployee = async () => {
-    if (!employeeToDelete) return;
-    try {
-      await deleteDoc(doc(db, "employee", employeeToDelete.id));
-      toast({
-        title: "Employee Deleted",
-        description: `Employee ${employeeToDelete.name} has been removed successfully.`,
-      });
-    } catch (error) {
-      console.error("Error deleting employee: ", error);
-      toast({
-        variant: "destructive",
-        title: "Error Deleting Employee",
-        description: `Could not delete ${employeeToDelete.name}. Please try again. Error: ${(error as Error).message}`,
-      });
-    } finally {
-      closeDeleteConfirmDialog();
-    }
-  };
   
   const calculateAge = (dobTimestamp?: Timestamp): number | null => {
     if (!dobTimestamp) return null;
@@ -710,6 +727,11 @@ export default function EmployeeManagementPage() {
     return age;
   };
   
+  const getInitials = (name?: string | null) => {
+    if (!name) return "U";
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  };
+
   return (
     <AppLayout>
       <div className="space-y-8">
@@ -807,7 +829,15 @@ export default function EmployeeManagementPage() {
                 {filteredEmployees.length > 0 ? (
                   filteredEmployees.map((employee) => (
                     <TableRow key={employee.id}>
-                      <TableCell className="font-medium">{employee.name}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-3">
+                          <Avatar>
+                              <AvatarImage src={employee.photoURL || undefined} alt={employee.name} />
+                              <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
+                          </Avatar>
+                          {employee.name}
+                        </div>
+                      </TableCell>
                       <TableCell>{employee.employeeId}</TableCell>
                       <TableCell>{employee.department}</TableCell>
                       <TableCell>{employee.role}</TableCell>
@@ -897,21 +927,29 @@ export default function EmployeeManagementPage() {
       {isDeleteDialogOpen && employeeToDelete && (
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => { if(!open) closeDeleteConfirmDialog(); else setIsDeleteDialogOpen(true); }}>
           <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the employee record for <strong>{employeeToDelete.name}</strong> (ID: {employeeToDelete.employeeId}).
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={closeDeleteConfirmDialog}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmDeleteEmployee}
-                className={cn(buttonVariants({ variant: "destructive" }), "bg-destructive text-destructive-foreground hover:bg-destructive/90")}
-              >
-                Delete Employee
-              </AlertDialogAction>
-            </AlertDialogFooter>
+            <form action={deleteAction}>
+                <input type="hidden" name="employeeDocId" value={employeeToDelete.id} />
+                <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete the employee record for <strong>{employeeToDelete.name}</strong> (ID: {employeeToDelete.employeeId}) and their profile photo.
+                </AlertDialogDescription>
+                </AlertDialogHeader>
+                {deleteState.errors?.form && (
+                    <p className="text-sm font-medium text-destructive mt-2">{deleteState.errors.form.join(", ")}</p>
+                )}
+                <AlertDialogFooter className="mt-4">
+                <AlertDialogCancel type="button" onClick={closeDeleteConfirmDialog}>Cancel</AlertDialogCancel>
+                <Button
+                    type="submit"
+                    className={cn(buttonVariants({ variant: "destructive" }), "bg-destructive text-destructive-foreground hover:bg-destructive/90")}
+                    disabled={isDeletePending}
+                >
+                    {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                    Delete Employee
+                </Button>
+                </AlertDialogFooter>
+            </form>
           </AlertDialogContent>
         </AlertDialog>
       )}

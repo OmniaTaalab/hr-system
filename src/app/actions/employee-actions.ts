@@ -3,7 +3,8 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer } from 'firebase/firestore';
+import { adminStorage } from '@/lib/firebase/admin-config';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc } from 'firebase/firestore';
 import { isValid } from 'date-fns';
 
 // Schema for validating form data for creating an employee
@@ -90,6 +91,7 @@ export async function createEmployeeAction(
       department,
       role,
       phone,
+      photoURL: null,
       hourlyRate: hourlyRate ?? 0,
       status: "Active", 
       dateOfBirth: Timestamp.fromDate(dateOfBirth),
@@ -247,5 +249,63 @@ export async function updateEmployeeAction(
       errors: { form: [specificErrorMessage] },
       message: 'Failed to update employee.',
     };
+  }
+}
+
+// --- Photo Management Actions ---
+
+export async function updateEmployeePhotoUrl(employeeDocId: string, photoURL: string | null) {
+  try {
+    const employeeRef = doc(db, "employee", employeeDocId);
+    await updateDoc(employeeRef, { photoURL });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating employee photo URL:', error);
+    return { success: false, message: `Failed to update photo URL: ${error.message}` };
+  }
+}
+
+export type DeleteEmployeeState = {
+  errors?: { form?: string[] };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function deleteEmployeeAction(
+  prevState: DeleteEmployeeState,
+  formData: FormData
+): Promise<DeleteEmployeeState> {
+  const employeeDocId = formData.get('employeeDocId') as string;
+
+  if (!employeeDocId) {
+    return { success: false, errors: {form: ["Employee ID is missing."]} };
+  }
+
+  try {
+    // 1. Delete photo from Firebase Storage if it exists
+    if (adminStorage) {
+      try {
+        const filePath = `employee-avatars/${employeeDocId}`;
+        const fileRef = adminStorage.bucket().file(filePath);
+        await fileRef.delete();
+      } catch (storageError: any) {
+        // If the file doesn't exist, we don't need to throw an error. Just log it.
+        if (storageError.code === 404) {
+          console.log(`File not found in storage for employee ${employeeDocId}. Proceeding with Firestore deletion.`);
+        } else {
+          // For other storage errors, we halt deletion and return an error.
+          console.error('Error deleting employee photo from storage:', storageError);
+          return { success: false, message: `Failed to delete employee photo: ${storageError.message}` };
+        }
+      }
+    }
+
+    // 2. Delete the employee document from Firestore
+    await deleteDoc(doc(db, "employee", employeeDocId));
+    
+    return { success: true, message: `Employee and associated data deleted successfully.` };
+  } catch (error: any) {
+    console.error('Error deleting employee:', error);
+    return { success: false, message: `Failed to delete employee: ${error.message}` };
   }
 }

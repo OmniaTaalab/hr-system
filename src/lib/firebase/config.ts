@@ -4,6 +4,7 @@ import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore"; // Corrected import path
 import { getAnalytics, type Analytics } from "firebase/analytics";
+import { getStorage, type Storage } from "firebase/storage";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -20,12 +21,14 @@ const firebaseConfig = {
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore; // Added Firestore instance
+let storage: Storage;
 let analytics: Analytics | null = null;
 
 if (!getApps().length) {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app); // Initialize Firestore
+  storage = getStorage(app);
   if (typeof window !== 'undefined') {
     try {
         analytics = getAnalytics(app);
@@ -37,6 +40,7 @@ if (!getApps().length) {
   app = getApps()[0];
   auth = getAuth(app);
   db = getFirestore(app); // Initialize Firestore if app already exists
+  storage = getStorage(app);
   if (typeof window !== 'undefined' && !analytics) {
      try {
         analytics = getAnalytics(app);
@@ -46,4 +50,4 @@ if (!getApps().length) {
   }
 }
 
-export { app, auth, db, analytics }; // Export db
+export { app, auth, db, storage, analytics }; // Export db and storage

@@ -5,9 +5,9 @@ if (!admin.apps.length) {
   try {
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
-    if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !privateKey) {
+    if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !privateKey || !process.env.FIREBASE_STORAGE_BUCKET) {
       // Don't throw an error during build time, just log it. The action will handle the missing envs at runtime.
-      console.warn("Firebase Admin SDK credentials missing in .env file. Auth creation features will fail.");
+      console.warn("Firebase Admin SDK credentials or storage bucket missing in .env file. Auth/Storage features may fail.");
     } else {
         admin.initializeApp({
           credential: admin.credential.cert({
@@ -15,6 +15,7 @@ if (!admin.apps.length) {
             clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
             privateKey: privateKey,
           }),
+          storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
         });
     }
   } catch (error) {
@@ -22,12 +23,9 @@ if (!admin.apps.length) {
   }
 }
 
-// Ensure auth is retrieved only if the app was initialized
+// Ensure services are retrieved only if the app was initialized
 const adminAuth = admin.apps.length ? admin.auth() : null;
 const adminDb = admin.apps.length ? admin.firestore() : null;
+const adminStorage = admin.apps.length ? admin.storage() : null;
 
-// The top-level error throw was removed from here.
-// The action that consumes adminAuth is now responsible for checking if it's null.
-// This prevents the entire server from crashing on startup if the admin SDK is not configured.
-
-export { adminAuth, adminDb };
+export { adminAuth, adminDb, adminStorage };

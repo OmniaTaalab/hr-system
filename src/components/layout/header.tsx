@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -17,33 +18,48 @@ import {
 import Link from "next/link";
 import { onAuthStateChanged, signOut, type User as FirebaseUser } from "firebase/auth";
 import { auth, db } from "@/lib/firebase/config";
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, onSnapshot, doc } from 'firebase/firestore';
 
 export function Header() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
+  const [userPhotoUrl, setUserPhotoUrl] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        // Fetch employee name from Firestore
+        // Now set up a real-time listener for the employee document
         const q = query(collection(db, "employee"), where("userId", "==", currentUser.uid), limit(1));
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-          const employeeDoc = querySnapshot.docs[0].data();
-          setUserName(employeeDoc.name);
-        } else {
-          // Fallback to display name from Auth, or a default
-          setUserName(currentUser.displayName || "User");
-        }
+        
+        const unsubscribeFirestore = onSnapshot(q, (querySnapshot) => {
+          if (!querySnapshot.empty) {
+            const employeeDoc = querySnapshot.docs[0].data();
+            setUserName(employeeDoc.name);
+            setUserPhotoUrl(employeeDoc.photoURL);
+          } else {
+            // Fallback to display name from Auth, or a default
+            setUserName(currentUser.displayName || "User");
+            setUserPhotoUrl(currentUser.photoURL);
+          }
+        }, (error) => {
+            console.error("Error fetching employee details in real-time:", error);
+            // Fallback in case of error
+            setUserName(currentUser.displayName || "User");
+            setUserPhotoUrl(currentUser.photoURL);
+        });
+
+        // Return the firestore unsubscribe function to be called when the auth state changes
+        return () => unsubscribeFirestore();
+
       } else {
         setUserName(null);
+        setUserPhotoUrl(null);
       }
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
   const handleLogout = async () => {
@@ -75,7 +91,7 @@ export function Header() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center space-x-2 px-2 py-1 h-auto">
                   <Avatar className="h-6 w-6">
-                    <AvatarImage src={user.photoURL || `https://placehold.co/40x40.png`} alt={userName || ""} data-ai-hint="user avatar"/>
+                    <AvatarImage src={userPhotoUrl || `https://placehold.co/40x40.png`} alt={userName || ""} data-ai-hint="user avatar"/>
                     <AvatarFallback>{getInitials(userName)}</AvatarFallback>
                   </Avatar>
                   <span className="text-sm font-medium hidden sm:inline">{userName || "Loading..."}</span>

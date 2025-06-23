@@ -34,6 +34,7 @@ interface EmployeeProfile {
   employeeId: string;
   phone: string;
   status: "Active" | "On Leave" | "Terminated";
+  photoURL?: string | null;
   dateOfBirth?: Timestamp;
   joiningDate?: Timestamp;
 }
@@ -337,7 +338,7 @@ export default function ProfilePage() {
                       ) : (
                           <>
                               <Avatar className="h-24 w-24 mb-4 border-2 border-primary shadow-md">
-                                  <AvatarImage src={authUser?.photoURL || `https://placehold.co/100x100.png`} alt={employeeProfile?.name || ""} data-ai-hint="profile picture" />
+                                  <AvatarImage src={employeeProfile?.photoURL || `https://placehold.co/100x100.png`} alt={employeeProfile?.name || ""} data-ai-hint="profile picture" />
                                   <AvatarFallback>{getInitials(employeeProfile?.name)}</AvatarFallback>
                               </Avatar>
                               <h2 className="text-xl font-semibold font-headline mt-2">{employeeProfile?.name || "N/A"}</h2>
