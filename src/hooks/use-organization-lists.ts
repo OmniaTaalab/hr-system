@@ -12,7 +12,6 @@ export interface ListItem {
 }
 
 export interface OrganizationLists {
-  departments: ListItem[];
   roles: ListItem[];
   groupNames: ListItem[];
   systems: ListItem[];
@@ -21,13 +20,12 @@ export interface OrganizationLists {
 }
 
 const listNames: (keyof Omit<OrganizationLists, 'isLoading'>)[] = [
-    'departments', 'roles', 'groupNames', 'systems', 'campuses'
+    'roles', 'groupNames', 'systems', 'campuses'
 ];
 
 export function useOrganizationLists(): OrganizationLists {
   const { toast } = useToast();
   const [lists, setLists] = useState<Omit<OrganizationLists, 'isLoading'>>({
-    departments: [],
     roles: [],
     groupNames: [],
     systems: [],

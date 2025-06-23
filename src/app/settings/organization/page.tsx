@@ -10,10 +10,9 @@ export default function OrganizationSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Organization Lists</CardTitle>
-          <CardDescription>Manage lists for departments, roles, and other organizational units used across the application.</CardDescription>
+          <CardDescription>Manage lists for roles, groups, and other organizational units used across the application.</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <ListManager title="Departments" collectionName="departments" />
           <ListManager title="Roles" collectionName="roles" />
           <ListManager title="Group Names" collectionName="groupNames" />
           <ListManager title="Systems" collectionName="systems" />

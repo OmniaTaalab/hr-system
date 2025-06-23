@@ -148,7 +148,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
   const [formData, setFormData] = useState(initialAddFormState);
-  const { departments, roles, groupNames, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, groupNames, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -205,12 +205,9 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                  <Label htmlFor="add-department">Department</Label>
-                  <Select name="department" onValueChange={handleSelectChange('department')} value={formData.department} disabled={isLoadingLists}>
-                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Department"} /></SelectTrigger>
-                      <SelectContent>{departments.map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
+                <Label htmlFor="add-department">Department</Label>
+                <Input id="add-department" name="department" placeholder="e.g., Technology" value={formData.department} onChange={handleInputChange} />
+                {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
               </div>
               <div className="space-y-2">
                   <Label htmlFor="add-role">Role</Label>
@@ -325,7 +322,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; onSuccess: () => void }) {
   const { toast } = useToast();
   const [serverState, formAction, isPending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
-  const { departments, roles, groupNames, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, groupNames, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
   const [formClientError, setFormClientError] = useState<string | null>(null);
 
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(employee.dateOfBirth?.toDate());
@@ -387,10 +384,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div className="space-y-2">
                   <Label htmlFor="edit-department">Department</Label>
-                  <Select name="department" defaultValue={employee.department} disabled={isLoadingLists}>
-                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Department"} /></SelectTrigger>
-                      <SelectContent>{departments.map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Input id="edit-department" name="department" defaultValue={employee.department} />
                   {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
               </div>
               <div className="space-y-2">

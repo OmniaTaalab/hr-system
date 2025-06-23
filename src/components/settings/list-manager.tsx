@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useActionState, useTransition, useRef } from 'react';
+import React, { useState, useEffect, useActionState, useMemo, useRef } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { Loader2, PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 
@@ -24,7 +24,7 @@ interface ListItem {
 
 interface ListManagerProps {
   title: string;
-  collectionName: "departments" | "roles" | "groupNames" | "systems" | "campuses";
+  collectionName: "roles" | "groupNames" | "systems" | "campuses";
 }
 
 const initialState: ManageListItemState = { success: false, message: null, errors: {} };
@@ -33,6 +33,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   const { toast } = useToast();
   const [items, setItems] = useState<ListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -90,6 +91,16 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
         };
       }
   }, [deleteState, toast]);
+
+  const filteredItems = useMemo(() => {
+    const lowercasedFilter = searchTerm.toLowerCase();
+    if (!searchTerm.trim()) {
+      return items;
+    }
+    return items.filter(item =>
+      item.name.toLowerCase().includes(lowercasedFilter)
+    );
+  }, [items, searchTerm]);
   
   return (
     <Card>
@@ -127,17 +138,27 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
+        <div className="relative mb-4">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+            type="search"
+            placeholder={`Search ${title}...`}
+            className="w-full pl-8"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            />
+        </div>
         {isLoading ? (
           <div className="space-y-2">
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
           </div>
-        ) : items.length > 0 ? (
+        ) : filteredItems.length > 0 ? (
           <div className="border rounded-md max-h-60 overflow-y-auto">
             <Table>
               <TableBody>
-                {items.map(item => (
+                {filteredItems.map(item => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell className="text-right space-x-0">
@@ -199,7 +220,9 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
             </Table>
           </div>
         ) : (
-          <p className="text-center text-muted-foreground py-4">No {title.toLowerCase()} added yet.</p>
+          <p className="text-center text-muted-foreground py-4">
+            {searchTerm ? `No results for "${searchTerm}"` : `No ${title.toLowerCase()} added yet.`}
+          </p>
         )}
       </CardContent>
     </Card>
