@@ -61,6 +61,7 @@ export default function SettingsPage() {
   // --- WEEKEND STATE ---
   const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [isLoadingWeekend, setIsLoadingWeekend] = useState(true);
+  const [isWeekendFormDirty, setIsWeekendFormDirty] = useState(false);
   
   // --- ACTION STATES ---
   const [addState, addAction, isAddPending] = useActionState(addHolidayAction, initialHolidayState);
@@ -96,7 +97,7 @@ export default function SettingsPage() {
     return () => unsubscribe();
   }, [selectedYear, toast]);
 
-  // Fetch weekend settings on component mount and listen for real-time updates
+  // Fetch weekend settings on component mount
   useEffect(() => {
     setIsLoadingWeekend(true);
     const settingsRef = doc(db, "settings", "weekend");
@@ -107,6 +108,7 @@ export default function SettingsPage() {
             setWeekendDays([5, 6]); 
         }
         setIsLoadingWeekend(false);
+        setIsWeekendFormDirty(false); // Reset dirty state on fetch
     }, (error) => {
         console.error("Failed to fetch weekend settings", error);
         toast({ variant: 'destructive', title: 'Error', description: 'Could not load weekend settings.' });
@@ -148,6 +150,9 @@ export default function SettingsPage() {
         description: updateWeekendState.message,
         variant: updateWeekendState.success ? "default" : "destructive",
       });
+      if (updateWeekendState.success) {
+        setIsWeekendFormDirty(false); // Reset dirty state on successful save
+      }
     }
   }, [updateWeekendState, toast]);
 
@@ -176,6 +181,7 @@ export default function SettingsPage() {
       }
       return Array.from(newSet).sort();
     });
+    setIsWeekendFormDirty(true);
   };
   
   return (
@@ -229,7 +235,7 @@ export default function SettingsPage() {
                       {updateWeekendState.errors.form[0]}
                     </div>
                   }
-                  <Button type="submit" disabled={isUpdateWeekendPending}>
+                  <Button type="submit" disabled={!isWeekendFormDirty || isUpdateWeekendPending}>
                     {isUpdateWeekendPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
                     Save Weekend
                   </Button>
