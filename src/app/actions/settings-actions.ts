@@ -136,7 +136,6 @@ export async function updateWeekendSettingsAction(
     // Use setDoc with merge: true to create or update the document without overwriting other fields if they exist.
     await setDoc(settingsRef, { days: weekendDays }, { merge: true }); 
 
-    revalidatePath("/settings");
     return { success: true, message: "Weekend settings updated successfully." };
   } catch (error: any) {
     return {
