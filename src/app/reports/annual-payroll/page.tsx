@@ -262,8 +262,8 @@ export default function AnnualPayrollReportPage() {
         if(i > 1 && i < 14) {
             maxLength = 10;
         } else {
-             const dataLengths = data.map(row => String(row[i]).length);
-             maxLength = Math.max(headerLength, ...dataLengths);
+             const dataLengths = data.map(row => String(row[i] ?? '').length);
+             maxLength = Math.max(header.length, ...dataLengths);
         }
         return { wch: maxLength + 2 };
     });
