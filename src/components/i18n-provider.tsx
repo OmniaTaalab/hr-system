@@ -5,19 +5,23 @@ import { getCookie } from 'cookies-next';
 import { useEffect, useState, type ReactNode } from 'react';
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  // Get initial locale from cookie or default to 'en'
-  const [locale, setLocale] = useState(() => {
-    // On the server, default to 'en' to avoid mismatch errors during hydration.
-    if (typeof window === 'undefined') return 'en';
-    
+  // On the server and for the initial client render, default to 'en' to prevent hydration mismatch.
+  const [locale, setLocale] = useState('en');
+
+  // After the component mounts on the client, check the cookie and update the locale.
+  useEffect(() => {
     const cookieLocale = getCookie('NEXT_LOCALE');
-    return typeof cookieLocale === 'string' && ['en', 'ar'].includes(cookieLocale) ? cookieLocale : 'en';
-  });
+    if (typeof cookieLocale === 'string' && ['en', 'ar'].includes(cookieLocale)) {
+      setLocale(cookieLocale as 'en' | 'ar');
+    }
+  }, []); // Empty dependency array ensures this runs only once on mount.
 
   useEffect(() => {
     // This effect ensures the document direction and lang are set correctly on the client side.
-    document.documentElement.lang = locale;
-    document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
+    if (typeof window !== 'undefined') {
+        document.documentElement.lang = locale;
+        document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
+    }
   }, [locale]);
   
   // This effect listens for cookie changes from other tabs
