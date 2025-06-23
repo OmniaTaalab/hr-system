@@ -17,6 +17,7 @@ import {
   addHolidayAction, 
   deleteHolidayAction, 
   updateWeekendSettingsAction,
+  getWeekendSettings, // Import the new helper function
   type HolidayState,
   type WeekendSettingsState
 } from "@/app/actions/settings-actions";
@@ -58,8 +59,8 @@ export default function SettingsPage() {
   const [addHolidayForm, setAddHolidayForm] = useState<{name: string, date?: Date}>({ name: "" });
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  // --- WEEKEND STATE (REFACTORED) ---
-  const [formWeekendDays, setFormWeekendDays] = useState<number[]>([]);
+  // --- WEEKEND STATE (NEW LOGIC) ---
+  const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [isLoadingWeekend, setIsLoadingWeekend] = useState(true);
   
   // --- ACTION STATES ---
@@ -68,7 +69,29 @@ export default function SettingsPage() {
   const [updateWeekendState, updateWeekendAction, isUpdateWeekendPending] = useActionState(updateWeekendSettingsAction, initialWeekendState);
   const [_isPending, startTransition] = useTransition();
 
-  // --- USE EFFECTS ---
+  // --- DATA FETCHING AND EFFECT LOGIC ---
+
+  // Initial fetch for weekend settings
+  const fetchAndUpdateWeekendSettings = async () => {
+    setIsLoadingWeekend(true);
+    try {
+      const days = await getWeekendSettings();
+      setWeekendDays(days);
+    } catch (error) {
+      console.error("Failed to fetch weekend settings", error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not load weekend settings.' });
+      setWeekendDays([5, 6]); // Fallback to default
+    } finally {
+      setIsLoadingWeekend(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAndUpdateWeekendSettings();
+    // This effect runs only once on mount to get the initial data.
+    // The eslint-disable is to prevent warnings about missing dependencies, which is intentional here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Fetch holidays for the selected year
   useEffect(() => {
@@ -96,27 +119,6 @@ export default function SettingsPage() {
     return () => unsubscribe();
   }, [selectedYear, toast]);
 
-  // Fetch and sync weekend settings
-  useEffect(() => {
-    setIsLoadingWeekend(true);
-    const settingsRef = doc(db, "settings", "weekend");
-
-    const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
-        const daysFromDb = (docSnap.exists() && Array.isArray(docSnap.data().days))
-            ? docSnap.data().days.sort((a: number, b: number) => a - b)
-            : [5, 6]; // Default to Friday, Saturday
-            
-        setFormWeekendDays(daysFromDb);
-        setIsLoadingWeekend(false);
-    }, (error) => {
-        console.error("Failed to fetch weekend settings", error);
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not load weekend settings.' });
-        setFormWeekendDays([5, 6]);
-        setIsLoadingWeekend(false);
-    });
-
-    return () => unsubscribe();
-  }, []); // Run only once on component mount
 
   // Toasts for action completions
   useEffect(() => {
@@ -142,14 +144,18 @@ export default function SettingsPage() {
     }
   }, [deleteState, toast]);
   
+  // Effect to handle weekend update response and re-fetch data
   useEffect(() => {
-    // Only show toast if a message exists from the action state
     if (updateWeekendState?.message) {
       toast({
         title: updateWeekendState.success ? "Success" : "Error",
         description: updateWeekendState.message,
         variant: updateWeekendState.success ? "default" : "destructive",
       });
+      // If the save was successful, re-fetch the data to ensure UI is in sync with DB
+      if (updateWeekendState.success) {
+        fetchAndUpdateWeekendSettings();
+      }
     }
   }, [updateWeekendState, toast]);
 
@@ -166,9 +172,9 @@ export default function SettingsPage() {
       addAction(formData);
     });
   };
-  
+
   const handleWeekendDayChange = (dayValue: number, isChecked: boolean) => {
-    setFormWeekendDays(prev => {
+    setWeekendDays(prev => {
       const newSet = new Set(prev);
       if (isChecked) {
         newSet.add(dayValue);
@@ -177,6 +183,15 @@ export default function SettingsPage() {
       }
       return Array.from(newSet).sort((a,b) => a-b);
     });
+  };
+  
+  const handleSaveWeekend = (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      const formData = new FormData();
+      weekendDays.forEach(day => formData.append('weekend', day.toString()));
+      startTransition(() => {
+        updateWeekendAction(formData);
+      });
   };
   
   return (
@@ -198,7 +213,7 @@ export default function SettingsPage() {
             <CardDescription>Select the days of the week that are considered the weekend. These days will be excluded from leave calculations.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form action={updateWeekendAction}>
+            <form onSubmit={handleSaveWeekend}>
               {isLoadingWeekend ? (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -213,9 +228,8 @@ export default function SettingsPage() {
                       <div key={day.value} className="flex items-center space-x-2">
                         <Checkbox
                           id={`day-${day.value}`}
-                          name="weekend"
                           value={day.value.toString()}
-                          checked={formWeekendDays.includes(day.value)}
+                          checked={weekendDays.includes(day.value)}
                           onCheckedChange={(isChecked) => {
                             handleWeekendDayChange(day.value, isChecked as boolean);
                           }}
