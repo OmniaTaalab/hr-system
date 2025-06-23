@@ -13,7 +13,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, where, doc, getDoc } from 'firestore';
+import { collection, onSnapshot, query, where, doc, getDoc } from 'firebase/firestore';
 import { Loader2, Save, Trophy, User, Check } from "lucide-react";
 import { saveTpiDataAction, type TpiState } from "@/app/actions/tpi-actions";
 import { Skeleton } from "@/components/ui/skeleton";
