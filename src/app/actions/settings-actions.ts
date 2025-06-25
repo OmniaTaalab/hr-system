@@ -162,7 +162,7 @@ export async function getWeekendSettings(): Promise<number[]> {
 
 // --- ORGANIZATION LISTS (DEPARTMENTS, ROLES, ETC.) ---
 
-const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "departments"]);
+const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes"]);
 
 const ManageItemSchema = z.object({
   collectionName: collectionNames,
