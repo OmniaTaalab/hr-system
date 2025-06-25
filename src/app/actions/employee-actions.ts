@@ -114,6 +114,7 @@ export async function createEmployeeAction(
       joiningDate: Timestamp.fromDate(joiningDate),
       leavingDate: null,
       userId: null,
+      leaveBalances: {}, // Initialize leave balances
       createdAt: serverTimestamp(),
     };
     
@@ -140,6 +141,9 @@ export async function createEmployeeAction(
   }
 }
 
+// Sub-schema for validating the parsed leave balances object
+const LeaveBalancesSchema = z.record(z.string(), z.coerce.number().nonnegative("Leave balance must be a non-negative number."));
+
 // Schema for validating form data for updating an employee
 const UpdateEmployeeFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee document ID is required."), // Firestore document ID
@@ -163,6 +167,7 @@ const UpdateEmployeeFormSchema = z.object({
   dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
   joiningDate: z.coerce.date({ required_error: "Joining date is required." }),
   leavingDate: z.string().optional().nullable(),
+  leaveBalancesJson: z.string().optional(), // Receive balances as a JSON string
 });
 
 export type UpdateEmployeeState = {
@@ -182,6 +187,7 @@ export type UpdateEmployeeState = {
     dateOfBirth?: string[];
     joiningDate?: string[];
     leavingDate?: string[];
+    leaveBalances?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -207,6 +213,7 @@ export async function updateEmployeeAction(
     dateOfBirth: formData.get('dateOfBirth'),
     joiningDate: formData.get('joiningDate'),
     leavingDate: formData.get('leavingDate') || null,
+    leaveBalancesJson: formData.get('leaveBalancesJson'),
   });
 
   if (!validatedFields.success) {
@@ -218,10 +225,32 @@ export async function updateEmployeeAction(
 
   const { 
     employeeDocId, firstName, lastName, department, role, groupName, system, campus, email, phone, status, hourlyRate,
-    dateOfBirth, joiningDate, leavingDate: leavingDateString
+    dateOfBirth, joiningDate, leavingDate: leavingDateString, leaveBalancesJson
   } = validatedFields.data;
 
   const name = `${firstName} ${lastName}`;
+  
+  let leaveBalances = {};
+  if (leaveBalancesJson) {
+      try {
+          const parsedBalances = JSON.parse(leaveBalancesJson);
+          const validatedBalances = LeaveBalancesSchema.safeParse(parsedBalances);
+          if (validatedBalances.success) {
+              leaveBalances = validatedBalances.data;
+          } else {
+              return {
+                  errors: { leaveBalances: ["Invalid leave balance data provided."] },
+                  message: 'Validation failed on leave balances.',
+              };
+          }
+      } catch (e) {
+          return {
+              errors: { leaveBalances: ["Failed to parse leave balance data."] },
+              message: 'Validation failed on leave balances.',
+          };
+      }
+  }
+
 
   try {
     const employeeRef = doc(db, "employee", employeeDocId);
@@ -261,6 +290,7 @@ export async function updateEmployeeAction(
       dateOfBirth: Timestamp.fromDate(dateOfBirth),
       joiningDate: Timestamp.fromDate(joiningDate),
       leavingDate: finalLeavingDate, // Use the derived leaving date
+      leaveBalances, // Add the validated leave balances
     };
     
     await updateDoc(employeeRef, updateData);
