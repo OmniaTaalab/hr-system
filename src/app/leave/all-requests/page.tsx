@@ -56,6 +56,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
+import { useLeaveTypes } from "@/hooks/use-leave-types";
 
 
 export interface LeaveRequestEntry {
@@ -183,6 +184,7 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
   const formRef = useRef<HTMLFormElement>(null);
   const [serverState, formAction, isPending] = useActionState(editLeaveRequestAction, initialEditState);
   const [_isTransitionPending, startTransition] = useTransition();
+  const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
 
   const form = useForm<EditLeaveRequestFormValues>({
     resolver: zodResolver(editLeaveRequestClientSchema),
@@ -250,18 +252,14 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Leave Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                  <Select onValueChange={field.onChange} value={field.value || ""} disabled={isLoadingLeaveTypes}>
                     <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Select a leave type" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={isLoadingLeaveTypes ? "Loading types..." : "Select a leave type"} /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Annual">Annual Leave</SelectItem>
-                      <SelectItem value="Sick">Sick Leave</SelectItem>
-                      <SelectItem value="Unpaid">Unpaid Leave</SelectItem>
-                      <SelectItem value="Maternity">Maternity Leave</SelectItem>
-                      <SelectItem value="Paternity">Paternity Leave</SelectItem>
-                      <SelectItem value="Bereavement">Bereavement Leave</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
+                      {leaveTypes.map(type => (
+                        <SelectItem key={type.id} value={type.name}>{type.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage>{serverState?.errors?.leaveType?.[0] || form.formState.errors.leaveType?.message}</FormMessage>
@@ -356,7 +354,7 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
             {serverState?.errors?.form && <p className="text-sm font-medium text-destructive">{serverState.errors.form.join(", ")}</p>}
             <DialogFooter>
               <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-              <Button type="submit" disabled={isPending}>
+              <Button type="submit" disabled={isPending || isLoadingLeaveTypes}>
                 {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                 Save Changes
               </Button>

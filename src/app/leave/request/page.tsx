@@ -39,6 +39,7 @@ import { useActionState, useEffect, useRef, useState, useMemo, useTransition } f
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
 import { db } from '@/lib/firebase/config';
 import { collection, query, where, getDocs, orderBy, type Timestamp } from 'firebase/firestore';
+import { useLeaveTypes } from "@/hooks/use-leave-types";
 
 // Schema must match the server action's schema for client-side validation
 const leaveRequestClientSchema = z.object({
@@ -81,6 +82,8 @@ export default function LeaveRequestPage() {
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState("");
   const [isEmployeePopoverOpen, setIsEmployeePopoverOpen] = useState(false);
   const [selectedEmployeeDocId, setSelectedEmployeeDocId] = useState<string | null>(null);
+
+  const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
 
   const form = useForm<LeaveRequestFormValues>({
     resolver: zodResolver(leaveRequestClientSchema),
@@ -267,20 +270,16 @@ export default function LeaveRequestPage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Leave Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingLeaveTypes}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a leave type" />
+                        <SelectValue placeholder={isLoadingLeaveTypes ? "Loading types..." : "Select a leave type"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Annual">Annual Leave</SelectItem>
-                      <SelectItem value="Sick">Sick Leave</SelectItem>
-                      <SelectItem value="Unpaid">Unpaid Leave</SelectItem>
-                      <SelectItem value="Maternity">Maternity Leave</SelectItem>
-                      <SelectItem value="Paternity">Paternity Leave</SelectItem>
-                      <SelectItem value="Bereavement">Bereavement Leave</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
+                      {leaveTypes.map(type => (
+                        <SelectItem key={type.id} value={type.name}>{type.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage>{serverState?.errors?.leaveType?.[0] || form.formState.errors.leaveType?.message}</FormMessage>
@@ -402,7 +401,7 @@ export default function LeaveRequestPage() {
               </p>
             )}
 
-            <Button type="submit" className="w-full md:w-auto group" disabled={isActionPending || isLoadingEmployees}>
+            <Button type="submit" className="w-full md:w-auto group" disabled={isActionPending || isLoadingEmployees || isLoadingLeaveTypes}>
               {isActionPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

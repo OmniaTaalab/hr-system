@@ -17,6 +17,7 @@ export default function OrganizationSettingsPage() {
           <ListManager title="Group Names" collectionName="groupNames" />
           <ListManager title="Systems" collectionName="systems" />
           <ListManager title="Campuses" collectionName="campuses" />
+          <ListManager title="Leave Types" collectionName="leaveTypes" />
         </CardContent>
       </Card>
     </div>
