@@ -34,7 +34,7 @@ export async function createAuthUserForEmployeeAction(
   formData: FormData
 ): Promise<CreateAuthUserState> {
   if (!adminAuth) {
-    const errorMessage = "Firebase Admin SDK is not configured on the server. Please check environment variables and server logs.";
+    const errorMessage = "Firebase Admin SDK is not configured. Administrative actions require FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY to be set in the .env file.";
     console.error(errorMessage);
     return {
         errors: { form: [errorMessage] },
@@ -133,7 +133,7 @@ export async function deleteAuthUserAction(
   formData: FormData
 ): Promise<DeleteAuthUserState> {
   if (!adminAuth) {
-    const errorMessage = "Firebase Admin SDK is not configured on the server.";
+    const errorMessage = "Firebase Admin SDK is not configured. Administrative actions require FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY to be set in the .env file.";
     console.error(errorMessage);
     return {
         errors: { form: [errorMessage] },
@@ -221,7 +221,7 @@ export async function updateAuthUserPasswordAction(
   formData: FormData
 ): Promise<UpdateAuthPasswordState> {
   if (!adminAuth) {
-    const errorMessage = "Firebase Admin SDK is not configured on the server.";
+    const errorMessage = "Firebase Admin SDK is not configured. Administrative actions require FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY to be set in the .env file.";
     console.error(errorMessage);
     return {
       errors: { form: [errorMessage] },
