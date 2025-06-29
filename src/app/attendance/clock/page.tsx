@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, where, Timestamp, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, Timestamp } from 'firebase/firestore';
 import { format, isValid } from 'date-fns';
 import { Clock, LogIn, LogOut, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { ClockInButton, ClockOutButton } from '@/components/attendance/clock-buttons';
@@ -51,9 +51,10 @@ export default function DailyAttendanceClockPage() {
 
   // Fetch active employees
   useEffect(() => {
-    const q = query(collection(db, "employee"), where("status", "==", "Active"), orderBy("name"));
+    const q = query(collection(db, "employee"), where("status", "==", "Active"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const empData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+      empData.sort((a, b) => a.name.localeCompare(b.name));
       setEmployees(empData);
       setIsLoadingEmployees(false);
     }, (error) => {
