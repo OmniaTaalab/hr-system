@@ -38,6 +38,11 @@ export const navItems: NavItem[] = [
     iconName: 'CheckCircle2',
   },
   {
+    i18nKey: 'sidebar.daily_clock_in_out',
+    href: '/attendance/clock',
+    iconName: 'Clock',
+  },
+  {
     i18nKey: 'sidebar.payroll_calculation',
     href: '/payroll',
     iconName: 'Calculator',

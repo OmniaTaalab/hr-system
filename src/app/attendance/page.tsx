@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { TimePicker } from "@/components/ui/time-picker";
+import Link from "next/link";
 
 interface Employee {
   id: string;
@@ -333,31 +334,36 @@ export default function ManualAttendancePage() {
               Select a date and manually enter or update employee clock-in and clock-out times.
             </p>
           </div>
-          <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant={"outline"}
-                className={cn(
-                  "w-full sm:w-[280px] justify-start text-left font-normal",
-                  !selectedDate && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => {
-                  if (date) setSelectedDate(date);
-                  setIsCalendarOpen(false);
-                }}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
+           <div className="flex flex-col sm:flex-row gap-2">
+             <Button asChild variant="outline">
+                <Link href="/attendance/clock">Go to Daily Clock-In Page</Link>
+            </Button>
+            <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                <PopoverTrigger asChild>
+                <Button
+                    variant={"outline"}
+                    className={cn(
+                    "w-full sm:w-[280px] justify-start text-left font-normal",
+                    !selectedDate && "text-muted-foreground"
+                    )}
+                >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => {
+                    if (date) setSelectedDate(date);
+                    setIsCalendarOpen(false);
+                    }}
+                    initialFocus
+                />
+                </PopoverContent>
+            </Popover>
+          </div>
         </header>
 
         {updateState?.errors?.form && (
