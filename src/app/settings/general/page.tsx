@@ -16,9 +16,12 @@ import {
   addHolidayAction,
   deleteHolidayAction,
   updateWeekendSettingsAction,
+  updateWorkdaySettingsAction,
   type HolidayState,
   type WeekendSettingsState,
+  type WorkdaySettingsState,
   getWeekendSettings,
+  getWorkdaySettings,
 } from "@/app/actions/settings-actions";
 import { db } from '@/lib/firebase/config';
 import { collection, query, where, onSnapshot, orderBy, Timestamp } from 'firebase/firestore';
@@ -35,6 +38,8 @@ interface Holiday {
 
 const initialHolidayState: HolidayState = { success: false, message: null, errors: {} };
 const initialWeekendState: WeekendSettingsState = { success: false, message: null, errors: {} };
+const initialWorkdayState: WorkdaySettingsState = { success: false, message: null, errors: {} };
+
 const currentYear = getYear(new Date());
 const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
@@ -59,10 +64,14 @@ export default function GeneralSettingsPage() {
 
   const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [isLoadingWeekend, setIsLoadingWeekend] = useState(true);
+  
+  const [workdayHours, setWorkdayHours] = useState<number | null>(null);
+  const [isLoadingWorkday, setIsLoadingWorkday] = useState(true);
 
   const [addState, addAction, isAddPending] = useActionState(addHolidayAction, initialHolidayState);
   const [deleteState, deleteAction, isDeletePending] = useActionState(deleteHolidayAction, initialHolidayState);
   const [updateWeekendState, updateWeekendAction, isUpdateWeekendPending] = useActionState(updateWeekendSettingsAction, initialWeekendState);
+  const [updateWorkdayState, updateWorkdayAction, isUpdateWorkdayPending] = useActionState(updateWorkdaySettingsAction, initialWorkdayState);
   const [_isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -71,6 +80,11 @@ export default function GeneralSettingsPage() {
       const days = await getWeekendSettings();
       setWeekendDays(days);
       setIsLoadingWeekend(false);
+      
+      setIsLoadingWorkday(true);
+      const { standardHours } = await getWorkdaySettings();
+      setWorkdayHours(standardHours);
+      setIsLoadingWorkday(false);
     };
     fetchSettings();
   }, []);
@@ -131,14 +145,20 @@ export default function GeneralSettingsPage() {
         variant: updateWeekendState.success ? "default" : "destructive",
       });
       if (updateWeekendState.success) {
-        const fetchSettings = async () => {
-          const days = await getWeekendSettings();
-          setWeekendDays(days);
-        };
-        fetchSettings();
+        getWeekendSettings().then(days => setWeekendDays(days));
       }
     }
   }, [updateWeekendState, toast]);
+
+  useEffect(() => {
+    if (updateWorkdayState?.message) {
+      toast({
+        title: updateWorkdayState.success ? "Success" : "Error",
+        description: updateWorkdayState.message,
+        variant: updateWorkdayState.success ? "default" : "destructive",
+      });
+    }
+  }, [updateWorkdayState, toast]);
 
   const handleAddHoliday = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -215,6 +235,53 @@ export default function GeneralSettingsPage() {
                 <Button type="submit" disabled={isUpdateWeekendPending}>
                   {isUpdateWeekendPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
                   Save Weekend
+                </Button>
+              </div>
+            )}
+          </form>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Workday Settings</CardTitle>
+          <CardDescription>Define the standard number of working hours in a day. This affects various calculations.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={updateWorkdayAction}>
+            {isLoadingWorkday ? (
+              <div className="space-y-2 max-w-sm">
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-48" />
+              </div>
+            ) : (
+              <div className="space-y-4 max-w-sm">
+                <div className="space-y-2">
+                  <Label htmlFor="workday-hours">Standard Workday Duration (hours)</Label>
+                  <Input 
+                    id="workday-hours" 
+                    name="hours" 
+                    type="number" 
+                    defaultValue={workdayHours ?? 8}
+                    step="0.5"
+                    min="1"
+                    max="24"
+                    required 
+                  />
+                  {updateWorkdayState?.errors?.hours &&
+                    <p className="text-sm text-destructive">{updateWorkdayState.errors.hours[0]}</p>
+                  }
+                </div>
+                {updateWorkdayState?.errors?.form &&
+                  <div className="flex items-center text-sm text-destructive">
+                    <AlertCircle className="mr-2 h-4 w-4" />
+                    {updateWorkdayState.errors.form[0]}
+                  </div>
+                }
+                <Button type="submit" disabled={isUpdateWorkdayPending}>
+                  {isUpdateWorkdayPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
+                  Save Workday Hours
                 </Button>
               </div>
             )}

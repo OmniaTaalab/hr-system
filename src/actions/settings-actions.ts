@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -155,6 +156,71 @@ export async function getWeekendSettings(): Promise<number[]> {
   } catch (error) {
     console.error("Error fetching weekend settings, using default:", error);
     return [5, 6]; // Default on error
+  }
+}
+
+// --- WORKDAY SETTINGS ---
+
+export type WorkdaySettingsState = {
+  errors?: { 
+    form?: string[];
+    hours?: string[];
+  };
+  message?: string | null;
+  success?: boolean;
+};
+
+const WorkdaySettingsSchema = z.object({
+    hours: z.coerce.number().positive("Hours must be a positive number.").min(1).max(24),
+});
+
+// Action to update workday settings
+export async function updateWorkdaySettingsAction(
+  prevState: WorkdaySettingsState,
+  formData: FormData
+): Promise<WorkdaySettingsState> {
+  
+  const validatedFields = WorkdaySettingsSchema.safeParse({
+    hours: formData.get('hours'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "Validation failed.",
+      success: false,
+    };
+  }
+  
+  const { hours } = validatedFields.data;
+  
+  try {
+    const settingsRef = doc(db, "settings", "workday");
+    await setDoc(settingsRef, { standardHours: hours }, { merge: true });
+    return { success: true, message: "Workday settings updated successfully." };
+  } catch (error: any) {
+    return {
+      errors: { form: ["Failed to update workday settings."] },
+      message: `Error: ${error.message}`,
+      success: false,
+    };
+  }
+}
+
+// Helper function to get workday settings
+export async function getWorkdaySettings(): Promise<{ standardHours: number }> {
+  try {
+    const settingsRef = doc(db, "settings", "workday");
+    const docSnap = await getDoc(settingsRef);
+
+    if (docSnap.exists() && typeof docSnap.data().standardHours === 'number') {
+      return { standardHours: docSnap.data().standardHours };
+    }
+    // Default to 8 hours
+    return { standardHours: 8 }; 
+  } catch (error) {
+    console.error("Error fetching workday settings, using default:", error);
+    return { standardHours: 8 }; // Default on error
   }
 }
 
