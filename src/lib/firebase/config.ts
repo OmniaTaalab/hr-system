@@ -6,13 +6,13 @@ import { getFirestore, type Firestore } from "firebase/firestore"; // Corrected 
 import { getAnalytics, type Analytics } from "firebase/analytics";
 import { getStorage, type Storage } from "firebase/storage";
 
-// TODO: Replace this with your new Firebase project's configuration.
+// TODO: Replace the remaining placeholders with your new Firebase project's configuration.
 // You can find this in your Firebase project settings under "General".
 const firebaseConfig = {
   apiKey: "REPLACE_WITH_YOUR_NEW_API_KEY",
-  authDomain: "REPLACE_WITH_YOUR_NEW_PROJECT_ID.firebaseapp.com",
-  projectId: "REPLACE_WITH_YOUR_NEW_PROJECT_ID",
-  storageBucket: "REPLACE_WITH_YOUR_NEW_PROJECT_ID.appspot.com",
+  authDomain: "testhr-80fda.firebaseapp.com",
+  projectId: "testhr-80fda",
+  storageBucket: "testhr-80fda.appspot.com",
   messagingSenderId: "REPLACE_WITH_YOUR_NEW_MESSAGING_SENDER_ID",
   appId: "REPLACE_WITH_YOUR_NEW_APP_ID",
   measurementId: "REPLACE_WITH_YOUR_NEW_MEASUREMENT_ID"
