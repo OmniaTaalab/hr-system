@@ -97,7 +97,7 @@ export async function saveTpiDataAction(
 // --- Batch Upload Action ---
 
 const TpiBatchRecordSchema = z.object({
-  employeeId: z.string().min(1, "Employee ID from sheet is required."),
+  employeeName: z.string().min(1, "Employee Name from sheet is required."),
   examAvg: z.coerce.number().nonnegative("Exam Avg must be a non-negative number.").optional().nullable(),
   exitAvg: z.coerce.number().nonnegative("Exit Avg must be a non-negative number.").optional().nullable(),
   AA: z.coerce.number().nonnegative("AA must be a non-negative number.").optional().nullable(),
@@ -142,19 +142,19 @@ export async function batchSaveTpiDataAction(
   let updatedCount = 0;
   let createdCount = 0;
   let notFoundCount = 0;
-  const employeeNotFoundIds: string[] = [];
+  const employeeNotFoundNames: string[] = [];
 
   for (const record of validatedRecords.data) {
-    if (!record.employeeId) {
-        // Skip rows with no employee ID
+    if (!record.employeeName) {
+        // Skip rows with no employee name
         continue;
     }
-    const employeeQuery = query(collection(db, "employee"), where("employeeId", "==", record.employeeId), limit(1));
+    const employeeQuery = query(collection(db, "employee"), where("name", "==", record.employeeName), limit(1));
     const employeeSnapshot = await getDocs(employeeQuery);
 
     if (employeeSnapshot.empty) {
       notFoundCount++;
-      employeeNotFoundIds.push(record.employeeId);
+      employeeNotFoundNames.push(record.employeeName);
       continue;
     }
     
@@ -165,7 +165,7 @@ export async function batchSaveTpiDataAction(
 
     const dataToSave: {[key: string]: any} = { employeeDocId };
     for (const [key, value] of Object.entries(record)) {
-        if (value !== null && value !== undefined && key !== 'employeeId') {
+        if (value !== null && value !== undefined && key !== 'employeeName') {
             dataToSave[key] = value;
         }
     }
@@ -188,7 +188,7 @@ export async function batchSaveTpiDataAction(
     await batch.commit();
     let message = `Successfully processed file. ${createdCount} new records created, ${updatedCount} records updated.`;
     if (notFoundCount > 0) {
-      message += ` ${notFoundCount} employees not found in the system (IDs: ${employeeNotFoundIds.slice(0, 5).join(', ')}${notFoundCount > 5 ? '...' : ''}).`;
+      message += ` ${notFoundCount} employees not found in the system (Names: ${employeeNotFoundNames.slice(0, 5).join(', ')}${notFoundCount > 5 ? '...' : ''}).`;
     }
     return { success: true, message };
   } catch (error: any) {
