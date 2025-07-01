@@ -36,7 +36,9 @@ interface Employee {
 
 interface TpiRecord {
   id: string;
-  employeeDocId: string;
+  employeeDocId: string | null;
+  firstName?: string;
+  lastName?: string;
   role?: string;
   groupName?: string;
   system?: string;
@@ -167,7 +169,7 @@ export default function TpiPage() {
         title: batchState.success ? "Upload Complete" : "Upload Failed",
         description: batchState.message,
         variant: batchState.success ? "default" : "destructive",
-        duration: batchState.success ? 5000 : 8000,
+        duration: batchState.success ? 8000 : 10000,
       });
     } else if (batchState?.errors?.file) {
       toast({
@@ -278,13 +280,28 @@ export default function TpiPage() {
   };
   
   const displayData = useMemo(() => {
-    const combined = employees
-      .map(emp => {
-        const tpi = tpiRecords.find(r => r.employeeDocId === emp.id);
-        // The spread order ensures that `tpi` values (from Excel) overwrite `emp` values if keys conflict (e.g., role)
-        return { ...emp, ...tpi };
-      })
-      .filter(item => item.total !== undefined); // Only show employees with TPI data
+    // Start with TPI records as the source of truth
+    const combined = tpiRecords
+      .map(tpi => {
+        const emp = tpi.employeeDocId ? employees.find(e => e.id === tpi.employeeDocId) : undefined;
+        
+        // Base is the employee data if found, otherwise an empty object
+        const base = emp || {};
+        
+        // TPI record data overwrites base employee data for display
+        // Also construct a name if not available from a full employee record
+        const displayName = emp?.name || `${tpi.firstName || ''} ${tpi.lastName || ''}`.trim();
+        const displayFirstName = emp?.firstName || tpi.firstName;
+        const displayLastName = emp?.lastName || tpi.lastName;
+
+        return {
+          ...base,
+          ...tpi,
+          name: displayName, // Ensure name is correct
+          firstName: displayFirstName,
+          lastName: displayLastName,
+        };
+      });
       
     // Sort by total score descending for ranking
     combined.sort((a, b) => (b.total || 0) - (a.total || 0));
@@ -298,6 +315,7 @@ export default function TpiPage() {
       top25: index < top25Count,
     }));
   }, [employees, tpiRecords]);
+
   
   return (
     <AppLayout>

@@ -150,51 +150,53 @@ export async function batchSaveTpiDataAction(
   const employeeNotFoundNames: string[] = [];
 
   for (const record of validatedRecords.data) {
-    if (!record.firstName || !record.lastName) {
-        // Skip rows with no full name
-        continue;
-    }
     const employeeName = `${record.firstName} ${record.lastName}`.trim();
     const employeeQuery = query(collection(db, "employee"), where("name", "==", employeeName), limit(1));
     const employeeSnapshot = await getDocs(employeeQuery);
 
-    if (employeeSnapshot.empty) {
+    const employeeDocId = employeeSnapshot.empty ? null : employeeSnapshot.docs[0].id;
+    
+    if (!employeeDocId) {
       notFoundCount++;
       employeeNotFoundNames.push(employeeName);
-      continue;
     }
     
-    const employeeDocId = employeeSnapshot.docs[0].id;
+    let tpiDocRef: any;
+    let existingTpiRecordFound = false;
 
-    const tpiQuery = query(collection(db, "tpiRecords"), where("employeeDocId", "==", employeeDocId), limit(1));
-    const tpiSnapshot = await getDocs(tpiQuery);
-
-    const dataToSave: {[key: string]: any} = { employeeDocId };
-    for (const [key, value] of Object.entries(record)) {
-        if (value !== null && value !== undefined && key !== 'firstName' && key !== 'lastName') {
-            dataToSave[key] = value;
-        }
+    if (employeeDocId) {
+      const tpiQuery = query(collection(db, "tpiRecords"), where("employeeDocId", "==", employeeDocId), limit(1));
+      const tpiSnapshot = await getDocs(tpiQuery);
+      if (!tpiSnapshot.empty) {
+        tpiDocRef = tpiSnapshot.docs[0].ref;
+        existingTpiRecordFound = true;
+      }
     }
-    dataToSave.lastUpdatedAt = serverTimestamp();
+    
+    if (!tpiDocRef) {
+      tpiDocRef = doc(collection(db, "tpiRecords"));
+    }
 
-    if (!tpiSnapshot.empty) {
-      // Update existing record
-      const tpiDocRef = tpiSnapshot.docs[0].ref;
-      batch.set(tpiDocRef, dataToSave, { merge: true });
+    const dataToSave: {[key: string]: any} = {
+      ...record,
+      employeeDocId, // This will be null if not found
+      lastUpdatedAt: serverTimestamp(),
+    };
+
+    batch.set(tpiDocRef, dataToSave, { merge: true });
+
+    if(existingTpiRecordFound) {
       updatedCount++;
     } else {
-      // Create new record
-      const newTpiDocRef = doc(collection(db, "tpiRecords"));
-      batch.set(newTpiDocRef, dataToSave);
       createdCount++;
     }
   }
 
   try {
     await batch.commit();
-    let message = `Successfully processed file. ${createdCount} new records created, ${updatedCount} records updated.`;
+    let message = `Successfully processed file. ${createdCount} records created, ${updatedCount} records updated.`;
     if (notFoundCount > 0) {
-      message += ` ${notFoundCount} employees not found in the system (Names: ${employeeNotFoundNames.slice(0, 5).join(', ')}${notFoundCount > 5 ? '...' : ''}).`;
+      message += ` ${notFoundCount} employees were not found in the system but their TPI data was imported (Names: ${employeeNotFoundNames.slice(0, 5).join(', ')}${notFoundCount > 5 ? '...' : ''}).`;
     }
     return { success: true, message };
   } catch (error: any) {
