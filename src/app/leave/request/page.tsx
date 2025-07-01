@@ -1,7 +1,7 @@
 
 "use client";
 
-import { AppLayout } from "@/components/layout/app-layout";
+import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -27,18 +27,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
-import { CalendarIcon, Send, Loader2, ChevronsUpDown, CheckIcon } from "lucide-react";
+import { CalendarIcon, Send, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useActionState, useEffect, useRef, useState, useMemo, useTransition } from "react";
+import { useActionState, useEffect, useRef, useTransition } from "react";
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
-import { db } from '@/lib/firebase/config';
-import { collection, query, where, getDocs, orderBy, type Timestamp } from 'firebase/firestore';
 import { useLeaveTypes } from "@/hooks/use-leave-types";
 
 // Schema must match the server action's schema for client-side validation
@@ -62,27 +59,13 @@ const initialSubmitState: SubmitLeaveRequestState = {
   success: false,
 };
 
-interface Employee {
-  id: string; // Firestore document ID
-  name: string;
-  employeeId: string; // Company's employee ID
-  status: string;
-  // Add other relevant fields if needed, e.g., department
-}
-
 export default function LeaveRequestPage() {
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const [serverState, formAction, isActionPending] = useActionState(submitLeaveRequestAction, initialSubmitState);
   const [_isTransitionPending, startTransition] = useTransition();
 
-
-  const [activeEmployees, setActiveEmployees] = useState<Employee[]>([]);
-  const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
-  const [employeeSearchTerm, setEmployeeSearchTerm] = useState("");
-  const [isEmployeePopoverOpen, setIsEmployeePopoverOpen] = useState(false);
-  const [selectedEmployeeDocId, setSelectedEmployeeDocId] = useState<string | null>(null);
-
+  const { profile, loading: isLoadingProfile } = useUserProfile();
   const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
 
   const form = useForm<LeaveRequestFormValues>({
@@ -97,49 +80,31 @@ export default function LeaveRequestPage() {
     },
   });
 
+  // Set employee details from profile automatically
   useEffect(() => {
-    const fetchEmployees = async () => {
-      setIsLoadingEmployees(true);
-      try {
-        const q = query(collection(db, "employee"), where("status", "==", "Active"));
-        const querySnapshot = await getDocs(q);
-        const employeesData = querySnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() } as Employee))
-          .sort((a, b) => a.name.localeCompare(b.name));
-        setActiveEmployees(employeesData);
-      } catch (error) {
-        console.error("Error fetching active employees:", error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Could not load active employees for selection.",
-        });
-      } finally {
-        setIsLoadingEmployees(false);
-      }
-    };
-    fetchEmployees();
-  }, [toast]);
-
-  const filteredEmployees = useMemo(() => {
-    if (!employeeSearchTerm) {
-      return activeEmployees;
+    if (profile) {
+      form.setValue("requestingEmployeeDocId", profile.id);
+      form.setValue("employeeName", profile.name);
     }
-    return activeEmployees.filter(employee =>
-      employee.name.toLowerCase().includes(employeeSearchTerm.toLowerCase())
-    );
-  }, [activeEmployees, employeeSearchTerm]);
+  }, [profile, form]);
 
- useEffect(() => {
+  // Handle form submission response
+  useEffect(() => {
     if (serverState?.message) {
       if (serverState.success) {
         toast({
           title: "Success",
           description: serverState.message,
         });
-        form.reset(); 
-        setSelectedEmployeeDocId(null);
-        setEmployeeSearchTerm(""); // Reset search term on successful submission
+        // Reset form, but keep user info
+        form.reset({
+          requestingEmployeeDocId: profile?.id || '',
+          employeeName: profile?.name || '',
+          leaveType: '',
+          reason: '',
+          startDate: undefined,
+          endDate: undefined,
+        });
       } else if (serverState.errors?.form || Object.keys(serverState.errors || {}).length > 0) {
         toast({
           variant: "destructive",
@@ -148,25 +113,27 @@ export default function LeaveRequestPage() {
         });
       }
     }
-  }, [serverState, toast, form]);
+  }, [serverState, toast, form, profile]);
 
   const handleFormSubmit = (data: LeaveRequestFormValues) => {
-    if (!formRef.current!) return;
-    const formData = new FormData(formRef.current!);
-    // Ensure all fields from the 'data' object (which is validated by Zod) are set.
-    // react-hook-form should fill the FormData object based on field names if we use form.handleSubmit directly with action.
-    // However, since we are constructing it manually for startTransition, let's be explicit.
-    formData.set('requestingEmployeeDocId', data.requestingEmployeeDocId);
-    formData.set('employeeName', data.employeeName);
-    formData.set('leaveType', data.leaveType);
+    if (!formRef.current) return;
+    const formData = new FormData(formRef.current);
     formData.set('startDate', data.startDate.toISOString());
     formData.set('endDate', data.endDate.toISOString());
-    formData.set('reason', data.reason);
-    
     startTransition(() => {
       formAction(formData);
     });
   };
+
+  if (isLoadingProfile) {
+    return (
+      <AppLayout>
+        <div className="flex justify-center items-center h-full">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -182,87 +149,24 @@ export default function LeaveRequestPage() {
 
         <Form {...form}>
           <form ref={formRef} onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
-            {/* Hidden input for requestingEmployeeDocId */}
-            <FormField
-              control={form.control}
-              name="requestingEmployeeDocId"
-              render={({ field }) => <input type="hidden" {...field} />}
-            />
-            
             <FormField
               control={form.control}
               name="employeeName"
               render={({ field }) => (
-                <FormItem className="flex flex-col">
+                <FormItem>
                   <FormLabel>Employee Name</FormLabel>
-                  <Popover open={isEmployeePopoverOpen} onOpenChange={setIsEmployeePopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={isEmployeePopoverOpen}
-                          className={cn(
-                            "w-full justify-between",
-                            !field.value && "text-muted-foreground"
-                          )}
-                          disabled={isLoadingEmployees}
-                        >
-                          {isLoadingEmployees
-                            ? "Loading employees..."
-                            : field.value
-                            ? field.value // Display the name set by form.setValue
-                            : "Select employee..."}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                      <div className="p-2">
-                        <Input
-                          placeholder="Search employee..."
-                          value={employeeSearchTerm}
-                          onChange={(e) => setEmployeeSearchTerm(e.target.value)}
-                          className="w-full"
-                          aria-label="Search employees"
-                        />
-                      </div>
-                      <ScrollArea className="max-h-60">
-                        {isLoadingEmployees && <p className="p-2 text-sm text-center text-muted-foreground">Loading...</p>}
-                        {!isLoadingEmployees && filteredEmployees.length === 0 && (
-                          <p className="p-2 text-sm text-center text-muted-foreground">No employee found.</p>
-                        )}
-                        {!isLoadingEmployees && filteredEmployees.map((employee) => (
-                          <div
-                            key={employee.id}
-                            onClick={() => {
-                              form.setValue("employeeName", employee.name);
-                              form.setValue("requestingEmployeeDocId", employee.id); // Set the document ID
-                              setSelectedEmployeeDocId(employee.id); // Keep track if needed locally
-                              field.onChange(employee.name); // Update RHF for employeeName
-                              setIsEmployeePopoverOpen(false);
-                              setEmployeeSearchTerm("");
-                            }}
-                            className="flex items-center justify-between p-2 mx-1 my-0.5 text-sm hover:bg-accent rounded-md cursor-pointer"
-                          >
-                            {employee.name}
-                            <CheckIcon
-                              className={cn(
-                                "ml-auto h-4 w-4",
-                                employee.name === field.value 
-                                  ? "opacity-100"
-                                  : "opacity-0"
-                              )}
-                            />
-                          </div>
-                        ))}
-                      </ScrollArea>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage>{serverState?.errors?.employeeName?.[0] || form.formState.errors.employeeName?.message || serverState?.errors?.requestingEmployeeDocId?.[0]}</FormMessage>
+                  <FormControl>
+                    <Input {...field} readOnly disabled className="bg-muted/50" />
+                  </FormControl>
+                  <FormDescription>
+                    This is your name from your profile. It cannot be changed here.
+                  </FormDescription>
+                  <FormMessage />
                 </FormItem>
               )}
             />
+            {/* Hidden fields for ID */}
+            <input type="hidden" {...form.register("requestingEmployeeDocId")} />
 
             <FormField
               control={form.control}
@@ -270,7 +174,7 @@ export default function LeaveRequestPage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Leave Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingLeaveTypes}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingLeaveTypes || isLoadingProfile}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder={isLoadingLeaveTypes ? "Loading types..." : "Select a leave type"} />
@@ -303,6 +207,7 @@ export default function LeaveRequestPage() {
                               "w-full pl-3 text-left font-normal",
                               !field.value && "text-muted-foreground"
                             )}
+                            disabled={isLoadingProfile}
                           >
                             {field.value ? (
                               format(field.value, "PPP")
@@ -345,6 +250,7 @@ export default function LeaveRequestPage() {
                               "w-full pl-3 text-left font-normal",
                               !field.value && "text-muted-foreground"
                             )}
+                            disabled={isLoadingProfile}
                           >
                             {field.value ? (
                               format(field.value, "PPP")
@@ -385,6 +291,7 @@ export default function LeaveRequestPage() {
                       className="resize-none"
                       {...field}
                       rows={4}
+                      disabled={isLoadingProfile}
                     />
                   </FormControl>
                   <FormDescription>
@@ -401,7 +308,7 @@ export default function LeaveRequestPage() {
               </p>
             )}
 
-            <Button type="submit" className="w-full md:w-auto group" disabled={isActionPending || isLoadingEmployees || isLoadingLeaveTypes}>
+            <Button type="submit" className="w-full md:w-auto group" disabled={isActionPending || isLoadingProfile || isLoadingLeaveTypes}>
               {isActionPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
