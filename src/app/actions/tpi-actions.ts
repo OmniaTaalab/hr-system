@@ -9,7 +9,6 @@ const TpiFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee is required."),
   examAvg: z.coerce.number().nonnegative("Must be a non-negative number.").optional(),
   exitAvg: z.coerce.number().nonnegative("Must be a non-negative number.").optional(),
-  flippedAA: z.coerce.number().nonnegative("Must be a non-negative number.").optional(),
   AA: z.coerce.number().nonnegative("Must be a non-negative number.").optional(),
   points: z.coerce.number().int().nonnegative("Must be a non-negative integer.").optional(),
   total: z.coerce.number().nonnegative("Must be a non-negative number.").optional(),
@@ -21,7 +20,6 @@ export type TpiState = {
     employeeDocId?: string[];
     examAvg?: string[];
     exitAvg?: string[];
-    flippedAA?: string[];
     AA?: string[];
     points?: string[];
     total?: string[];
@@ -40,7 +38,6 @@ export async function saveTpiDataAction(
     employeeDocId: formData.get('employeeDocId'),
     examAvg: formData.get('examAvg') || 0,
     exitAvg: formData.get('exitAvg') || 0,
-    flippedAA: formData.get('flippedAA') || 0,
     AA: formData.get('AA') || 0,
     points: formData.get('points') || 0,
     total: formData.get('total') || 0,
@@ -103,7 +100,6 @@ const TpiBatchRecordSchema = z.object({
   employeeId: z.string().min(1, "Employee ID from sheet is required."),
   examAvg: z.coerce.number().nonnegative("Exam Avg must be a non-negative number.").optional().nullable(),
   exitAvg: z.coerce.number().nonnegative("Exit Avg must be a non-negative number.").optional().nullable(),
-  flippedAA: z.coerce.number().nonnegative("Flipped AA must be a non-negative number.").optional().nullable(),
   AA: z.coerce.number().nonnegative("AA must be a non-negative number.").optional().nullable(),
   points: z.coerce.number().int().nonnegative("Points must be a non-negative integer.").optional().nullable(),
   total: z.coerce.number().nonnegative("Total must be a non-negative number.").optional().nullable(),

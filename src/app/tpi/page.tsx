@@ -39,7 +39,6 @@ interface TpiRecord {
   employeeDocId: string;
   examAvg?: number;
   exitAvg?: number;
-  flippedAA?: number;
   AA?: number;
   points?: number;
   total?: number;
@@ -56,7 +55,6 @@ const initialBatchState: BatchTpiState = { success: false, message: null, errors
 const initialFormValues = {
   examAvg: "",
   exitAvg: "",
-  flippedAA: "",
   AA: "",
   points: "",
   total: "",
@@ -130,7 +128,6 @@ export default function TpiPage() {
         setFormValues({
           examAvg: existingRecord.examAvg?.toString() || "",
           exitAvg: existingRecord.exitAvg?.toString() || "",
-          flippedAA: existingRecord.flippedAA?.toString() || "",
           AA: existingRecord.AA?.toString() || "",
           points: existingRecord.points?.toString() || "",
           total: existingRecord.total?.toString() || "",
@@ -227,7 +224,6 @@ export default function TpiPage() {
         employeeId: String(row['Employee ID']),
         examAvg: row['Exam Avg'] ?? null,
         exitAvg: row['Exit Avg'] ?? null,
-        flippedAA: row['Flipped AA'] ?? null,
         AA: row['AA'] ?? null,
         points: row['Points'] ?? null,
         total: row['Total'] ?? null,
@@ -320,7 +316,6 @@ export default function TpiPage() {
                         <code>Employee ID</code>
                         <code>Exam Avg</code>
                         <code>Exit Avg</code>
-                        <code>Flipped AA</code>
                         <code>AA</code>
                         <code>Points</code>
                         <code>Total</code>
@@ -347,7 +342,7 @@ export default function TpiPage() {
                     <SelectContent>
                       {employees.map((emp) => (
                         <SelectItem key={emp.id} value={emp.id}>
-                          {emp.name} ({emp.employeeId})
+                          {emp.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -373,10 +368,6 @@ export default function TpiPage() {
                       <div className="space-y-2">
                           <Label htmlFor="exitAvg">Exit Avg</Label>
                           <Input id="exitAvg" name="exitAvg" type="number" step="0.01" placeholder="e.g., 78.20" value={formValues.exitAvg} onChange={handleInputChange} />
-                      </div>
-                      <div className="space-y-2">
-                          <Label htmlFor="flippedAA">Flipped AA</Label>
-                          <Input id="flippedAA" name="flippedAA" type="number" step="0.01" placeholder="e.g., 80.85" value={formValues.flippedAA} onChange={handleInputChange} />
                       </div>
                       <div className="space-y-2">
                           <Label htmlFor="AA">AA</Label>
