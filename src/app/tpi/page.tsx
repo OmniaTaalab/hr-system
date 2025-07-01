@@ -198,6 +198,19 @@ export default function TpiPage() {
 
     setIsUploading(true);
 
+    // Helper function to find a value by various key names, case-insensitively
+    const findValueByKeys = (row: any, keys: string[]): any => {
+        const rowKeys = Object.keys(row);
+        for (const key of keys) {
+            const normalizedKey = key.toLowerCase().replace(/[\s_]/g, '');
+            const matchingKey = rowKeys.find(rowKey => rowKey.toLowerCase().replace(/[\s_]/g, '') === normalizedKey);
+            if (matchingKey && row[matchingKey] !== undefined) {
+                return row[matchingKey];
+            }
+        }
+        return null;
+    };
+
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
@@ -211,34 +224,36 @@ export default function TpiPage() {
         return;
       }
 
-      // Filter out rows that are likely empty or invalid before mapping
-      const filteredJsonData = jsonData.filter((row: any) => 
-        row['First Name'] && String(row['First Name']).trim() !== "" &&
-        row['Last Name'] && String(row['Last Name']).trim() !== ""
-      );
+      const mappedData = jsonData.map((row: any) => {
+        const firstName = findValueByKeys(row, ['First Name', 'firstName', 'first_name']);
+        const lastName = findValueByKeys(row, ['Last Name', 'lastName', 'last_name']);
 
+        // Skip rows without a valid first and last name
+        if (!firstName || !lastName || String(firstName).trim() === '' || String(lastName).trim() === '') {
+            return null;
+        }
 
-      if (filteredJsonData.length === 0) {
+        return {
+          firstName: String(firstName),
+          lastName: String(lastName),
+          examAvg: findValueByKeys(row, ['Exam Avg', 'examavg']),
+          exitAvg: findValueByKeys(row, ['Exit Avg', 'exitavg']),
+          AA: findValueByKeys(row, ['AA']),
+          points: findValueByKeys(row, ['Points']),
+          total: findValueByKeys(row, ['Total']),
+          sheetName: findValueByKeys(row, ['Sheet Name', 'sheetname']),
+        };
+      }).filter(Boolean); // Filter out the null rows
+
+      if (mappedData.length === 0) {
         toast({ title: "No Valid Data", description: "No rows with a valid 'First Name' and 'Last Name' were found in the file.", variant: "destructive" });
         setIsUploading(false);
         return;
       }
 
-      const mappedData = filteredJsonData.map((row: any) => ({
-        firstName: String(row['firstName']),
-        lastName: String(row['lastName']),
-        examAvg: row['Exam Avg'] ?? null,
-        exitAvg: row['Exit Avg'] ?? null,
-        AA: row['AA'] ?? null,
-        points: row['Points'] ?? null,
-        total: row['Total'] ?? null,
-        sheetName: row['Sheet Name'] ?? null,
-      }));
-
       const formData = new FormData();
       formData.append('recordsJson', JSON.stringify(mappedData));
 
-      // Use the batch action
       startTransition(() => {
         batchAction(formData);
       });
@@ -248,7 +263,6 @@ export default function TpiPage() {
       toast({ title: "File Error", description: "Could not read or parse the Excel file.", variant: "destructive" });
     } finally {
       setIsUploading(false);
-      // Reset file input to allow re-uploading the same file
       if(fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -315,17 +329,11 @@ export default function TpiPage() {
                     <p className="mt-2 text-xs text-muted-foreground">Max file size: 5MB. Supported formats: .xlsx, .xls</p>
                 </div>
                 <div>
-                    <h4 className="font-semibold text-sm mb-2 flex items-center"><FileText className="mr-2 h-4 w-4"/>Required Excel Format</h4>
-                    <p className="text-xs text-muted-foreground mb-2">The first sheet in the file will be used. Ensure the column headers match exactly as listed below. The system will match employees using their first and last names.</p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 text-xs p-3 bg-secondary rounded-md">
-                        <code>firame</code>
-                        <code>lastname</code>
-                        <code>Exam Avg</code>
-                        <code>Exit Avg</code>
-                        <code>role</code>
-                        <code>Points</code>
-                        <code>Total</code>
-                        <code>group name</code>
+                    <h4 className="font-semibold text-sm mb-2 flex items-center"><FileText className="mr-2 h-4 w-4"/>Excel Format Guidelines</h4>
+                    <p className="text-xs text-muted-foreground mb-2">The uploader is flexible with column names (e.g., 'First Name' and 'firstName' are both valid). The only absolute requirements are columns for first and last names.</p>
+                    <div className="text-xs space-y-1">
+                        <p><strong className="font-medium">Required Columns:</strong> <span>`First Name`, `Last Name`</span></p>
+                        <p><strong className="font-medium">Optional Columns:</strong> <span>`Exam Avg`, `Exit Avg`, `AA`, `Points`, `Total`, `Sheet Name`</span></p>
                     </div>
                 </div>
             </CardContent>
