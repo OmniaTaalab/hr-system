@@ -198,6 +198,11 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         action={formAction}
         className="flex flex-col overflow-hidden"
       >
+        <input type="hidden" name="role" value={formData.role} />
+        <input type="hidden" name="groupName" value={formData.groupName} />
+        <input type="hidden" name="campus" value={formData.campus} />
+        <input type="hidden" name="system" value={formData.system} />
+
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-4 p-4 pr-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -226,7 +231,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               </div>
               <div className="space-y-2">
                   <Label htmlFor="add-role">Role</Label>
-                  <Select name="role" onValueChange={handleSelectChange('role')} value={formData.role} disabled={isLoadingLists}>
+                  <Select onValueChange={handleSelectChange('role')} value={formData.role} disabled={isLoadingLists}>
                       <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
                       <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
                   </Select>
@@ -237,7 +242,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                   <Label htmlFor="add-groupName">Group Name</Label>
-                  <Select name="groupName" onValueChange={handleSelectChange('groupName')} value={formData.groupName} disabled={isLoadingLists}>
+                  <Select onValueChange={handleSelectChange('groupName')} value={formData.groupName} disabled={isLoadingLists}>
                       <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Group"} /></SelectTrigger>
                       <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
                   </Select>
@@ -245,7 +250,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               </div>
               <div className="space-y-2">
                   <Label htmlFor="add-campus">Campus</Label>
-                   <Select name="campus" onValueChange={handleSelectChange('campus')} value={formData.campus} disabled={isLoadingLists}>
+                   <Select onValueChange={handleSelectChange('campus')} value={formData.campus} disabled={isLoadingLists}>
                       <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger>
                       <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
                   </Select>
@@ -255,7 +260,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 
             <div className="space-y-2">
                 <Label htmlFor="add-system">System</Label>
-                <Select name="system" onValueChange={handleSelectChange('system')} value={formData.system} disabled={isLoadingLists}>
+                <Select onValueChange={handleSelectChange('system')} value={formData.system} disabled={isLoadingLists}>
                     <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger>
                     <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
                 </Select>
@@ -394,6 +399,11 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   const { roles, groupNames, systems, campuses, leaveTypes, isLoading: isLoadingLists } = useOrganizationLists();
   const [formClientError, setFormClientError] = useState<string | null>(null);
 
+  // State for controlled components
+  const [role, setRole] = useState(employee.role);
+  const [groupName, setGroupName] = useState(employee.groupName);
+  const [system, setSystem] = useState(employee.system);
+  const [campus, setCampus] = useState(employee.campus);
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(employee.dateOfBirth?.toDate());
   const [joiningDate, setJoiningDate] = useState<Date | undefined>(employee.joiningDate?.toDate());
   const [leavingDate, setLeavingDate] = useState<Date | undefined>(employee.leavingDate?.toDate());
@@ -408,7 +418,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
       }));
     }
   };
-
 
   useEffect(() => {
     if (!serverState) return;
@@ -442,6 +451,12 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
       >
         <input type="hidden" name="employeeDocId" defaultValue={employee.id} />
         <input type="hidden" name="leaveBalancesJson" value={JSON.stringify(leaveBalances)} />
+        {/* Hidden inputs for controlled Selects */}
+        <input type="hidden" name="role" value={role} />
+        <input type="hidden" name="groupName" value={groupName} />
+        <input type="hidden" name="system" value={system} />
+        <input type="hidden" name="campus" value={campus} />
+        
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
             <div className="space-y-2">
@@ -477,8 +492,8 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                   {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
               </div>
               <div className="space-y-2">
-                  <Label htmlFor="edit-role">Role</Label>
-                  <Select name="role" defaultValue={employee.role} disabled={isLoadingLists}>
+                  <Label>Role</Label>
+                  <Select value={role} onValueChange={setRole} disabled={isLoadingLists}>
                       <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
                       <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
                   </Select>
@@ -488,16 +503,16 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                  <Label htmlFor="edit-groupName">Group Name</Label>
-                  <Select name="groupName" defaultValue={employee.groupName} disabled={isLoadingLists}>
+                  <Label>Group Name</Label>
+                  <Select value={groupName} onValueChange={setGroupName} disabled={isLoadingLists}>
                       <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Group"} /></SelectTrigger>
                       <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
                   </Select>
                   {serverState?.errors?.groupName && <p className="text-sm text-destructive">{serverState.errors.groupName.join(', ')}</p>}
               </div>
               <div className="space-y-2">
-                  <Label htmlFor="edit-campus">Campus</Label>
-                   <Select name="campus" defaultValue={employee.campus} disabled={isLoadingLists}>
+                  <Label>Campus</Label>
+                   <Select value={campus} onValueChange={setCampus} disabled={isLoadingLists}>
                       <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger>
                       <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
                   </Select>
@@ -506,8 +521,8 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
             </div>
 
              <div className="space-y-2">
-                <Label htmlFor="edit-system">System</Label>
-                <Select name="system" defaultValue={employee.system} disabled={isLoadingLists}>
+                <Label>System</Label>
+                <Select value={system} onValueChange={setSystem} disabled={isLoadingLists}>
                     <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger>
                     <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
                 </Select>
@@ -1339,3 +1354,5 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
+    
