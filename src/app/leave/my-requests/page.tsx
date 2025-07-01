@@ -125,9 +125,8 @@ const months = Array.from({ length: 12 }, (_, i) => ({
   label: format(new Date(0, i), "MMMM"),
 }));
 
-
-export default function ViewEmployeeLeaveAndWorkSummaryPage() {
-  const { profile: currentEmployee, loading: isLoadingProfile } = useUserProfile();
+function MyRequestsContent() {
+  const { profile: currentEmployee } = useUserProfile();
   const currentEmployeeId = currentEmployee?.id;
   
   const [employeeLeaveRequests, setEmployeeLeaveRequests] = useState<LeaveRequestEntry[]>([]);
@@ -307,28 +306,15 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
     }
   };
 
-  if (isLoadingProfile) {
-    return (
-        <AppLayout>
-            <div className="flex justify-center items-center h-full">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            </div>
-        </AppLayout>
-    );
-  }
-
   if (!currentEmployee) {
       return (
-          <AppLayout>
-              <div className="text-center text-muted-foreground p-8">
-                  Could not load your employee profile. Please ensure your user account is linked to an employee record and try again.
-              </div>
-          </AppLayout>
+        <div className="text-center text-muted-foreground p-8">
+            Could not load your employee profile. Please ensure your user account is linked to an employee record and try again.
+        </div>
       );
   }
 
   return (
-    <AppLayout>
       <div className="space-y-8">
         <header>
           <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl my-requests-title">
@@ -568,6 +554,13 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
             </Card>
           </>
       </div>
+  );
+}
+
+export default function ViewEmployeeLeaveAndWorkSummaryPage() {
+  return (
+    <AppLayout>
+      <MyRequestsContent />
     </AppLayout>
   );
 }
