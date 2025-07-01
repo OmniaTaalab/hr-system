@@ -97,7 +97,8 @@ export async function saveTpiDataAction(
 // --- Batch Upload Action ---
 
 const TpiBatchRecordSchema = z.object({
-  employeeName: z.string().min(1, "Employee Name from sheet is required."),
+  firstName: z.string().min(1, "First Name from sheet is required."),
+  lastName: z.string().min(1, "Last Name from sheet is required."),
   examAvg: z.coerce.number().nonnegative("Exam Avg must be a non-negative number.").optional().nullable(),
   exitAvg: z.coerce.number().nonnegative("Exit Avg must be a non-negative number.").optional().nullable(),
   AA: z.coerce.number().nonnegative("AA must be a non-negative number.").optional().nullable(),
@@ -145,16 +146,17 @@ export async function batchSaveTpiDataAction(
   const employeeNotFoundNames: string[] = [];
 
   for (const record of validatedRecords.data) {
-    if (!record.employeeName) {
-        // Skip rows with no employee name
+    if (!record.firstName || !record.lastName) {
+        // Skip rows with no full name
         continue;
     }
-    const employeeQuery = query(collection(db, "employee"), where("name", "==", record.employeeName), limit(1));
+    const employeeName = `${record.firstName} ${record.lastName}`.trim();
+    const employeeQuery = query(collection(db, "employee"), where("name", "==", employeeName), limit(1));
     const employeeSnapshot = await getDocs(employeeQuery);
 
     if (employeeSnapshot.empty) {
       notFoundCount++;
-      employeeNotFoundNames.push(record.employeeName);
+      employeeNotFoundNames.push(employeeName);
       continue;
     }
     
@@ -165,7 +167,7 @@ export async function batchSaveTpiDataAction(
 
     const dataToSave: {[key: string]: any} = { employeeDocId };
     for (const [key, value] of Object.entries(record)) {
-        if (value !== null && value !== undefined && key !== 'employeeName') {
+        if (value !== null && value !== undefined && key !== 'firstName' && key !== 'lastName') {
             dataToSave[key] = value;
         }
     }

@@ -212,16 +212,21 @@ export default function TpiPage() {
       }
 
       // Filter out rows that are likely empty or invalid before mapping
-      const filteredJsonData = jsonData.filter((row: any) => row['Employee Name'] && String(row['Employee Name']).trim() !== "");
+      const filteredJsonData = jsonData.filter((row: any) => 
+        row['First Name'] && String(row['First Name']).trim() !== "" &&
+        row['Last Name'] && String(row['Last Name']).trim() !== ""
+      );
+
 
       if (filteredJsonData.length === 0) {
-        toast({ title: "No Valid Data", description: "No rows with a valid 'Employee Name' were found in the file.", variant: "destructive" });
+        toast({ title: "No Valid Data", description: "No rows with a valid 'First Name' and 'Last Name' were found in the file.", variant: "destructive" });
         setIsUploading(false);
         return;
       }
 
       const mappedData = filteredJsonData.map((row: any) => ({
-        employeeName: String(row['Employee Name']),
+        firstName: String(row['First Name']),
+        lastName: String(row['Last Name']),
         examAvg: row['Exam Avg'] ?? null,
         exitAvg: row['Exit Avg'] ?? null,
         AA: row['AA'] ?? null,
@@ -311,9 +316,10 @@ export default function TpiPage() {
                 </div>
                 <div>
                     <h4 className="font-semibold text-sm mb-2 flex items-center"><FileText className="mr-2 h-4 w-4"/>Required Excel Format</h4>
-                    <p className="text-xs text-muted-foreground mb-2">The first sheet in the file will be used. Ensure the column headers match exactly as listed below:</p>
+                    <p className="text-xs text-muted-foreground mb-2">The first sheet in the file will be used. Ensure the column headers match exactly as listed below. The system will match employees using their first and last names.</p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 text-xs p-3 bg-secondary rounded-md">
-                        <code>Employee Name</code>
+                        <code>First Name</code>
+                        <code>Last Name</code>
                         <code>Exam Avg</code>
                         <code>Exit Avg</code>
                         <code>AA</code>
