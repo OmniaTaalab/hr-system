@@ -415,11 +415,18 @@ export default function TpiPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Rank</TableHead>
-                    <TableHead>Employee Name</TableHead>
+                    <TableHead>First Name</TableHead>
+                    <TableHead>Last Name</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Group Name</TableHead>
+                    <TableHead>System</TableHead>
+                    <TableHead>Campus</TableHead>
                     <TableHead className="text-right">Exam Avg</TableHead>
+                    <TableHead className="text-right">Exit Avg</TableHead>
+                    <TableHead className="text-right">AA</TableHead>
+                    <TableHead className="text-right">Points</TableHead>
                     <TableHead className="text-right">Total</TableHead>
+                    <TableHead>Sheet Name</TableHead>
                     <TableHead className="text-center">Top 25%</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -427,20 +434,27 @@ export default function TpiPage() {
                   {displayData.length > 0 ? displayData.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-bold">{item.globalRank}</TableCell>
-                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell className="font-medium">{item.firstName}</TableCell>
+                      <TableCell className="font-medium">{item.lastName}</TableCell>
                       <TableCell>
-                        <Badge variant={item.role.toLowerCase() === 'hod' ? 'default' : 'secondary'}>{item.role}</Badge>
+                        <Badge variant={item.role?.toLowerCase() === 'hod' ? 'default' : 'secondary'}>{item.role}</Badge>
                       </TableCell>
                       <TableCell>{item.groupName}</TableCell>
+                      <TableCell>{item.system}</TableCell>
+                      <TableCell>{item.campus}</TableCell>
                       <TableCell className="text-right">{item.examAvg?.toFixed(2) ?? 'N/A'}</TableCell>
+                      <TableCell className="text-right">{item.exitAvg?.toFixed(2) ?? 'N/A'}</TableCell>
+                      <TableCell className="text-right">{item.AA?.toFixed(3) ?? 'N/A'}</TableCell>
+                      <TableCell className="text-right">{item.points ?? 'N/A'}</TableCell>
                       <TableCell className="text-right font-semibold">{item.total?.toFixed(2) ?? 'N/A'}</TableCell>
+                      <TableCell>{item.sheetName ?? 'N/A'}</TableCell>
                       <TableCell className="text-center">
                         {item.top25 && <Check className="h-5 w-5 text-green-500 mx-auto" />}
                       </TableCell>
                     </TableRow>
                   )) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center">No TPI data has been entered yet.</TableCell>
+                      <TableCell colSpan={14} className="h-24 text-center">No TPI data has been entered yet.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
