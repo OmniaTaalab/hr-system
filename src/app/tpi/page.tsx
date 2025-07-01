@@ -225,8 +225,8 @@ export default function TpiPage() {
       }
 
       const mappedData = filteredJsonData.map((row: any) => ({
-        firstName: String(row['First Name']),
-        lastName: String(row['Last Name']),
+        firstName: String(row['firstName']),
+        lastName: String(row['lastName']),
         examAvg: row['Exam Avg'] ?? null,
         exitAvg: row['Exit Avg'] ?? null,
         AA: row['AA'] ?? null,
@@ -318,14 +318,14 @@ export default function TpiPage() {
                     <h4 className="font-semibold text-sm mb-2 flex items-center"><FileText className="mr-2 h-4 w-4"/>Required Excel Format</h4>
                     <p className="text-xs text-muted-foreground mb-2">The first sheet in the file will be used. Ensure the column headers match exactly as listed below. The system will match employees using their first and last names.</p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 text-xs p-3 bg-secondary rounded-md">
-                        <code>First Name</code>
-                        <code>Last Name</code>
+                        <code>firame</code>
+                        <code>lastname</code>
                         <code>Exam Avg</code>
                         <code>Exit Avg</code>
-                        <code>AA</code>
+                        <code>role</code>
                         <code>Points</code>
                         <code>Total</code>
-                        <code>Sheet Name</code>
+                        <code>group name</code>
                     </div>
                 </div>
             </CardContent>

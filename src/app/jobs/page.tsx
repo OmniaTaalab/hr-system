@@ -1,8 +1,15 @@
+
+"use client";
+
+import React, { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Briefcase, MapPin, DollarSign, ArrowRight } from "lucide-react";
+import { Briefcase, MapPin, DollarSign, ArrowRight, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { db } from "@/lib/firebase/config";
+import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
+import { useToast } from "@/hooks/use-toast";
 
 interface JobOpening {
   id: string;
@@ -12,46 +19,42 @@ interface JobOpening {
   salaryRange?: string;
   description: string;
   shortRequirements: string[];
+  createdAt?: Timestamp;
 }
 
-const mockJobOpenings: JobOpening[] = [
-  {
-    id: "1",
-    title: "Senior Software Engineer",
-    department: "Technology",
-    location: "Remote",
-    salaryRange: "$120,000 - $160,000",
-    description: "Join our innovative tech team to build next-generation HR solutions. You'll work on challenging projects using modern technologies.",
-    shortRequirements: ["5+ years experience", "React, Node.js", "Cloud (AWS/Azure)"],
-  },
-  {
-    id: "2",
-    title: "HR Business Partner",
-    department: "Human Resources",
-    location: "New York, NY",
-    description: "We are seeking an experienced HR Business Partner to support our growing teams. You will act as a strategic partner to business leaders.",
-    shortRequirements: ["Strong HR generalist background", "Excellent communication", "Problem-solving skills"],
-  },
-  {
-    id: "3",
-    title: "UX/UI Designer",
-    department: "Design",
-    location: "San Francisco, CA (Hybrid)",
-    salaryRange: "$90,000 - $110,000",
-    description: "Shape the user experience of our HRMS platform. Create intuitive and visually appealing interfaces for web and mobile.",
-    shortRequirements: ["Portfolio of UX/UI work", "Figma/Sketch", "User research"],
-  },
-  {
-    id: "4",
-    title: "Marketing Specialist",
-    department: "Marketing",
-    location: "Remote",
-    description: "Drive our marketing efforts by creating engaging content, managing campaigns, and analyzing performance.",
-    shortRequirements: ["Digital marketing expertise", "Content creation", "SEO/SEM knowledge"],
-  },
-];
 
 export default function JobBoardPage() {
+  const [jobOpenings, setJobOpenings] = useState<JobOpening[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    setIsLoading(true);
+    const q = query(collection(db, "jobs"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        const jobsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as JobOpening));
+        setJobOpenings(jobsData);
+        setIsLoading(false);
+      }, 
+      (error) => {
+        console.error("Error fetching job openings:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not fetch job openings. Please check Firestore rules and collection name.",
+        });
+        setIsLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [toast]);
+
+
   return (
     <AppLayout>
       <div className="space-y-8">
@@ -64,47 +67,59 @@ export default function JobBoardPage() {
           </p>
         </header>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {mockJobOpenings.map((job) => (
-            <Card key={job.id} className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <CardTitle className="font-headline text-xl">{job.title}</CardTitle>
-                  <Briefcase className="h-6 w-6 text-primary flex-shrink-0" />
-                </div>
-                <CardDescription className="text-sm text-muted-foreground">{job.department}</CardDescription>
-                <div className="flex items-center space-x-2 text-xs text-muted-foreground pt-1">
-                  <MapPin className="h-3 w-3" />
-                  <span>{job.location}</span>
-                  {job.salaryRange && (
-                    <>
-                      <span className="mx-1">|</span>
-                      <DollarSign className="h-3 w-3" />
-                      <span>{job.salaryRange}</span>
-                    </>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="flex-grow">
-                <p className="text-sm mb-3">{job.description}</p>
-                <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Key Requirements:</h4>
-                <ul className="list-disc list-inside text-sm space-y-0.5">
-                  {job.shortRequirements.map((req, idx) => (
-                    <li key={idx}>{req}</li>
-                  ))}
-                </ul>
-              </CardContent>
-              <CardFooter>
-                <Button asChild variant="default" className="w-full group">
-                  <Link href={`/jobs/${job.id}`}> {/* Placeholder link */}
-                    View Details & Apply
-                    <ArrowRight className="ml-2 h-4 w-4 transform transition-transform group-hover:translate-x-1" />
-                  </Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="flex justify-center items-center h-64">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <p className="ml-4 text-lg">Loading job openings...</p>
+          </div>
+        ) : jobOpenings.length === 0 ? (
+           <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
+            <h3 className="text-xl font-semibold">No Open Positions</h3>
+            <p className="mt-2">There are currently no job openings available. Please check back later.</p>
+          </div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {jobOpenings.map((job) => (
+              <Card key={job.id} className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <CardTitle className="font-headline text-xl">{job.title}</CardTitle>
+                    <Briefcase className="h-6 w-6 text-primary flex-shrink-0" />
+                  </div>
+                  <CardDescription className="text-sm text-muted-foreground">{job.department}</CardDescription>
+                  <div className="flex items-center space-x-2 text-xs text-muted-foreground pt-1">
+                    <MapPin className="h-3 w-3" />
+                    <span>{job.location}</span>
+                    {job.salaryRange && (
+                      <>
+                        <span className="mx-1">|</span>
+                        <DollarSign className="h-3 w-3" />
+                        <span>{job.salaryRange}</span>
+                      </>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-grow">
+                  <p className="text-sm mb-3">{job.description}</p>
+                  <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Key Requirements:</h4>
+                  <ul className="list-disc list-inside text-sm space-y-0.5">
+                    {job.shortRequirements && job.shortRequirements.map((req, idx) => (
+                      <li key={idx}>{req}</li>
+                    ))}
+                  </ul>
+                </CardContent>
+                <CardFooter>
+                  <Button asChild variant="default" className="w-full group">
+                    <Link href={`/jobs/${job.id}`}> {/* Placeholder link */}
+                      View Details & Apply
+                      <ArrowRight className="ml-2 h-4 w-4 transform transition-transform group-hover:translate-x-1" />
+                    </Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </AppLayout>
   );

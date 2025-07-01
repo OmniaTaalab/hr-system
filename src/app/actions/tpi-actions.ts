@@ -97,8 +97,8 @@ export async function saveTpiDataAction(
 // --- Batch Upload Action ---
 
 const TpiBatchRecordSchema = z.object({
-  firstName: z.string().min(1, "First Name from sheet is required."),
-  lastName: z.string().min(1, "Last Name from sheet is required."),
+  firstName: z.string().min(1, "first Name from sheet is required."),
+  lastName: z.string().min(1, "last Name from sheet is required."),
   examAvg: z.coerce.number().nonnegative("Exam Avg must be a non-negative number.").optional().nullable(),
   exitAvg: z.coerce.number().nonnegative("Exit Avg must be a non-negative number.").optional().nullable(),
   AA: z.coerce.number().nonnegative("AA must be a non-negative number.").optional().nullable(),
