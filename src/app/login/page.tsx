@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -15,10 +16,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { ArrowRight, LogInIcon, Loader2 } from "lucide-react";
+import { ArrowRight, LogInIcon, Loader2, AlertTriangle } from "lucide-react";
 import { Icons } from "@/components/icons";
 import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -29,20 +31,25 @@ export default function LoginPage() {
 
   const router = useRouter();
   const { toast } = useToast();
+  
+  // Check if the API key is a placeholder by checking the initialized auth object
+  const isFirebaseConfigured = !auth.app.options.apiKey?.includes("REPLACE_WITH");
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // If user is already logged in, redirect to dashboard
-        router.push("/");
-      } else {
-        // If no user, stop checking and show the login form
-        setIsCheckingAuth(false);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [router]);
+    // Only check auth state if firebase is configured
+    if (isFirebaseConfigured) {
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if (user) {
+          router.push("/");
+        } else {
+          setIsCheckingAuth(false);
+        }
+      });
+      return () => unsubscribe();
+    } else {
+      setIsCheckingAuth(false);
+    }
+  }, [router, isFirebaseConfigured]);
 
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -50,8 +57,7 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
 
-    // Check for placeholder API Key
-    if (auth.app.options.apiKey?.includes("REPLACE_WITH_")) {
+    if (!isFirebaseConfigured) {
       const configError = "Firebase is not configured. Please add your project's API Key to src/lib/firebase/config.ts";
       setError(configError);
       toast({
@@ -65,16 +71,12 @@ export default function LoginPage() {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // On successful login, Firebase automatically persists the session.
-      // The onAuthStateChanged listener in AppLayout will handle the redirect.
       router.push("/");
     } catch (err: any) {
       let errorMessage = "An unexpected error occurred.";
       if (err.code) {
         switch (err.code) {
           case "auth/invalid-credential":
-          case "auth/user-not-found":
-          case "auth/wrong-password":
             errorMessage = "Invalid email or password. Please try again.";
             break;
           case "auth/invalid-email":
@@ -101,7 +103,7 @@ export default function LoginPage() {
     }
   };
 
-  if (isCheckingAuth) {
+  if (isCheckingAuth && isFirebaseConfigured) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -118,6 +120,21 @@ export default function LoginPage() {
       <div className="mb-8">
         <Icons.Logo className="h-20 w-20" />
       </div>
+
+      {!isFirebaseConfigured && (
+        <Alert variant="destructive" className="w-full max-w-sm mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Configuration Required</AlertTitle>
+          <AlertDescription>
+            Your Firebase API key is missing. Please copy it from your Firebase project settings into the file: 
+            <br/>
+            <code className="mt-2 block font-mono text-xs bg-muted p-1 rounded">src/lib/firebase/config.ts</code>
+            <br/>
+            The app will not work until this is done.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card className="w-full max-w-sm shadow-xl">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold font-headline">
@@ -139,6 +156,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={!isFirebaseConfigured}
               />
             </div>
             <div className="space-y-2">
@@ -151,6 +169,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={!isFirebaseConfigured}
               />
             </div>
             {error && (
@@ -163,7 +182,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               className="w-full group"
-              disabled={isLoading}
+              disabled={isLoading || !isFirebaseConfigured}
             >
               {isLoading ? (
                 <>
