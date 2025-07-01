@@ -666,8 +666,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   );
 }
 
-
-export default function EmployeeManagementPage() {
+function EmployeeManagementContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const [searchTerm, setSearchTerm] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -946,183 +945,181 @@ export default function EmployeeManagementPage() {
     if (!name) return "U";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
-
+  
   return (
-    <AppLayout>
-      <div className="space-y-8">
-        <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-              Employee Management
-            </h1>
-            <p className="text-muted-foreground">
-              Manage employee records, add new hires, and update details.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+    <div className="space-y-8">
+      <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
+            Employee Management
+          </h1>
+          <p className="text-muted-foreground">
+            Manage employee records, add new hires, and update details.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium sm:text-sm">Total Employees</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="p-3 pt-0">
+              <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.total}</div>
+            </CardContent>
+          </Card>
             <Card>
-              <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs font-medium sm:text-sm">Total Employees</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent className="p-3 pt-0">
-                <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.total}</div>
-              </CardContent>
-            </Card>
-             <Card>
-              <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs font-medium sm:text-sm">Active Employees</CardTitle>
-                <UserCheck className="h-4 w-4 text-green-500" />
-              </CardHeader>
-              <CardContent className="p-3 pt-0">
-                <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.active}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs font-medium sm:text-sm">On Leave</CardTitle>
-                <Clock className="h-4 w-4 text-yellow-500" />
-              </CardHeader>
-              <CardContent className="p-3 pt-0">
-                <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.onLeave}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs font-medium sm:text-sm">Terminated</CardTitle>
-                <UserX className="h-4 w-4 text-red-500" />
-              </CardHeader>
-              <CardContent className="p-3 pt-0">
-                <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.terminated}</div>
-              </CardContent>
-            </Card>
-          </div>
-        </header>
+            <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium sm:text-sm">Active Employees</CardTitle>
+              <UserCheck className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent className="p-3 pt-0">
+              <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.active}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium sm:text-sm">On Leave</CardTitle>
+              <Clock className="h-4 w-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent className="p-3 pt-0">
+              <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.onLeave}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium sm:text-sm">Terminated</CardTitle>
+              <UserX className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent className="p-3 pt-0">
+              <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.terminated}</div>
+            </CardContent>
+          </Card>
+        </div>
+      </header>
 
-        <Card className="shadow-lg">
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Search employees (name, ID, department...)"
-                  className="w-full pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              {isLoadingProfile ? (
-                <Skeleton className="h-10 w-[190px]" />
-              ) : canAddEmployee && (
-                <Button onClick={openAddDialog} className="w-full sm:w-auto">
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Add New Employee
-                </Button>
-              )}
+      <Card className="shadow-lg">
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search employees (name, ID, department...)"
+                className="w-full pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center items-center h-64">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                 <p className="ml-4 text-lg">Loading employees...</p>
-              </div>
-            ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Employee ID</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Group Name</TableHead>
-                  <TableHead>Campus</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Account</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredEmployees.length > 0 ? (
-                  filteredEmployees.map((employee) => (
-                    <TableRow key={employee.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-3">
-                          <Avatar>
-                              <AvatarImage src={employee.photoURL || undefined} alt={employee.name} />
-                              <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
-                          </Avatar>
-                          {employee.name}
-                        </div>
-                      </TableCell>
-                      <TableCell>{employee.employeeId}</TableCell>
-                      <TableCell>{employee.role}</TableCell>
-                      <TableCell>{employee.groupName}</TableCell>
-                      <TableCell>{employee.campus}</TableCell>
-                      <TableCell>
-                        <EmployeeStatusBadge status={employee.displayStatus} />
-                      </TableCell>
-                      <TableCell>
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger>
-                                    {employee.userId ? <UserCheck className="h-5 w-5 text-green-500" /> : <UserX className="h-5 w-5 text-muted-foreground" />}
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>{employee.userId ? `Linked to Auth UID: ${employee.userId}` : "No user account linked."}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Open menu</span>
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEditDialog(employee)}>
-                              <Edit3 className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openCreateLoginDialog(employee)} disabled={!!employee.userId}>
-                              <UserPlus className="mr-2 h-4 w-4" />
-                              Create Login
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openChangePasswordDialog(employee)} disabled={!employee.userId}>
-                              <KeyRound className="mr-2 h-4 w-4" />
-                              Change Password
-                            </DropdownMenuItem>
-                             <DropdownMenuItem onClick={() => openDeleteLoginDialog(employee)} disabled={!employee.userId} className="text-destructive focus:text-destructive">
-                                <UserMinus className="mr-2 h-4 w-4" />
-                                Delete Login
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => openDeleteConfirmDialog(employee)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete Employee
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
-                      {searchTerm ? "No employees found matching your search." : "No employees found. Try adding some!"}
+            {isLoadingProfile ? (
+              <Skeleton className="h-10 w-[190px]" />
+            ) : canAddEmployee && (
+              <Button onClick={openAddDialog} className="w-full sm:w-auto">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add New Employee
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="ml-4 text-lg">Loading employees...</p>
+            </div>
+          ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Employee ID</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Group Name</TableHead>
+                <TableHead>Campus</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Account</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredEmployees.length > 0 ? (
+                filteredEmployees.map((employee) => (
+                  <TableRow key={employee.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-3">
+                        <Avatar>
+                            <AvatarImage src={employee.photoURL || undefined} alt={employee.name} />
+                            <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
+                        </Avatar>
+                        {employee.name}
+                      </div>
+                    </TableCell>
+                    <TableCell>{employee.employeeId}</TableCell>
+                    <TableCell>{employee.role}</TableCell>
+                    <TableCell>{employee.groupName}</TableCell>
+                    <TableCell>{employee.campus}</TableCell>
+                    <TableCell>
+                      <EmployeeStatusBadge status={employee.displayStatus} />
+                    </TableCell>
+                    <TableCell>
+                      <TooltipProvider>
+                          <Tooltip>
+                              <TooltipTrigger>
+                                  {employee.userId ? <UserCheck className="h-5 w-5 text-green-500" /> : <UserX className="h-5 w-5 text-muted-foreground" />}
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                  <p>{employee.userId ? `Linked to Auth UID: ${employee.userId}` : "No user account linked."}</p>
+                              </TooltipContent>
+                          </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openEditDialog(employee)}>
+                            <Edit3 className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openCreateLoginDialog(employee)} disabled={!!employee.userId}>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Create Login
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openChangePasswordDialog(employee)} disabled={!employee.userId}>
+                            <KeyRound className="mr-2 h-4 w-4" />
+                            Change Password
+                          </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openDeleteLoginDialog(employee)} disabled={!employee.userId} className="text-destructive focus:text-destructive">
+                              <UserMinus className="mr-2 h-4 w-4" />
+                              Delete Login
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => openDeleteConfirmDialog(employee)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete Employee
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={8} className="h-24 text-center">
+                    {searchTerm ? "No employees found matching your search." : "No employees found. Try adding some!"}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+          )}
+        </CardContent>
+      </Card>
+      
       {isAddDialogOpen && (
         <AlertDialog open={isAddDialogOpen} onOpenChange={(open) => { if(!open) closeAddDialog(); else setIsAddDialogOpen(true); }}>
           <AlertDialogContent className="max-w-2xl">
@@ -1134,7 +1131,7 @@ export default function EmployeeManagementPage() {
       {isEditDialogOpen && editingEmployee && (
         <AlertDialog open={isEditDialogOpen} onOpenChange={(open) => { if(!open) closeEditDialog(); else setIsEditDialogOpen(true); }}>
           <AlertDialogContent className="max-w-2xl">
-             <EditEmployeeFormContent key={`edit-form-${editFormKey}-${editingEmployee.id}`} employee={editingEmployee} onSuccess={closeEditDialog} />
+              <EditEmployeeFormContent key={`edit-form-${editFormKey}-${editingEmployee.id}`} employee={editingEmployee} onSuccess={closeEditDialog} />
           </AlertDialogContent>
         </AlertDialog>
       )}
@@ -1219,7 +1216,7 @@ export default function EmployeeManagementPage() {
                       type={showPassword ? "text" : "password"}
                       className="pr-10"
                     />
-                     <Button
+                      <Button
                       type="button"
                       variant="ghost"
                       size="sm"
@@ -1231,7 +1228,7 @@ export default function EmployeeManagementPage() {
                       <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
                     </Button>
                   </div>
-                   {createLoginServerState?.errors?.confirmPassword && (
+                    {createLoginServerState?.errors?.confirmPassword && (
                       <p className="text-sm text-destructive mt-1">{createLoginServerState.errors.confirmPassword.join(', ')}</p>
                   )}
                 </div>
@@ -1328,7 +1325,7 @@ export default function EmployeeManagementPage() {
                       type={showPassword ? "text" : "password"}
                       className="pr-10"
                     />
-                     <Button
+                      <Button
                       type="button"
                       variant="ghost"
                       size="sm"
@@ -1340,7 +1337,7 @@ export default function EmployeeManagementPage() {
                       <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
                     </Button>
                   </div>
-                   {changePasswordServerState?.errors?.confirmPassword && (
+                    {changePasswordServerState?.errors?.confirmPassword && (
                       <p className="text-sm text-destructive mt-1">{changePasswordServerState.errors.confirmPassword.join(', ')}</p>
                   )}
                 </div>
@@ -1362,7 +1359,14 @@ export default function EmployeeManagementPage() {
           </DialogContent>
         </Dialog>
       )}
+    </div>
+  );
+}
 
+export default function EmployeeManagementPage() {
+  return (
+    <AppLayout>
+      <EmployeeManagementContent />
     </AppLayout>
   );
 }
