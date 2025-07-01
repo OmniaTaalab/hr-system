@@ -59,7 +59,7 @@ const initialSubmitState: SubmitLeaveRequestState = {
   success: false,
 };
 
-export default function LeaveRequestPage() {
+function LeaveRequestForm() {
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const [serverState, formAction, isActionPending] = useActionState(submitLeaveRequestAction, initialSubmitState);
@@ -124,19 +124,16 @@ export default function LeaveRequestPage() {
       formAction(formData);
     });
   };
-
+  
   if (isLoadingProfile) {
     return (
-      <AppLayout>
         <div className="flex justify-center items-center h-full">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
         </div>
-      </AppLayout>
     );
   }
-
+  
   return (
-    <AppLayout>
       <div className="max-w-2xl mx-auto">
         <header className="mb-8">
           <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
@@ -324,6 +321,13 @@ export default function LeaveRequestPage() {
           </form>
         </Form>
       </div>
+  );
+}
+
+export default function LeaveRequestPage() {
+  return (
+    <AppLayout>
+      <LeaveRequestForm />
     </AppLayout>
   );
 }
