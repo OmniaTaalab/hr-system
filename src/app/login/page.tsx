@@ -32,11 +32,13 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   
-  // Check if the API key is a placeholder by checking the initialized auth object
-  const isFirebaseConfigured = !auth.app.options.apiKey?.includes("REPLACE_WITH");
+  // A more robust check to see if any of the values are still placeholders
+  const isFirebaseConfigured = Object.values(auth.app.options).every(
+    (value) => typeof value !== 'string' || !value.includes('REPLACE_WITH')
+  );
 
   useEffect(() => {
-    // Only check auth state if firebase is configured
+    // Only check auth state if firebase seems configured
     if (isFirebaseConfigured) {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -58,7 +60,7 @@ export default function LoginPage() {
     setError(null);
 
     if (!isFirebaseConfigured) {
-      const configError = "Firebase is not configured. Please add your project's API Key to src/lib/firebase/config.ts";
+      const configError = "Firebase is not configured correctly. Please check all keys in your config file.";
       setError(configError);
       toast({
         variant: "destructive",
@@ -126,7 +128,7 @@ export default function LoginPage() {
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Configuration Required</AlertTitle>
           <AlertDescription>
-            Your Firebase API key is missing. Please copy it from your Firebase project settings into the file: 
+             One or more of your Firebase keys are missing or still have placeholder values (e.g., "REPLACE_WITH..."). Please ensure all keys like `apiKey`, `messagingSenderId`, and `appId` are copied correctly from your Firebase project settings into:
             <br/>
             <code className="mt-2 block font-mono text-xs bg-muted p-1 rounded">src/lib/firebase/config.ts</code>
             <br/>
