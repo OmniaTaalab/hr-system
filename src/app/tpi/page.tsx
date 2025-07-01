@@ -37,6 +37,10 @@ interface Employee {
 interface TpiRecord {
   id: string;
   employeeDocId: string;
+  role?: string;
+  groupName?: string;
+  system?: string;
+  campus?: string;
   examAvg?: number;
   exitAvg?: number;
   AA?: number;
@@ -236,6 +240,10 @@ export default function TpiPage() {
         return {
           firstName: String(firstName),
           lastName: String(lastName),
+          role: findValueByKeys(row, ['Role']),
+          groupName: findValueByKeys(row, ['Group Name', 'groupname']),
+          system: findValueByKeys(row, ['System']),
+          campus: findValueByKeys(row, ['Campus']),
           examAvg: findValueByKeys(row, ['Exam Avg', 'examavg']),
           exitAvg: findValueByKeys(row, ['Exit Avg', 'exitavg']),
           AA: findValueByKeys(row, ['AA']),
@@ -273,6 +281,7 @@ export default function TpiPage() {
     const combined = employees
       .map(emp => {
         const tpi = tpiRecords.find(r => r.employeeDocId === emp.id);
+        // The spread order ensures that `tpi` values (from Excel) overwrite `emp` values if keys conflict (e.g., role)
         return { ...emp, ...tpi };
       })
       .filter(item => item.total !== undefined); // Only show employees with TPI data
@@ -333,7 +342,7 @@ export default function TpiPage() {
                     <p className="text-xs text-muted-foreground mb-2">The uploader is flexible with column names (e.g., 'First Name' and 'firstName' are both valid). The only absolute requirements are columns for first and last names.</p>
                     <div className="text-xs space-y-1">
                         <p><strong className="font-medium">Required Columns:</strong> <span>`First Name`, `Last Name`</span></p>
-                        <p><strong className="font-medium">Optional Columns:</strong> <span>`Exam Avg`, `Exit Avg`, `AA`, `Points`, `Total`, `Sheet Name`</span></p>
+                        <p><strong className="font-medium">Optional Columns:</strong> <span>`Role`, `Group Name`, `System`, `Campus`, `Exam Avg`, `Exit Avg`, `AA`, `Points`, `Total`, `Sheet Name`</span></p>
                     </div>
                 </div>
             </CardContent>

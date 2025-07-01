@@ -99,6 +99,10 @@ export async function saveTpiDataAction(
 const TpiBatchRecordSchema = z.object({
   firstName: z.string().min(1, "first Name from sheet is required."),
   lastName: z.string().min(1, "last Name from sheet is required."),
+  role: z.string().optional().nullable(),
+  groupName: z.string().optional().nullable(),
+  system: z.string().optional().nullable(),
+  campus: z.string().optional().nullable(),
   examAvg: z.coerce.number().nonnegative("Exam Avg must be a non-negative number.").optional().nullable(),
   exitAvg: z.coerce.number().nonnegative("Exit Avg must be a non-negative number.").optional().nullable(),
   AA: z.coerce.number().nonnegative("AA must be a non-negative number.").optional().nullable(),
