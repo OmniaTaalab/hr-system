@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { format, differenceInCalendarDays, startOfMonth, endOfMonth, max, min, getYear, getMonth, setYear, setMonth, isSameMonth, isToday, isValid, startOfDay as dateFnsStartOfDay, endOfDay as dateFnsEndOfDay } from "date-fns";
-import { db } from '@/lib/firebase/config';
+import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, where, Timestamp, orderBy, DocumentData, getDocs, limit } from 'firebase/firestore';
 import { cn } from "@/lib/utils";
 import { CalendarOff, ListChecks } from "lucide-react"; 
@@ -25,6 +25,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 
+// Assume this function exists and returns the current user's Firestore document ID for the 'employee' collection
+import { getCurrentUserId } from "@/lib/auth"; 
 
 interface AttendanceRecord {
   id: string;
@@ -140,10 +142,9 @@ const months = Array.from({ length: 12 }, (_, i) => ({
 
 
 export default function ViewEmployeeLeaveAndWorkSummaryPage() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  
+  const [currentEmployeeId, setCurrentEmployeeId] = useState<string | null>(null);
+  const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
+
   const [employeeLeaveRequests, setEmployeeLeaveRequests] = useState<LeaveRequestEntry[]>([]);
   const [isLoadingLeaveRequests, setIsLoadingLeaveRequests] = useState(false);
 
@@ -166,32 +167,50 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
   const [isLoadingAttendanceDetails, setIsLoadingAttendanceDetails] = useState(false);
   
   const { toast } = useToast();
-
+ 
+  // Effect to get the current user's ID and fetch their employee data
   useEffect(() => {
-    setIsLoadingEmployees(true);
-    const q = query(collection(db, "employee"), orderBy("name"));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const employeesData: Employee[] = [];
-      querySnapshot.forEach((doc) => {
-        employeesData.push({ id: doc.id, ...doc.data() } as Employee);
-      });
-      setEmployees(employeesData);
-      setIsLoadingEmployees(false);
-    }, (error) => {
-      console.error("Error fetching employees: ", error);
-      toast({
-        variant: "destructive",
-        title: "Error Fetching Employees",
-        description: "Could not load employee data.",
-      });
-      setIsLoadingEmployees(false);
-    });
-    return () => unsubscribe();
-  }, [toast]);
+    const fetchCurrentUser = async () => {
+      const userId = await getCurrentUserId(); // Get the current user's authentication ID
+      if (userId) {
+        // Now fetch the employee document using this userId
+        const q = query(collection(db, "employee"), where("userId", "==", userId), limit(1));
+        
+        // Use onSnapshot for real-time updates to the employee profile
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          if (!querySnapshot.empty) {
+            const employeeDoc = querySnapshot.docs[0];
+            setCurrentEmployee({ id: employeeDoc.id, ...employeeDoc.data() } as Employee);
+            setCurrentEmployeeId(employeeDoc.id); // Set the Firestore doc ID here
+          } else {
+             console.error("Employee document not found for user ID:", userId);
+             toast({
+              variant: "destructive",
+              title: "Error",
+              description: "Could not find your employee record.",
+            });
+             setCurrentEmployee(null);
+             setCurrentEmployeeId(null);
+          }
+        }, (error) => {
+            console.error("Error fetching employee profile:", error);
+            toast({ variant: "destructive", title: "Error", description: "Failed to listen for profile updates." });
+        });
+        
+        return () => unsubscribe(); // Cleanup listener
+        
+      } else {
+        setCurrentEmployeeId(null);
+        setCurrentEmployee(null);
+      }
+    };
+
+    fetchCurrentUser();
+  }, [toast]); 
 
   // useEffect for monthly summary (work, leave, attendance details table)
   useEffect(() => {
-    if (!selectedEmployee) {
+    if (!currentEmployeeId) {
       setEmployeeLeaveRequests([]);
       setMonthlyWorkHours(0);
       setMonthlyWorkDays(0);
@@ -213,7 +232,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
         // Fetch Monthly Work Stats (Attendance) & Detailed Attendance
         const monthlyAttendanceQuery = query(
           collection(db, "attendanceRecords"),
-          where("employeeDocId", "==", selectedEmployee.id),
+          where("employeeDocId", "==", currentEmployeeId),
           where("date", ">=", Timestamp.fromDate(monthStart)), 
           where("date", "<=", Timestamp.fromDate(monthEnd)),   
           orderBy("date", "asc") 
@@ -253,7 +272,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
       try {
         const overlappingLeavesQuery = query(
           collection(db, "leaveRequests"),
-          where("requestingEmployeeDocId", "==", selectedEmployee.id),
+          where("requestingEmployeeDocId", "==", currentEmployeeId),
           where("status", "==", "Approved"), 
           where("startDate", "<=", Timestamp.fromDate(monthEnd)), 
           orderBy("startDate", "desc") 
@@ -300,13 +319,14 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
       }
     };
     
-    fetchMonthlyData();
-
-  }, [selectedEmployee, currentMonthDate, toast]);
+    if (currentEmployeeId) {
+      fetchMonthlyData();
+    }
+  }, [currentEmployeeId, currentMonthDate, toast]);
 
   // useEffect for specific day work hours snapshot
   useEffect(() => {
-    if (!selectedEmployee) {
+    if (!currentEmployeeId) {
       setSpecificDayWorkHours(null);
       return;
     }
@@ -318,7 +338,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
         
         const dailyAttendanceQuery = query(
           collection(db, "attendanceRecords"),
-          where("employeeDocId", "==", selectedEmployee.id),
+          where("employeeDocId", "==", currentEmployeeId),
           where("date", "==", Timestamp.fromDate(dayUTCStart)) 
         );
         const dailySnapshot = await getDocs(dailyAttendanceQuery);
@@ -338,15 +358,10 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
         setIsLoadingSpecificDayHours(false);
       }
     };
-
-    fetchSpecificDayData();
-  }, [selectedEmployee, specificDayForSnapshot, toast]);
-
-
-  const handleEmployeeSelect = (employeeId: string) => {
-    const employee = employees.find(e => e.id === employeeId);
-    setSelectedEmployee(employee || null);
-  };
+     if (currentEmployeeId) {
+      fetchSpecificDayData();
+    }
+  }, [currentEmployeeId, specificDayForSnapshot, toast]);
   
   const handleYearChange = (yearString: string) => {
     const year = parseInt(yearString, 10);
@@ -366,48 +381,19 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
     <AppLayout>
       <div className="space-y-8">
         <header>
-          <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-            Employee Work & Leave Summary
+          <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl my-requests-title">
+            My Work & Leave Summary
           </h1>
           <p className="text-muted-foreground">
-            Select an employee and month to view their summary.
+            Overview of your work and leave summary.
           </p>
         </header>
-
+        
+        {/* Conditionally render the summary based on whether the current employee is loaded */}
+        {currentEmployeeId && (
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <iconMap.Users className="mr-2 h-5 w-5 text-primary" />
-              Select Employee
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoadingEmployees ? (
-              <div className="flex justify-center items-center h-20">
-                <iconMap.Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : employees.length > 0 ? (
-              <Select onValueChange={handleEmployeeSelect} value={selectedEmployee?.id || ""}>
-                <SelectTrigger className="w-full md:w-1/2 lg:w-1/3">
-                  <SelectValue placeholder="Select an employee..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((employee) => (
-                    <SelectItem key={employee.id} value={employee.id}>
-                      {employee.name} ({employee.employeeId})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <p className="text-center text-muted-foreground py-4">No employees found.</p>
-            )}
-          </CardContent>
-        </Card>
-        
-        {selectedEmployee && (
-        <Card className="shadow-lg">
-            <CardHeader>
+             <CardHeader>
                 <CardTitle className="flex items-center">
                     <iconMap.ListFilter className="mr-2 h-5 w-5 text-primary" />
                     Select Month and Year for Monthly Summary
@@ -432,16 +418,15 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
                 </Select>
             </CardContent>
         </Card>
-        )}
+       )}
 
-
-        {selectedEmployee && (
+        {currentEmployee && (
           <>
             <Card className="shadow-lg mt-8">
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <iconMap.Activity className="mr-2 h-5 w-5 text-primary" />
-                  Summary for {selectedEmployee.name}
+                  Summary for {currentEmployee.name}
                 </CardTitle>
                 <CardDescription>
                   Overview of work and leave. Monthly stats are for ({format(currentMonthDate, "MMMM yyyy")}).
@@ -526,7 +511,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
                 <CardHeader>
                     <CardTitle className="flex items-center">
                         <iconMap.CalendarClock className="mr-2 h-5 w-5 text-primary" />
-                        Monthly Attendance Details for {selectedEmployee.name} ({format(currentMonthDate, "MMMM yyyy")})
+                        Monthly Attendance Details for {currentEmployee.name} ({format(currentMonthDate, "MMMM yyyy")})
                     </CardTitle>
                     <CardDescription>
                         Day-by-day clock-in, clock-out, and duration for the selected month.
@@ -573,7 +558,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
                         </Table>
                     ) : (
                         <p className="text-center text-muted-foreground py-4">
-                            No attendance records found for {selectedEmployee.name} in {format(currentMonthDate, "MMMM yyyy")}.
+                            No attendance records found for {currentEmployee.name} in {format(currentMonthDate, "MMMM yyyy")}.
                         </p>
                     )}
                 </CardContent>
@@ -583,7 +568,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <iconMap.Eye className="mr-2 h-5 w-5 text-primary" />
-                  Leave Requests for {selectedEmployee.name} ({format(currentMonthDate, "MMMM yyyy")})
+                  Leave Requests for {currentEmployee.name} ({format(currentMonthDate, "MMMM yyyy")})
                 </CardTitle>
                 <CardDescription>
                   Leave requests overlapping with the selected month.
@@ -632,8 +617,8 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
                     </TableBody>
                   </Table>
                 ) : (
-                  <p className="text-center text-muted-foreground py-4">No leave requests found for {selectedEmployee.name} overlapping with {format(currentMonthDate, "MMMM yyyy")}.</p>
-                )}
+                  <p className="text-center text-muted-foreground py-4">No leave requests found for {currentEmployee?.name} overlapping with {format(currentMonthDate, "MMMM yyyy")}.</p>
+                )} 
               </CardContent>
             </Card>
           </>

@@ -11,14 +11,14 @@ import { getStorage, type Storage } from "firebase/storage";
 // from your new Firebase project. You can find this in your Firebase
 // project settings under "General" > "Your apps" > "SDK setup and configuration".
 const firebaseConfig = {
-  apiKey: "AIzaSyC0w_5u652gJFW7U10Xen20TnQ4Q98zyAI", // <--- THIS IS THE MOST IMPORTANT KEY TO REPLACE
-  authDomain: "testhr-80fda.firebaseapp.com",
-  projectId: "testhr-80fda",
-  storageBucket: "testhr-80fda.appspot.com",
-  messagingSenderId: "REPLACE_WITH_YOUR_NEW_MESSAGING_SENDER_ID",
-  appId: "REPLACE_WITH_YOUR_NEW_APP_ID",
-  measurementId: "REPLACE_WITH_YOUR_NEW_MEASUREMENT_ID"
-};
+   apiKey: "AIzaSyC0w_5u652gJFW7U10Xen20TnQ4Q98zyAI",
+   authDomain: "testhr-80fda.firebaseapp.com",
+   projectId: "testhr-80fda",
+   storageBucket: "testhr-80fda.firebasestorage.app",
+   messagingSenderId: "296913267214",
+   appId: "1:296913267214:web:c38a647e5da8faac6b2a5f",
+   measurementId: "G-MQM4PKZBGK"
+ };
 
 // Initialize Firebase
 let app: FirebaseApp;
