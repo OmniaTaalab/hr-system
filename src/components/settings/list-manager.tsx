@@ -24,7 +24,7 @@ interface ListItem {
 
 interface ListManagerProps {
   title: string;
-  collectionName: "roles" | "groupNames" | "systems" | "campuses";
+  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes";
 }
 
 const initialState: ManageListItemState = { success: false, message: null, errors: {} };
