@@ -1,7 +1,7 @@
 
 "use client";
 
-import { AppLayout } from "@/components/layout/app-layout";
+import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -16,17 +16,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { format, differenceInCalendarDays, startOfMonth, endOfMonth, max, min, getYear, getMonth, setYear, setMonth, isSameMonth, isToday, isValid, startOfDay as dateFnsStartOfDay, endOfDay as dateFnsEndOfDay } from "date-fns";
+import { format, differenceInCalendarDays, startOfMonth, endOfMonth, max, min, getYear, getMonth, setYear, setMonth, isValid, startOfDay as dateFnsStartOfDay, endOfDay as dateFnsEndOfDay } from "date-fns";
 import { db } from "@/lib/firebase/config";
-import { collection, onSnapshot, query, where, Timestamp, orderBy, DocumentData, getDocs, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, Timestamp, orderBy, DocumentData, getDocs } from 'firebase/firestore';
 import { cn } from "@/lib/utils";
-import { CalendarOff, ListChecks } from "lucide-react"; 
+import { CalendarOff, ListChecks, Loader2 } from "lucide-react"; 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
-
-// Assume this function exists and returns the current user's Firestore document ID for the 'employee' collection
-import { getCurrentUserId } from "@/lib/auth"; 
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface AttendanceRecord {
   id: string;
@@ -84,19 +82,6 @@ function AttendanceStatusBadge({ status }: { status: AttendanceRecord["status"] 
   }
 }
 
-interface Employee {
-  id: string; 
-  name: string;
-  employeeId: string; 
-  department: string;
-  role: string;
-  status: string;
-  userId?: string | null;
-  dateOfBirth?: Timestamp;
-  joiningDate?: Timestamp;
-  leavingDate?: Timestamp | null;
-}
-
 const formatDurationFromMinutes = (totalMinutes: number | null | undefined): string => {
   if (totalMinutes == null || totalMinutes < 0 || isNaN(totalMinutes)) {
     return "-";
@@ -142,21 +127,19 @@ const months = Array.from({ length: 12 }, (_, i) => ({
 
 
 export default function ViewEmployeeLeaveAndWorkSummaryPage() {
-  const [currentEmployeeId, setCurrentEmployeeId] = useState<string | null>(null);
-  const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
-
+  const { profile: currentEmployee, loading: isLoadingProfile } = useUserProfile();
+  const currentEmployeeId = currentEmployee?.id;
+  
   const [employeeLeaveRequests, setEmployeeLeaveRequests] = useState<LeaveRequestEntry[]>([]);
   const [isLoadingLeaveRequests, setIsLoadingLeaveRequests] = useState(false);
 
   const [currentMonthDate, setCurrentMonthDate] = useState<Date>(startOfMonth(new Date()));
 
-  // State for specific day work hours snapshot
   const [specificDayForSnapshot, setSpecificDayForSnapshot] = useState<Date>(new Date());
   const [specificDayWorkHours, setSpecificDayWorkHours] = useState<number | null>(null);
   const [isLoadingSpecificDayHours, setIsLoadingSpecificDayHours] = useState(false);
   const [isSpecificDayCalendarOpen, setIsSpecificDayCalendarOpen] = useState(false);
   
-  // State for monthly stats (excluding specific day snapshot)
   const [monthlyWorkHours, setMonthlyWorkHours] = useState<number>(0);
   const [monthlyWorkDays, setMonthlyWorkDays] = useState<number>(0);
   const [monthlyLeaveDays, setMonthlyLeaveDays] = useState<number>(0);
@@ -168,46 +151,6 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
   
   const { toast } = useToast();
  
-  // Effect to get the current user's ID and fetch their employee data
-  useEffect(() => {
-    const fetchCurrentUser = async () => {
-      const userId = await getCurrentUserId(); // Get the current user's authentication ID
-      if (userId) {
-        // Now fetch the employee document using this userId
-        const q = query(collection(db, "employee"), where("userId", "==", userId), limit(1));
-        
-        // Use onSnapshot for real-time updates to the employee profile
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-          if (!querySnapshot.empty) {
-            const employeeDoc = querySnapshot.docs[0];
-            setCurrentEmployee({ id: employeeDoc.id, ...employeeDoc.data() } as Employee);
-            setCurrentEmployeeId(employeeDoc.id); // Set the Firestore doc ID here
-          } else {
-             console.error("Employee document not found for user ID:", userId);
-             toast({
-              variant: "destructive",
-              title: "Error",
-              description: "Could not find your employee record.",
-            });
-             setCurrentEmployee(null);
-             setCurrentEmployeeId(null);
-          }
-        }, (error) => {
-            console.error("Error fetching employee profile:", error);
-            toast({ variant: "destructive", title: "Error", description: "Failed to listen for profile updates." });
-        });
-        
-        return () => unsubscribe(); // Cleanup listener
-        
-      } else {
-        setCurrentEmployeeId(null);
-        setCurrentEmployee(null);
-      }
-    };
-
-    fetchCurrentUser();
-  }, [toast]); 
-
   // useEffect for monthly summary (work, leave, attendance details table)
   useEffect(() => {
     if (!currentEmployeeId) {
@@ -229,7 +172,6 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
 
     const fetchMonthlyData = async () => {
       try {
-        // Fetch Monthly Work Stats (Attendance) & Detailed Attendance
         const monthlyAttendanceQuery = query(
           collection(db, "attendanceRecords"),
           where("employeeDocId", "==", currentEmployeeId),
@@ -259,16 +201,12 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
 
       } catch (e: any) {
         console.error("Error fetching monthly attendance/details:", e);
-        setMonthlyWorkHours(0);
-        setMonthlyWorkDays(0);
-        setMonthlyAttendanceDetails([]);
         toast({ title: "Error", description: `Could not fetch monthly work stats/details. Firestore Index might be needed. Details: ${e.message}`, variant: "destructive"});
       } finally {
         setIsLoadingMonthlyStats(false);
         setIsLoadingAttendanceDetails(false);
       }
 
-      // Fetch Monthly Leave Stats and Leave Requests for Table
       try {
         const overlappingLeavesQuery = query(
           collection(db, "leaveRequests"),
@@ -310,18 +248,13 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
 
       } catch (e:any) {
         console.error("Error fetching monthly leaves:", e);
-        setMonthlyLeaveDays(0);
-        setMonthlyLeaveApplicationsCount(0);
-        setEmployeeLeaveRequests([]);
         toast({ title: "Error", description: `Could not fetch monthly leave data. Firestore Index might be needed. Details: ${e.message}`, variant: "destructive"});
       } finally {
         setIsLoadingLeaveRequests(false);
       }
     };
     
-    if (currentEmployeeId) {
-      fetchMonthlyData();
-    }
+    fetchMonthlyData();
   }, [currentEmployeeId, currentMonthDate, toast]);
 
   // useEffect for specific day work hours snapshot
@@ -334,7 +267,7 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
     setIsLoadingSpecificDayHours(true);
     const fetchSpecificDayData = async () => {
       try {
-        const dayUTCStart = new Date(Date.UTC(specificDayForSnapshot.getUTCFullYear(), specificDayForSnapshot.getUTCMonth(), specificDayForSnapshot.getUTCDate(), 0, 0, 0, 0));
+        const dayUTCStart = new Date(Date.UTC(specificDayForSnapshot.getFullYear(), specificDayForSnapshot.getMonth(), specificDayForSnapshot.getDate(), 0, 0, 0, 0));
         
         const dailyAttendanceQuery = query(
           collection(db, "attendanceRecords"),
@@ -352,15 +285,12 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
         setSpecificDayWorkHours(totalDailyMinutes); 
       } catch (e: any) {
         console.error("Error fetching specific day attendance:", e);
-        setSpecificDayWorkHours(null);
         toast({ title: "Error", description: `Could not fetch work hours for the selected day. Details: ${e.message}`, variant: "destructive"});
       } finally {
         setIsLoadingSpecificDayHours(false);
       }
     };
-     if (currentEmployeeId) {
-      fetchSpecificDayData();
-    }
+     fetchSpecificDayData();
   }, [currentEmployeeId, specificDayForSnapshot, toast]);
   
   const handleYearChange = (yearString: string) => {
@@ -377,6 +307,26 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
     }
   };
 
+  if (isLoadingProfile) {
+    return (
+        <AppLayout>
+            <div className="flex justify-center items-center h-full">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        </AppLayout>
+    );
+  }
+
+  if (!currentEmployee) {
+      return (
+          <AppLayout>
+              <div className="text-center text-muted-foreground p-8">
+                  Could not load your employee profile. Please ensure your user account is linked to an employee record and try again.
+              </div>
+          </AppLayout>
+      );
+  }
+
   return (
     <AppLayout>
       <div className="space-y-8">
@@ -389,15 +339,12 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
           </p>
         </header>
         
-        {/* Conditionally render the summary based on whether the current employee is loaded */}
-        {currentEmployeeId && (
         <Card className="shadow-lg">
           <CardHeader>
-             <CardHeader>
-                <CardTitle className="flex items-center">
-                    <iconMap.ListFilter className="mr-2 h-5 w-5 text-primary" />
-                    Select Month and Year for Monthly Summary
-                </CardTitle>
+             <CardTitle className="flex items-center">
+                 <iconMap.ListFilter className="mr-2 h-5 w-5 text-primary" />
+                 Select Month and Year for Monthly Summary
+             </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row gap-4">
                 <Select onValueChange={handleYearChange} value={getYear(currentMonthDate).toString()}>
@@ -418,10 +365,8 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
                 </Select>
             </CardContent>
         </Card>
-       )}
 
-        {currentEmployee && (
-          <>
+        <>
             <Card className="shadow-lg mt-8">
               <CardHeader>
                 <CardTitle className="flex items-center">
@@ -475,9 +420,11 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
 
                     {/* Monthly Statistics */}
                     {isLoadingMonthlyStats ? (
-                         <div className="col-span-1 md:col-span-2 flex justify-center items-center h-20">
-                            <iconMap.Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            <p className="ml-3 text-muted-foreground">Loading monthly summary...</p>
+                         <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                            <Skeleton className="h-5 w-3/4" />
+                            <Skeleton className="h-5 w-3/4" />
+                            <Skeleton className="h-5 w-3/4" />
+                            <Skeleton className="h-5 w-3/4" />
                         </div>
                     ) : (
                         <>
@@ -521,7 +468,6 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
                     {isLoadingAttendanceDetails ? (
                         <div className="flex justify-center items-center h-40">
                             <iconMap.Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            <p className="ml-3 text-muted-foreground">Loading attendance details...</p>
                         </div>
                     ) : monthlyAttendanceDetails.length > 0 ? (
                         <Table>
@@ -578,7 +524,6 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
                 {isLoadingLeaveRequests ? (
                   <div className="flex justify-center items-center h-40">
                     <iconMap.Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="ml-3 text-muted-foreground">Loading requests...</p>
                   </div>
                 ) : employeeLeaveRequests.length > 0 ? (
                   <Table>
@@ -622,7 +567,6 @@ export default function ViewEmployeeLeaveAndWorkSummaryPage() {
               </CardContent>
             </Card>
           </>
-        )}
       </div>
     </AppLayout>
   );
