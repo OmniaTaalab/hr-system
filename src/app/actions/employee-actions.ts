@@ -144,6 +144,7 @@ export async function createEmployeeAction(
       leavingDate: null,
       userId: newUserId, // Link to the created Auth user
       leaveBalances: {}, // Initialize leave balances
+      documents: [], // Initialize documents array
       createdAt: serverTimestamp(),
     };
     
@@ -381,23 +382,29 @@ export async function deleteEmployeeAction(
   }
 
   try {
-    // 1. Delete photo from Firebase Storage if it exists
+    // 1. Delete associated files from Firebase Storage if it exists
     if (adminStorage) {
+      // Delete avatar
       try {
-        const filePath = `employee-avatars/${employeeDocId}`;
-        const fileRef = adminStorage.bucket().file(filePath);
-        await fileRef.delete();
+        const avatarPath = `employee-avatars/${employeeDocId}`;
+        await adminStorage.bucket().file(avatarPath).delete();
+        console.log(`Avatar for employee ${employeeDocId} deleted.`);
       } catch (storageError: any) {
-        if (storageError.code === 404) {
-          console.log(`File not found in storage for employee ${employeeDocId}. Proceeding with Firestore deletion.`);
-        } else if (storageError.message?.includes('Bucket name not specified')) {
-          console.warn(`Skipping photo deletion because storage bucket is not configured on the server: ${storageError.message}`);
-        } else {
-          // For other storage errors, we halt deletion and return an error.
-          console.error('Error deleting employee photo from storage:', storageError);
-          return { success: false, message: `Failed to delete employee photo: ${storageError.message}` };
+        if (storageError.code !== 404) { // Only log if it's not a "not found" error
+          console.warn(`Could not delete avatar for employee ${employeeDocId}: ${storageError.message}`);
         }
       }
+
+      // Delete all documents in the employee's folder
+      try {
+        const documentsPrefix = `employee-documents/${employeeDocId}/`;
+        await adminStorage.bucket().deleteFiles({ prefix: documentsPrefix });
+        console.log(`All documents for employee ${employeeDocId} deleted.`);
+      } catch (storageError: any) {
+        console.warn(`Could not delete documents for employee ${employeeDocId}: ${storageError.message}`);
+      }
+    } else {
+      console.warn("Firebase Admin Storage is not configured. Skipping file deletions.");
     }
 
     // 2. Delete the employee document from Firestore
@@ -406,6 +413,6 @@ export async function deleteEmployeeAction(
     return { success: true, message: `Employee and associated data deleted successfully.` };
   } catch (error: any) {
     console.error('Error deleting employee:', error);
-    return { success: false, message: `Failed to delete employee: ${error.message}` };
+    return { success: false, errors: {form: [`Failed to delete employee: ${error.message}`]} };
   }
 }
