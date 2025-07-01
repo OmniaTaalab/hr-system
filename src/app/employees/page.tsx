@@ -1,7 +1,7 @@
 
 "use client";
 
-import { AppLayout } from "@/components/layout/app-layout";
+import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,6 +48,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ImageUploader } from "@/components/image-uploader";
 import { useOrganizationLists, type ListItem } from "@/hooks/use-organization-lists";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 
 
 interface Employee {
@@ -667,6 +668,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
 
 
 export default function EmployeeManagementPage() {
+  const { profile, loading: isLoadingProfile } = useUserProfile();
   const [searchTerm, setSearchTerm] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [approvedLeaves, setApprovedLeaves] = useState<LeaveRequestEntry[]>([]);
@@ -697,6 +699,12 @@ export default function EmployeeManagementPage() {
   const [changePasswordServerState, changePasswordFormAction, isChangePasswordPending] = useActionState(updateAuthUserPasswordAction, initialUpdatePasswordState);
 
   const [showPassword, setShowPassword] = useState(false);
+
+  const canAddEmployee = useMemo(() => {
+    if (!profile) return false;
+    const userRole = profile.role?.toLowerCase();
+    return userRole === 'admin' || userRole === 'hr';
+  }, [profile]);
 
 
   useEffect(() => {
@@ -1004,10 +1012,14 @@ export default function EmployeeManagementPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Button onClick={openAddDialog} className="w-full sm:w-auto">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add New Employee
-              </Button>
+              {isLoadingProfile ? (
+                <Skeleton className="h-10 w-[190px]" />
+              ) : canAddEmployee && (
+                <Button onClick={openAddDialog} className="w-full sm:w-auto">
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Add New Employee
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -1354,5 +1366,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
-    
