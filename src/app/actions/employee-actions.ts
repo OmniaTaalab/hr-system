@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { adminStorage } from '@/lib/firebase/admin-config';
+import { adminAuth, adminStorage } from '@/lib/firebase/admin-config';
 import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc } from 'firebase/firestore';
 import { isValid } from 'date-fns';
 
@@ -27,6 +27,11 @@ const CreateEmployeeFormSchema = z.object({
   ),
   dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
   joiningDate: z.coerce.date({ required_error: "Joining date is required." }),
+  password: z.string().min(6, 'Password must be at least 6 characters long.'),
+  confirmPassword: z.string().min(6, 'Password confirmation is required.'),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match.",
+  path: ["confirmPassword"], // Set the error on the confirmPassword field
 });
 
 export type CreateEmployeeState = {
@@ -43,6 +48,8 @@ export type CreateEmployeeState = {
     hourlyRate?: string[];
     dateOfBirth?: string[];
     joiningDate?: string[];
+    password?: string[];
+    confirmPassword?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -52,6 +59,15 @@ export async function createEmployeeAction(
   prevState: CreateEmployeeState,
   formData: FormData
 ): Promise<CreateEmployeeState> {
+  if (!adminAuth) {
+    const errorMessage = "Firebase Admin SDK is not configured. Administrative actions require FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY to be set in the .env file.";
+    console.error(errorMessage);
+    return {
+      errors: { form: [errorMessage] },
+      message: 'Failed to create employee.',
+    };
+  }
+
   const validatedFields = CreateEmployeeFormSchema.safeParse({
     firstName: formData.get('firstName'),
     lastName: formData.get('lastName'),
@@ -65,6 +81,8 @@ export async function createEmployeeAction(
     hourlyRate: formData.get('hourlyRate') || undefined,
     dateOfBirth: formData.get('dateOfBirth'),
     joiningDate: formData.get('joiningDate'),
+    password: formData.get('password'),
+    confirmPassword: formData.get('confirmPassword'),
   });
 
   if (!validatedFields.success) {
@@ -74,13 +92,14 @@ export async function createEmployeeAction(
     };
   }
 
-  const { firstName, lastName, email, department, role, groupName, system, campus, phone, hourlyRate, dateOfBirth, joiningDate } = validatedFields.data;
+  const { firstName, lastName, email, department, role, groupName, system, campus, phone, hourlyRate, dateOfBirth, joiningDate, password } = validatedFields.data;
   const name = `${firstName} ${lastName}`;
+  let newUserId: string | null = null;
 
   try {
     const employeeCollectionRef = collection(db, "employee");
 
-    // Check for unique email
+    // Check for unique email in Firestore first
     const emailQuery = query(employeeCollectionRef, where("email", "==", email), limit(1));
     const emailSnapshot = await getDocs(emailQuery);
     if (!emailSnapshot.empty) {
@@ -90,10 +109,20 @@ export async function createEmployeeAction(
       };
     }
     
-    // Auto-generate a unique Employee ID
+    // Step 1: Create Auth user
+    const userRecord = await adminAuth.createUser({
+      email: email,
+      emailVerified: true,
+      password: password,
+      displayName: name,
+      disabled: false,
+    });
+    newUserId = userRecord.uid;
+
+    // Step 2: Create Firestore employee document
     const countSnapshot = await getCountFromServer(employeeCollectionRef);
     const employeeCount = countSnapshot.data().count;
-    const employeeId = (1001 + employeeCount).toString(); // Start IDs from 1001 for a more professional look
+    const employeeId = (1001 + employeeCount).toString();
 
     const employeeData = {
       name,
@@ -113,30 +142,39 @@ export async function createEmployeeAction(
       dateOfBirth: Timestamp.fromDate(dateOfBirth),
       joiningDate: Timestamp.fromDate(joiningDate),
       leavingDate: null,
-      userId: null,
+      userId: newUserId, // Link to the created Auth user
       leaveBalances: {}, // Initialize leave balances
       createdAt: serverTimestamp(),
     };
     
     const docRef = await addDoc(collection(db, "employee"), employeeData);
     
-    console.log('Employee data saved to Firestore in "employee" collection with ID:', docRef.id);
-    console.log('Employee data:', employeeData);
+    console.log('Employee data and Auth user saved successfully. Firestore ID:', docRef.id, 'Auth UID:', newUserId);
 
-    return { message: `Employee "${name}" created successfully.` };
+    return { message: `Employee "${name}" and their login account created successfully.` };
   } catch (error: any) {
-    console.error('Firestore Create Employee Error:', error); 
-    let specificErrorMessage = 'Failed to create employee in Firestore. An unexpected error occurred.';
-    if (error.code) {
-       if (error.message) {
-        specificErrorMessage = `Failed to create employee in Firestore: ${error.message} (Code: ${error.code})`;
+    console.error('Create Employee & Auth User Error:', error);
+
+    // If Auth user was created but Firestore failed, delete the orphaned Auth user
+    if (newUserId) {
+      try {
+        await adminAuth.deleteUser(newUserId);
+        console.log(`Orphaned Auth user ${newUserId} deleted due to subsequent error.`);
+      } catch (deleteError: any) {
+        console.error(`CRITICAL: Failed to delete orphaned Auth user ${newUserId}. Manual deletion required.`, deleteError);
       }
-    } else if (error.message) {
-         specificErrorMessage = `Failed to create employee in Firestore: ${error.message}`;
     }
+
+    let errorMessage = 'An unexpected error occurred.';
+    if (error.code === 'auth/email-already-exists') {
+      errorMessage = `The email address "${email}" is already in use by another account.`;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
     return {
-      errors: { form: [specificErrorMessage] },
-      message: 'Failed to create employee in Firestore.',
+      errors: { form: [errorMessage] },
+      message: 'Failed to create employee.',
     };
   }
 }

@@ -143,6 +143,8 @@ const initialAddFormState = {
     campus: "",
     phone: "",
     hourlyRate: "",
+    password: "",
+    confirmPassword: "",
     dateOfBirth: undefined as Date | undefined,
     joiningDate: undefined as Date | undefined,
 };
@@ -153,6 +155,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
   const [formData, setFormData] = useState(initialAddFormState);
   const { roles, groupNames, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -172,11 +175,12 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         description: serverState.message,
       });
       onSuccess();
-    } else if (serverState.errors && serverState.errors.email) {
+    } else if (serverState.errors) {
+      const errorMessages = Object.values(serverState.errors).flat().join(' ');
       toast({
         variant: "destructive",
         title: "Validation Error",
-        description: serverState.errors.email.join(', '),
+        description: errorMessages || serverState.message || "Please check the form for errors.",
       });
     }
   }, [serverState, toast, onSuccess]);
@@ -186,7 +190,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       <AlertDialogHeader>
         <AlertDialogTitle>Add New Employee</AlertDialogTitle>
         <AlertDialogDescription>
-          Fill in the details below. The Employee ID will be generated automatically.
+          Fill in the details below. A login account will be created simultaneously.
         </AlertDialogDescription>
       </AlertDialogHeader>
       <form
@@ -270,6 +274,60 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                     {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
                 </div>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="add-password">Password</Label>
+                <div className="relative">
+                  <Input
+                    id="add-password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Min. 6 characters"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                  />
+                  <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowPassword(prev => !prev)}
+                      tabIndex={-1}
+                  >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                  </Button>
+                </div>
+                {serverState?.errors?.password && <p className="text-sm text-destructive">{serverState.errors.password.join(', ')}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-confirmPassword">Confirm Password</Label>
+                <div className="relative">
+                    <Input
+                        id="add-confirmPassword"
+                        name="confirmPassword"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Re-enter password"
+                        value={formData.confirmPassword}
+                        onChange={handleInputChange}
+                    />
+                     <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPassword(prev => !prev)}
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                      </Button>
+                </div>
+                {serverState?.errors?.confirmPassword && <p className="text-sm text-destructive">{serverState.errors.confirmPassword.join(', ')}</p>}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="add-dateOfBirth">Date of Birth</Label>
