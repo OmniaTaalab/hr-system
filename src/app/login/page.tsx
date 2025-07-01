@@ -50,6 +50,19 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
 
+    // Check for placeholder API Key
+    if (auth.app.options.apiKey?.includes("REPLACE_WITH_")) {
+      const configError = "Firebase is not configured. Please add your project's API Key to src/lib/firebase/config.ts";
+      setError(configError);
+      toast({
+        variant: "destructive",
+        title: "Configuration Error",
+        description: configError,
+      });
+      setIsLoading(false);
+      return;
+    }
+
     try {
       await signInWithEmailAndPassword(auth, email, password);
       // On successful login, Firebase automatically persists the session.
@@ -164,15 +177,6 @@ export default function LoginPage() {
                 </>
               )}
             </Button>
-            <p className="text-center text-sm text-muted-foreground">
-              Don&apos;t have an account?{" "}
-              <Link
-                href="#"
-                className="font-medium text-primary hover:underline"
-              >
-                Sign up
-              </Link>
-            </p>
           </CardFooter>
         </form>
       </Card>
