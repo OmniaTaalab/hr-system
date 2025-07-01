@@ -2,14 +2,15 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { AppLayout } from "@/components/layout/app-layout";
+import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Briefcase, MapPin, DollarSign, ArrowRight, Loader2 } from "lucide-react";
+import { Briefcase, MapPin, DollarSign, ArrowRight, Loader2, PlusCircle } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface JobOpening {
   id: string;
@@ -27,6 +28,9 @@ export default function JobBoardPage() {
   const [jobOpenings, setJobOpenings] = useState<JobOpening[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { profile, loading: isLoadingProfile } = useUserProfile();
+
+  const canCreateJobs = !isLoadingProfile && (profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr');
 
   useEffect(() => {
     setIsLoading(true);
@@ -58,13 +62,25 @@ export default function JobBoardPage() {
   return (
     <AppLayout>
       <div className="space-y-8">
-        <header>
-          <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-            Job Openings
-          </h1>
-          <p className="text-muted-foreground">
-            Find your next career opportunity with us. We are always looking for talented individuals.
-          </p>
+        <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div>
+            <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
+              Job Openings
+            </h1>
+            <p className="text-muted-foreground">
+              Find your next career opportunity with us. We are always looking for talented individuals.
+            </p>
+          </div>
+          {isLoadingProfile ? (
+            <Skeleton className="h-10 w-40 rounded-md" />
+          ) : canCreateJobs && (
+            <Button asChild>
+              <Link href="/jobs/create">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create New Job
+              </Link>
+            </Button>
+          )}
         </header>
 
         {isLoading ? (
@@ -110,7 +126,7 @@ export default function JobBoardPage() {
                 </CardContent>
                 <CardFooter>
                   <Button asChild variant="default" className="w-full group">
-                    <Link href={`/jobs/${job.id}`}> {/* Placeholder link */}
+                    <Link href={`/jobs/${job.id}`}>
                       View Details & Apply
                       <ArrowRight className="ml-2 h-4 w-4 transform transition-transform group-hover:translate-x-1" />
                     </Link>
