@@ -6,10 +6,12 @@ import { getFirestore, type Firestore } from "firebase/firestore"; // Corrected 
 import { getAnalytics, type Analytics } from "firebase/analytics";
 import { getStorage, type Storage } from "firebase/storage";
 
-// TODO: Replace the remaining placeholders with your new Firebase project's configuration.
-// You can find this in your Firebase project settings under "General".
+// --- IMPORTANT ---
+// You must replace the placeholder values below with the configuration
+// from your new Firebase project. You can find this in your Firebase
+// project settings under "General" > "Your apps" > "SDK setup and configuration".
 const firebaseConfig = {
-  apiKey: "REPLACE_WITH_YOUR_NEW_API_KEY",
+  apiKey: "REPLACE_WITH_YOUR_NEW_API_KEY", // <--- THIS IS THE MOST IMPORTANT KEY TO REPLACE
   authDomain: "testhr-80fda.firebaseapp.com",
   projectId: "testhr-80fda",
   storageBucket: "testhr-80fda.appspot.com",
@@ -21,14 +23,14 @@ const firebaseConfig = {
 // Initialize Firebase
 let app: FirebaseApp;
 let auth: Auth;
-let db: Firestore; // Added Firestore instance
+let db: Firestore;
 let storage: Storage;
 let analytics: Analytics | null = null;
 
 if (!getApps().length) {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
-  db = getFirestore(app); // Initialize Firestore
+  db = getFirestore(app);
   storage = getStorage(app);
   if (typeof window !== 'undefined') {
     try {
@@ -40,7 +42,7 @@ if (!getApps().length) {
 } else {
   app = getApps()[0];
   auth = getAuth(app);
-  db = getFirestore(app); // Initialize Firestore if app already exists
+  db = getFirestore(app);
   storage = getStorage(app);
   if (typeof window !== 'undefined' && !analytics) {
      try {
@@ -51,4 +53,4 @@ if (!getApps().length) {
   }
 }
 
-export { app, auth, db, storage, analytics }; // Export db and storage
+export { app, auth, db, storage, analytics };
