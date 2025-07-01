@@ -11,7 +11,7 @@ import { getStorage, type Storage } from "firebase/storage";
 // from your new Firebase project. You can find this in your Firebase
 // project settings under "General" > "Your apps" > "SDK setup and configuration".
 const firebaseConfig = {
-  apiKey: "REPLACE_WITH_YOUR_NEW_API_KEY", // <--- THIS IS THE MOST IMPORTANT KEY TO REPLACE
+  apiKey: "AIzaSyC0w_5u652gJFW7U10Xen20TnQ4Q98zyAI", // <--- THIS IS THE MOST IMPORTANT KEY TO REPLACE
   authDomain: "testhr-80fda.firebaseapp.com",
   projectId: "testhr-80fda",
   storageBucket: "testhr-80fda.appspot.com",
