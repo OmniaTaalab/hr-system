@@ -1,11 +1,13 @@
 
 "use client";
 
+import React from 'react';
 import { AppLayout } from "@/components/layout/app-layout";
-import { Settings as SettingsIcon } from 'lucide-react';
+import { Settings as SettingsIcon, Loader2, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useUserProfile } from '@/components/layout/app-layout';
 
 const settingsNavItems = [
   { title: "General", href: "/settings/general" },
@@ -18,7 +20,42 @@ export default function SettingsLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { profile, loading } = useUserProfile();
 
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex justify-center items-center h-full">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const userRole = profile?.role?.toLowerCase();
+  const canViewSettings = userRole === 'admin' || userRole === 'hr';
+
+  if (!canViewSettings) {
+    // Redirecting non-admin/hr users away.
+    // We check in a useEffect to avoid server-side render issues with router.
+    React.useEffect(() => {
+        router.replace('/');
+    }, [router]);
+    
+    // Render a loading/access denied state while redirecting
+    return (
+      <AppLayout>
+        <div className="flex justify-center items-center h-full flex-col gap-4">
+            <AlertTriangle className="h-12 w-12 text-destructive" />
+            <h2 className="text-xl font-semibold">Access Denied</h2>
+            <p className="text-muted-foreground">You do not have permission to view this page.</p>
+        </div>
+      </AppLayout>
+    );
+  }
+  
+  // Render the actual layout for authorized users
   return (
     <AppLayout>
       <div className="space-y-8">

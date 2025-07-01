@@ -1,7 +1,6 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -16,51 +15,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
-import { onAuthStateChanged, signOut, type User as FirebaseUser } from "firebase/auth";
-import { auth, db } from "@/lib/firebase/config";
-import { collection, query, where, getDocs, limit, onSnapshot, doc } from 'firebase/firestore';
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase/config";
+import { useUserProfile } from "./app-layout";
+import { Skeleton } from "../ui/skeleton";
 
 export function Header() {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [userName, setUserName] = useState<string | null>(null);
-  const [userPhotoUrl, setUserPhotoUrl] = useState<string | null>(null);
   const router = useRouter();
-
-  useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        // Now set up a real-time listener for the employee document
-        const q = query(collection(db, "employee"), where("userId", "==", currentUser.uid), limit(1));
-        
-        const unsubscribeFirestore = onSnapshot(q, (querySnapshot) => {
-          if (!querySnapshot.empty) {
-            const employeeDoc = querySnapshot.docs[0].data();
-            setUserName(employeeDoc.name);
-            setUserPhotoUrl(employeeDoc.photoURL);
-          } else {
-            // Fallback to display name from Auth, or a default
-            setUserName(currentUser.displayName || "User");
-            setUserPhotoUrl(currentUser.photoURL);
-          }
-        }, (error) => {
-            console.error("Error fetching employee details in real-time:", error);
-            // Fallback in case of error
-            setUserName(currentUser.displayName || "User");
-            setUserPhotoUrl(currentUser.photoURL);
-        });
-
-        // Return the firestore unsubscribe function to be called when the auth state changes
-        return () => unsubscribeFirestore();
-
-      } else {
-        setUserName(null);
-        setUserPhotoUrl(null);
-      }
-    });
-
-    return () => unsubscribeAuth();
-  }, []);
+  const { user, profile, loading } = useUserProfile();
 
   const handleLogout = async () => {
     try {
@@ -71,10 +33,14 @@ export function Header() {
     }
   };
 
-  const getInitials = (name: string | null) => {
+  const getInitials = (name: string | null | undefined) => {
     if (!name) return "?";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
+  
+  const displayName = profile?.name || user?.displayName;
+  const photoURL = profile?.photoURL || user?.photoURL;
+  const canViewSettings = profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr';
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -86,15 +52,20 @@ export function Header() {
           <Button variant="ghost" size="icon" aria-label="Notifications">
             <Bell className="h-5 w-5" />
           </Button>
-          {user ? (
+          {loading ? (
+            <div className="flex items-center space-x-2">
+              <Skeleton className="h-6 w-6 rounded-full" />
+              <Skeleton className="h-4 w-20 hidden sm:block" />
+            </div>
+          ) : user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center space-x-2 px-2 py-1 h-auto">
                   <Avatar className="h-6 w-6">
-                    <AvatarImage src={userPhotoUrl || `https://placehold.co/40x40.png`} alt={userName || ""} data-ai-hint="user avatar"/>
-                    <AvatarFallback>{getInitials(userName)}</AvatarFallback>
+                    <AvatarImage src={photoURL || undefined} alt={displayName || ""} />
+                    <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
                   </Avatar>
-                  <span className="text-sm font-medium hidden sm:inline">{userName || "Loading..."}</span>
+                  <span className="text-sm font-medium hidden sm:inline">{displayName || "User"}</span>
                   <ChevronDown className="h-4 w-4 opacity-70" />
                 </Button>
               </DropdownMenuTrigger>
@@ -107,10 +78,14 @@ export function Header() {
                     <span>Profile</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
-                </DropdownMenuItem>
+                {canViewSettings && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />

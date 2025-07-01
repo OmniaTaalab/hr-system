@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useMemo } from 'react';
 import { cn } from "@/lib/utils";
 import {
   SidebarMenu,
@@ -12,6 +13,8 @@ import {
 import { Icons } from "@/components/icons";
 import { siteConfig } from "@/config/site";
 import { iconMap } from "@/components/icon-map";
+import { useUserProfile } from "./app-layout";
+import { Skeleton } from "../ui/skeleton";
 
 function formatI18nKey(key: string): string {
   if (!key) return "";
@@ -23,11 +26,36 @@ function formatI18nKey(key: string): string {
 
 export function SidebarNav() {
   const pathname = usePathname();
+  const { profile, loading } = useUserProfile();
+
+  const navItems = useMemo(() => {
+    if (!profile) return siteConfig.navItems.filter(item => !item.href?.startsWith('/settings'));
+    
+    const userRole = profile.role?.toLowerCase();
+    const canViewSettings = userRole === 'admin' || userRole === 'hr';
+    
+    return siteConfig.navItems.filter(item => {
+      if (item.href?.startsWith('/settings')) {
+        return canViewSettings;
+      }
+      return true;
+    });
+  }, [profile]);
+
+  if (loading) {
+    return (
+      <nav className="grid items-start gap-2 p-2">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <Skeleton key={i} className="h-8 w-full" />
+        ))}
+      </nav>
+    );
+  }
 
   return (
     <nav className="grid items-start gap-2">
       <SidebarMenu>
-        {siteConfig.navItems.map((item, index) => {
+        {navItems.map((item, index) => {
           const IconComponent = iconMap[item.iconName];
           const title = formatI18nKey(item.i18nKey);
           return (
@@ -47,7 +75,7 @@ export function SidebarNav() {
                     isActive={pathname === item.href}
                     tooltip={title}
                   >
-                    {IconComponent ? <IconComponent className="mr-2 h-4 w-4" /> : <span className="mr-2 h-4 w-4" /> /* Fallback or empty span */}
+                    {IconComponent ? <IconComponent className="mr-2 h-4 w-4" /> : <span className="mr-2 h-4 w-4" />}
                     <span className="truncate">{title}</span>
                   </SidebarMenuButton>
                 </Link>
