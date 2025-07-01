@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useActionState, useTransition } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useTransition, useRef } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,9 +14,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, where, doc, getDoc } from 'firebase/firestore';
-import { Loader2, Save, Trophy, User, Check } from "lucide-react";
-import { saveTpiDataAction, type TpiState } from "@/app/actions/tpi-actions";
+import { Loader2, Save, Trophy, User, Check, UploadCloud, FileText } from "lucide-react";
+import { saveTpiDataAction, type TpiState, batchSaveTpiDataAction, type BatchTpiState } from "@/app/actions/tpi-actions";
 import { Skeleton } from "@/components/ui/skeleton";
+import * as XLSX from 'xlsx';
+
 
 // Data structures
 interface Employee {
@@ -50,6 +52,7 @@ interface DisplayRecord extends Employee, Omit<TpiRecord, 'id' | 'employeeDocId'
 
 // Form state
 const initialTpiState: TpiState = { message: null, errors: {}, success: false };
+const initialBatchState: BatchTpiState = { success: false, message: null, errors: {} };
 const initialFormValues = {
   examAvg: "",
   exitAvg: "",
@@ -63,6 +66,7 @@ const initialFormValues = {
 export default function TpiPage() {
   const { toast } = useToast();
   const [serverState, formAction, isSaving] = useActionState(saveTpiDataAction, initialTpiState);
+  const [batchState, batchAction, isBatchSaving] = useActionState(batchSaveTpiDataAction, initialBatchState);
   const [_isTransitionPending, startTransition] = useTransition();
   
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -74,6 +78,9 @@ export default function TpiPage() {
   
   const [formValues, setFormValues] = useState(initialFormValues);
   const [isFormLoading, setIsFormLoading] = useState(false);
+  
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch all employees for the dropdown
   useEffect(() => {
@@ -151,6 +158,24 @@ export default function TpiPage() {
       }
     }
   }, [serverState, toast]);
+  
+  // Handle batch action response
+  useEffect(() => {
+    if (batchState?.message) {
+      toast({
+        title: batchState.success ? "Upload Complete" : "Upload Failed",
+        description: batchState.message,
+        variant: batchState.success ? "default" : "destructive",
+        duration: batchState.success ? 5000 : 8000,
+      });
+    } else if (batchState?.errors?.file) {
+      toast({
+        title: "File Error",
+        description: batchState.errors.file.join(', '),
+        variant: "destructive",
+      });
+    }
+  }, [batchState, toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -168,6 +193,56 @@ export default function TpiPage() {
     startTransition(() => {
       formAction(formData);
     });
+  };
+  
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      if (jsonData.length === 0) {
+        toast({ title: "Empty File", description: "The selected file is empty or has no data.", variant: "destructive" });
+        setIsUploading(false);
+        return;
+      }
+
+      const mappedData = jsonData.map((row: any) => ({
+        employeeId: String(row['Employee ID'] || ''),
+        examAvg: row['Exam Avg'] ?? null,
+        exitAvg: row['Exit Avg'] ?? null,
+        flippedAA: row['Flipped AA'] ?? null,
+        AA: row['AA'] ?? null,
+        points: row['Points'] ?? null,
+        total: row['Total'] ?? null,
+        sheetName: row['Sheet Name'] ?? null,
+      }));
+
+      const formData = new FormData();
+      formData.append('recordsJson', JSON.stringify(mappedData));
+
+      // Use the batch action
+      startTransition(() => {
+        batchAction(formData);
+      });
+
+    } catch (error) {
+      console.error("File parsing error:", error);
+      toast({ title: "File Error", description: "Could not read or parse the Excel file.", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+      // Reset file input to allow re-uploading the same file
+      if(fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
   };
   
   const displayData = useMemo(() => {
@@ -203,6 +278,48 @@ export default function TpiPage() {
             Enter and review performance metrics for employees.
           </p>
         </header>
+        
+        <Card className="shadow-lg">
+            <CardHeader>
+                <CardTitle>Batch Upload from Excel</CardTitle>
+                <CardDescription>Upload an Excel file to update TPI data for multiple employees at once.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="p-4 border-2 border-dashed rounded-lg text-center">
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        id="file-upload"
+                        className="hidden"
+                        accept=".xlsx, .xls"
+                        onChange={handleFileChange}
+                        disabled={isUploading || isBatchSaving}
+                    />
+                    <Button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading || isBatchSaving}>
+                        {(isUploading || isBatchSaving) ? 
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 
+                            <UploadCloud className="mr-2 h-4 w-4" />
+                        }
+                        {isUploading ? 'Parsing...' : (isBatchSaving ? 'Saving...' : 'Upload Excel File')}
+                    </Button>
+                    <p className="mt-2 text-xs text-muted-foreground">Max file size: 5MB. Supported formats: .xlsx, .xls</p>
+                </div>
+                <div>
+                    <h4 className="font-semibold text-sm mb-2 flex items-center"><FileText className="mr-2 h-4 w-4"/>Required Excel Format</h4>
+                    <p className="text-xs text-muted-foreground mb-2">The first sheet in the file will be used. Ensure the column headers match exactly as listed below:</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 text-xs p-3 bg-secondary rounded-md">
+                        <code>Employee ID</code>
+                        <code>Exam Avg</code>
+                        <code>Exit Avg</code>
+                        <code>Flipped AA</code>
+                        <code>AA</code>
+                        <code>Points</code>
+                        <code>Total</code>
+                        <code>Sheet Name</code>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
 
         <Card className="shadow-lg">
           <form onSubmit={handleSubmit}>
