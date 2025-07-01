@@ -23,8 +23,7 @@ interface JobOpening {
   createdAt?: Timestamp;
 }
 
-
-export default function JobBoardPage() {
+function JobBoardContent() {
   const [jobOpenings, setJobOpenings] = useState<JobOpening[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -57,86 +56,91 @@ export default function JobBoardPage() {
 
     return () => unsubscribe();
   }, [toast]);
+  
+  return (
+    <div className="space-y-8">
+      <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
+            Job Openings
+          </h1>
+          <p className="text-muted-foreground">
+            Find your next career opportunity with us. We are always looking for talented individuals.
+          </p>
+        </div>
+        {isLoadingProfile ? (
+          <Skeleton className="h-10 w-40 rounded-md" />
+        ) : canCreateJobs && (
+          <Button asChild>
+            <Link href="/jobs/create">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Create New Job
+            </Link>
+          </Button>
+        )}
+      </header>
 
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="ml-4 text-lg">Loading job openings...</p>
+        </div>
+      ) : jobOpenings.length === 0 ? (
+         <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
+          <h3 className="text-xl font-semibold">No Open Positions</h3>
+          <p className="mt-2">There are currently no job openings available. Please check back later.</p>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {jobOpenings.map((job) => (
+            <Card key={job.id} className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <CardTitle className="font-headline text-xl">{job.title}</CardTitle>
+                  <Briefcase className="h-6 w-6 text-primary flex-shrink-0" />
+                </div>
+                <CardDescription className="text-sm text-muted-foreground">{job.department}</CardDescription>
+                <div className="flex items-center space-x-2 text-xs text-muted-foreground pt-1">
+                  <MapPin className="h-3 w-3" />
+                  <span>{job.location}</span>
+                  {job.salaryRange && (
+                    <>
+                      <span className="mx-1">|</span>
+                      <DollarSign className="h-3 w-3" />
+                      <span>{job.salaryRange}</span>
+                    </>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="flex-grow">
+                <p className="text-sm mb-3">{job.description}</p>
+                <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Key Requirements:</h4>
+                <ul className="list-disc list-inside text-sm space-y-0.5">
+                  {job.shortRequirements && job.shortRequirements.map((req, idx) => (
+                    <li key={idx}>{req}</li>
+                  ))}
+                </ul>
+              </CardContent>
+              <CardFooter>
+                <Button asChild variant="default" className="w-full group">
+                  <Link href={`/jobs/${job.id}`}>
+                    View Details & Apply
+                    <ArrowRight className="ml-2 h-4 w-4 transform transition-transform group-hover:translate-x-1" />
+                  </Link>
+                </Button>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
+export default function JobBoardPage() {
   return (
     <AppLayout>
-      <div className="space-y-8">
-        <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-              Job Openings
-            </h1>
-            <p className="text-muted-foreground">
-              Find your next career opportunity with us. We are always looking for talented individuals.
-            </p>
-          </div>
-          {isLoadingProfile ? (
-            <Skeleton className="h-10 w-40 rounded-md" />
-          ) : canCreateJobs && (
-            <Button asChild>
-              <Link href="/jobs/create">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Create New Job
-              </Link>
-            </Button>
-          )}
-        </header>
-
-        {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="ml-4 text-lg">Loading job openings...</p>
-          </div>
-        ) : jobOpenings.length === 0 ? (
-           <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
-            <h3 className="text-xl font-semibold">No Open Positions</h3>
-            <p className="mt-2">There are currently no job openings available. Please check back later.</p>
-          </div>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {jobOpenings.map((job) => (
-              <Card key={job.id} className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="font-headline text-xl">{job.title}</CardTitle>
-                    <Briefcase className="h-6 w-6 text-primary flex-shrink-0" />
-                  </div>
-                  <CardDescription className="text-sm text-muted-foreground">{job.department}</CardDescription>
-                  <div className="flex items-center space-x-2 text-xs text-muted-foreground pt-1">
-                    <MapPin className="h-3 w-3" />
-                    <span>{job.location}</span>
-                    {job.salaryRange && (
-                      <>
-                        <span className="mx-1">|</span>
-                        <DollarSign className="h-3 w-3" />
-                        <span>{job.salaryRange}</span>
-                      </>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-grow">
-                  <p className="text-sm mb-3">{job.description}</p>
-                  <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Key Requirements:</h4>
-                  <ul className="list-disc list-inside text-sm space-y-0.5">
-                    {job.shortRequirements && job.shortRequirements.map((req, idx) => (
-                      <li key={idx}>{req}</li>
-                    ))}
-                  </ul>
-                </CardContent>
-                <CardFooter>
-                  <Button asChild variant="default" className="w-full group">
-                    <Link href={`/jobs/${job.id}`}>
-                      View Details & Apply
-                      <ArrowRight className="ml-2 h-4 w-4 transform transition-transform group-hover:translate-x-1" />
-                    </Link>
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+      <JobBoardContent />
     </AppLayout>
   );
 }
