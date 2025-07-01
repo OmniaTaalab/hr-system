@@ -209,13 +209,22 @@ export default function TpiPage() {
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
       if (jsonData.length === 0) {
-        toast({ title: "Empty File", description: "The selected file is empty or has no data.", variant: "destructive" });
+        toast({ title: "Empty File", description: "The selected file has no data.", variant: "destructive" });
         setIsUploading(false);
         return;
       }
 
-      const mappedData = jsonData.map((row: any) => ({
-        employeeId: String(row['Employee ID'] || ''),
+      // Filter out rows that are likely empty or invalid before mapping
+      const filteredJsonData = jsonData.filter((row: any) => row['Employee ID'] && String(row['Employee ID']).trim() !== "");
+
+      if (filteredJsonData.length === 0) {
+        toast({ title: "No Valid Data", description: "No rows with a valid 'Employee ID' were found in the file.", variant: "destructive" });
+        setIsUploading(false);
+        return;
+      }
+
+      const mappedData = filteredJsonData.map((row: any) => ({
+        employeeId: String(row['Employee ID']),
         examAvg: row['Exam Avg'] ?? null,
         exitAvg: row['Exit Avg'] ?? null,
         flippedAA: row['Flipped AA'] ?? null,
