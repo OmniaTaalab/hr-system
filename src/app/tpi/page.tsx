@@ -1,321 +1,110 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useActionState, useTransition, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, where, doc, getDoc } from 'firebase/firestore';
-import { Loader2, Save, Trophy, User, Check, UploadCloud, FileText } from "lucide-react";
-import { saveTpiDataAction, type TpiState, batchSaveTpiDataAction, type BatchTpiState } from "@/app/actions/tpi-actions";
-import { Skeleton } from "@/components/ui/skeleton";
-import * as XLSX from 'xlsx';
+import { Loader2, Trophy, Check } from "lucide-react";
 
-
-// Data structures
-interface Employee {
-  id: string; // Firestore document ID
-  name: string;
-  firstName?: string;
-  lastName?: string;
-  employeeId: string;
-  role: string;
-  groupName: string;
-  system: string;
-  campus: string;
-  status: string;
-}
-
-interface TpiRecord {
-  id: string;
-  employeeDocId: string | null;
-  firstName?: string;
-  lastName?: string;
-  role?: string;
-  groupName?: string;
-  system?: string;
-  campus?: string;
-  examAvg?: number;
-  exitAvg?: number;
-  AA?: number;
-  points?: number;
-  total?: number;
-  sheetName?: string;
-  globalRank?: number; // Might need to calculate this
-  top25?: boolean; // Might need to calculate this
-}
-
-interface DisplayRecord extends Employee, Omit<TpiRecord, 'id' | 'employeeDocId'> {}
-
-// Form state
-const initialTpiState: TpiState = { message: null, errors: {}, success: false };
-const initialBatchState: BatchTpiState = { success: false, message: null, errors: {} };
-const initialFormValues = {
-  examAvg: "",
-  exitAvg: "",
-  AA: "",
-  points: "",
-  total: "",
-  sheetName: "",
-};
+// Data provided by the user for the dropdown
+const stages = [
+    { "id": 6, "title": "ES - Non-Core" },
+    { "id": 10, "title": "HS - Non-Core" },
+    { "id": 11, "title": "HS - Core" },
+    { "id": 12, "title": "ER - Classroom Teacher" },
+    { "id": 13, "title": "ER - Arabic" },
+    { "id": 14, "title": "ER - Non-Core" },
+    { "id": 15, "title": "PR - Classroom Teacher" },
+    { "id": 16, "title": "PR - Arabic" },
+    { "id": 17, "title": "PR - Non-Core" },
+    { "id": 18, "title": "PR - Core" },
+    { "id": 19, "title": "KS3 - Non-Core" },
+    { "id": 20, "title": "KS3 - Core" },
+    { "id": 21, "title": "IG - Non-Core" },
+    { "id": 22, "title": "IG - Core" },
+    { "id": 23, "title": "KG - Prinicpal" },
+    { "id": 24, "title": "ES - Prinicpal" },
+    { "id": 25, "title": "MS - Prinicpal" },
+    { "id": 26, "title": "HS - Prinicpal" },
+    { "id": 27, "title": "ER - Prinicpal" },
+    { "id": 28, "title": "PR - Prinicpal" },
+    { "id": 29, "title": "KS3 - Prinicpal" },
+    { "id": 30, "title": "IG - Prinicpal" },
+    { "id": 32, "title": "teest" },
+    { "id": 33, "title": "teest" },
+    { "id": 34, "title": "test" },
+    { "id": 35, "title": "test6" },
+    { "id": 36, "title": "test6" },
+    { "id": 37, "title": "test6" }
+];
 
 export default function TpiPage() {
   const { toast } = useToast();
-  const [serverState, formAction, isSaving] = useActionState(saveTpiDataAction, initialTpiState);
-  const [batchState, batchAction, isBatchSaving] = useActionState(batchSaveTpiDataAction, initialBatchState);
-  const [_isTransitionPending, startTransition] = useTransition();
-  
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [selectedStageId, setSelectedStageId] = useState<string>("");
+  const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [tpiRecords, setTpiRecords] = useState<TpiRecord[]>([]);
-  const [isLoadingTpi, setIsLoadingTpi] = useState(true);
-  
-  const [formValues, setFormValues] = useState(initialFormValues);
-  const [isFormLoading, setIsFormLoading] = useState(false);
-  
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Fetch all employees for the dropdown
   useEffect(() => {
-    setIsLoadingEmployees(true);
-    const q = query(collection(db, "employee"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const employeesData = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Employee))
-        .sort((a, b) => a.name.localeCompare(b.name));
-      setEmployees(employeesData);
-      setIsLoadingEmployees(false);
-    }, (error) => {
-      console.error("Error fetching employees:", error);
-      toast({ variant: "destructive", title: "Error", description: "Could not load employees." });
-      setIsLoadingEmployees(false);
-    });
-    return () => unsubscribe();
-  }, [toast]);
-
-  // Fetch all TPI records for the table
-  useEffect(() => {
-    setIsLoadingTpi(true);
-    const q = query(collection(db, "tpiRecords"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const recordsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TpiRecord));
-      setTpiRecords(recordsData);
-      setIsLoadingTpi(false);
-    }, (error) => {
-      console.error("Error fetching TPI records:", error);
-      toast({ variant: "destructive", title: "Error", description: "Could not load TPI records." });
-      setIsLoadingTpi(false);
-    });
-    return () => unsubscribe();
-  }, [toast]);
-  
-  // Handle employee selection change
-  useEffect(() => {
-    if (!selectedEmployee) {
-      setFormValues(initialFormValues);
+    if (!selectedStageId) {
+      setLeaderboardData([]);
       return;
     }
 
-    const fetchTpiForEmployee = async () => {
-      setIsFormLoading(true);
-      const existingRecord = tpiRecords.find(r => r.employeeDocId === selectedEmployee.id);
-      if (existingRecord) {
-        setFormValues({
-          examAvg: existingRecord.examAvg?.toString() || "",
-          exitAvg: existingRecord.exitAvg?.toString() || "",
-          AA: existingRecord.AA?.toString() || "",
-          points: existingRecord.points?.toString() || "",
-          total: existingRecord.total?.toString() || "",
-          sheetName: existingRecord.sheetName || "",
+    const fetchApiData = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(`https://blb-staging-hwnidclrba-uc.a.run.app/reports/leaderBoard?stage_tag_ids=${selectedStageId}`);
+        if (!response.ok) {
+          throw new Error(`API request failed with status ${response.status}`);
+        }
+        const data = await response.json();
+        setLeaderboardData(Array.isArray(data) ? data : []);
+      } catch (error: any) {
+        toast({
+          variant: "destructive",
+          title: "Error Loading Leaderboard",
+          description: error.message || "Could not fetch data from the API.",
         });
-      } else {
-        setFormValues(initialFormValues);
+        setLeaderboardData([]);
+      } finally {
+        setIsLoading(false);
       }
-      setIsFormLoading(false);
     };
 
-    fetchTpiForEmployee();
-  }, [selectedEmployee, tpiRecords]);
+    fetchApiData();
+  }, [selectedStageId, toast]);
 
-  // Handle form submission response
-  useEffect(() => {
-    if (serverState?.message) {
-      toast({
-        title: serverState.success ? "Success" : "Error",
-        description: serverState.message,
-        variant: serverState.success ? "default" : "destructive",
-      });
-      if (serverState.success) {
-        // Optionally clear the form, or keep it populated
-      }
-    }
-  }, [serverState, toast]);
-  
-  // Handle batch action response
-  useEffect(() => {
-    if (batchState?.message) {
-      toast({
-        title: batchState.success ? "Upload Complete" : "Upload Failed",
-        description: batchState.message,
-        variant: batchState.success ? "default" : "destructive",
-        duration: batchState.success ? 8000 : 10000,
-      });
-    } else if (batchState?.errors?.file) {
-      toast({
-        title: "File Error",
-        description: batchState.errors.file.join(', '),
-        variant: "destructive",
-      });
-    }
-  }, [batchState, toast]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormValues(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!selectedEmployee) {
-      toast({ title: "Error", description: "Please select an employee first.", variant: "destructive" });
-      return;
-    }
-    const formData = new FormData(event.currentTarget);
-    formData.append('employeeDocId', selectedEmployee.id);
-    startTransition(() => {
-      formAction(formData);
-    });
-  };
-  
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setIsUploading(true);
-
-    // Helper function to find a value by various key names, case-insensitively
-    const findValueByKeys = (row: any, keys: string[]): any => {
-        const rowKeys = Object.keys(row);
-        for (const key of keys) {
-            const normalizedKey = key.toLowerCase().replace(/[\s_]/g, '');
-            const matchingKey = rowKeys.find(rowKey => rowKey.toLowerCase().replace(/[\s_]/g, '') === normalizedKey);
-            if (matchingKey && row[matchingKey] !== undefined) {
-                return row[matchingKey];
-            }
-        }
-        return null;
-    };
-
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-      if (jsonData.length === 0) {
-        toast({ title: "Empty File", description: "The selected file has no data.", variant: "destructive" });
-        setIsUploading(false);
-        return;
-      }
-
-      const mappedData = jsonData.map((row: any) => {
-        const firstName = findValueByKeys(row, ['First Name', 'firstName', 'first_name']);
-        const lastName = findValueByKeys(row, ['Last Name', 'lastName', 'last_name']);
-
-        // Skip rows without a valid first and last name
-        if (!firstName || !lastName || String(firstName).trim() === '' || String(lastName).trim() === '') {
-            return null;
-        }
-
-        return {
-          firstName: String(firstName),
-          lastName: String(lastName),
-          role: findValueByKeys(row, ['Role']),
-          groupName: findValueByKeys(row, ['Group Name', 'groupname']),
-          system: findValueByKeys(row, ['System']),
-          campus: findValueByKeys(row, ['Campus']),
-          examAvg: findValueByKeys(row, ['Exam Avg', 'examavg']),
-          exitAvg: findValueByKeys(row, ['Exit Avg', 'exitavg']),
-          AA: findValueByKeys(row, ['AA']),
-          points: findValueByKeys(row, ['Points']),
-          total: findValueByKeys(row, ['Total']),
-          sheetName: findValueByKeys(row, ['Sheet Name', 'sheetname']),
-        };
-      }).filter(Boolean); // Filter out the null rows
-
-      if (mappedData.length === 0) {
-        toast({ title: "No Valid Data", description: "No rows with a valid 'First Name' and 'Last Name' were found in the file.", variant: "destructive" });
-        setIsUploading(false);
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('recordsJson', JSON.stringify(mappedData));
-
-      startTransition(() => {
-        batchAction(formData);
-      });
-
-    } catch (error) {
-      console.error("File parsing error:", error);
-      toast({ title: "File Error", description: "Could not read or parse the Excel file.", variant: "destructive" });
-    } finally {
-      setIsUploading(false);
-      if(fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
-  };
-  
   const displayData = useMemo(() => {
-    // Start with TPI records as the source of truth
-    const combined = tpiRecords
-      .map(tpi => {
-        const emp = tpi.employeeDocId ? employees.find(e => e.id === tpi.employeeDocId) : undefined;
-        
-        // Base is the employee data if found, otherwise an empty object
-        const base = emp || {};
-        
-        // TPI record data overwrites base employee data for display
-        // Also construct a name if not available from a full employee record
-        const displayName = emp?.name || `${tpi.firstName || ''} ${tpi.lastName || ''}`.trim();
-        const displayFirstName = emp?.firstName || tpi.firstName;
-        const displayLastName = emp?.lastName || tpi.lastName;
-
-        return {
-          ...base,
-          ...tpi,
-          name: displayName, // Ensure name is correct
-          firstName: displayFirstName,
-          lastName: displayLastName,
-        };
-      });
-      
-    // Sort by total score descending for ranking
-    combined.sort((a, b) => (b.total || 0) - (a.total || 0));
-
-    const totalCount = combined.length;
+    if (!leaderboardData) return [];
+    
+    // API data is likely pre-sorted, but we sort by total just in case.
+    const sortedData = [...leaderboardData].sort((a, b) => (b.total || 0) - (a.total || 0));
+    const totalCount = sortedData.length;
     const top25Count = Math.ceil(totalCount * 0.25);
     
-    return combined.map((item, index) => ({
-      ...item,
+    return sortedData.map((item, index) => ({
+      id: item.id || index, // Use item.id if available, otherwise index as fallback key
+      firstName: item.first_name,
+      lastName: item.last_name,
+      role: item.role,
+      groupName: item.group_name,
+      system: item.system,
+      campus: item.campus,
+      examAvg: item.exam_avg,
+      exitAvg: item.exit_avg,
+      AA: item.aa,
+      points: item.points,
+      total: item.total,
+      sheetName: item.sheet_name,
       globalRank: index + 1,
       top25: index < top25Count,
     }));
-  }, [employees, tpiRecords]);
-
+  }, [leaderboardData]);
   
   return (
     <AppLayout>
@@ -326,131 +115,46 @@ export default function TpiPage() {
             Teacher Performance Indicators (TPIs)
           </h1>
           <p className="text-muted-foreground">
-            Enter and review performance metrics for employees.
+            Select a stage to view its performance leaderboard.
           </p>
         </header>
-        
-        <Card className="shadow-lg">
-            <CardHeader>
-                <CardTitle>Batch Upload from Excel</CardTitle>
-                <CardDescription>Upload an Excel file to update TPI data for multiple employees at once.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="p-4 border-2 border-dashed rounded-lg text-center">
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        id="file-upload"
-                        className="hidden"
-                        accept=".xlsx, .xls"
-                        onChange={handleFileChange}
-                        disabled={isUploading || isBatchSaving}
-                    />
-                    <Button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading || isBatchSaving}>
-                        {(isUploading || isBatchSaving) ? 
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 
-                            <UploadCloud className="mr-2 h-4 w-4" />
-                        }
-                        {isUploading ? 'Parsing...' : (isBatchSaving ? 'Saving...' : 'Upload Excel File')}
-                    </Button>
-                    <p className="mt-2 text-xs text-muted-foreground">Max file size: 5MB. Supported formats: .xlsx, .xls</p>
-                </div>
-                <div>
-                    <h4 className="font-semibold text-sm mb-2 flex items-center"><FileText className="mr-2 h-4 w-4"/>Excel Format Guidelines</h4>
-                    <p className="text-xs text-muted-foreground mb-2">The uploader is flexible with column names (e.g., 'First Name' and 'firstName' are both valid). The only absolute requirements are columns for first and last names.</p>
-                    <div className="text-xs space-y-1">
-                        <p><strong className="font-medium">Required Columns:</strong> <span>`First Name`, `Last Name`</span></p>
-                        <p><strong className="font-medium">Optional Columns:</strong> <span>`Role`, `Group Name`, `System`, `Campus`, `Exam Avg`, `Exit Avg`, `AA`, `Points`, `Total`, `Sheet Name`</span></p>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
 
         <Card className="shadow-lg">
-          <form onSubmit={handleSubmit}>
-            <CardHeader>
-              <CardTitle>TPI Data Entry</CardTitle>
-              <CardDescription>Select an employee to enter or update their TPI data.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="employee-select">Employee</Label>
-                {isLoadingEmployees ? <Skeleton className="h-10 w-full md:w-1/2" /> :
-                  <Select onValueChange={(value) => setSelectedEmployee(employees.find(e => e.id === value) || null)} value={selectedEmployee?.id || ""}>
-                    <SelectTrigger id="employee-select" className="w-full md:w-1/2">
-                      <SelectValue placeholder="Select an employee..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees.map((emp) => (
-                        <SelectItem key={emp.id} value={emp.id}>
-                          {emp.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                }
-              </div>
-
-              {selectedEmployee && (
-                isFormLoading ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div> :
-                <>
-                  <div className="p-4 border rounded-lg bg-muted/50 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <p><strong className="text-muted-foreground">Role:</strong> {selectedEmployee.role}</p>
-                      <p><strong className="text-muted-foreground">Group:</strong> {selectedEmployee.groupName}</p>
-                      <p><strong className="text-muted-foreground">System:</strong> {selectedEmployee.system}</p>
-                      <p><strong className="text-muted-foreground">Campus:</strong> {selectedEmployee.campus}</p>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="space-y-2">
-                          <Label htmlFor="examAvg">Exam Avg</Label>
-                          <Input id="examAvg" name="examAvg" type="number" step="0.01" placeholder="e.g., 74.87" value={formValues.examAvg} onChange={handleInputChange} />
-                          {serverState?.errors?.examAvg && <p className="text-xs text-destructive">{serverState.errors.examAvg[0]}</p>}
-                      </div>
-                      <div className="space-y-2">
-                          <Label htmlFor="exitAvg">Exit Avg</Label>
-                          <Input id="exitAvg" name="exitAvg" type="number" step="0.01" placeholder="e.g., 78.20" value={formValues.exitAvg} onChange={handleInputChange} />
-                      </div>
-                      <div className="space-y-2">
-                          <Label htmlFor="AA">AA</Label>
-                          <Input id="AA" name="AA" type="number" step="0.001" placeholder="e.g., 66.673" value={formValues.AA} onChange={handleInputChange} />
-                      </div>
-                      <div className="space-y-2">
-                          <Label htmlFor="points">Points</Label>
-                          <Input id="points" name="points" type="number" placeholder="e.g., 6375" value={formValues.points} onChange={handleInputChange} />
-                      </div>
-                       <div className="space-y-2">
-                          <Label htmlFor="total">Total</Label>
-                          <Input id="total" name="total" type="number" placeholder="e.g., 6974" value={formValues.total} onChange={handleInputChange} />
-                      </div>
-                      <div className="space-y-2 col-span-2">
-                          <Label htmlFor="sheetName">Sheet Name</Label>
-                          <Input id="sheetName" name="sheetName" placeholder="e.g., 1 IG - Non-Core" value={formValues.sheetName} onChange={handleInputChange} />
-                      </div>
-                  </div>
-                </>
-              )}
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" disabled={isSaving || !selectedEmployee}>
-                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Save TPI Data
-              </Button>
-               {serverState?.errors?.form && (
-                  <p className="ml-4 text-sm text-destructive">{serverState.errors.form.join(', ')}</p>
-                )}
-            </CardFooter>
-          </form>
+          <CardHeader>
+            <CardTitle>Leaderboard Selection</CardTitle>
+            <CardDescription>Select a stage to load the corresponding performance leaderboard from the API.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="w-full md:w-1/3">
+              <Select onValueChange={setSelectedStageId} value={selectedStageId}>
+                <SelectTrigger id="stage-select">
+                  <SelectValue placeholder="Select a stage..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {stages.map((stage) => (
+                    <SelectItem key={stage.id} value={stage.id.toString()}>
+                      {stage.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
         </Card>
 
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Performance Leaderboard</CardTitle>
             <CardDescription>
-              Displaying performance indicators for all employees, ranked by total score.
+              {selectedStageId ? `Displaying performance indicators for the selected stage.` : "Please select a stage to view data."}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoadingTpi || isLoadingEmployees ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div> :
+            {isLoading ? (
+              <div className="flex justify-center items-center h-64">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              </div>
+            ) : (
             <ScrollArea className="w-full whitespace-nowrap">
               <Table>
                 <TableHeader>
@@ -495,14 +199,16 @@ export default function TpiPage() {
                     </TableRow>
                   )) : (
                     <TableRow>
-                      <TableCell colSpan={14} className="h-24 text-center">No TPI data has been entered yet.</TableCell>
+                      <TableCell colSpan={14} className="h-24 text-center">
+                        {selectedStageId ? "No data returned for this stage." : "Please select a stage to view the leaderboard."}
+                      </TableCell>
                     </TableRow>
                   )}
                 </TableBody>
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-            }
+            )}
           </CardContent>
         </Card>
       </div>
