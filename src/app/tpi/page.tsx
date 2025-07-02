@@ -58,7 +58,13 @@ export default function TpiPage() {
     const fetchApiData = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`https://blb-staging-hwnidclrba-uc.a.run.app/reports/leaderBoard?stage_tag_ids=${selectedStageId}`);
+        const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im9tbmlhIHRhYWxhYiIsImlkIjoyMjI3MTAsInJvbGUiOiJzdXBlciBhZG1pbiIsImRvbWFpbiI6bnVsbCwiaWF0IjoxNzUxNDUxNzExLCJleHAiOjE3NTE1MzgxMTF9.ygtvaUB3biJksPYtnokr7gD7-ci7lT26co3iOVfQ4LI";
+        const response = await fetch(`https://blb-staging-hwnidclrba-uc.a.run.app/reports/leaderBoard?stage_tag_ids=${selectedStageId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
         if (!response.ok) {
           throw new Error(`API request failed with status ${response.status}`);
         }
