@@ -30,7 +30,11 @@ import { Label } from "@/components/ui/label";
 import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { createEmployeeAction, type CreateEmployeeState, updateEmployeeAction, type UpdateEmployeeState, deleteEmployeeAction, type DeleteEmployeeState } from "@/app/actions/employee-actions";
+import { 
+  createEmployeeAction, type CreateEmployeeState, 
+  updateEmployeeAction, type UpdateEmployeeState, 
+  deleteEmployeeAction, type DeleteEmployeeState 
+} from "@/lib/firebase/admin-actions";
 import { 
   createAuthUserForEmployeeAction, type CreateAuthUserState,
   deleteAuthUserAction, type DeleteAuthUserState,
