@@ -44,6 +44,9 @@ const leaveRequestClientSchema = z.object({
   startDate: z.date({ required_error: "Start date is required" }),
   endDate: z.date({ required_error: "End date is required" }),
   reason: z.string().min(10, "Reason must be at least 10 characters").max(500, "Reason must be at most 500 characters"),
+}).refine(data => data.endDate >= data.startDate, {
+  message: "End date cannot be before start date.",
+  path: ["endDate"],
 });
 
 type LeaveRequestFormValues = z.infer<typeof leaveRequestClientSchema>;
@@ -127,7 +130,7 @@ function LeaveRequestForm() {
 
         <Form {...form}>
           <form ref={formRef} action={formAction} className="space-y-8">
-            <input type="hidden" name="requestingEmployeeDocId" value={form.getValues("requestingEmployeeDocId")} />
+            <input type="hidden" name="requestingEmployeeDocId" value={form.watch("requestingEmployeeDocId")} />
             
             <FormField
               control={form.control}
@@ -191,6 +194,7 @@ function LeaveRequestForm() {
                         />
                       </PopoverContent>
                     </Popover>
+                    <input type="hidden" name="startDate" value={field.value?.toISOString() ?? ""} />
                     <FormMessage>{serverState?.errors?.startDate?.[0] || form.formState.errors.startDate?.message}</FormMessage>
                   </FormItem>
                 )}
@@ -234,6 +238,7 @@ function LeaveRequestForm() {
                         />
                       </PopoverContent>
                     </Popover>
+                    <input type="hidden" name="endDate" value={field.value?.toISOString() ?? ""} />
                     <FormMessage>{serverState?.errors?.endDate?.[0] || form.formState.errors.endDate?.message}</FormMessage>
                   </FormItem>
                 )}
