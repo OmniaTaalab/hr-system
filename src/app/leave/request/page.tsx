@@ -44,9 +44,6 @@ const leaveRequestClientSchema = z.object({
   startDate: z.date({ required_error: "Start date is required" }),
   endDate: z.date({ required_error: "End date is required" }),
   reason: z.string().min(10, "Reason must be at least 10 characters").max(500, "Reason must be at most 500 characters"),
-}).refine(data => data.endDate >= data.startDate, {
-  message: "End date cannot be before start date",
-  path: ["endDate"],
 });
 
 type LeaveRequestFormValues = z.infer<typeof leaveRequestClientSchema>;
@@ -130,21 +127,15 @@ function LeaveRequestForm() {
 
         <Form {...form}>
           <form ref={formRef} action={formAction} className="space-y-8">
-            <FormField
-              control={form.control}
-              name="requestingEmployeeDocId"
-              render={({ field }) => (
-                <input type="hidden" {...field} />
-              )}
-            />
-
+            <input type="hidden" name="requestingEmployeeDocId" value={form.getValues("requestingEmployeeDocId")} />
+            
             <FormField
               control={form.control}
               name="leaveType"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Leave Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingLeaveTypes || isLoadingProfile}>
+                  <Select onValueChange={field.onChange} value={field.value} name="leaveType" disabled={isLoadingLeaveTypes || isLoadingProfile}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder={isLoadingLeaveTypes ? "Loading types..." : "Select a leave type"} />
