@@ -44,7 +44,11 @@ function LeaveRequestForm() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [reason, setReason] = useState("");
-  const [clientErrors, setClientErrors] = useState<{ [key: string]: string | undefined }>({});
+  
+  // State for popover visibility
+  const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
+  const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
+
 
   useEffect(() => {
     if (serverState?.message) {
@@ -59,7 +63,6 @@ function LeaveRequestForm() {
         setStartDate(undefined);
         setEndDate(undefined);
         setReason("");
-        setClientErrors({});
       } else {
         const errorDescription = serverState.errors?.form?.join(", ") || serverState.message || "Please check the form for errors.";
         toast({
@@ -71,37 +74,6 @@ function LeaveRequestForm() {
     }
   }, [serverState, toast]);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    // Client-side validation
-    const errors: { [key: string]: string | undefined } = {};
-    if (!profile?.id) {
-        toast({ variant: "destructive", title: "Error", description: "Could not find your employee profile. Please log in again."});
-        return;
-    }
-    if (!leaveType) errors.leaveType = "Leave type is required.";
-    if (!startDate) errors.startDate = "Start date is required.";
-    if (!endDate) errors.endDate = "End date is required.";
-    if (startDate && endDate && endDate < startDate) errors.endDate = "End date cannot be before start date.";
-    if (reason.length < 10) errors.reason = "Reason must be at least 10 characters.";
-
-    if (Object.keys(errors).length > 0) {
-        setClientErrors(errors);
-        return;
-    }
-    setClientErrors({});
-
-    // Create FormData and submit
-    const formData = new FormData();
-    formData.append('requestingEmployeeDocId', profile.id);
-    formData.append('leaveType', leaveType);
-    if(startDate) formData.append('startDate', startDate.toISOString());
-    if(endDate) formData.append('endDate', endDate.toISOString());
-    formData.append('reason', reason);
-    
-    formAction(formData);
-  };
   
   if (isLoadingProfile) {
     return (
@@ -122,10 +94,17 @@ function LeaveRequestForm() {
           </p>
         </header>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="space-y-8">
+        <form ref={formRef} action={formAction} className="space-y-8">
+            {/* Hidden input for employeeDocId */}
+            <input type="hidden" name="requestingEmployeeDocId" value={profile?.id || ''} />
+            
+            {/* Hidden inputs for dates */}
+            {startDate && <input type="hidden" name="startDate" value={startDate.toISOString()} />}
+            {endDate && <input type="hidden" name="endDate" value={endDate.toISOString()} />}
+
             <div className="space-y-2">
                 <Label htmlFor="leaveType">Leave Type</Label>
-                <Select name="leaveType" onValueChange={setLeaveType} value={leaveType} disabled={isLoadingLeaveTypes || isLoadingProfile}>
+                <Select name="leaveType" onValueChange={setLeaveType} value={leaveType} disabled={isLoadingLeaveTypes || isLoadingProfile} required>
                     <SelectTrigger id="leaveType">
                         <SelectValue placeholder={isLoadingLeaveTypes ? "Loading types..." : "Select a leave type"} />
                     </SelectTrigger>
@@ -135,13 +114,13 @@ function LeaveRequestForm() {
                         ))}
                     </SelectContent>
                 </Select>
-                {(clientErrors.leaveType || serverState?.errors?.leaveType) && <p className="text-sm font-medium text-destructive">{clientErrors.leaveType || serverState?.errors?.leaveType?.[0]}</p>}
+                {serverState?.errors?.leaveType && <p className="text-sm font-medium text-destructive">{serverState.errors.leaveType[0]}</p>}
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
                     <Label>Start Date</Label>
-                    <Popover>
+                    <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
                         <PopoverTrigger asChild>
                             <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !startDate && "text-muted-foreground")}>
                                 {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
@@ -152,17 +131,17 @@ function LeaveRequestForm() {
                             <Calendar
                                 mode="single"
                                 selected={startDate}
-                                onSelect={setStartDate}
+                                onSelect={(date) => { setStartDate(date); setIsStartDatePickerOpen(false); }}
                                 disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
                                 initialFocus
                             />
                         </PopoverContent>
                     </Popover>
-                    {(clientErrors.startDate || serverState?.errors?.startDate) && <p className="text-sm font-medium text-destructive">{clientErrors.startDate || serverState?.errors?.startDate?.[0]}</p>}
+                    {serverState?.errors?.startDate && <p className="text-sm font-medium text-destructive">{serverState.errors.startDate[0]}</p>}
                 </div>
                 <div className="space-y-2">
                     <Label>End Date</Label>
-                    <Popover>
+                    <Popover open={isEndDatePickerOpen} onOpenChange={setIsEndDatePickerOpen}>
                         <PopoverTrigger asChild>
                             <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !endDate && "text-muted-foreground")}>
                                 {endDate ? format(endDate, "PPP") : <span>Pick a date</span>}
@@ -173,13 +152,13 @@ function LeaveRequestForm() {
                             <Calendar
                                 mode="single"
                                 selected={endDate}
-                                onSelect={setEndDate}
+                                onSelect={(date) => { setEndDate(date); setIsEndDatePickerOpen(false); }}
                                 disabled={(date) => date < (startDate || new Date(new Date().setHours(0,0,0,0)))}
                                 initialFocus
                             />
                         </PopoverContent>
                     </Popover>
-                    {(clientErrors.endDate || serverState?.errors?.endDate) && <p className="text-sm font-medium text-destructive">{clientErrors.endDate || serverState?.errors?.endDate?.[0]}</p>}
+                    {serverState?.errors?.endDate && <p className="text-sm font-medium text-destructive">{serverState.errors.endDate[0]}</p>}
                 </div>
             </div>
             
@@ -192,9 +171,10 @@ function LeaveRequestForm() {
                     onChange={(e) => setReason(e.target.value)}
                     placeholder="Briefly explain the reason for your leave request"
                     className="resize-none"
+                    required
                 />
                 <p className="text-sm text-muted-foreground">A brief reason helps in faster processing of your request.</p>
-                {(clientErrors.reason || serverState?.errors?.reason) && <p className="text-sm font-medium text-destructive">{clientErrors.reason || serverState?.errors?.reason?.[0]}</p>}
+                {serverState?.errors?.reason && <p className="text-sm font-medium text-destructive">{serverState.errors.reason[0]}</p>}
             </div>
 
             {serverState?.errors?.form && (
@@ -204,7 +184,7 @@ function LeaveRequestForm() {
               </div>
             )}
 
-            <Button type="submit" className="w-full md:w-auto group" disabled={isActionPending || isLoadingProfile || isLoadingLeaveTypes}>
+            <Button type="submit" className="w-full md:w-auto group" disabled={isActionPending || isLoadingProfile || isLoadingLeaveTypes || !profile?.id}>
               {isActionPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -229,3 +209,5 @@ export default function LeaveRequestPage() {
     </AppLayout>
   );
 }
+
+    
