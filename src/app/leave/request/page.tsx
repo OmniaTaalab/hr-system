@@ -13,7 +13,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -41,7 +40,6 @@ import { useLeaveTypes } from "@/hooks/use-leave-types";
 // Schema must match the server action's schema for client-side validation
 const leaveRequestClientSchema = z.object({
   requestingEmployeeDocId: z.string().min(1, "Employee document ID is required"),
-  employeeName: z.string().min(1, "Employee name is required"),
   leaveType: z.string().min(1, "Leave type is required"),
   startDate: z.date({ required_error: "Start date is required" }),
   endDate: z.date({ required_error: "End date is required" }),
@@ -72,7 +70,6 @@ function LeaveRequestForm() {
     resolver: zodResolver(leaveRequestClientSchema),
     defaultValues: {
       requestingEmployeeDocId: profile?.id || "",
-      employeeName: profile?.name || "User",
       leaveType: "",
       reason: "",
       startDate: undefined,
@@ -84,7 +81,6 @@ function LeaveRequestForm() {
   useEffect(() => {
     if (profile) {
       form.setValue("requestingEmployeeDocId", profile.id);
-      form.setValue("employeeName", profile.name || "User");
     }
   }, [profile, form]);
 
@@ -99,7 +95,6 @@ function LeaveRequestForm() {
         // Reset form, but keep user info
         form.reset({
           requestingEmployeeDocId: profile?.id || '',
-          employeeName: profile?.name || 'User',
           leaveType: '',
           reason: '',
           startDate: undefined,
@@ -146,22 +141,6 @@ function LeaveRequestForm() {
 
         <Form {...form}>
           <form ref={formRef} onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
-            <FormField
-              control={form.control}
-              name="employeeName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Employee Name</FormLabel>
-                  <FormControl>
-                    <Input {...field} readOnly disabled className="bg-muted/50" />
-                  </FormControl>
-                  <FormDescription>
-                    This is your name from your profile. It cannot be changed here.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             {/* Hidden fields for ID */}
             <input type="hidden" {...form.register("requestingEmployeeDocId")} />
 

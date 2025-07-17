@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, Timestamp, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, Timestamp, deleteDoc, getDoc } from 'firebase/firestore';
 // Assuming these functions exist for getting user info
 import { getCurrentUserRole, getCurrentUserId } from '@/lib/auth'; 
 import { getWeekendSettings } from './settings-actions';
@@ -54,8 +54,7 @@ async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<num
 
 // Schema for validating leave request form data
 const LeaveRequestFormSchema = z.object({
-  requestingEmployeeDocId: z.string().min(1, "Employee document ID is required."), // Added for unique employee linking
-  employeeName: z.string().min(1, "Employee name is required."), // Still useful for display
+  requestingEmployeeDocId: z.string().min(1, "Employee document ID is required."), 
   leaveType: z.string().min(1, "Leave type is required."),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." }),
@@ -68,7 +67,6 @@ const LeaveRequestFormSchema = z.object({
 export type SubmitLeaveRequestState = {
   errors?: {
     requestingEmployeeDocId?: string[];
-    employeeName?: string[];
     leaveType?: string[];
     startDate?: string[];
     endDate?: string[];
@@ -86,7 +84,6 @@ export async function submitLeaveRequestAction(
   
   const rawFormData = {
     requestingEmployeeDocId: formData.get('requestingEmployeeDocId'),
-    employeeName: formData.get('employeeName'),
     leaveType: formData.get('leaveType'),
     startDate: formData.get('startDate') ? new Date(formData.get('startDate') as string) : undefined,
     endDate: formData.get('endDate') ? new Date(formData.get('endDate') as string) : undefined,
@@ -103,9 +100,17 @@ export async function submitLeaveRequestAction(
     };
   }
 
-  const { requestingEmployeeDocId, employeeName, leaveType, startDate, endDate, reason } = validatedFields.data;
+  const { requestingEmployeeDocId, leaveType, startDate, endDate, reason } = validatedFields.data;
 
   try {
+    const employeeDocRef = doc(db, "employee", requestingEmployeeDocId);
+    const employeeSnap = await getDoc(employeeDocRef);
+
+    if (!employeeSnap.exists()) {
+        return { errors: { form: ["Employee record not found."] }, success: false };
+    }
+    const employeeName = employeeSnap.data().name || "Unknown Employee";
+
     const numberOfDays = await calculateWorkingDays(startDate, endDate);
 
     // The 'employeeId' field in Firestore will now store the unique document ID from 'employy' collection
