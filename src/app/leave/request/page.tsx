@@ -71,8 +71,8 @@ function LeaveRequestForm() {
   const form = useForm<LeaveRequestFormValues>({
     resolver: zodResolver(leaveRequestClientSchema),
     defaultValues: {
-      requestingEmployeeDocId: "",
-      employeeName: "",
+      requestingEmployeeDocId: profile?.id || "",
+      employeeName: profile?.name || "",
       leaveType: "",
       reason: "",
       startDate: undefined,
