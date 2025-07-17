@@ -29,7 +29,7 @@ function JobBoardContent() {
   const { toast } = useToast();
   const { profile, loading: isLoadingProfile } = useUserProfile();
 
-  const canCreateJobs = !isLoadingProfile && (profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr');
+  const canCreateJobs = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
 
   useEffect(() => {
     setIsLoading(true);
@@ -70,14 +70,14 @@ function JobBoardContent() {
         </div>
         {isLoadingProfile ? (
           <Skeleton className="h-10 w-40 rounded-md" />
-        ) : canCreateJobs && (
+        ) : canCreateJobs ? (
           <Button asChild>
             <Link href="/jobs/create">
               <PlusCircle className="mr-2 h-4 w-4" />
               Create New Job
             </Link>
           </Button>
-        )}
+        ) : null}
       </header>
 
       {isLoading ? (
