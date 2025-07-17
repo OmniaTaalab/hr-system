@@ -72,7 +72,7 @@ function LeaveRequestForm() {
     resolver: zodResolver(leaveRequestClientSchema),
     defaultValues: {
       requestingEmployeeDocId: profile?.id || "",
-      employeeName: profile?.name || "",
+      employeeName: profile?.name || "User",
       leaveType: "",
       reason: "",
       startDate: undefined,
@@ -84,7 +84,7 @@ function LeaveRequestForm() {
   useEffect(() => {
     if (profile) {
       form.setValue("requestingEmployeeDocId", profile.id);
-      form.setValue("employeeName", profile.name);
+      form.setValue("employeeName", profile.name || "User");
     }
   }, [profile, form]);
 
@@ -99,7 +99,7 @@ function LeaveRequestForm() {
         // Reset form, but keep user info
         form.reset({
           requestingEmployeeDocId: profile?.id || '',
-          employeeName: profile?.name || '',
+          employeeName: profile?.name || 'User',
           leaveType: '',
           reason: '',
           startDate: undefined,
