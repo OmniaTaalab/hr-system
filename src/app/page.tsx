@@ -1,7 +1,7 @@
 
 "use client";
 
-import { AppLayout } from "@/components/layout/app-layout";
+import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, Loader2 } from "lucide-react";
@@ -37,6 +37,7 @@ interface DashboardCardProps {
   statisticLabel?: string;
   isLoadingStatistic?: boolean;
   className?: string;
+  adminOnly?: boolean;
 }
 
 function DashboardCard({
@@ -112,6 +113,8 @@ export default function HRDashboardPage() {
   const [isLoadingApprovedLeaves, setIsLoadingApprovedLeaves] = useState(true);
   const [isLoadingRejectedLeaves, setIsLoadingRejectedLeaves] = useState(true);
   const [isLoadingDeptData, setIsLoadingDeptData] = useState(true);
+  
+  const { profile, loading: isLoadingProfile } = useUserProfile();
 
   useEffect(() => {
     const fetchCounts = async () => {
@@ -251,6 +254,7 @@ export default function HRDashboardPage() {
       iconName: "CalendarPlus",
       href: "/leave/request",
       linkText: "Request Now",
+      adminOnly: false,
     },
     {
       title: "All Leave Requests",
@@ -258,6 +262,7 @@ export default function HRDashboardPage() {
       iconName: "ListChecks",
       href: "/leave/all-requests",
       linkText: "View All Requests",
+      adminOnly: true,
     },
     {
       title: "Attendance",
@@ -265,6 +270,7 @@ export default function HRDashboardPage() {
       iconName: "CheckCircle2",
       href: "/attendance",
       linkText: "View Attendance",
+      adminOnly: true,
     },
     {
       title: "Job Board",
@@ -272,6 +278,7 @@ export default function HRDashboardPage() {
       iconName: "Briefcase",
       href: "/jobs",
       linkText: "See Openings",
+      adminOnly: false,
     },
     {
       title: "AI Career Advisor",
@@ -279,8 +286,29 @@ export default function HRDashboardPage() {
       iconName: "Lightbulb",
       href: "/career-advisor",
       linkText: "Get Advice",
+      adminOnly: true,
+    },
+     {
+      title: "TPIs",
+      description: "View teacher performance indicators.",
+      iconName: "Trophy",
+      href: "/tpi",
+      linkText: "View TPIs",
+      adminOnly: true,
     },
   ];
+  
+  const filteredActionCards = useMemo(() => {
+    if (isLoadingProfile) return [];
+    
+    const userRole = profile?.role?.toLowerCase();
+    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
+
+    if (isPrivilegedUser) {
+        return actionCards;
+    }
+    return actionCards.filter(card => !card.adminOnly);
+  }, [profile, isLoadingProfile]);
 
   return (
     <AppLayout>
@@ -359,7 +387,9 @@ export default function HRDashboardPage() {
             Quick Actions
           </h2>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {actionCards.map((card) => (
+            {isLoadingProfile ? 
+              Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[180px] w-full" />)
+              : filteredActionCards.map((card) => (
               <DashboardCard key={card.title} {...card} />
             ))}
           </div>
