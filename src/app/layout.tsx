@@ -4,6 +4,7 @@ import { Inter, Space_Grotesk } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
+import { AppProvider } from '@/components/layout/app-provider';
 
 const fontInter = Inter({
   subsets: ['latin'],
@@ -27,10 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" dir="ltr" suppressHydrationWarning>
-      <head>
-        {/* Keep existing Google Fonts links if any, or rely on next/font */}
-        {/* Example: <link href="https://fonts.googleapis.com/css2?family=Inter&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" /> */}
-      </head>
+      <head />
       <body
         className={cn(
           "min-h-screen bg-background font-body antialiased",
@@ -38,7 +36,9 @@ export default function RootLayout({
           fontSpaceGrotesk.variable
         )}
       >
-        {children}
+        <AppProvider>
+            {children}
+        </AppProvider>
         <Toaster />
       </body>
     </html>
