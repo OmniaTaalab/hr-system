@@ -851,7 +851,7 @@ function EmployeeManagementContent() {
 
   const [showPassword, setShowPassword] = useState(false);
 
-  const canAddEmployee = useMemo(() => {
+  const canManageEmployees = useMemo(() => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();
     return userRole === 'admin' || userRole === 'hr';
@@ -1164,7 +1164,7 @@ function EmployeeManagementContent() {
             </div>
             {isLoadingProfile ? (
               <Skeleton className="h-10 w-[190px]" />
-            ) : canAddEmployee && (
+            ) : canManageEmployees && (
               <Button onClick={openAddDialog} className="w-full sm:w-auto">
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add New Employee
@@ -1189,7 +1189,7 @@ function EmployeeManagementContent() {
                 <TableHead>Campus</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Account</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                {canManageEmployees && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1224,44 +1224,46 @@ function EmployeeManagementContent() {
                           </Tooltip>
                       </TooltipProvider>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEditDialog(employee)}>
-                            <Edit3 className="mr-2 h-4 w-4" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openCreateLoginDialog(employee)} disabled={!!employee.userId}>
-                            <UserPlus className="mr-2 h-4 w-4" />
-                            Create Login
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openChangePasswordDialog(employee)} disabled={!employee.userId}>
-                            <KeyRound className="mr-2 h-4 w-4" />
-                            Change Password
-                          </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openDeleteLoginDialog(employee)} disabled={!employee.userId} className="text-destructive focus:text-destructive">
-                              <UserMinus className="mr-2 h-4 w-4" />
-                              Delete Login
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => openDeleteConfirmDialog(employee)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete Employee
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+                    {canManageEmployees && (
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDialog(employee)}>
+                              <Edit3 className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openCreateLoginDialog(employee)} disabled={!!employee.userId}>
+                              <UserPlus className="mr-2 h-4 w-4" />
+                              Create Login
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openChangePasswordDialog(employee)} disabled={!employee.userId}>
+                              <KeyRound className="mr-2 h-4 w-4" />
+                              Change Password
+                            </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openDeleteLoginDialog(employee)} disabled={!employee.userId} className="text-destructive focus:text-destructive">
+                                <UserMinus className="mr-2 h-4 w-4" />
+                                Delete Login
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => openDeleteConfirmDialog(employee)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete Employee
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center">
+                  <TableCell colSpan={canManageEmployees ? 8 : 7} className="h-24 text-center">
                     {searchTerm ? "No employees found matching your search." : "No employees found. Try adding some!"}
                   </TableCell>
                 </TableRow>
@@ -1522,3 +1524,4 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
