@@ -97,17 +97,15 @@ function CreateJobForm() {
     );
 }
 
-export default function CreateJobPage() {
+function CreateJobContent() {
     const { profile, loading } = useUserProfile();
     const router = useRouter();
 
     if (loading) {
         return (
-            <AppLayout>
-                <div className="flex justify-center items-center h-full">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                </div>
-            </AppLayout>
+            <div className="flex justify-center items-center h-full">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
         );
     }
 
@@ -118,36 +116,40 @@ export default function CreateJobPage() {
             router.replace('/jobs');
         }, [router]);
         return (
-            <AppLayout>
-                <div className="flex justify-center items-center h-full flex-col gap-4">
-                    <AlertTriangle className="h-12 w-12 text-destructive" />
-                    <h2 className="text-xl font-semibold">Access Denied</h2>
-                    <p className="text-muted-foreground">You do not have permission to create job openings.</p>
-                </div>
-            </AppLayout>
+            <div className="flex justify-center items-center h-full flex-col gap-4">
+                <AlertTriangle className="h-12 w-12 text-destructive" />
+                <h2 className="text-xl font-semibold">Access Denied</h2>
+                <p className="text-muted-foreground">You do not have permission to create job openings.</p>
+            </div>
         );
     }
-  
+
+    return (
+        <div className="max-w-4xl mx-auto space-y-8">
+            <header>
+                <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
+                    Create New Job Opening
+                </h1>
+                <p className="text-muted-foreground">
+                    Fill in the details below to post a new job to the public job board.
+                </p>
+            </header>
+            <Card className="shadow-lg">
+                <CardHeader>
+                    <CardTitle>Job Details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <CreateJobForm />
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+export default function CreateJobPage() {
     return (
         <AppLayout>
-             <div className="max-w-4xl mx-auto space-y-8">
-                <header>
-                    <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-                        Create New Job Opening
-                    </h1>
-                    <p className="text-muted-foreground">
-                        Fill in the details below to post a new job to the public job board.
-                    </p>
-                </header>
-                <Card className="shadow-lg">
-                    <CardHeader>
-                        <CardTitle>Job Details</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <CreateJobForm />
-                    </CardContent>
-                </Card>
-            </div>
+            <CreateJobContent />
         </AppLayout>
     );
 }
