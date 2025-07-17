@@ -29,16 +29,38 @@ export function SidebarNav() {
   const { profile, loading } = useUserProfile();
 
   const navItems = useMemo(() => {
-    if (!profile) return siteConfig.navItems.filter(item => !item.href?.startsWith('/settings'));
+    if (!profile) {
+        // Fallback for when profile is not yet loaded or doesn't exist
+        return siteConfig.navItems.filter(item => {
+            const isProtected = 
+                item.href?.startsWith('/leave/all-requests') ||
+                item.href?.startsWith('/settings') ||
+                item.href?.startsWith('/career-advisor') ||
+                item.href?.startsWith('/attendance') ||
+                item.href?.startsWith('/payroll') ||
+                item.href?.startsWith('/tpi');
+            return !isProtected;
+        });
+    }
     
     const userRole = profile.role?.toLowerCase();
-    const canViewSettings = userRole === 'admin' || userRole === 'hr';
+    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
     
+    if (isPrivilegedUser) {
+        return siteConfig.navItems; // Admins/HR can see everything
+    }
+
+    // Filter for regular users
     return siteConfig.navItems.filter(item => {
-      if (item.href?.startsWith('/settings')) {
-        return canViewSettings;
-      }
-      return true;
+      const isProtected = 
+        item.href?.startsWith('/leave/all-requests') ||
+        item.href?.startsWith('/settings') ||
+        item.href?.startsWith('/career-advisor') ||
+        item.href?.startsWith('/attendance') ||
+        item.href?.startsWith('/payroll') ||
+        item.href?.startsWith('/tpi');
+      
+      return !isProtected;
     });
   }, [profile]);
 
