@@ -56,8 +56,8 @@ async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<num
 const LeaveRequestFormSchema = z.object({
   requestingEmployeeDocId: z.string().min(1, "Employee document ID is required."), 
   leaveType: z.string().min(1, "Leave type is required."),
-  startDate: z.date({ required_error: "Start date is required." }),
-  endDate: z.date({ required_error: "End date is required." }),
+  startDate: z.coerce.date({ required_error: "Start date is required." }),
+  endDate: z.coerce.date({ required_error: "End date is required." }),
   reason: z.string().min(10, "Reason must be at least 10 characters.").max(500, "Reason must be at most 500 characters."),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
@@ -82,15 +82,13 @@ export async function submitLeaveRequestAction(
   formData: FormData
 ): Promise<SubmitLeaveRequestState> {
   
-  const rawFormData = {
+  const validatedFields = LeaveRequestFormSchema.safeParse({
     requestingEmployeeDocId: formData.get('requestingEmployeeDocId'),
     leaveType: formData.get('leaveType'),
-    startDate: formData.get('startDate') ? new Date(formData.get('startDate') as string) : undefined,
-    endDate: formData.get('endDate') ? new Date(formData.get('endDate') as string) : undefined,
+    startDate: formData.get('startDate'),
+    endDate: formData.get('endDate'),
     reason: formData.get('reason'),
-  };
-
-  const validatedFields = LeaveRequestFormSchema.safeParse(rawFormData);
+  });
 
   if (!validatedFields.success) {
     return {

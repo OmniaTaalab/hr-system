@@ -33,7 +33,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Send, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useActionState, useEffect, useRef, useTransition } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
 
@@ -61,7 +61,6 @@ function LeaveRequestForm() {
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const [serverState, formAction, isActionPending] = useActionState(submitLeaveRequestAction, initialSubmitState);
-  const [_isTransitionPending, startTransition] = useTransition();
 
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
@@ -109,20 +108,6 @@ function LeaveRequestForm() {
       }
     }
   }, [serverState, toast, form, profile]);
-
-  const handleFormSubmit = (data: LeaveRequestFormValues) => {
-    // Manually construct FormData to ensure all data is sent correctly
-    const formData = new FormData();
-    formData.append('requestingEmployeeDocId', data.requestingEmployeeDocId);
-    formData.append('leaveType', data.leaveType);
-    formData.append('startDate', data.startDate.toISOString());
-    formData.append('endDate', data.endDate.toISOString());
-    formData.append('reason', data.reason);
-    
-    startTransition(() => {
-      formAction(formData);
-    });
-  };
   
   if (isLoadingProfile) {
     return (
@@ -144,9 +129,14 @@ function LeaveRequestForm() {
         </header>
 
         <Form {...form}>
-          <form ref={formRef} onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
-            {/* Hidden fields for ID */}
-            <input type="hidden" {...form.register("requestingEmployeeDocId")} />
+          <form ref={formRef} action={formAction} className="space-y-8">
+            <FormField
+              control={form.control}
+              name="requestingEmployeeDocId"
+              render={({ field }) => (
+                <input type="hidden" {...field} />
+              )}
+            />
 
             <FormField
               control={form.control}
