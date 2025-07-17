@@ -29,10 +29,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Send, Loader2 } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { CalendarIcon, Send, Loader2, AlertTriangle } from "lucide-react";
+import { useActionState, useEffect, useTransition } from "react";
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
+import { useForm, type SubmitHandler } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+
+const LeaveRequestSchema = z.object({
+  leaveType: z.string().min(1, "Leave type is required."),
+  startDate: z.date({ required_error: "A start date is required." }),
+  endDate: z.date({ required_error: "An end date is required." }),
+  reason: z.string().min(10, "Reason must be at least 10 characters long."),
+}).refine(data => data.endDate >= data.startDate, {
+  message: "End date cannot be before the start date.",
+  path: ["endDate"],
+});
+
+type LeaveRequestFormValues = z.infer<typeof LeaveRequestSchema>;
 
 const initialSubmitState: SubmitLeaveRequestState = {
   message: null,
@@ -42,16 +57,22 @@ const initialSubmitState: SubmitLeaveRequestState = {
 
 function LeaveRequestForm() {
   const { toast } = useToast();
-  const formRef = useRef<HTMLFormElement>(null);
   const [serverState, formAction, isActionPending] = useActionState(submitLeaveRequestAction, initialSubmitState);
+  const [_isTransitionPending, startTransition] = useTransition();
   
-  const [startDate, setStartDate] = useState<Date | undefined>();
-  const [endDate, setEndDate] = useState<Date | undefined>();
-
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
+  
+  const form = useForm<LeaveRequestFormValues>({
+    resolver: zodResolver(LeaveRequestSchema),
+    defaultValues: {
+      leaveType: "",
+      startDate: undefined,
+      endDate: undefined,
+      reason: "",
+    },
+  });
 
-  // Handle form submission response
   useEffect(() => {
     if (serverState?.message) {
       if (serverState.success) {
@@ -59,18 +80,35 @@ function LeaveRequestForm() {
           title: "Success",
           description: serverState.message,
         });
-        formRef.current?.reset();
-        setStartDate(undefined);
-        setEndDate(undefined);
-      } else if (serverState.errors?.form || Object.keys(serverState.errors || {}).length > 0) {
+        form.reset();
+      } else {
+        const errorDescription = serverState.errors?.form?.join(", ") || serverState.message || "Please check the form for errors.";
         toast({
           variant: "destructive",
           title: "Submission Failed",
-          description: serverState.errors?.form?.join(", ") || serverState.message || "Please check the form for errors.",
+          description: errorDescription,
         });
       }
     }
-  }, [serverState, toast]);
+  }, [serverState, toast, form]);
+
+  const onSubmit: SubmitHandler<LeaveRequestFormValues> = (data) => {
+    if (!profile?.id) {
+      toast({ variant: "destructive", title: "Error", description: "Could not find your employee profile. Please log in again."});
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('requestingEmployeeDocId', profile.id);
+    formData.append('leaveType', data.leaveType);
+    formData.append('startDate', data.startDate.toISOString());
+    formData.append('endDate', data.endDate.toISOString());
+    formData.append('reason', data.reason);
+    
+    startTransition(() => {
+        formAction(formData);
+    });
+  };
   
   if (isLoadingProfile) {
     return (
@@ -91,118 +129,116 @@ function LeaveRequestForm() {
           </p>
         </header>
 
-        <form ref={formRef} action={formAction} className="space-y-8">
-            {profile?.id && <input type="hidden" name="requestingEmployeeDocId" value={profile.id} />}
-            {startDate && <input type="hidden" name="startDate" value={startDate.toISOString()} />}
-            {endDate && <input type="hidden" name="endDate" value={endDate.toISOString()} />}
-            
-            <div className="space-y-2">
-                <Label htmlFor="leaveType">Leave Type</Label>
-                <Select name="leaveType" disabled={isLoadingLeaveTypes || isLoadingProfile}>
-                    <SelectTrigger id="leaveType">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <FormField
+              control={form.control}
+              name="leaveType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Leave Type</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingLeaveTypes || isLoadingProfile}>
+                    <FormControl>
+                      <SelectTrigger>
                         <SelectValue placeholder={isLoadingLeaveTypes ? "Loading types..." : "Select a leave type"} />
-                    </SelectTrigger>
+                      </SelectTrigger>
+                    </FormControl>
                     <SelectContent>
                       {leaveTypes.map(type => (
                         <SelectItem key={type.id} value={type.name}>{type.name}</SelectItem>
                       ))}
                     </SelectContent>
-                </Select>
-                {serverState?.errors?.leaveType && <p className="text-sm font-medium text-destructive mt-1">{serverState.errors.leaveType[0]}</p>}
-            </div>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "w-full pl-3 text-left font-normal",
-                          !startDate && "text-muted-foreground"
-                        )}
-                        disabled={isLoadingProfile}
-                      >
-                        {startDate ? (
-                          format(startDate, "PPP")
-                        ) : (
-                          <span>Pick a date</span>
-                        )}
-                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                      </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={startDate}
-                      onSelect={setStartDate}
-                      disabled={(date) =>
-                        date < new Date(new Date().setHours(0,0,0,0)) 
-                      }
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                {serverState?.errors?.startDate && <p className="text-sm font-medium text-destructive mt-1">{serverState.errors.startDate[0]}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label>End Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "w-full pl-3 text-left font-normal",
-                          !endDate && "text-muted-foreground"
-                        )}
-                        disabled={isLoadingProfile || !startDate}
-                      >
-                        {endDate ? (
-                          format(endDate, "PPP")
-                        ) : (
-                          <span>Pick a date</span>
-                        )}
-                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                      </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={endDate}
-                      onSelect={setEndDate}
-                      disabled={(date) =>
-                        date < (startDate || new Date(new Date().setHours(0,0,0,0)))
-                      }
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                 {serverState?.errors?.endDate && <p className="text-sm font-medium text-destructive mt-1">{serverState.errors.endDate[0]}</p>}
-              </div>
+              <FormField
+                control={form.control}
+                name="startDate"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Start Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="endDate"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>End Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) => date < (form.watch('startDate') || new Date(new Date().setHours(0,0,0,0)))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="reason">Reason for Leave</Label>
-                <Textarea
-                  id="reason"
-                  name="reason"
-                  placeholder="Briefly explain the reason for your leave request"
-                  className="resize-none"
-                  rows={4}
-                  disabled={isLoadingProfile}
-                />
-              <FormDescription>
-                A brief reason helps in faster processing of your request.
-              </FormDescription>
-               {serverState?.errors?.reason && <p className="text-sm font-medium text-destructive mt-1">{serverState.errors.reason[0]}</p>}
-            </div>
+            
+            <FormField
+              control={form.control}
+              name="reason"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Reason for Leave</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Briefly explain the reason for your leave request"
+                      className="resize-none"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>A brief reason helps in faster processing of your request.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {serverState?.errors?.form && (
-              <p className="text-sm font-medium text-destructive">
-                {serverState.errors.form.join(", ")}
-              </p>
+              <div className="flex items-center text-sm text-destructive">
+                <AlertTriangle className="mr-2 h-4 w-4"/>
+                <p>{serverState.errors.form.join(", ")}</p>
+              </div>
             )}
 
             <Button type="submit" className="w-full md:w-auto group" disabled={isActionPending || isLoadingProfile || isLoadingLeaveTypes}>
@@ -219,6 +255,7 @@ function LeaveRequestForm() {
               )}
             </Button>
           </form>
+        </Form>
       </div>
   );
 }
