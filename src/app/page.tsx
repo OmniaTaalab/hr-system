@@ -24,7 +24,6 @@ interface Employee {
   name: string;
   department: string;
   status: "Active" | "On Leave" | "Terminated";
-  // other fields if necessary
 }
 
 interface DashboardCardProps {
@@ -99,7 +98,7 @@ const chartConfig = {
 } satisfies Record<string, unknown>;
 
 
-export default function HRDashboardPage() {
+function DashboardPageContent() {
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const [activeEmployees, setActiveEmployees] = useState<number | null>(null);
   const [pendingLeaveRequests, setPendingLeaveRequests] = useState<number | null>(null);
@@ -311,91 +310,97 @@ export default function HRDashboardPage() {
   }, [profile, isLoadingProfile]);
 
   return (
+    <div className="space-y-8">
+      <header>
+        <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
+          HR Dashboard
+        </h1>
+        <p className="text-muted-foreground">
+          Welcome! Here's an overview of key HR metrics and quick actions.
+        </p>
+      </header>
+
+      <section aria-labelledby="statistics-title">
+        <h2 id="statistics-title" className="text-2xl font-semibold font-headline mb-4">
+          Key Statistics
+        </h2>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {statisticCards.map((card) => (
+            <DashboardCard key={card.title} {...card} />
+          ))}
+        </div>
+      </section>
+
+      <section aria-labelledby="charts-title" className="mt-8">
+         <h2 id="charts-title" className="text-2xl font-semibold font-headline mb-4">
+          Visualizations
+        </h2>
+        <Card className="shadow-lg col-span-1 lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="font-headline text-xl flex items-center">
+              <iconMap.BarChartBig className="mr-2 h-6 w-6 text-primary" />
+              Employee Distribution by Department
+            </CardTitle>
+            <CardDescription>Number of employees in each department.</CardDescription>
+          </CardHeader>
+          <CardContent className="pl-2 pr-6">
+            {isLoadingDeptData ? (
+              <div className="flex justify-center items-center h-[350px]">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              </div>
+            ) : departmentData.length > 0 ? (
+              <ChartContainer config={chartConfig} className="h-[350px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart accessibilityLayer data={departmentData} margin={{ top: 5, right: 0, left: -20, bottom: 70 }}> {/* Increased bottom margin */}
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="name"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      angle={-45} // Angle for better readability
+                      textAnchor="end"
+                      interval={0} // Show all labels
+                      height={80} // Allocate more height for angled labels
+                      tickFormatter={(value) => value.length > 15 ? `${value.substring(0,12)}...` : value}
+                    />
+                    <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} />
+                    <ChartTooltip
+                      cursor={false}
+                      content={<ChartTooltipContent indicator="dashed" />}
+                    />
+                    <Bar dataKey="count" fill="var(--color-employees)" radius={4} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            ) : (
+              <p className="text-center text-muted-foreground py-10">No department data available to display chart.</p>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section aria-labelledby="quick-actions-title" className="mt-8">
+        <h2 id="quick-actions-title" className="text-2xl font-semibold font-headline mb-4">
+          Quick Actions
+        </h2>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {isLoadingProfile ? 
+            Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[180px] w-full" />)
+            : filteredActionCards.map((card) => (
+            <DashboardCard key={card.title} {...card} />
+          ))}
+        </div>
+      </section>
+
+    </div>
+  );
+}
+
+export default function HRDashboardPage() {
+  return (
     <AppLayout>
-      <div className="space-y-8">
-        <header>
-          <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-            HR Dashboard
-          </h1>
-          <p className="text-muted-foreground">
-            Welcome! Here's an overview of key HR metrics and quick actions.
-          </p>
-        </header>
-
-        <section aria-labelledby="statistics-title">
-          <h2 id="statistics-title" className="text-2xl font-semibold font-headline mb-4">
-            Key Statistics
-          </h2>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {statisticCards.map((card) => (
-              <DashboardCard key={card.title} {...card} />
-            ))}
-          </div>
-        </section>
-
-        <section aria-labelledby="charts-title" className="mt-8">
-           <h2 id="charts-title" className="text-2xl font-semibold font-headline mb-4">
-            Visualizations
-          </h2>
-          <Card className="shadow-lg col-span-1 lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="font-headline text-xl flex items-center">
-                <iconMap.BarChartBig className="mr-2 h-6 w-6 text-primary" />
-                Employee Distribution by Department
-              </CardTitle>
-              <CardDescription>Number of employees in each department.</CardDescription>
-            </CardHeader>
-            <CardContent className="pl-2 pr-6">
-              {isLoadingDeptData ? (
-                <div className="flex justify-center items-center h-[350px]">
-                  <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                </div>
-              ) : departmentData.length > 0 ? (
-                <ChartContainer config={chartConfig} className="h-[350px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart accessibilityLayer data={departmentData} margin={{ top: 5, right: 0, left: -20, bottom: 70 }}> {/* Increased bottom margin */}
-                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="name"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                        angle={-45} // Angle for better readability
-                        textAnchor="end"
-                        interval={0} // Show all labels
-                        height={80} // Allocate more height for angled labels
-                        tickFormatter={(value) => value.length > 15 ? `${value.substring(0,12)}...` : value}
-                      />
-                      <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} />
-                      <ChartTooltip
-                        cursor={false}
-                        content={<ChartTooltipContent indicator="dashed" />}
-                      />
-                      <Bar dataKey="count" fill="var(--color-employees)" radius={4} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </ChartContainer>
-              ) : (
-                <p className="text-center text-muted-foreground py-10">No department data available to display chart.</p>
-              )}
-            </CardContent>
-          </Card>
-        </section>
-
-        <section aria-labelledby="quick-actions-title" className="mt-8">
-          <h2 id="quick-actions-title" className="text-2xl font-semibold font-headline mb-4">
-            Quick Actions
-          </h2>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {isLoadingProfile ? 
-              Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[180px] w-full" />)
-              : filteredActionCards.map((card) => (
-              <DashboardCard key={card.title} {...card} />
-            ))}
-          </div>
-        </section>
-
-      </div>
+      <DashboardPageContent />
     </AppLayout>
   );
 }
