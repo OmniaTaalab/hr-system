@@ -111,10 +111,14 @@ function LeaveRequestForm() {
   }, [serverState, toast, form, profile]);
 
   const handleFormSubmit = (data: LeaveRequestFormValues) => {
-    if (!formRef.current) return;
-    const formData = new FormData(formRef.current);
-    formData.set('startDate', data.startDate.toISOString());
-    formData.set('endDate', data.endDate.toISOString());
+    // Manually construct FormData to ensure all data is sent correctly
+    const formData = new FormData();
+    formData.append('requestingEmployeeDocId', data.requestingEmployeeDocId);
+    formData.append('leaveType', data.leaveType);
+    formData.append('startDate', data.startDate.toISOString());
+    formData.append('endDate', data.endDate.toISOString());
+    formData.append('reason', data.reason);
+    
     startTransition(() => {
       formAction(formData);
     });
