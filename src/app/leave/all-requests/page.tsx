@@ -1,7 +1,7 @@
 
 "use client";
 
-import { AppLayout } from "@/components/layout/app-layout";
+import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,11 +41,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send, Filter } from "lucide-react";
+import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send, Filter, AlertTriangle } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, Timestamp, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, Timestamp, orderBy, where } from 'firebase/firestore';
 import { 
   updateLeaveRequestStatusAction, type UpdateLeaveStatusState,
   editLeaveRequestAction, type EditLeaveRequestState,
@@ -367,7 +367,8 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
 }
 
 
-export default function AllLeaveRequestsPage() {
+function AllLeaveRequestsContent() {
+  const { profile, loading: isLoadingProfile } = useUserProfile();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Approved" | "Rejected">("All");
   const [allRequests, setAllRequests] = useState<LeaveRequestEntry[]>([]);
@@ -386,12 +387,37 @@ export default function AllLeaveRequestsPage() {
   
   const [deleteServerState, deleteFormAction, isDeletePending] = useActionState(deleteLeaveRequestAction, initialDeleteState);
 
+  const canManageAllRequests = useMemo(() => {
+    if (!profile) return false;
+    const userRole = profile.role?.toLowerCase();
+    return userRole === 'admin' || userRole === 'hr';
+  }, [profile]);
 
   useEffect(() => {
+    if (isLoadingProfile) return;
+    
     setIsLoading(true);
-    // Make sure a Firestore index exists for: requestingEmployeeDocId (ASC), submittedAt (DESC)
-    // And another for: submittedAt (DESC) (if you sort all requests just by submission time)
-    const q = query(collection(db, "leaveRequests"), orderBy("submittedAt", "desc"));
+
+    const leaveRequestCollection = collection(db, "leaveRequests");
+    let q;
+    
+    if (canManageAllRequests) {
+      // Admin/HR can see all requests
+      q = query(leaveRequestCollection, orderBy("submittedAt", "desc"));
+    } else if (profile?.id) {
+      // Regular employees see only their own requests
+      q = query(
+        leaveRequestCollection,
+        where("requestingEmployeeDocId", "==", profile.id),
+        orderBy("submittedAt", "desc")
+      );
+    } else {
+        // No profile ID, don't fetch anything
+        setIsLoading(false);
+        setAllRequests([]);
+        return;
+    }
+
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const requestsData: LeaveRequestEntry[] = [];
       querySnapshot.forEach((doc) => {
@@ -404,12 +430,12 @@ export default function AllLeaveRequestsPage() {
       toast({
         variant: "destructive",
         title: "Error Fetching Requests",
-        description: "Could not load leave requests from Firestore. This might be due to a missing Firestore index.",
+        description: "Could not load leave requests. This might be due to a missing Firestore index.",
       });
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, [toast]);
+  }, [toast, isLoadingProfile, profile, canManageAllRequests]);
 
   useEffect(() => {
     if (deleteServerState?.message) {
@@ -486,19 +512,23 @@ export default function AllLeaveRequestsPage() {
     setIsDeleteDialogOpen(false);
   };
 
+  const finalIsLoading = isLoading || isLoadingProfile;
 
   return (
-    <AppLayout>
-      <div className="space-y-8">
-        <header>
-          <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-            All Leave Requests
-          </h1>
-          <p className="text-muted-foreground">
-            View, search, and manage all employee leave requests.
-          </p>
-        </header>
+    <div className="space-y-8">
+      <header>
+        <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
+          Leave Requests
+        </h1>
+        <p className="text-muted-foreground">
+          {canManageAllRequests 
+            ? "View, search, and manage all employee leave requests."
+            : "View and manage your personal leave requests."
+          }
+        </p>
+      </header>
 
+      {canManageAllRequests && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -507,7 +537,7 @@ export default function AllLeaveRequestsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.pending}
+                {finalIsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.pending}
               </div>
             </CardContent>
           </Card>
@@ -518,7 +548,7 @@ export default function AllLeaveRequestsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.approved}
+                {finalIsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.approved}
               </div>
             </CardContent>
           </Card>
@@ -529,91 +559,93 @@ export default function AllLeaveRequestsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.rejected}
+                {finalIsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.rejected}
               </div>
             </CardContent>
           </Card>
         </div>
+      )}
 
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle>Leave Request Log</CardTitle>
-             <CardDescription>A comprehensive list of all submitted leave requests.</CardDescription>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-2">
-                <div className="relative flex-grow sm:flex-grow-0 sm:w-1/2 lg:w-1/3">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                    type="search"
-                    placeholder="Search requests..."
-                    className="w-full pl-10"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-                <div className="flex items-center gap-2 sm:w-auto">
-                    <Filter className="h-4 w-4 text-muted-foreground"/>
-                    <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "All" | "Pending" | "Approved" | "Rejected")}>
-                        <SelectTrigger className="w-full sm:w-[180px]">
-                            <SelectValue placeholder="Filter by status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="All">All Statuses</SelectItem>
-                            <SelectItem value="Pending">Pending</SelectItem>
-                            <SelectItem value="Approved">Approved</SelectItem>
-                            <SelectItem value="Rejected">Rejected</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center items-center h-64">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <p className="ml-4 text-lg">Loading leave requests...</p>
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle>Leave Request Log</CardTitle>
+           <CardDescription>{canManageAllRequests ? "A comprehensive list of all submitted leave requests." : "Your personal list of submitted leave requests."}</CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-2">
+              <div className="relative flex-grow sm:flex-grow-0 sm:w-1/2 lg:w-1/3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                  type="search"
+                  placeholder="Search requests..."
+                  className="w-full pl-10"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  />
               </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Employee Name</TableHead>
-                    <TableHead>Leave Type</TableHead>
-                    <TableHead>Start Date</TableHead>
-                    <TableHead>End Date</TableHead>
-                    <TableHead>Working Days</TableHead>
-                    <TableHead>Reason</TableHead>
-                    <TableHead>Manager Notes</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRequests.length > 0 ? (
-                    filteredRequests.map((request) => {
-                      const startDate = request.startDate.toDate();
-                      const endDate = request.endDate.toDate();
-                      const fallbackDays = differenceInCalendarDays(endDate, startDate) + 1;
-                      return (
-                        <TableRow key={request.id}>
-                          <TableCell className="font-medium">{request.employeeName}</TableCell>
-                          <TableCell>{request.leaveType}</TableCell>
-                          <TableCell>{format(startDate, "PPP")}</TableCell>
-                          <TableCell>{format(endDate, "PPP")}</TableCell>
-                          <TableCell>{request.numberOfDays ?? fallbackDays}</TableCell>
-                          <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
-                          <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>
-                          <TableCell>
-                            <LeaveStatusBadge status={request.status} />
-                          </TableCell>
-                          <TableCell className="text-right">
+              <div className="flex items-center gap-2 sm:w-auto">
+                  <Filter className="h-4 w-4 text-muted-foreground"/>
+                  <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "All" | "Pending" | "Approved" | "Rejected")}>
+                      <SelectTrigger className="w-full sm:w-[180px]">
+                          <SelectValue placeholder="Filter by status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="All">All Statuses</SelectItem>
+                          <SelectItem value="Pending">Pending</SelectItem>
+                          <SelectItem value="Approved">Approved</SelectItem>
+                          <SelectItem value="Rejected">Rejected</SelectItem>
+                      </SelectContent>
+                  </Select>
+              </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {finalIsLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <p className="ml-4 text-lg">Loading leave requests...</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {canManageAllRequests && <TableHead>Employee Name</TableHead>}
+                  <TableHead>Leave Type</TableHead>
+                  <TableHead>Start Date</TableHead>
+                  <TableHead>End Date</TableHead>
+                  <TableHead>Working Days</TableHead>
+                  <TableHead>Reason</TableHead>
+                  <TableHead>Manager Notes</TableHead>
+                  <TableHead>Status</TableHead>
+                  {canManageAllRequests && <TableHead className="text-right">Actions</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRequests.length > 0 ? (
+                  filteredRequests.map((request) => {
+                    const startDate = request.startDate.toDate();
+                    const endDate = request.endDate.toDate();
+                    const fallbackDays = differenceInCalendarDays(endDate, startDate) + 1;
+                    return (
+                      <TableRow key={request.id}>
+                        {canManageAllRequests && <TableCell className="font-medium">{request.employeeName}</TableCell>}
+                        <TableCell>{request.leaveType}</TableCell>
+                        <TableCell>{format(startDate, "PPP")}</TableCell>
+                        <TableCell>{format(endDate, "PPP")}</TableCell>
+                        <TableCell>{request.numberOfDays ?? fallbackDays}</TableCell>
+                        <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
+                        <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>
+                        <TableCell>
+                          <LeaveStatusBadge status={request.status} />
+                        </TableCell>
+                        {canManageAllRequests && (
+                            <TableCell className="text-right">
                             <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
+                                <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="h-8 w-8 p-0">
-                                  <span className="sr-only">Open menu</span>
-                                  <MoreHorizontal className="h-4 w-4" />
+                                    <span className="sr-only">Open menu</span>
+                                    <MoreHorizontal className="h-4 w-4" />
                                 </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 
                                 {request.status === "Pending" && (
@@ -636,27 +668,27 @@ export default function AllLeaveRequestsPage() {
                                 )}
 
                                 <DropdownMenuItem onClick={() => openDeleteDialog(request)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
                                 </DropdownMenuItem>
-                              </DropdownMenuContent>
+                                </DropdownMenuContent>
                             </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={9} className="h-24 text-center">
-                        {searchTerm || statusFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                            </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={canManageAllRequests ? 9 : 7} className="h-24 text-center">
+                      {searchTerm || statusFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
       
       {isStatusUpdateDialogOpen && selectedRequestToAction && actionTypeForStatusUpdate && (
         <AlertDialog open={isStatusUpdateDialogOpen} onOpenChange={(isOpen) => {if(!isOpen) closeStatusUpdateDialog(); else setIsStatusUpdateDialogOpen(true);}}>
@@ -710,7 +742,14 @@ export default function AllLeaveRequestsPage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
+    </div>
+  );
+}
 
+export default function AllLeaveRequestsPage() {
+  return (
+    <AppLayout>
+      <AllLeaveRequestsContent />
     </AppLayout>
   );
 }
