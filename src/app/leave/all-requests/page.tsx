@@ -390,10 +390,14 @@ function AllLeaveRequestsContent() {
   const canManageRequests = useMemo(() => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();
-    return userRole === 'admin' || userRole === 'hr' || userRole === 'principal';
+    return userRole === 'admin' || userRole === 'hr' || userRole === 'principal' || userRole === 'hod';
   }, [profile]);
   
-  const isPrincipal = useMemo(() => profile?.role?.toLowerCase() === 'principal', [profile]);
+  const isPrincipalOrHOD = useMemo(() => {
+    if (!profile) return false;
+    const userRole = profile.role?.toLowerCase();
+    return userRole === 'principal' || userRole === 'hod';
+  }, [profile]);
 
   useEffect(() => {
     if (isLoadingProfile) return;
@@ -404,8 +408,8 @@ function AllLeaveRequestsContent() {
 
     const setupSubscription = async () => {
       let q;
-      if (isPrincipal && profile?.groupName) {
-        // Principal: Get employees in their group first, then query requests
+      if (isPrincipalOrHOD && profile?.groupName) {
+        // Principal/HOD: Get employees in their group first, then query requests
         const employeeQuery = query(collection(db, "employee"), where("groupName", "==", profile.groupName));
         const employeeSnapshot = await getDocs(employeeQuery);
         const employeeIdsInGroup = employeeSnapshot.docs.map(doc => doc.id);
@@ -422,7 +426,7 @@ function AllLeaveRequestsContent() {
           setIsLoading(false);
           return () => {}; // Return an empty unsubscribe function
         }
-      } else if (canManageRequests && !isPrincipal) { // Admin/HR see all
+      } else if (canManageRequests && !isPrincipalOrHOD) { // Admin/HR see all
         q = query(leaveRequestCollection, orderBy("submittedAt", "desc"));
       } else if (profile?.id) {
         // Regular employees see their own
@@ -464,7 +468,7 @@ function AllLeaveRequestsContent() {
     });
 
     return () => unsubscribe();
-  }, [toast, isLoadingProfile, profile, canManageRequests, isPrincipal]);
+  }, [toast, isLoadingProfile, profile, canManageRequests, isPrincipalOrHOD]);
 
   useEffect(() => {
     if (deleteServerState?.message) {
@@ -782,3 +786,5 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
+
+    
