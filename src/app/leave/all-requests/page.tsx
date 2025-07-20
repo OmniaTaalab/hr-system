@@ -422,8 +422,7 @@ function AllLeaveRequestsContent() {
           setIsLoading(false);
           return () => {}; // Return an empty unsubscribe function
         }
-      } else if (canManageRequests) {
-        // Admin/HR see all
+      } else if (canManageRequests && !isPrincipal) { // Admin/HR see all
         q = query(leaveRequestCollection, orderBy("submittedAt", "desc"));
       } else if (profile?.id) {
         // Regular employees see their own

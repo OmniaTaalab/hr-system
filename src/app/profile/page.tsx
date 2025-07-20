@@ -30,6 +30,7 @@ interface EmployeeProfile {
   name: string;
   email: string;
   role: string;
+  groupName: string;
   department: string;
   employeeId: string;
   phone: string;
@@ -37,6 +38,7 @@ interface EmployeeProfile {
   photoURL?: string | null;
   dateOfBirth?: Timestamp;
   joiningDate?: Timestamp;
+
 }
 
 interface ProfileDetailItemProps {
@@ -372,6 +374,8 @@ export default function ProfilePage() {
                   <CardContent>
                       <dl className="divide-y divide-border">
                       <ProfileDetailItem label="Full Name" value={employeeProfile?.name} isLoading={loading} />
+                      <ProfileDetailItem label="Group Name" value={employeeProfile?.groupName} isLoading={loading} />
+
                       <ProfileDetailItem label="Employee ID" value={employeeProfile?.employeeId} isLoading={loading} />
                       <ProfileDetailItem label="Email Address" value={authUser?.email} isLoading={loading} />
                       <ProfileDetailItem label="Phone" value={employeeProfile?.phone} isLoading={loading} />
