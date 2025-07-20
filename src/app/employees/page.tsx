@@ -856,11 +856,26 @@ function EmployeeManagementContent() {
     const userRole = profile.role?.toLowerCase();
     return userRole === 'admin' || userRole === 'hr';
   }, [profile]);
+  
+  const isPrincipal = useMemo(() => {
+      if (!profile) return false;
+      return profile.role?.toLowerCase() === 'principal';
+  }, [profile]);
 
 
   useEffect(() => {
+    if(isLoadingProfile) return;
+
     setIsLoading(true);
-    const q = query(collection(db, "employee"));
+    let q;
+    const employeeCollection = collection(db, "employee");
+
+    if (isPrincipal && profile?.groupName) {
+      q = query(employeeCollection, where("groupName", "==", profile.groupName));
+    } else {
+      q = query(employeeCollection);
+    }
+    
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const employeesData: Employee[] = [];
       querySnapshot.forEach((doc) => {
@@ -879,7 +894,7 @@ function EmployeeManagementContent() {
     });
 
     return () => unsubscribe();
-  }, [toast]);
+  }, [toast, isLoadingProfile, profile, isPrincipal]);
   
   useEffect(() => {
     const today = new Date();
@@ -1524,4 +1539,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-

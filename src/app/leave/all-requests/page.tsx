@@ -45,7 +45,7 @@ import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, Timestamp, orderBy, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, Timestamp, orderBy, where, getDocs } from 'firebase/firestore';
 import { 
   updateLeaveRequestStatusAction, type UpdateLeaveStatusState,
   editLeaveRequestAction, type EditLeaveRequestState,
@@ -387,11 +387,13 @@ function AllLeaveRequestsContent() {
   
   const [deleteServerState, deleteFormAction, isDeletePending] = useActionState(deleteLeaveRequestAction, initialDeleteState);
 
-  const canManageAllRequests = useMemo(() => {
+  const canManageRequests = useMemo(() => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();
-    return userRole === 'admin' || userRole === 'hr';
+    return userRole === 'admin' || userRole === 'hr' || userRole === 'principal';
   }, [profile]);
+  
+  const isPrincipal = useMemo(() => profile?.role?.toLowerCase() === 'principal', [profile]);
 
   useEffect(() => {
     if (isLoadingProfile) return;
@@ -399,43 +401,71 @@ function AllLeaveRequestsContent() {
     setIsLoading(true);
 
     const leaveRequestCollection = collection(db, "leaveRequests");
-    let q;
-    
-    if (canManageAllRequests) {
-      // Admin/HR can see all requests
-      q = query(leaveRequestCollection, orderBy("submittedAt", "desc"));
-    } else if (profile?.id) {
-      // Regular employees see only their own requests
-      q = query(
-        leaveRequestCollection,
-        where("requestingEmployeeDocId", "==", profile.id),
-        orderBy("submittedAt", "desc")
-      );
-    } else {
-        // No profile ID, don't fetch anything
+
+    const setupSubscription = async () => {
+      let q;
+      if (isPrincipal && profile?.groupName) {
+        // Principal: Get employees in their group first, then query requests
+        const employeeQuery = query(collection(db, "employee"), where("groupName", "==", profile.groupName));
+        const employeeSnapshot = await getDocs(employeeQuery);
+        const employeeIdsInGroup = employeeSnapshot.docs.map(doc => doc.id);
+
+        if (employeeIdsInGroup.length > 0) {
+          q = query(
+            leaveRequestCollection,
+            where("requestingEmployeeDocId", "in", employeeIdsInGroup),
+            orderBy("submittedAt", "desc")
+          );
+        } else {
+          // Principal has no one in their group, so no requests to show
+          setAllRequests([]);
+          setIsLoading(false);
+          return () => {}; // Return an empty unsubscribe function
+        }
+      } else if (canManageRequests) {
+        // Admin/HR see all
+        q = query(leaveRequestCollection, orderBy("submittedAt", "desc"));
+      } else if (profile?.id) {
+        // Regular employees see their own
+        q = query(
+          leaveRequestCollection,
+          where("requestingEmployeeDocId", "==", profile.id),
+          orderBy("submittedAt", "desc")
+        );
+      } else {
+        // No profile ID, no permissions
         setIsLoading(false);
         setAllRequests([]);
-        return;
-    }
+        return () => {};
+      }
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const requestsData: LeaveRequestEntry[] = [];
-      querySnapshot.forEach((doc) => {
-        requestsData.push({ id: doc.id, ...doc.data() } as LeaveRequestEntry);
+      const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const requestsData: LeaveRequestEntry[] = [];
+        querySnapshot.forEach((doc) => {
+          requestsData.push({ id: doc.id, ...doc.data() } as LeaveRequestEntry);
+        });
+        setAllRequests(requestsData);
+        setIsLoading(false);
+      }, (error) => {
+        console.error("Error fetching leave requests: ", error);
+        toast({
+          variant: "destructive",
+          title: "Error Fetching Requests",
+          description: "Could not load leave requests. This might be due to a missing Firestore index.",
+        });
+        setIsLoading(false);
       });
-      setAllRequests(requestsData);
-      setIsLoading(false);
-    }, (error) => {
-      console.error("Error fetching leave requests: ", error);
-      toast({
-        variant: "destructive",
-        title: "Error Fetching Requests",
-        description: "Could not load leave requests. This might be due to a missing Firestore index.",
-      });
-      setIsLoading(false);
+      
+      return unsubscribe;
+    };
+
+    let unsubscribe = () => {};
+    setupSubscription().then(unsub => {
+      if (unsub) unsubscribe = unsub;
     });
+
     return () => unsubscribe();
-  }, [toast, isLoadingProfile, profile, canManageAllRequests]);
+  }, [toast, isLoadingProfile, profile, canManageRequests, isPrincipal]);
 
   useEffect(() => {
     if (deleteServerState?.message) {
@@ -521,14 +551,14 @@ function AllLeaveRequestsContent() {
           Leave Requests
         </h1>
         <p className="text-muted-foreground">
-          {canManageAllRequests 
+          {canManageRequests 
             ? "View, search, and manage all employee leave requests."
             : "View and manage your personal leave requests."
           }
         </p>
       </header>
 
-      {canManageAllRequests && (
+      {canManageRequests && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -569,7 +599,7 @@ function AllLeaveRequestsContent() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Leave Request Log</CardTitle>
-           <CardDescription>{canManageAllRequests ? "A comprehensive list of all submitted leave requests." : "Your personal list of submitted leave requests."}</CardDescription>
+           <CardDescription>{canManageRequests ? "A comprehensive list of all submitted leave requests." : "Your personal list of submitted leave requests."}</CardDescription>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-2">
               <div className="relative flex-grow sm:flex-grow-0 sm:w-1/2 lg:w-1/3">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -607,7 +637,7 @@ function AllLeaveRequestsContent() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {canManageAllRequests && <TableHead>Employee Name</TableHead>}
+                  <TableHead>Employee Name</TableHead>
                   <TableHead>Leave Type</TableHead>
                   <TableHead>Start Date</TableHead>
                   <TableHead>End Date</TableHead>
@@ -615,7 +645,7 @@ function AllLeaveRequestsContent() {
                   <TableHead>Reason</TableHead>
                   <TableHead>Manager Notes</TableHead>
                   <TableHead>Status</TableHead>
-                  {canManageAllRequests && <TableHead className="text-right">Actions</TableHead>}
+                  {canManageRequests && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -626,7 +656,7 @@ function AllLeaveRequestsContent() {
                     const fallbackDays = differenceInCalendarDays(endDate, startDate) + 1;
                     return (
                       <TableRow key={request.id}>
-                        {canManageAllRequests && <TableCell className="font-medium">{request.employeeName}</TableCell>}
+                        <TableCell className="font-medium">{request.employeeName}</TableCell>
                         <TableCell>{request.leaveType}</TableCell>
                         <TableCell>{format(startDate, "PPP")}</TableCell>
                         <TableCell>{format(endDate, "PPP")}</TableCell>
@@ -636,7 +666,7 @@ function AllLeaveRequestsContent() {
                         <TableCell>
                           <LeaveStatusBadge status={request.status} />
                         </TableCell>
-                        {canManageAllRequests && (
+                        {canManageRequests && (
                             <TableCell className="text-right">
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -679,7 +709,7 @@ function AllLeaveRequestsContent() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={canManageAllRequests ? 9 : 7} className="h-24 text-center">
+                    <TableCell colSpan={canManageRequests ? 9 : 7} className="h-24 text-center">
                       {searchTerm || statusFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
                     </TableCell>
                   </TableRow>
