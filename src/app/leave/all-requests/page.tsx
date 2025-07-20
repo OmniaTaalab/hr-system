@@ -709,7 +709,7 @@ function AllLeaveRequestsContent() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={canManageRequests ? 9 : 7} className="h-24 text-center">
+                    <TableCell colSpan={canManageRequests ? 9 : 8} className="h-24 text-center">
                       {searchTerm || statusFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
                     </TableCell>
                   </TableRow>
