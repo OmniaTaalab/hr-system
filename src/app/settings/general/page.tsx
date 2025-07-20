@@ -2,12 +2,28 @@
 import React from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SettingsForms } from '@/components/settings/settings-loader';
+import SettingsPageWrapper from '../settings-page-wrapper';
+import { Settings as SettingsIcon } from 'lucide-react';
+
 
 export default function GeneralSettingsPage() {
   return (
-    <React.Suspense fallback={<SettingsSkeleton />}>
-      <SettingsForms />
-    </React.Suspense>
+    <div className="space-y-8">
+      <header>
+        <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
+          <SettingsIcon className="mr-3 h-8 w-8 text-primary" />
+          Settings
+        </h1>
+        <p className="text-muted-foreground">
+          Manage company-wide settings for holidays, weekends, and organization structure.
+        </p>
+      </header>
+      <SettingsPageWrapper>
+         <React.Suspense fallback={<SettingsSkeleton />}>
+          <SettingsForms />
+        </React.Suspense>
+      </SettingsPageWrapper>
+    </div>
   );
 }
 
