@@ -212,7 +212,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         className="flex flex-col overflow-hidden"
       >
         <input type="hidden" name="role" value={formData.role} />
-        <input type="hidden" name="groupName" value={formData.groupName} />
+        <input type="hidden" name="groupNames" value={formData.groupName} />
         <input type="hidden" name="campus" value={formData.campus} />
         <input type="hidden" name="system" value={formData.system} />
 
@@ -604,7 +604,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         <input type="hidden" name="leaveBalancesJson" value={JSON.stringify(leaveBalances)} />
         {/* Hidden inputs for controlled Selects */}
         <input type="hidden" name="role" value={role} />
-        <input type="hidden" name="groupName" value={groupName} />
+        <input type="hidden" name="groupNames" value={groupName} />
         <input type="hidden" name="system" value={system} />
         <input type="hidden" name="campus" value={campus} />
         
@@ -871,7 +871,7 @@ function EmployeeManagementContent() {
     const employeeCollection = collection(db, "employee");
 
     if (isPrincipal && profile?.groupName) {
-      q = query(employeeCollection, where("groupName", "==", profile.groupName));
+      q = query(employeeCollection, where("groupNames", "==", profile.groupName));
     } else {
       q = query(employeeCollection);
     }

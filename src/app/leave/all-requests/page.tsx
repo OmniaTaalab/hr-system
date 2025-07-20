@@ -394,9 +394,8 @@ function AllLeaveRequestsContent() {
   }, [profile]);
   
   const isPrincipal = useMemo(() => {
-    if (!profile) return false;
-    const userRole = profile.role?.toLowerCase();
-    return userRole === 'principal';
+      if (!profile) return false;
+      return profile.role?.toLowerCase() === 'principal';
   }, [profile]);
 
   useEffect(() => {
@@ -786,5 +785,3 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
-
-    
