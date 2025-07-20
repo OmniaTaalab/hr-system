@@ -390,13 +390,13 @@ function AllLeaveRequestsContent() {
   const canManageRequests = useMemo(() => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();
-    return userRole === 'admin' || userRole === 'hr' || userRole === 'principal' || userRole === 'hod';
+    return userRole === 'admin' || userRole === 'hr' || userRole === 'principal';
   }, [profile]);
   
-  const isPrincipalOrHOD = useMemo(() => {
+  const isPrincipal = useMemo(() => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();
-    return userRole === 'principal' || userRole === 'hod';
+    return userRole === 'principal';
   }, [profile]);
 
   useEffect(() => {
@@ -408,8 +408,8 @@ function AllLeaveRequestsContent() {
 
     const setupSubscription = async () => {
       let q;
-      if (isPrincipalOrHOD && profile?.groupName) {
-        // Principal/HOD: Get employees in their group first, then query requests
+      if (isPrincipal && profile?.groupName) {
+        // Principal: Get employees in their group first, then query requests
         const employeeQuery = query(collection(db, "employee"), where("groupName", "==", profile.groupName));
         const employeeSnapshot = await getDocs(employeeQuery);
         const employeeIdsInGroup = employeeSnapshot.docs.map(doc => doc.id);
@@ -426,7 +426,7 @@ function AllLeaveRequestsContent() {
           setIsLoading(false);
           return () => {}; // Return an empty unsubscribe function
         }
-      } else if (canManageRequests && !isPrincipalOrHOD) { // Admin/HR see all
+      } else if (canManageRequests && !isPrincipal) { // Admin/HR see all
         q = query(leaveRequestCollection, orderBy("submittedAt", "desc"));
       } else if (profile?.id) {
         // Regular employees see their own
@@ -468,7 +468,7 @@ function AllLeaveRequestsContent() {
     });
 
     return () => unsubscribe();
-  }, [toast, isLoadingProfile, profile, canManageRequests, isPrincipalOrHOD]);
+  }, [toast, isLoadingProfile, profile, canManageRequests, isPrincipal]);
 
   useEffect(() => {
     if (deleteServerState?.message) {
@@ -751,7 +751,7 @@ function AllLeaveRequestsContent() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete the leave request for <strong>{selectedRequestToDelete.employeeName}</strong>
+                  This will permanently delete the leave request for <strong>{selectedRequestToDelete.employeeName}</strong>
                   from {format(selectedRequestToDelete.startDate.toDate(), "PPP")} to {format(selectedRequestToDelete.endDate.toDate(), "PPP")}.
                 </AlertDialogDescription>
               </AlertDialogHeader>
