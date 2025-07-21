@@ -33,11 +33,10 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   const formRef = useRef<HTMLFormElement>(null);
   
   const [state, formAction] = useActionState(applyForJobAction, initialState);
+  const [isSubmitting, startTransition] = useTransition();
 
   useEffect(() => {
     if (state.message) {
@@ -52,8 +51,6 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
         setFile(null);
       }
     }
-    // Always stop submitting when we get a response from the server
-    setIsSubmitting(false);
   }, [state, toast]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,31 +86,34 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
     const currentForm = formRef.current;
     if (!currentForm) return;
 
-    setIsSubmitting(true);
-    
-    try {
-      const fileExtension = file.name.split('.').pop();
-      const fileName = `${job.id}-${nanoid()}.${fileExtension}`;
-      const filePath = `job-applications/${fileName}`;
-      const fileRef = ref(storage, filePath);
-      
-      const snapshot = await uploadBytes(fileRef, file);
-      const resumeURL = await getDownloadURL(snapshot.ref);
-      
-      const formData = new FormData(currentForm);
-      formData.set('resumeURL', resumeURL); // Use 'set' to ensure it's correct
-      
-      formAction(formData);
+    startTransition(async () => {
+      try {
+        const fileExtension = file.name.split('.').pop();
+        const fileName = `${job.id}-${nanoid()}.${fileExtension}`;
+        const filePath = `job-applications/${fileName}`;
+        const fileRef = ref(storage, filePath);
+        
+        await uploadBytes(fileRef, file);
+        const resumeURL = await getDownloadURL(fileRef);
+        
+        const formData = new FormData(currentForm);
+        formData.append('resumeURL', resumeURL);
+        
+        formAction(formData);
 
-    } catch (error: any) {
-      console.error("Error during file upload or form submission:", error);
-      toast({
-        variant: "destructive",
-        title: "Submission Failed",
-        description: "Could not upload your resume. Please try again.",
-      });
-      setIsSubmitting(false);
-    }
+      } catch (error: any) {
+        console.error("Error during file upload or form submission:", error);
+        let errorMessage = "Could not upload your resume. Please try again.";
+        if (error.code === 'storage/retry-limit-exceeded') {
+          errorMessage = "Upload failed due to network issues or permissions. Please check your connection and try again.";
+        }
+        toast({
+          variant: "destructive",
+          title: "Submission Failed",
+          description: errorMessage,
+        });
+      }
+    });
   };
 
   return (
@@ -122,7 +122,6 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
             formRef.current?.reset();
             setFile(null);
             setFileError(null);
-            setIsSubmitting(false); // Reset submitting state
         }
         setIsOpen(open);
     }}>
