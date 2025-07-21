@@ -12,6 +12,7 @@ import { Loader2, ArrowLeft, Briefcase, MapPin, DollarSign, CalendarDays } from 
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
+import { JobApplicationDialog } from '@/components/job-application-dialog';
 
 interface JobOpening {
   id: string;
@@ -105,11 +106,9 @@ export default function JobDetailPage() {
                   <li key={idx}>{req}</li>
                 ))}
               </ul>
-              <Button asChild className="mt-6 no-underline">
-                <a href={`mailto:hr@example.com?subject=Application for ${encodeURIComponent(job.title)}`}>
-                    Apply Now
-                </a>
-              </Button>
+              <div className="mt-6 not-prose">
+                <JobApplicationDialog job={job} />
+              </div>
             </CardContent>
           </Card>
         )}
