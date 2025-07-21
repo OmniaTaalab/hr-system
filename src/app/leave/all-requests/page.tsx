@@ -45,7 +45,7 @@ import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, Timestamp, orderBy, where, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, Timestamp, orderBy, where, getDocs, QueryConstraint } from 'firebase/firestore';
 import { 
   updateLeaveRequestStatusAction, type UpdateLeaveStatusState,
   editLeaveRequestAction, type EditLeaveRequestState,
@@ -398,44 +398,87 @@ function AllLeaveRequestsContent() {
   }, [profile]);
   
   useEffect(() => {
-    if (isLoadingProfile) return;
+    if (isLoadingProfile || !profile) return;
     
     setIsLoading(true);
-    let q = query(collection(db, "leaveRequests"), orderBy("submittedAt", "desc"));
-    const employeeCollection = collection(db, "employee");
+    let q: query;
+    const leaveRequestsCollection = collection(db, "leaveRequests");
 
-    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
-      const requestsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+    const fetchAndSetRequests = async () => {
+        const userRole = profile.role?.toLowerCase();
+        let queryConstraints: QueryConstraint[] = [orderBy("submittedAt", "desc")];
+        
+        // Admins and HR see all requests.
+        if (userRole === 'admin' || userRole === 'hr') {
+            q = query(leaveRequestsCollection, ...queryConstraints);
+        } 
+        // Principals see requests from their own group.
+        else if (userRole === 'principal' && profile.groupName) {
+            const groupEmployeesQuery = query(
+                collection(db, "employee"),
+                where("groupName", "==", profile.groupName)
+            );
+            const groupSnapshot = await getDocs(groupEmployeesQuery);
+            const employeeIdsInGroup = groupSnapshot.docs.map(doc => doc.id);
+            
+            if (employeeIdsInGroup.length > 0) {
+                 // Firestore 'in' queries are limited to 30 items. For larger groups, this needs a different approach.
+                 // For now, assuming groups are smaller than 30.
+                queryConstraints.push(where("requestingEmployeeDocId", "in", employeeIdsInGroup));
+                q = query(leaveRequestsCollection, ...queryConstraints);
+            } else {
+                // If a principal has no employees in their group, show no requests.
+                setAllRequests([]);
+                setIsLoading(false);
+                return;
+            }
+        } 
+        // Regular employees see only their own requests.
+        else {
+            queryConstraints.push(where("requestingEmployeeDocId", "==", profile.id));
+            q = query(leaveRequestsCollection, ...queryConstraints);
+        }
+        
+        const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+            const requestsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+            
+            // To avoid N+1 queries, fetch all employees once and map their group names.
+            const employeeDataMap = new Map();
+            const allEmployeeDocs = await getDocs(collection(db, "employee"));
+            allEmployeeDocs.forEach(doc => {
+                employeeDataMap.set(doc.id, doc.data());
+            });
 
-      const employeeDataMap = new Map();
-      
-      const allEmployeeDocs = await getDocs(employeeCollection);
-      allEmployeeDocs.forEach(doc => {
-          employeeDataMap.set(doc.id, doc.data());
-      });
+            const requestsWithGroup = requestsData.map(req => {
+                const employeeData = employeeDataMap.get(req.requestingEmployeeDocId);
+                return {
+                    ...req,
+                    employeeGroupName: employeeData?.groupName || 'N/A'
+                };
+            });
 
-      const requestsWithGroup = requestsData.map(req => {
-        const employeeData = employeeDataMap.get(req.requestingEmployeeDocId);
-        return {
-          ...req,
-          employeeGroupName: employeeData?.groupName || 'N/A'
-        };
-      });
+            setAllRequests(requestsWithGroup);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching leave requests: ", error);
+            toast({
+                variant: "destructive",
+                title: "Error Fetching Requests",
+                description: "Could not load leave requests. This might be due to a missing Firestore index.",
+            });
+            setIsLoading(false);
+        });
 
-      setAllRequests(requestsWithGroup);
-      setIsLoading(false);
-    }, (error) => {
-      console.error("Error fetching leave requests: ", error);
-      toast({
-        variant: "destructive",
-        title: "Error Fetching Requests",
-        description: "Could not load leave requests. This might be due to a missing Firestore index.",
-      });
-      setIsLoading(false);
-    });
+        return unsubscribe;
+    };
 
-    return () => unsubscribe();
-  }, [toast, isLoadingProfile]);
+    const unsubscribePromise = fetchAndSetRequests();
+    
+    return () => {
+        unsubscribePromise.then(unsub => { if (unsub) unsub(); });
+    };
+}, [toast, isLoadingProfile, profile]);
+
 
   useEffect(() => {
     if (deleteServerState?.message) {
@@ -448,16 +491,8 @@ function AllLeaveRequestsContent() {
     }
   }, [deleteServerState, toast]);
 
-  const requestsForUser = useMemo(() => {
-    if (isLoadingProfile) return [];
-    if (!canManageRequests) {
-      return allRequests.filter(req => req.requestingEmployeeDocId === profile?.id);
-    }
-    return allRequests;
-  }, [allRequests, profile, isLoadingProfile, canManageRequests]);
-
   const requestCounts = useMemo(() => {
-    return requestsForUser.reduce(
+    return allRequests.reduce(
       (acc, request) => {
         if (request.status === "Pending") acc.pending++;
         else if (request.status === "Approved") acc.approved++;
@@ -466,10 +501,10 @@ function AllLeaveRequestsContent() {
       },
       { pending: 0, approved: 0, rejected: 0 }
     );
-  }, [requestsForUser]);
+  }, [allRequests]);
 
   const filteredRequests = useMemo(() => {
-    let requests = requestsForUser;
+    let requests = allRequests;
 
     if (statusFilter !== "All") {
       requests = requests.filter(item => item.status === statusFilter);
@@ -494,7 +529,7 @@ function AllLeaveRequestsContent() {
       });
     }
     return requests;
-  }, [requestsForUser, searchTerm, statusFilter, groupNameFilter]);
+  }, [allRequests, searchTerm, statusFilter, groupNameFilter]);
 
   const openStatusUpdateDialog = (request: LeaveRequestEntry, type: "Approved" | "Rejected") => {
     setSelectedRequestToAction(request);
