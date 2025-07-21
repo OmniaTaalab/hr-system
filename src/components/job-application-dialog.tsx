@@ -35,7 +35,10 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const [fileError, setFileError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   
-  const [state, formAction, isSubmitting] = useActionState(applyForJobAction, initialState);
+  const [state, formAction, isFormPending] = useActionState(applyForJobAction, initialState);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const isSubmitting = isUploading || isFormPending;
 
   useEffect(() => {
     if (state.message) {
@@ -48,11 +51,10 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
         setIsOpen(false);
         formRef.current?.reset();
         setFile(null);
-      } else if (!state.errors || Object.keys(state.errors).length === 0) {
-        // If there is a message but no specific field errors, show a general error toast.
+      } else {
         toast({
             title: "Error",
-            description: state.message,
+            description: state.errors?.form?.join(', ') || state.message,
             variant: "destructive",
         });
       }
@@ -92,10 +94,8 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
     const currentForm = formRef.current;
     if (!currentForm) return;
 
-    // Create a new FormData object from the form to get user inputs
-    const formData = new FormData(currentForm);
+    setIsUploading(true);
 
-    // Now, handle the file upload before calling the server action.
     try {
       const fileExtension = file.name.split('.').pop();
       const fileName = `${job.id}-${nanoid()}.${fileExtension}`;
@@ -105,10 +105,10 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       await uploadBytes(fileRef, file);
       const resumeURL = await getDownloadURL(fileRef);
       
-      // Add the resume URL to our FormData object.
+      // Manually create FormData and dispatch the server action
+      const formData = new FormData(currentForm);
       formData.append('resumeURL', resumeURL);
       
-      // Finally, call the server action with the complete FormData.
       formAction(formData);
 
     } catch (error: any) {
@@ -122,6 +122,8 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
         title: "Submission Failed",
         description: errorMessage,
       });
+    } finally {
+        setIsUploading(false);
     }
   };
 
