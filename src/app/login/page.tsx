@@ -1,6 +1,5 @@
 
 "use client";
-
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -21,6 +20,7 @@ import { Icons } from "@/components/icons";
 import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { profile } from "console";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -73,6 +73,7 @@ export default function LoginPage() {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
+    
       router.push("/");
     } catch (err: any) {
       let errorMessage = "An unexpected error occurred.";

@@ -386,11 +386,12 @@ function AllLeaveRequestsContent() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   
   const [deleteServerState, deleteFormAction, isDeletePending] = useActionState(deleteLeaveRequestAction, initialDeleteState);
-
   const canManageRequests = useMemo(() => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();
-    return userRole === 'admin' || userRole === 'hr' || userRole === 'principal';
+    console.log("consoleee:",  profile.role?.toLowerCase())
+
+    return userRole === 'admin' || userRole === 'hr' || userRole === 'principal'; 
   }, [profile]);
   
   const isPrincipal = useMemo(() => {
@@ -409,7 +410,7 @@ function AllLeaveRequestsContent() {
       let q;
       if (isPrincipal && profile?.groupName) {
         // Principal: Get employees in their group first, then query requests
-        const employeeQuery = query(collection(db, "employee"), where("groupName", "==", profile.groupName));
+        const employeeQuery = query(collection(db, "employee"), where("groupNames", "==", profile.groupName));
         const employeeSnapshot = await getDocs(employeeQuery);
         const employeeIdsInGroup = employeeSnapshot.docs.map(doc => doc.id);
 

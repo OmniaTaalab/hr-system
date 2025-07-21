@@ -156,7 +156,7 @@ export default function DailyAttendanceClockPage() {
                         {emp.displayStatus === "Not Clocked In" && (
                             <ClockInButton employeeId={emp.id} employeeName={emp.name} />
                         )}
-                        {emp.displayStatus === "Clocked In" && emp.attendanceRecordId && (
+                        {emp.displayStatus === "  In" && emp.attendanceRecordId && (
                             <ClockOutButton attendanceRecordId={emp.attendanceRecordId} employeeId={emp.id} employeeName={emp.name} />
                         )}
                         {emp.displayStatus === "Completed Shift" && (
