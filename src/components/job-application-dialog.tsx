@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { applyForJobAction, type ApplyForJobState } from '@/app/actions/job-actions';
-import { Loader2, Send, UploadCloud, FileText, AlertTriangle } from 'lucide-react';
+import { Loader2, Send, AlertTriangle } from 'lucide-react';
 import { storage } from '@/lib/firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { nanoid } from 'nanoid';
@@ -33,12 +33,11 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [_isTransitionPending, startTransition] = useTransition();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const formRef = useRef<HTMLFormElement>(null);
   
-  const [state, formAction, isFormPending] = useActionState(applyForJobAction, initialState);
+  const [state, formAction] = useActionState(applyForJobAction, initialState);
 
   useEffect(() => {
     if (state.message) {
@@ -53,6 +52,8 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
         setFile(null);
       }
     }
+    // Always stop submitting when we get a response from the server
+    setIsSubmitting(false);
   }, [state, toast]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,11 +85,13 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       setFileError("A resume file is required.");
       return;
     }
+    
+    const currentForm = formRef.current;
+    if (!currentForm) return;
 
-    setIsUploading(true);
+    setIsSubmitting(true);
     
     try {
-      // 1. Upload file to Firebase Storage using client-side SDK
       const fileExtension = file.name.split('.').pop();
       const fileName = `${job.id}-${nanoid()}.${fileExtension}`;
       const filePath = `job-applications/${fileName}`;
@@ -97,14 +100,10 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       const snapshot = await uploadBytes(fileRef, file);
       const resumeURL = await getDownloadURL(snapshot.ref);
       
-      // 2. Prepare FormData for the server action
-      const formData = new FormData(formRef.current!);
-      formData.append('resumeURL', resumeURL);
+      const formData = new FormData(currentForm);
+      formData.set('resumeURL', resumeURL); // Use 'set' to ensure it's correct
       
-      // 3. Call the server action using startTransition
-      startTransition(() => {
-        formAction(formData);
-      });
+      formAction(formData);
 
     } catch (error: any) {
       console.error("Error during file upload or form submission:", error);
@@ -113,12 +112,9 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
         title: "Submission Failed",
         description: "Could not upload your resume. Please try again.",
       });
-    } finally {
-      setIsUploading(false);
+      setIsSubmitting(false);
     }
   };
-
-  const isSubmitDisabled = isFormPending || isUploading;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -126,6 +122,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
             formRef.current?.reset();
             setFile(null);
             setFileError(null);
+            setIsSubmitting(false); // Reset submitting state
         }
         setIsOpen(open);
     }}>
@@ -148,18 +145,19 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
             <div className="grid gap-4 py-4">
                 <div className="space-y-2">
                     <Label htmlFor="name">Full Name</Label>
-                    <Input id="name" name="name" placeholder="e.g., Jane Doe" required disabled={isSubmitDisabled} />
+                    <Input id="name" name="name" placeholder="e.g., Jane Doe" required disabled={isSubmitting} />
                     {state.errors?.name && <p className="text-sm text-destructive mt-1">{state.errors.name.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="email">Email Address</Label>
-                    <Input id="email" name="email" type="email" placeholder="you@example.com" required disabled={isSubmitDisabled} />
+                    <Input id="email" name="email" type="email" placeholder="you@example.com" required disabled={isSubmitting} />
                     {state.errors?.email && <p className="text-sm text-destructive mt-1">{state.errors.email.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
                     <Label htmlFor="resume">Resume (PDF, max 5MB)</Label>
-                    <Input id="resume" name="resume" type="file" accept=".pdf" required onChange={handleFileChange} disabled={isSubmitDisabled} />
+                    <Input id="resume" name="resume" type="file" accept=".pdf" required onChange={handleFileChange} disabled={isSubmitting} />
                     {fileError && <p className="text-sm text-destructive mt-1">{fileError}</p>}
+                    {state.errors?.resumeURL && <p className="text-sm text-destructive mt-1">{state.errors.resumeURL.join(', ')}</p>}
                 </div>
             </div>
             
@@ -171,12 +169,12 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
             )}
             
             <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isSubmitDisabled}>Cancel</Button>
-                <Button type="submit" disabled={isSubmitDisabled}>
-                {isSubmitDisabled ? (
+                <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isSubmitting}>Cancel</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
                     <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {isUploading ? 'Uploading...' : 'Submitting...'}
+                        Submitting...
                     </>
                 ) : (
                     <>
