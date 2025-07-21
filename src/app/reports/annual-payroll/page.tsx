@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { AppLayout } from "@/components/layout/app-layout";
+import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import {
@@ -33,8 +33,9 @@ import {
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import { Loader2, Sheet as SheetIcon, DollarSign, CalendarDays, Briefcase, FileDown } from "lucide-react";
+import { Loader2, Sheet as SheetIcon, DollarSign, CalendarDays, Briefcase, FileDown, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 interface Employee {
   id: string; // Firestore document ID
@@ -96,7 +97,7 @@ const calculateLeaveDaysInMonthForReport = (
 };
 
 
-export default function AnnualPayrollReportPage() {
+function AnnualPayrollReportContent() {
   const { toast } = useToast();
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
@@ -318,9 +319,8 @@ export default function AnnualPayrollReportPage() {
 
     doc.save(`Annual_Payroll_Report_${selectedYear}.pdf`);
   };
-
+  
   return (
-    <AppLayout>
       <div className="space-y-8">
         <header>
           <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
@@ -449,6 +449,46 @@ export default function AnnualPayrollReportPage() {
         </Card>
 
       </div>
+  )
+}
+
+export default function AnnualPayrollReportPage() {
+  const { profile, loading } = useUserProfile();
+  const router = useRouter();
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex justify-center items-center h-full">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const canViewReport = profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr';
+
+  if (!canViewReport) {
+      // It's better to use a client-side redirect in a useEffect
+      // to avoid issues with server-side rendering expecting a redirect.
+      React.useEffect(() => {
+          router.replace('/');
+      }, [router]);
+      
+      return (
+          <AppLayout>
+              <div className="flex justify-center items-center h-full flex-col gap-4">
+                  <AlertTriangle className="h-12 w-12 text-destructive" />
+                  <h2 className="text-xl font-semibold">Access Denied</h2>
+                  <p className="text-muted-foreground">You do not have permission to view this report.</p>
+              </div>
+          </AppLayout>
+      );
+  }
+
+  return (
+    <AppLayout>
+      <AnnualPayrollReportContent />
     </AppLayout>
   );
 }
