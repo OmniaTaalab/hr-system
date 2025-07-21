@@ -2,11 +2,8 @@
 'use server';
 
 import { z } from 'zod';
-import { db, storage } from '@/lib/firebase/config';
-import { adminStorage } from '@/lib/firebase/admin-config';
+import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { nanoid } from 'nanoid';
 
 const JobFormSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters long."),
@@ -87,21 +84,21 @@ export async function createJobAction(
 }
 
 
-// --- New Job Application Action ---
-
+// --- Updated Job Application Action ---
+// This action no longer handles file uploads directly. It expects a URL.
 const JobApplicationSchema = z.object({
     jobId: z.string().min(1, "Job ID is required."),
     jobTitle: z.string().min(1, "Job Title is required."),
     name: z.string().min(2, "Your name is required."),
     email: z.string().email("A valid email is required."),
-    resume: z.instanceof(File).refine(file => file.size > 0, "A resume file is required.").refine(file => file.type === 'application/pdf', "Resume must be a PDF file.").refine(file => file.size < 5 * 1024 * 1024, "Resume must be smaller than 5MB."),
+    resumeURL: z.string().url("A valid resume URL is required."),
 });
 
 export type ApplyForJobState = {
   errors?: {
     name?: string[];
     email?: string[];
-    resume?: string[];
+    resumeURL?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -113,52 +110,26 @@ export async function applyForJobAction(
   formData: FormData
 ): Promise<ApplyForJobState> {
 
-  if (!adminStorage) {
-    const errorMessage = "Firebase Admin Storage is not configured. File uploads are disabled.";
-    console.error(errorMessage);
-    return { errors: { form: [errorMessage] }, success: false };
-  }
-
   const validatedFields = JobApplicationSchema.safeParse({
     jobId: formData.get('jobId'),
     jobTitle: formData.get('jobTitle'),
     name: formData.get('name'),
     email: formData.get('email'),
-    resume: formData.get('resume'),
+    resumeURL: formData.get('resumeURL'),
   });
   
   if (!validatedFields.success) {
     return {
       errors: validatedFields.error.flatten().fieldErrors,
-      message: "Validation failed.",
+      message: "Validation failed on server.",
       success: false,
     };
   }
   
-  const { jobId, jobTitle, name, email, resume } = validatedFields.data;
+  const { jobId, jobTitle, name, email, resumeURL } = validatedFields.data;
   
   try {
-    // 1. Upload file to Firebase Storage
-    const fileExtension = resume.name.split('.').pop();
-    const fileName = `${jobId}-${nanoid()}.${fileExtension}`;
-    const filePath = `job-applications/${fileName}`;
-
-    const bucket = adminStorage.bucket();
-    const fileRef = bucket.file(filePath);
-    
-    const fileBuffer = Buffer.from(await resume.arrayBuffer());
-    
-    await fileRef.save(fileBuffer, {
-      metadata: {
-        contentType: resume.type,
-      },
-    });
-
-    // Make the file public to get a downloadable URL
-    await fileRef.makePublic();
-    const resumeURL = fileRef.publicUrl();
-
-    // 2. Save application to Firestore
+    // Save application to Firestore
     await addDoc(collection(db, "jobApplications"), {
       jobId,
       jobTitle,
@@ -170,9 +141,9 @@ export async function applyForJobAction(
 
     return { success: true, message: "Your application has been submitted successfully! We will get back to you soon." };
   } catch (error: any) {
-    console.error("Error submitting application:", error);
+    console.error("Error submitting application to Firestore:", error);
     return {
-      errors: { form: ["Failed to submit application. An unexpected error occurred."] },
+      errors: { form: ["Failed to save application to our database. An unexpected error occurred."] },
       message: `Error: ${error.message}`,
       success: false,
     };

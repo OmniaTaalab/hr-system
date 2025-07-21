@@ -9,6 +9,9 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { applyForJobAction, type ApplyForJobState } from '@/app/actions/job-actions';
 import { Loader2, Send, UploadCloud, FileText, AlertTriangle } from 'lucide-react';
+import { storage } from '@/lib/firebase/config';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { nanoid } from 'nanoid';
 
 interface JobOpening {
   id: string;
@@ -28,8 +31,11 @@ const initialState: ApplyForJobState = {
 export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
-  const [fileName, setFileName] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const formRef = useRef<HTMLFormElement>(null);
   
   const [state, formAction, isPending] = useActionState(applyForJobAction, initialState);
 
@@ -42,26 +48,84 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       });
       if (state.success) {
         setIsOpen(false);
-        setFileName("");
-        // Reset the form if needed, though closing the dialog usually handles this.
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
+        formRef.current?.reset();
+        setFile(null);
       }
     }
   }, [state, toast]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setFileName(file.name);
+    const selectedFile = e.target.files?.[0];
+    setFileError(null);
+    if (selectedFile) {
+        if (selectedFile.type !== 'application/pdf') {
+            setFileError("Resume must be a PDF file.");
+            setFile(null);
+            e.target.value = "";
+            return;
+        }
+        if (selectedFile.size > 5 * 1024 * 1024) { // 5MB
+            setFileError("Resume must be smaller than 5MB.");
+            setFile(null);
+            e.target.value = "";
+            return;
+        }
+        setFile(selectedFile);
     } else {
-      setFileName("");
+        setFile(null);
     }
   };
 
+  const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!file) {
+      setFileError("A resume file is required.");
+      return;
+    }
+
+    setIsUploading(true);
+    
+    try {
+      // 1. Upload file to Firebase Storage using client-side SDK
+      const fileExtension = file.name.split('.').pop();
+      const fileName = `${job.id}-${nanoid()}.${fileExtension}`;
+      const filePath = `job-applications/${fileName}`;
+      const fileRef = ref(storage, filePath);
+      
+      const snapshot = await uploadBytes(fileRef, file);
+      const resumeURL = await getDownloadURL(snapshot.ref);
+      
+      // 2. Prepare FormData for the server action
+      const formData = new FormData(formRef.current!);
+      formData.append('resumeURL', resumeURL);
+      
+      // 3. Call the server action
+      formAction(formData);
+
+    } catch (error: any) {
+      console.error("Error during file upload or form submission:", error);
+      toast({
+        variant: "destructive",
+        title: "Submission Failed",
+        description: "Could not upload your resume. Please try again.",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const isSubmitDisabled = isPending || isUploading;
+
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+        if (!open) {
+            formRef.current?.reset();
+            setFile(null);
+            setFileError(null);
+        }
+        setIsOpen(open);
+    }}>
       <DialogTrigger asChild>
         <Button className="w-full sm:w-auto group">
             Apply Now
@@ -75,28 +139,24 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
             Fill in your details and upload your resume to apply.
           </DialogDescription>
         </DialogHeader>
-        <form action={formAction}>
+        <form ref={formRef} onSubmit={handleFormSubmit}>
             <input type="hidden" name="jobId" value={job.id} />
             <input type="hidden" name="jobTitle" value={job.title} />
             <div className="grid gap-4 py-4">
                 <div className="space-y-2">
                     <Label htmlFor="name">Full Name</Label>
-                    <Input id="name" name="name" placeholder="e.g., Jane Doe" required />
+                    <Input id="name" name="name" placeholder="e.g., Jane Doe" required disabled={isSubmitDisabled} />
                     {state.errors?.name && <p className="text-sm text-destructive mt-1">{state.errors.name.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="email">Email Address</Label>
-                    <Input id="email" name="email" type="email" placeholder="you@example.com" required />
+                    <Input id="email" name="email" type="email" placeholder="you@example.com" required disabled={isSubmitDisabled} />
                     {state.errors?.email && <p className="text-sm text-destructive mt-1">{state.errors.email.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
                     <Label htmlFor="resume">Resume (PDF, max 5MB)</Label>
-                    <Input id="resume" name="resume" type="file" accept=".pdf" required ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-                    <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full justify-start">
-                        <UploadCloud className="mr-2 h-4 w-4" />
-                        {fileName ? <span className="flex items-center"><FileText className="mr-2 h-4 w-4"/> {fileName}</span> : 'Select PDF File'}
-                    </Button>
-                    {state.errors?.resume && <p className="text-sm text-destructive mt-1">{state.errors.resume.join(', ')}</p>}
+                    <Input id="resume" name="resume" type="file" accept=".pdf" required onChange={handleFileChange} disabled={isSubmitDisabled} />
+                    {fileError && <p className="text-sm text-destructive mt-1">{fileError}</p>}
                 </div>
             </div>
             
@@ -108,12 +168,12 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
             )}
             
             <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={isPending}>
-                {isPending ? (
+                <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isSubmitDisabled}>Cancel</Button>
+                <Button type="submit" disabled={isSubmitDisabled}>
+                {isSubmitDisabled ? (
                     <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Submitting...
+                        {isUploading ? 'Uploading...' : 'Submitting...'}
                     </>
                 ) : (
                     <>
