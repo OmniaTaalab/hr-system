@@ -104,6 +104,19 @@ function AnnualPayrollReportContent() {
   const [selectedYear, setSelectedYear] = useState<number>(currentFullYear);
   const [reportData, setReportData] = useState<AnnualReportData[]>([]);
   const [isLoadingReport, setIsLoadingReport] = useState(false);
+  const { profile, loading } = useUserProfile();
+  const router = useRouter();
+
+
+  // Role check and redirect
+  useEffect(() => {
+    if (!loading) {
+      const canViewReport = profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr';
+      if (!canViewReport) {
+        router.replace('/');
+      }
+    }
+  }, [loading, profile, router]);
 
   // Fetch all active employees
   useEffect(() => {
@@ -319,6 +332,24 @@ function AnnualPayrollReportContent() {
 
     doc.save(`Annual_Payroll_Report_${selectedYear}.pdf`);
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-full">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+  
+  if (!profile || (profile.role?.toLowerCase() !== 'admin' && profile.role?.toLowerCase() !== 'hr')) {
+    return (
+      <div className="flex justify-center items-center h-full flex-col gap-4">
+        <AlertTriangle className="h-12 w-12 text-destructive" />
+        <h2 className="text-xl font-semibold">Access Denied</h2>
+        <p className="text-muted-foreground">You do not have permission to view this report.</p>
+      </div>
+    );
+  }
   
   return (
       <div className="space-y-8">
@@ -453,39 +484,6 @@ function AnnualPayrollReportContent() {
 }
 
 export default function AnnualPayrollReportPage() {
-  const { profile, loading } = useUserProfile();
-  const router = useRouter();
-
-  if (loading) {
-    return (
-      <AppLayout>
-        <div className="flex justify-center items-center h-full">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        </div>
-      </AppLayout>
-    );
-  }
-
-  const canViewReport = profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr';
-
-  if (!canViewReport) {
-      // It's better to use a client-side redirect in a useEffect
-      // to avoid issues with server-side rendering expecting a redirect.
-      React.useEffect(() => {
-          router.replace('/');
-      }, [router]);
-      
-      return (
-          <AppLayout>
-              <div className="flex justify-center items-center h-full flex-col gap-4">
-                  <AlertTriangle className="h-12 w-12 text-destructive" />
-                  <h2 className="text-xl font-semibold">Access Denied</h2>
-                  <p className="text-muted-foreground">You do not have permission to view this report.</p>
-              </div>
-          </AppLayout>
-      );
-  }
-
   return (
     <AppLayout>
       <AnnualPayrollReportContent />
