@@ -59,7 +59,7 @@ export default function TpiPage() {
       setIsLoading(true);
       console.log("selectedStageId:", selectedStageId)
       try {
-        const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im9tbmlhIHpheWVkIiwiaWQiOjIyMjg0OSwicm9sZSI6InN1cGVyIGFkbWluIiwiZG9tYWluIjpudWxsLCJpYXQiOjE3NTI5OTc2MDh9.3AF6aXwvEUUXBORhufJSg6-abR23bvcqQd6u9CniC-c";
+        const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im9tbmlhIHpheWVkIiwiaWQiOjIyMjg0OSwicm9sZSI6InN1cGVyIGFkbWluIiwiZG9tYWluIjpudWxsLCJpYXQiOjE3NTM2NDIyODV9.5r4r-FLWu1gW-pB52PnsI6E62hVwO-x9y_9l_zZMTDo";
         const response = await fetch(`https://blb-staging-hwnidclrba-uc.a.run.app/reports/leaderBoard?stage_tag_ids=${selectedStageId}`, {
          method: 'GET',
           headers: {

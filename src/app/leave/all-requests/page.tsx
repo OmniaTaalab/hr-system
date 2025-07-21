@@ -437,7 +437,7 @@ function AllLeaveRequestsContent() {
             q = query(leaveRequestsCollection, ...queryConstraints);
         }
         
-        const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+        const unsubscribe = onSnapshot(q, async (querySnapshot: { docs: any[]; }) => {
             const requestsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
             
             // To avoid N+1 queries, fetch all employees once and map their group names.
