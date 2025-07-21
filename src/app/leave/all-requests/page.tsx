@@ -386,89 +386,55 @@ function AllLeaveRequestsContent() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   
   const [deleteServerState, deleteFormAction, isDeletePending] = useActionState(deleteLeaveRequestAction, initialDeleteState);
+  
   const canManageRequests = useMemo(() => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();
-    console.log("consoleee:",  profile.role?.toLowerCase())
-
     return userRole === 'admin' || userRole === 'hr' || userRole === 'principal'; 
   }, [profile]);
   
-  const isPrincipal = useMemo(() => {
-      if (!profile) return false;
-      return profile.role?.toLowerCase() === 'principal';
-  }, [profile]);
-
   useEffect(() => {
     if (isLoadingProfile) return;
     
     setIsLoading(true);
 
     const leaveRequestCollection = collection(db, "leaveRequests");
+    let q;
 
-    const setupSubscription = async () => {
-      let q;
-      if (isPrincipal && profile?.groupName) {
-        // Principal: Get employees in their group first, then query requests
-        const employeeQuery = query(collection(db, "employee"), where("groupNames", "==", profile.groupName));
-        const employeeSnapshot = await getDocs(employeeQuery);
-        const employeeIdsInGroup = employeeSnapshot.docs.map(doc => doc.id);
+    if (canManageRequests) { // Admin, HR, and Principal see all
+      q = query(leaveRequestCollection, orderBy("submittedAt", "desc"));
+    } else if (profile?.id) { // Regular employees see their own
+      q = query(
+        leaveRequestCollection,
+        where("requestingEmployeeDocId", "==", profile.id),
+        orderBy("submittedAt", "desc")
+      );
+    } else {
+      // No profile ID or permissions, show nothing
+      setIsLoading(false);
+      setAllRequests([]);
+      return;
+    }
 
-        if (employeeIdsInGroup.length > 0) {
-          q = query(
-            leaveRequestCollection,
-            where("requestingEmployeeDocId", "in", employeeIdsInGroup),
-            orderBy("submittedAt", "desc")
-          );
-        } else {
-          // Principal has no one in their group, so no requests to show
-          setAllRequests([]);
-          setIsLoading(false);
-          return () => {}; // Return an empty unsubscribe function
-        }
-      } else if (canManageRequests && !isPrincipal) { // Admin/HR see all
-        q = query(leaveRequestCollection, orderBy("submittedAt", "desc"));
-      } else if (profile?.id) {
-        // Regular employees see their own
-        q = query(
-          leaveRequestCollection,
-          where("requestingEmployeeDocId", "==", profile.id),
-          orderBy("submittedAt", "desc")
-        );
-      } else {
-        // No profile ID, no permissions
-        setIsLoading(false);
-        setAllRequests([]);
-        return () => {};
-      }
-
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const requestsData: LeaveRequestEntry[] = [];
-        querySnapshot.forEach((doc) => {
-          requestsData.push({ id: doc.id, ...doc.data() } as LeaveRequestEntry);
-        });
-        setAllRequests(requestsData);
-        setIsLoading(false);
-      }, (error) => {
-        console.error("Error fetching leave requests: ", error);
-        toast({
-          variant: "destructive",
-          title: "Error Fetching Requests",
-          description: "Could not load leave requests. This might be due to a missing Firestore index.",
-        });
-        setIsLoading(false);
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const requestsData: LeaveRequestEntry[] = [];
+      querySnapshot.forEach((doc) => {
+        requestsData.push({ id: doc.id, ...doc.data() } as LeaveRequestEntry);
       });
-      
-      return unsubscribe;
-    };
-
-    let unsubscribe = () => {};
-    setupSubscription().then(unsub => {
-      if (unsub) unsubscribe = unsub;
+      setAllRequests(requestsData);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching leave requests: ", error);
+      toast({
+        variant: "destructive",
+        title: "Error Fetching Requests",
+        description: "Could not load leave requests. This might be due to a missing Firestore index.",
+      });
+      setIsLoading(false);
     });
 
     return () => unsubscribe();
-  }, [toast, isLoadingProfile, profile, canManageRequests, isPrincipal]);
+  }, [toast, isLoadingProfile, profile, canManageRequests]);
 
   useEffect(() => {
     if (deleteServerState?.message) {
@@ -786,3 +752,5 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
+
+    
