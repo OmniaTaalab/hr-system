@@ -12,6 +12,7 @@ export default {
     annual_payroll_report: 'تقرير الرواتب السنوي',
     tpi: 'مؤشرات الأداء',
     job_board: 'لوحة الوظائف',
+    job_applications: 'طلبات التوظيف',
     career_advisor: 'مستشار مهني',
     settings: 'الإعدادات',
   },

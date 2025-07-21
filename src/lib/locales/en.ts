@@ -12,6 +12,7 @@ export default {
     annual_payroll_report: 'Annual Payroll Report',
     tpi: 'TPIs',
     job_board: 'Job Board',
+    job_applications: 'Job Applications',
     career_advisor: 'Career Advisor',
     settings: 'Settings',
   },

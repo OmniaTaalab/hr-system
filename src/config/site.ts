@@ -62,6 +62,11 @@ export const navItems: NavItem[] = [
     href: '/jobs',
     iconName: 'Briefcase',
   },
+   {
+    i18nKey: 'sidebar.job_applications',
+    href: '/jobs/applications',
+    iconName: 'FileText',
+  },
   {
     i18nKey: 'sidebar.career_advisor',
     href: '/career-advisor',
