@@ -854,12 +854,14 @@ function EmployeeManagementContent() {
   const canManageEmployees = useMemo(() => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();
+    // Principals can only ADD employees, not see the full list initially
     return userRole === 'admin' || userRole === 'hr';
   }, [profile]);
   
-  const isPrincipal = useMemo(() => {
-      if (!profile) return false;
-      return profile.role?.toLowerCase() === 'principal';
+  const hasFullView = useMemo(() => {
+    if (!profile) return false;
+    const userRole = profile.role?.toLowerCase();
+    return userRole === 'admin' || userRole === 'hr' || userRole === 'principal';
   }, [profile]);
 
 
@@ -870,10 +872,14 @@ function EmployeeManagementContent() {
     let q;
     const employeeCollection = collection(db, "employee");
 
-    if (isPrincipal && profile?.groupName) {
-      q = query(employeeCollection, where("groupNames", "==", profile.groupName));
-    } else {
+    // Admins, HR, and Principals see all employees
+    if (hasFullView) {
       q = query(employeeCollection);
+    } else {
+      // Other roles (if any) see no one by default on this page
+      setEmployees([]);
+      setIsLoading(false);
+      return;
     }
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -894,7 +900,7 @@ function EmployeeManagementContent() {
     });
 
     return () => unsubscribe();
-  }, [toast, isLoadingProfile, profile, isPrincipal]);
+  }, [toast, isLoadingProfile, profile, hasFullView]);
   
   useEffect(() => {
     const today = new Date();

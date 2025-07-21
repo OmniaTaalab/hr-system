@@ -752,5 +752,3 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
-
-    
