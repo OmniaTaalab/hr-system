@@ -105,7 +105,11 @@ export default function JobDetailPage() {
                   <li key={idx}>{req}</li>
                 ))}
               </ul>
-              <Button className="mt-6">Apply Now</Button>
+              <Button asChild className="mt-6 no-underline">
+                <a href={`mailto:hr@example.com?subject=Application for ${encodeURIComponent(job.title)}`}>
+                    Apply Now
+                </a>
+              </Button>
             </CardContent>
           </Card>
         )}
