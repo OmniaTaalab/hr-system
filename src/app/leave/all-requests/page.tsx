@@ -57,12 +57,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
+import { useOrganizationLists } from "@/hooks/use-organization-lists";
 
 
 export interface LeaveRequestEntry {
   id: string; 
   requestingEmployeeDocId: string; // Added this for robust linking
   employeeName: string;
+  employeeGroupName?: string; // For filtering
   leaveType: string;
   startDate: Timestamp;
   endDate: Timestamp;
@@ -371,9 +373,11 @@ function AllLeaveRequestsContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Approved" | "Rejected">("All");
+  const [groupNameFilter, setGroupNameFilter] = useState<string>("All");
   const [allRequests, setAllRequests] = useState<LeaveRequestEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { groupNames, isLoading: isLoadingGroupNames } = useOrganizationLists();
 
   const [selectedRequestToAction, setSelectedRequestToAction] = useState<LeaveRequestEntry | null>(null);
   const [actionTypeForStatusUpdate, setActionTypeForStatusUpdate] = useState<"Approved" | "Rejected" | null>(null);
@@ -397,31 +401,28 @@ function AllLeaveRequestsContent() {
     if (isLoadingProfile) return;
     
     setIsLoading(true);
+    let q = query(collection(db, "leaveRequests"), orderBy("submittedAt", "desc"));
+    const employeeCollection = collection(db, "employee");
 
-    const leaveRequestCollection = collection(db, "leaveRequests");
-    let q;
+    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+      const requestsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
 
-    if (canManageRequests) { // Admin, HR, and Principal see all
-      q = query(leaveRequestCollection, orderBy("submittedAt", "desc"));
-    } else if (profile?.id) { // Regular employees see their own
-      q = query(
-        leaveRequestCollection,
-        where("requestingEmployeeDocId", "==", profile.id),
-        orderBy("submittedAt", "desc")
-      );
-    } else {
-      // No profile ID or permissions, show nothing
-      setIsLoading(false);
-      setAllRequests([]);
-      return;
-    }
-
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const requestsData: LeaveRequestEntry[] = [];
-      querySnapshot.forEach((doc) => {
-        requestsData.push({ id: doc.id, ...doc.data() } as LeaveRequestEntry);
+      const employeeDataMap = new Map();
+      
+      const allEmployeeDocs = await getDocs(employeeCollection);
+      allEmployeeDocs.forEach(doc => {
+          employeeDataMap.set(doc.id, doc.data());
       });
-      setAllRequests(requestsData);
+
+      const requestsWithGroup = requestsData.map(req => {
+        const employeeData = employeeDataMap.get(req.requestingEmployeeDocId);
+        return {
+          ...req,
+          employeeGroupName: employeeData?.groupName || 'N/A'
+        };
+      });
+
+      setAllRequests(requestsWithGroup);
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching leave requests: ", error);
@@ -434,7 +435,7 @@ function AllLeaveRequestsContent() {
     });
 
     return () => unsubscribe();
-  }, [toast, isLoadingProfile, profile, canManageRequests]);
+  }, [toast, isLoadingProfile]);
 
   useEffect(() => {
     if (deleteServerState?.message) {
@@ -447,8 +448,16 @@ function AllLeaveRequestsContent() {
     }
   }, [deleteServerState, toast]);
 
+  const requestsForUser = useMemo(() => {
+    if (isLoadingProfile) return [];
+    if (!canManageRequests) {
+      return allRequests.filter(req => req.requestingEmployeeDocId === profile?.id);
+    }
+    return allRequests;
+  }, [allRequests, profile, isLoadingProfile, canManageRequests]);
+
   const requestCounts = useMemo(() => {
-    return allRequests.reduce(
+    return requestsForUser.reduce(
       (acc, request) => {
         if (request.status === "Pending") acc.pending++;
         else if (request.status === "Approved") acc.approved++;
@@ -457,13 +466,17 @@ function AllLeaveRequestsContent() {
       },
       { pending: 0, approved: 0, rejected: 0 }
     );
-  }, [allRequests]);
+  }, [requestsForUser]);
 
   const filteredRequests = useMemo(() => {
-    let requests = allRequests;
+    let requests = requestsForUser;
 
     if (statusFilter !== "All") {
       requests = requests.filter(item => item.status === statusFilter);
+    }
+
+    if (groupNameFilter !== "All") {
+      requests = requests.filter(item => item.employeeGroupName === groupNameFilter);
     }
 
     if (searchTerm) {
@@ -472,6 +485,7 @@ function AllLeaveRequestsContent() {
         return (
           item.employeeName.toLowerCase().includes(lowercasedFilter) ||
           item.leaveType.toLowerCase().includes(lowercasedFilter) ||
+          (item.employeeGroupName && item.employeeGroupName.toLowerCase().includes(lowercasedFilter)) ||
           item.reason.toLowerCase().includes(lowercasedFilter) ||
           item.status.toLowerCase().includes(lowercasedFilter) || 
           format(item.startDate.toDate(), "PPP").toLowerCase().includes(lowercasedFilter) ||
@@ -480,7 +494,7 @@ function AllLeaveRequestsContent() {
       });
     }
     return requests;
-  }, [allRequests, searchTerm, statusFilter]);
+  }, [requestsForUser, searchTerm, statusFilter, groupNameFilter]);
 
   const openStatusUpdateDialog = (request: LeaveRequestEntry, type: "Approved" | "Rejected") => {
     setSelectedRequestToAction(request);
@@ -570,7 +584,7 @@ function AllLeaveRequestsContent() {
           <CardTitle>Leave Request Log</CardTitle>
            <CardDescription>{canManageRequests ? "A comprehensive list of all submitted leave requests." : "Your personal list of submitted leave requests."}</CardDescription>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-2">
-              <div className="relative flex-grow sm:flex-grow-0 sm:w-1/2 lg:w-1/3">
+              <div className="relative flex-grow sm:flex-grow-0 sm:w-full lg:w-1/3">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                   type="search"
@@ -580,19 +594,37 @@ function AllLeaveRequestsContent() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   />
               </div>
-              <div className="flex items-center gap-2 sm:w-auto">
-                  <Filter className="h-4 w-4 text-muted-foreground"/>
-                  <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "All" | "Pending" | "Approved" | "Rejected")}>
-                      <SelectTrigger className="w-full sm:w-[180px]">
-                          <SelectValue placeholder="Filter by status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="All">All Statuses</SelectItem>
-                          <SelectItem value="Pending">Pending</SelectItem>
-                          <SelectItem value="Approved">Approved</SelectItem>
-                          <SelectItem value="Rejected">Rejected</SelectItem>
-                      </SelectContent>
-                  </Select>
+              <div className="flex items-center gap-2 flex-col sm:flex-row w-full sm:w-auto">
+                  <div className="flex items-center gap-2 w-full">
+                    <Filter className="h-4 w-4 text-muted-foreground"/>
+                    <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "All" | "Pending" | "Approved" | "Rejected")}>
+                        <SelectTrigger className="w-full sm:w-[180px]">
+                            <SelectValue placeholder="Filter by status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="All">All Statuses</SelectItem>
+                            <SelectItem value="Pending">Pending</SelectItem>
+                            <SelectItem value="Approved">Approved</SelectItem>
+                            <SelectItem value="Rejected">Rejected</SelectItem>
+                        </SelectContent>
+                    </Select>
+                  </div>
+                  {canManageRequests && (
+                    <div className="flex items-center gap-2 w-full">
+                        <Filter className="h-4 w-4 text-muted-foreground"/>
+                        <Select value={groupNameFilter} onValueChange={setGroupNameFilter} disabled={isLoadingGroupNames}>
+                            <SelectTrigger className="w-full sm:w-[180px]">
+                                <SelectValue placeholder="Filter by group" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="All">All Groups</SelectItem>
+                                {groupNames.map(group => (
+                                    <SelectItem key={group.id} value={group.name}>{group.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                  )}
               </div>
           </div>
         </CardHeader>
@@ -607,6 +639,7 @@ function AllLeaveRequestsContent() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee Name</TableHead>
+                  {canManageRequests && <TableHead>Group</TableHead>}
                   <TableHead>Leave Type</TableHead>
                   <TableHead>Start Date</TableHead>
                   <TableHead>End Date</TableHead>
@@ -626,6 +659,7 @@ function AllLeaveRequestsContent() {
                     return (
                       <TableRow key={request.id}>
                         <TableCell className="font-medium">{request.employeeName}</TableCell>
+                        {canManageRequests && <TableCell>{request.employeeGroupName}</TableCell>}
                         <TableCell>{request.leaveType}</TableCell>
                         <TableCell>{format(startDate, "PPP")}</TableCell>
                         <TableCell>{format(endDate, "PPP")}</TableCell>
@@ -678,8 +712,8 @@ function AllLeaveRequestsContent() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={canManageRequests ? 9 : 8} className="h-24 text-center">
-                      {searchTerm || statusFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
+                    <TableCell colSpan={canManageRequests ? 10 : 8} className="h-24 text-center">
+                      {searchTerm || statusFilter !== "All" || groupNameFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
                     </TableCell>
                   </TableRow>
                 )}
