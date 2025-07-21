@@ -35,20 +35,26 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const [fileError, setFileError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   
-  const [state, formAction] = useActionState(applyForJobAction, initialState);
-  const [isSubmitting, startTransition] = useTransition();
+  const [state, formAction, isSubmitting] = useActionState(applyForJobAction, initialState);
 
   useEffect(() => {
     if (state.message) {
-      toast({
-        title: state.success ? "Success" : "Error",
-        description: state.message,
-        variant: state.success ? "default" : "destructive",
-      });
       if (state.success) {
+         toast({
+            title: "Success",
+            description: state.message,
+            variant: "default",
+        });
         setIsOpen(false);
         formRef.current?.reset();
         setFile(null);
+      } else if (!state.errors || Object.keys(state.errors).length === 0) {
+        // If there is a message but no specific field errors, show a general error toast.
+        toast({
+            title: "Error",
+            description: state.message,
+            variant: "destructive",
+        });
       }
     }
   }, [state, toast]);
@@ -86,34 +92,37 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
     const currentForm = formRef.current;
     if (!currentForm) return;
 
-    startTransition(async () => {
-      try {
-        const fileExtension = file.name.split('.').pop();
-        const fileName = `${job.id}-${nanoid()}.${fileExtension}`;
-        const filePath = `job-applications/${fileName}`;
-        const fileRef = ref(storage, filePath);
-        
-        await uploadBytes(fileRef, file);
-        const resumeURL = await getDownloadURL(fileRef);
-        
-        const formData = new FormData(currentForm);
-        formData.append('resumeURL', resumeURL);
-        
-        formAction(formData);
+    // Create a new FormData object from the form to get user inputs
+    const formData = new FormData(currentForm);
 
-      } catch (error: any) {
-        console.error("Error during file upload or form submission:", error);
-        let errorMessage = "Could not upload your resume. Please try again.";
-        if (error.code === 'storage/retry-limit-exceeded') {
-          errorMessage = "Upload failed due to network issues or permissions. Please check your connection and try again.";
-        }
-        toast({
-          variant: "destructive",
-          title: "Submission Failed",
-          description: errorMessage,
-        });
+    // Now, handle the file upload before calling the server action.
+    try {
+      const fileExtension = file.name.split('.').pop();
+      const fileName = `${job.id}-${nanoid()}.${fileExtension}`;
+      const filePath = `job-applications/${fileName}`;
+      const fileRef = ref(storage, filePath);
+      
+      await uploadBytes(fileRef, file);
+      const resumeURL = await getDownloadURL(fileRef);
+      
+      // Add the resume URL to our FormData object.
+      formData.append('resumeURL', resumeURL);
+      
+      // Finally, call the server action with the complete FormData.
+      formAction(formData);
+
+    } catch (error: any) {
+      console.error("Error during file upload or form submission:", error);
+      let errorMessage = "Could not upload your resume. Please try again.";
+      if (error.code === 'storage/retry-limit-exceeded') {
+        errorMessage = "Upload failed due to network issues or permissions. Please check your connection and try again.";
       }
-    });
+      toast({
+        variant: "destructive",
+        title: "Submission Failed",
+        description: errorMessage,
+      });
+    }
   };
 
   return (
