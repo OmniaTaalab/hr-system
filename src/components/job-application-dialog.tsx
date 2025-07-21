@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useRef, useActionState } from 'react';
+import React, { useState, useEffect, useRef, useActionState, useTransition } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,10 +34,11 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [_isTransitionPending, startTransition] = useTransition();
 
   const formRef = useRef<HTMLFormElement>(null);
   
-  const [state, formAction, isPending] = useActionState(applyForJobAction, initialState);
+  const [state, formAction, isFormPending] = useActionState(applyForJobAction, initialState);
 
   useEffect(() => {
     if (state.message) {
@@ -100,8 +101,10 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       const formData = new FormData(formRef.current!);
       formData.append('resumeURL', resumeURL);
       
-      // 3. Call the server action
-      formAction(formData);
+      // 3. Call the server action using startTransition
+      startTransition(() => {
+        formAction(formData);
+      });
 
     } catch (error: any) {
       console.error("Error during file upload or form submission:", error);
@@ -115,7 +118,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
     }
   };
 
-  const isSubmitDisabled = isPending || isUploading;
+  const isSubmitDisabled = isFormPending || isUploading;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
