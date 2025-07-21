@@ -373,12 +373,10 @@ function AllLeaveRequestsContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Approved" | "Rejected">("All");
-  const [groupNameFilter, setGroupNameFilter] = useState<string>("All");
   const [allRequests, setAllRequests] = useState<LeaveRequestEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { groupNames, isLoading: isLoadingGroupNames } = useOrganizationLists();
-
+  
   const [selectedRequestToAction, setSelectedRequestToAction] = useState<LeaveRequestEntry | null>(null);
   const [actionTypeForStatusUpdate, setActionTypeForStatusUpdate] = useState<"Approved" | "Rejected" | null>(null);
   const [isStatusUpdateDialogOpen, setIsStatusUpdateDialogOpen] = useState(false);
@@ -509,11 +507,7 @@ function AllLeaveRequestsContent() {
     if (statusFilter !== "All") {
       requests = requests.filter(item => item.status === statusFilter);
     }
-
-    if (groupNameFilter !== "All") {
-      requests = requests.filter(item => item.employeeGroupName === groupNameFilter);
-    }
-
+    
     if (searchTerm) {
       const lowercasedFilter = searchTerm.toLowerCase();
       requests = requests.filter(item => {
@@ -529,7 +523,7 @@ function AllLeaveRequestsContent() {
       });
     }
     return requests;
-  }, [allRequests, searchTerm, statusFilter, groupNameFilter]);
+  }, [allRequests, searchTerm, statusFilter]);
 
   const openStatusUpdateDialog = (request: LeaveRequestEntry, type: "Approved" | "Rejected") => {
     setSelectedRequestToAction(request);
@@ -629,37 +623,19 @@ function AllLeaveRequestsContent() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   />
               </div>
-              <div className="flex items-center gap-2 flex-col sm:flex-row w-full sm:w-auto">
-                  <div className="flex items-center gap-2 w-full">
-                    <Filter className="h-4 w-4 text-muted-foreground"/>
-                    <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "All" | "Pending" | "Approved" | "Rejected")}>
-                        <SelectTrigger className="w-full sm:w-[180px]">
-                            <SelectValue placeholder="Filter by status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="All">All Statuses</SelectItem>
-                            <SelectItem value="Pending">Pending</SelectItem>
-                            <SelectItem value="Approved">Approved</SelectItem>
-                            <SelectItem value="Rejected">Rejected</SelectItem>
-                        </SelectContent>
-                    </Select>
-                  </div>
-                  {canManageRequests && (
-                    <div className="flex items-center gap-2 w-full">
-                        <Filter className="h-4 w-4 text-muted-foreground"/>
-                        <Select value={groupNameFilter} onValueChange={setGroupNameFilter} disabled={isLoadingGroupNames}>
-                            <SelectTrigger className="w-full sm:w-[180px]">
-                                <SelectValue placeholder="Filter by group" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="All">All Groups</SelectItem>
-                                {groupNames.map(group => (
-                                    <SelectItem key={group.id} value={group.name}>{group.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                  )}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Filter className="h-4 w-4 text-muted-foreground"/>
+                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "All" | "Pending" | "Approved" | "Rejected")}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="All">All Statuses</SelectItem>
+                        <SelectItem value="Pending">Pending</SelectItem>
+                        <SelectItem value="Approved">Approved</SelectItem>
+                        <SelectItem value="Rejected">Rejected</SelectItem>
+                    </SelectContent>
+                </Select>
               </div>
           </div>
         </CardHeader>
@@ -748,7 +724,7 @@ function AllLeaveRequestsContent() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={canManageRequests ? 10 : 8} className="h-24 text-center">
-                      {searchTerm || statusFilter !== "All" || groupNameFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
+                      {searchTerm || statusFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
                     </TableCell>
                   </TableRow>
                 )}
