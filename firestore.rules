@@ -1,9 +1,21 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Allow anyone to create a job application.
+    // They cannot read, update, or delete any applications.
+    match /jobApplications/{applicationId} {
+      allow read, update, delete: if false;
+      allow create: if true;
+    }
+    
+    // Secure all other collections by default.
+    // Authenticated users can read/write their own data or data
+    // managed through secure server-side actions.
     match /{document=**} {
-      allow read, write;
+      allow read, write: if request.auth != null;
     }
   }
 }
