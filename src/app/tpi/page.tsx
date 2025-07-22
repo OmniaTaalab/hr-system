@@ -1,225 +1,307 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
-import { AppLayout } from "@/components/layout/app-layout";
-import { Badge } from "@/components/ui/badge";
+import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
+import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Trophy, Check } from "lucide-react";
+import { db } from '@/lib/firebase/config';
+import { collection, onSnapshot, query, orderBy, where, doc, getDoc } from 'firebase/firestore';
+import { Loader2, Trophy, Upload, AlertTriangle, Save } from "lucide-react";
+import { saveTpiDataAction, batchSaveTpiDataAction, type TpiState, type BatchTpiState } from "@/app/actions/tpi-actions";
+import * as XLSX from 'xlsx';
+import { useRouter } from "next/navigation";
 
-// Data provided by the user for the dropdown
-const stages = [
-    { "id": 6, "title": "ES - Non-Core" },
-    { "id": 10, "title": "HS - Non-Core" },
-    { "id": 11, "title": "HS - Core" },
-    { "id": 12, "title": "ER - Classroom Teacher" },
-    { "id": 13, "title": "ER - Arabic" },
-    { "id": 14, "title": "ER - Non-Core" },
-    { "id": 15, "title": "PR - Classroom Teacher" },
-    { "id": 16, "title": "PR - Arabic" },
-    { "id": 17, "title": "PR - Non-Core" },
-    { "id": 18, "title": "PR - Core" },
-    { "id": 19, "title": "KS3 - Non-Core" },
-    { "id": 20, "title": "KS3 - Core" },
-    { "id": 21, "title": "IG - Non-Core" },
-    { "id": 22, "title": "IG - Core" },
-    { "id": 23, "title": "KG - Prinicpal" },
-    { "id": 24, "title": "ES - Prinicpal" },
-    { "id": 25, "title": "MS - Prinicpal" },
-    { "id": 26, "title": "HS - Prinicpal" },
-    { "id": 27, "title": "ER - Prinicpal" },
-    { "id": 28, "title": "PR - Prinicpal" },
-    { "id": 29, "title": "KS3 - Prinicpal" },
-    { "id": 30, "title": "IG - Prinicpal" },
-    { "id": 32, "title": "teest" },
-    { "id": 33, "title": "teest" },
-    { "id": 34, "title": "test" },
-    { "id": 35, "title": "test6" },
-    { "id": 36, "title": "test6" },
-    { "id": 37, "title": "test6" }
-];
 
-export default function TpiPage() {
-  const { toast } = useToast();
-  const [selectedStageId, setSelectedStageId] = useState<string>("");
-  const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+interface Employee {
+  id: string;
+  name: string;
+  employeeId: string;
+  status: string;
+}
 
-  useEffect(() => {
-    if (!selectedStageId) {
-      setLeaderboardData([]);
-      return;
-    }
+interface TpiRecord {
+    id?: string;
+    examAvg?: number;
+    exitAvg?: number;
+    AA?: number;
+    points?: number;
+    total?: number;
+    sheetName?: string;
+}
 
-    const fetchApiData = async () => {
-      setIsLoading(true);
-      console.log("selectedStageId:", selectedStageId)
-      try {
-        const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im9tbmlhIHpheWVkIiwiaWQiOjIyMjg0OSwicm9sZSI6InN1cGVyIGFkbWluIiwiZG9tYWluIjpudWxsLCJpYXQiOjE3NTM2NDIyODV9.5r4r-FLWu1gW-pB52PnsI6E62hVwO-x9y_9l_zZMTDo";
-        const response = await fetch(`https://blb-staging-hwnidclrba-uc.a.run.app/reports/leaderBoard?stage_tag_ids=${selectedStageId}`, {
-         method: 'GET',
-          headers: {
-            'Authorization': `${token}`
-          }
-        });
+const initialTpiState: TpiState = { message: null, errors: {}, success: false };
+const initialBatchState: BatchTpiState = { message: null, errors: {}, success: false };
 
-        if (!response.ok) {
-          throw new Error(`API request failed with status ${response.status}`);
+
+function TpiManagementContent() {
+    const { toast } = useToast();
+    const [employees, setEmployees] = useState<Employee[]>([]);
+    const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
+    const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+    const [tpiData, setTpiData] = useState<TpiRecord>({});
+    const [isLoadingTpi, setIsLoadingTpi] = useState(false);
+    
+    // State for the form action
+    const [saveState, saveAction, isSavePending] = useActionState(saveTpiDataAction, initialTpiState);
+
+    // State for batch upload
+    const [batchState, batchAction, isBatchPending] = useActionState(batchSaveTpiDataAction, initialBatchState);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [fileName, setFileName] = useState<string | null>(null);
+
+    const { profile, loading } = useUserProfile();
+    const router = useRouter();
+
+
+    // Role check and redirect
+    useEffect(() => {
+        if (!loading) {
+        const canViewPage = profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr';
+        if (!canViewPage) {
+            router.replace('/');
         }
-        const data = await response.json();
-        setLeaderboardData(Array.isArray(data) ? data : []);
-      } catch (error: any) {
-        toast({
-          variant: "destructive",
-          title: "Error Loading Leaderboard",
-          description: error.message || "Could not fetch data from the API.",
+        }
+    }, [loading, profile, router]);
+
+    // Fetch active employees
+    useEffect(() => {
+        setIsLoadingEmployees(true);
+        const q = query(collection(db, "employee"), where("status", "==", "Active"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const employeesData = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() } as Employee))
+            .sort((a, b) => a.name.localeCompare(b.name));
+        setEmployees(employeesData);
+        setIsLoadingEmployees(false);
+        }, (error) => {
+        console.error("Error fetching employees:", error);
+        toast({ variant: "destructive", title: "Error", description: "Could not load employees." });
+        setIsLoadingEmployees(false);
         });
-        setLeaderboardData([]);
-      } finally {
-        setIsLoading(false);
-      }
+        return () => unsubscribe();
+    }, [toast]);
+
+    // Fetch TPI data when an employee is selected
+    useEffect(() => {
+        if (!selectedEmployee) {
+            setTpiData({});
+            return;
+        }
+
+        setIsLoadingTpi(true);
+        const q = query(collection(db, "tpiRecords"), where("employeeDocId", "==", selectedEmployee.id));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            if (!snapshot.empty) {
+                const record = snapshot.docs[0].data() as TpiRecord;
+                setTpiData(record);
+            } else {
+                setTpiData({});
+            }
+            setIsLoadingTpi(false);
+        }, (error) => {
+            console.error("Error fetching TPI record:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not load TPI data for employee." });
+            setIsLoadingTpi(false);
+        });
+
+        return () => unsubscribe();
+    }, [selectedEmployee, toast]);
+
+    // Handle single save action response
+    useEffect(() => {
+        if (saveState?.message) {
+            toast({
+                title: saveState.success ? "Success" : "Error",
+                description: saveState.message,
+                variant: saveState.success ? "default" : "destructive",
+            });
+        }
+    }, [saveState, toast]);
+
+    // Handle batch save action response
+    useEffect(() => {
+        if (batchState?.message) {
+            toast({
+                title: batchState.success ? "Success" : "Error",
+                description: batchState.message,
+                variant: batchState.success ? "default" : "destructive",
+            });
+        }
+    }, [batchState, toast]);
+
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        setFileName(file.name);
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+
+                // Map Excel headers to schema fields
+                const mappedJson = json.map((row: any) => ({
+                    firstName: row['First Name'] || row['firstName'],
+                    lastName: row['Last Name'] || row['lastName'],
+                    role: row['Role'] || row['role'],
+                    groupName: row['Group Name'] || row['groupName'],
+                    system: row['System'] || row['system'],
+                    campus: row['Campus'] || row['campus'],
+                    examAvg: row['Exam Avg'] || row['examAvg'],
+                    exitAvg: row['Exit Avg'] || row['exitAvg'],
+                    AA: row['AA'],
+                    points: row['Points'] || row['points'],
+                    total: row['Total'] || row['total'],
+                    sheetName: row['Sheet Name'] || row['sheetName'],
+                }));
+                
+                const formData = new FormData();
+                formData.append('recordsJson', JSON.stringify(mappedJson));
+                batchAction(formData);
+
+            } catch (error) {
+                console.error("Error parsing Excel file:", error);
+                toast({ variant: 'destructive', title: 'File Error', description: 'Could not read or parse the Excel file.' });
+            } finally {
+                setIsUploading(false);
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                }
+            }
+        };
+        reader.readAsArrayBuffer(file);
     };
 
-    fetchApiData();
-  }, [selectedStageId, toast]);
-
-  const displayData = useMemo(() => {
-    if (!leaderboardData) return [];
+    if (loading) {
+        return <div className="flex justify-center items-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+    }
     
-    // API data is likely pre-sorted, but we sort by total just in case.
-    const sortedData = [...leaderboardData].sort((a, b) => (b.total || 0) - (a.total || 0));
-    const totalCount = sortedData.length;
-    const top25Count = Math.ceil(totalCount * 0.25);
-    
-    return sortedData.map((item, index) => ({
-      id: item.id || index, // Use item.id if available, otherwise index as fallback key
-      firstName: item.first_name,
-      lastName: item.last_name,
-      role: item.role,
-      groupName: item.group_name,
-      system: item.system,
-      campus: item.campus,
-      examAvg: item.exam_avg,
-      exitAvg: item.exit_avg,
-      AA: item.aa,
-      points: item.points,
-      total: item.total,
-      sheetName: item.sheet_name,
-      globalRank: index + 1,
-      top25: index < top25Count,
-    }));
-  }, [leaderboardData]);
-  
-  return (
-    <AppLayout>
-      <div className="space-y-8">
-        <header>
-          <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
-             <Trophy className="mr-3 h-8 w-8 text-primary" />
-            Teacher Performance Indicators (TPIs)
-          </h1>
-          <p className="text-muted-foreground">
-            Select a stage to view its performance leaderboard.
-          </p>
-        </header>
-
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle>Leaderboard Selection</CardTitle>
-            <CardDescription>Select a stage to load the corresponding performance leaderboard from the API.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="w-full md:w-1/3">
-              <Select onValueChange={setSelectedStageId} value={selectedStageId}>
-                <SelectTrigger id="stage-select">
-                  <SelectValue placeholder="Select a stage..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {stages.map((stage) => (
-                    <SelectItem key={stage.id} value={stage.id.toString()}>
-                      {stage.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+    if (!profile || (profile.role?.toLowerCase() !== 'admin' && profile.role?.toLowerCase() !== 'hr')) {
+        return (
+            <div className="flex justify-center items-center h-full flex-col gap-4">
+                <AlertTriangle className="h-12 w-12 text-destructive" />
+                <h2 className="text-xl font-semibold">Access Denied</h2>
+                <p className="text-muted-foreground">You do not have permission to manage TPI data.</p>
             </div>
-          </CardContent>
-        </Card>
+        );
+    }
 
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle>Performance Leaderboard</CardTitle>
-            <CardDescription>
-              {selectedStageId ? `Displaying performance indicators for the selected stage.` : "Please select a stage to view data."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center items-center h-64">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              </div>
-            ) : (
-            <ScrollArea className="w-full whitespace-nowrap">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Rank</TableHead>
-                    <TableHead>First Name</TableHead>
-                    <TableHead>Last Name</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Group Name</TableHead>
-                    <TableHead>System</TableHead>
-                    <TableHead>Campus</TableHead>
-                    <TableHead className="text-right">Exam Avg</TableHead>
-                    <TableHead className="text-right">Exit Avg</TableHead>
-                    <TableHead className="text-right">AA</TableHead>
-                    <TableHead className="text-right">Points</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Sheet Name</TableHead>
-                    <TableHead className="text-center">Top 25%</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {displayData.length > 0 ? displayData.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-bold">{item.globalRank}</TableCell>
-                      <TableCell className="font-medium">{item.firstName}</TableCell>
-                      <TableCell className="font-medium">{item.lastName}</TableCell>
-                      <TableCell>
-                        <Badge variant={item.role?.toLowerCase() === 'hod' ? 'default' : 'secondary'}>{item.role}</Badge>
-                      </TableCell>
-                      <TableCell>{item.groupName}</TableCell>
-                      <TableCell>{item.system}</TableCell>
-                      <TableCell>{item.campus}</TableCell>
-                      <TableCell className="text-right">{item.examAvg?.toFixed(2) ?? 'N/A'}</TableCell>
-                      <TableCell className="text-right">{item.exitAvg?.toFixed(2) ?? 'N/A'}</TableCell>
-                      <TableCell className="text-right">{item.AA?.toFixed(3) ?? 'N/A'}</TableCell>
-                      <TableCell className="text-right">{item.points ?? 'N/A'}</TableCell>
-                      <TableCell className="text-right font-semibold">{item.total?.toFixed(2) ?? 'N/A'}</TableCell>
-                      <TableCell>{item.sheetName ?? 'N/A'}</TableCell>
-                      <TableCell className="text-center">
-                        {item.top25 && <Check className="h-5 w-5 text-green-500 mx-auto" />}
-                      </TableCell>
-                    </TableRow>
-                  )) : (
-                    <TableRow>
-                      <TableCell colSpan={14} className="h-24 text-center">
-                        {selectedStageId ? "No data returned for this stage." : "Please select a stage to view the leaderboard."}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </AppLayout>
-  );
+    return (
+        <div className="space-y-8">
+            <header>
+                <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
+                    <Trophy className="mr-3 h-8 w-8 text-primary" />
+                    TPI Management
+                </h1>
+                <p className="text-muted-foreground">
+                    Manually enter or batch upload Teacher Performance Indicators.
+                </p>
+            </header>
+
+             <Card className="shadow-lg">
+                <CardHeader>
+                    <CardTitle>Batch Upload TPI Data</CardTitle>
+                    <CardDescription>Upload an Excel file to update TPI records for multiple employees at once. Ensure your file has columns like 'First Name', 'Last Name', 'Exam Avg', 'Total', etc.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center gap-4">
+                        <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".xlsx, .xls" className="hidden" />
+                        <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading || isBatchPending}>
+                            <Upload className="mr-2 h-4 w-4" />
+                            {isUploading || isBatchPending ? "Processing..." : "Choose Excel File"}
+                        </Button>
+                        {fileName && <span className="text-sm text-muted-foreground">{fileName}</span>}
+                    </div>
+                    {batchState?.errors?.file && <p className="text-sm text-destructive mt-2">{batchState.errors.file.join(', ')}</p>}
+                    {batchState?.errors?.form && <p className="text-sm text-destructive mt-2">{batchState.errors.form.join(', ')}</p>}
+                </CardContent>
+            </Card>
+
+            <Card className="shadow-lg">
+                <CardHeader>
+                    <CardTitle>Manual TPI Entry</CardTitle>
+                    <CardDescription>Select an employee to view, add, or update their TPI data.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <form action={saveAction} className="space-y-6">
+                        <div className="w-full md:w-1/2">
+                            <Label htmlFor="employee-select">Employee</Label>
+                            {isLoadingEmployees ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                                <Select
+                                    onValueChange={(value) => setSelectedEmployee(employees.find(e => e.id === value) || null)}
+                                    value={selectedEmployee?.id || ""}
+                                    name="employeeDocId"
+                                    required
+                                >
+                                    <SelectTrigger id="employee-select"><SelectValue placeholder="Select an employee..." /></SelectTrigger>
+                                    <SelectContent>
+                                        {employees.map(emp => <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                            {saveState?.errors?.employeeDocId && <p className="text-sm text-destructive mt-1">{saveState.errors.employeeDocId.join(', ')}</p>}
+                        </div>
+
+                        {selectedEmployee && (
+                            isLoadingTpi ? <div className="flex justify-center items-center h-24"><Loader2 className="h-8 w-8 animate-spin" /></div> :
+                            <>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
+                                    <div>
+                                        <Label htmlFor="examAvg">Exam Avg</Label>
+                                        <Input id="examAvg" name="examAvg" type="number" step="0.01" defaultValue={tpiData.examAvg} />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="exitAvg">Exit Avg</Label>
+                                        <Input id="exitAvg" name="exitAvg" type="number" step="0.01" defaultValue={tpiData.exitAvg} />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="AA">AA</Label>
+                                        <Input id="AA" name="AA" type="number" step="0.001" defaultValue={tpiData.AA} />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="points">Points</Label>
+                                        <Input id="points" name="points" type="number" step="1" defaultValue={tpiData.points} />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="total">Total</Label>
+                                        <Input id="total" name="total" type="number" step="0.01" defaultValue={tpiData.total} />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="sheetName">Sheet Name</Label>
+                                        <Input id="sheetName" name="sheetName" defaultValue={tpiData.sheetName} />
+                                    </div>
+                                </div>
+                                 {saveState?.errors?.form && <p className="text-sm text-destructive mt-1">{saveState.errors.form.join(', ')}</p>}
+                                <Button type="submit" disabled={isSavePending}>
+                                    <Save className="mr-2 h-4 w-4" />
+                                    {isSavePending ? "Saving..." : "Save TPI Data"}
+                                </Button>
+                            </>
+                        )}
+                    </form>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+export default function TpiPage() {
+    return (
+        <AppLayout>
+            <TpiManagementContent />
+        </AppLayout>
+    );
 }
