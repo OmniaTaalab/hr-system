@@ -58,6 +58,11 @@ export const navItems: NavItem[] = [
     iconName: 'Trophy',
   },
   {
+    i18nKey: 'sidebar.omnia_logs',
+    href: '/omnia',
+    iconName: 'BookOpenCheck',
+  },
+  {
     i18nKey: 'sidebar.job_board',
     href: '/jobs',
     iconName: 'Briefcase',

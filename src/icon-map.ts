@@ -40,7 +40,8 @@ import {
   Send,
   UploadCloud,
   FileText,
-  AlertTriangle
+  AlertTriangle,
+  BookOpenCheck,
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -83,5 +84,6 @@ export const iconMap: { [key: string]: LucideIcon } = {
   Send,
   UploadCloud,
   FileText,
-  AlertTriangle
+  AlertTriangle,
+  BookOpenCheck,
 };

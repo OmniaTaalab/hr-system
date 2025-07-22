@@ -11,6 +11,7 @@ export default {
     payroll_calculation: 'Payroll Calculation',
     annual_payroll_report: 'Annual Payroll Report',
     tpi: 'TPIs',
+    omnia_logs: 'Omnia Logs',
     job_board: 'Job Board',
     job_applications: 'Job Applications',
     career_advisor: 'Career Advisor',
