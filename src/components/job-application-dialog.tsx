@@ -158,11 +158,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                     <Input id="name" name="name" placeholder="e.g., Jane Doe" required disabled={isSubmitting} />
                     {state.errors?.name && <p className="text-sm text-destructive mt-1">{state.errors.name.join(', ')}</p>}
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input id="email" name="email" type="email" placeholder="you@example.com" required disabled={isSubmitting} />
-                    {state.errors?.email && <p className="text-sm text-destructive mt-1">{state.errors.email.join(', ')}</p>}
-                </div>
+             
                  <div className="space-y-2">
                     <Label htmlFor="resume">Resume (PDF, max 5MB)</Label>
                     <Input id="resume" name="resume" type="file" accept=".pdf" required onChange={handleFileChange} disabled={isSubmitting} />

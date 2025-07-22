@@ -2,25 +2,16 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow read/write access for authenticated users on all paths by default
-    match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+    // Allow public write access for job application resumes
+    match /job-applications/{allPaths=**} {
+      allow write: if true;
+      allow read: if false; // Prevent anyone from reading submitted resumes
     }
 
-    // --- Public Access Rules ---
-    
-    // Allow anyone to upload a resume to the job-applications path.
-    // Disallow reads, so one applicant cannot view another's resume.
-    match /job-applications/{fileName} {
-      allow read: if false;
-      allow write: if true;
-    }
-    
-    // Allow anyone to read employee avatars, as they may be displayed publicly.
-    // Only allow authenticated users (likely admins) to write them.
-    match /employee-avatars/{employeeId} {
-        allow read: if true;
-        allow write: if request.auth != null;
+    // Allow read access to all other files
+    match /{allPaths=**} {
+      allow read;
+      allow write: if request.auth != null; // Only authenticated users can write elsewhere
     }
   }
 }
