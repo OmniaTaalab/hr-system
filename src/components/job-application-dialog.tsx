@@ -35,10 +35,11 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const [fileError, setFileError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   
-  const [state, formAction, isFormPending] = useActionState(applyForJobAction, initialState);
+  const [state, formAction] = useActionState(applyForJobAction, initialState);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, startTransition] = useTransition();
 
-  const isSubmitting = isUploading || isFormPending;
+  const isPending = isUploading || isSubmitting;
 
   useEffect(() => {
     if (state.message) {
@@ -105,11 +106,12 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       await uploadBytes(fileRef, file);
       const resumeURL = await getDownloadURL(fileRef);
       
-      // Manually create FormData and dispatch the server action
       const formData = new FormData(currentForm);
-      formData.append('resumeURL', resumeURL);
+      formData.set('resumeURL', resumeURL); // Use set to ensure it's there
       
-      formAction(formData);
+      startTransition(() => {
+          formAction(formData);
+      });
 
     } catch (error: any) {
       console.error("Error during file upload or form submission:", error);
@@ -155,13 +157,17 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
             <div className="grid gap-4 py-4">
                 <div className="space-y-2">
                     <Label htmlFor="name">Full Name</Label>
-                    <Input id="name" name="name" placeholder="e.g., Jane Doe" required disabled={isSubmitting} />
+                    <Input id="name" name="name" placeholder="e.g., Jane Doe" required disabled={isPending} />
                     {state.errors?.name && <p className="text-sm text-destructive mt-1">{state.errors.name.join(', ')}</p>}
                 </div>
-             
-                 <div className="space-y-2">
+                <div className="space-y-2">
+                    <Label htmlFor="email">Email Address</Label>
+                    <Input id="email" name="email" type="email" placeholder="e.g., jane.doe@example.com" required disabled={isPending} />
+                    {state.errors?.email && <p className="text-sm text-destructive mt-1">{state.errors.email.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
                     <Label htmlFor="resume">Resume (PDF, max 5MB)</Label>
-                    <Input id="resume" name="resume" type="file" accept=".pdf" required onChange={handleFileChange} disabled={isSubmitting} />
+                    <Input id="resume" name="resume" type="file" accept=".pdf" required onChange={handleFileChange} disabled={isPending} />
                     {fileError && <p className="text-sm text-destructive mt-1">{fileError}</p>}
                     {state.errors?.resumeURL && <p className="text-sm text-destructive mt-1">{state.errors.resumeURL.join(', ')}</p>}
                 </div>
@@ -175,9 +181,9 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
             )}
             
             <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isSubmitting}>Cancel</Button>
-                <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
+                <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isPending}>Cancel</Button>
+                <Button type="submit" disabled={isPending}>
+                {isPending ? (
                     <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Submitting...
