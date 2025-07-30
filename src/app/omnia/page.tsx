@@ -14,10 +14,10 @@ import { Badge } from '@/components/ui/badge';
 
 interface AttendanceLog {
   id: string;
-  employeeName: string;
-  timestamp: Timestamp;
-  eventType: 'Check-in' | 'Check-out';
-  source?: string;
+  userName: string;
+  userId: number;
+  COMETIME: string;
+  LEAVETIME: string;
 }
 
 export default function OmniaPage() {
@@ -27,7 +27,7 @@ export default function OmniaPage() {
 
   useEffect(() => {
     setIsLoading(true);
-    const q = query(collection(db, "attendance_logs"), orderBy("timestamp", "desc"));
+    const q = query(collection(db, "attendance_logs"), orderBy("COMETIME", "desc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const logsData = snapshot.docs.map(doc => ({
@@ -49,6 +49,17 @@ export default function OmniaPage() {
     return () => unsubscribe();
   }, [toast]);
 
+  const formatDateTime = (dateTimeString: string) => {
+    try {
+      if (!dateTimeString || typeof dateTimeString !== 'string') return '-';
+      const date = new Date(dateTimeString);
+      return format(date, 'PPP p');
+    } catch (e) {
+      return dateTimeString; // return original string if format fails
+    }
+  };
+
+
   return (
     <AppLayout>
       <div className="space-y-8">
@@ -58,7 +69,7 @@ export default function OmniaPage() {
             Omnia - Attendance Logs
           </h1>
           <p className="text-muted-foreground">
-            A real-time stream of all attendance check-in and check-out events.
+            A real-time stream of all attendance records from the `attendance_logs` collection.
           </p>
         </header>
 
@@ -84,23 +95,19 @@ export default function OmniaPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Employee Name</TableHead>
-                                <TableHead>Timestamp</TableHead>
-                                <TableHead>Event Type</TableHead>
-                                <TableHead>Source</TableHead>
+                                <TableHead>User Name</TableHead>
+                                <TableHead>User ID</TableHead>
+                                <TableHead>Come Time</TableHead>
+                                <TableHead>Leave Time</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {logs.map((log) => (
                                 <TableRow key={log.id}>
-                                    <TableCell className="font-medium">{log.employeeName}</TableCell>
-                                    <TableCell>{log.timestamp ? format(log.timestamp.toDate(), 'PPP p') : '-'}</TableCell>
-                                    <TableCell>
-                                        <Badge variant={log.eventType === 'Check-in' ? 'secondary' : 'outline'}>
-                                            {log.eventType}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>{log.source || 'N/A'}</TableCell>
+                                    <TableCell className="font-medium">{log.userName}</TableCell>
+                                    <TableCell>{log.userId}</TableCell>
+                                    <TableCell>{formatDateTime(log.COMETIME)}</TableCell>
+                                    <TableCell>{formatDateTime(log.LEAVETIME)}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
