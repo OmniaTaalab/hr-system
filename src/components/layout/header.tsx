@@ -19,6 +19,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
 import { useUserProfile } from "./app-layout";
 import { Skeleton } from "../ui/skeleton";
+import { Icons } from "../icons";
 
 export function Header() {
   const router = useRouter();

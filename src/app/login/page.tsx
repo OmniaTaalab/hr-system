@@ -17,15 +17,18 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { ArrowRight, LogInIcon, Loader2, AlertTriangle } from "lucide-react";
 import { Icons } from "@/components/icons";
-import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/lib/firebase/config";
+import { signInWithEmailAndPassword, onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import { auth, db } from "@/lib/firebase/config";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { profile } from "console";
+import { collection, query, where, getDocs, doc, updateDoc, limit } from "firebase/firestore";
+import { Separator } from "@/components/ui/separator";
+
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,6 +57,29 @@ export default function LoginPage() {
   }, [router, isFirebaseConfigured]);
 
 
+  const handleAuthSuccess = async (user: any) => {
+    // After any successful login, check if the user's email exists in the employee collection
+    // and if the employee record is missing a userId.
+    if (user?.email) {
+      const q = query(collection(db, "employee"), where("email", "==", user.email), limit(1));
+      const employeeSnapshot = await getDocs(q);
+
+      if (!employeeSnapshot.empty) {
+        const employeeDoc = employeeSnapshot.docs[0];
+        // If employee exists but doesn't have a userId, link them.
+        if (!employeeDoc.data().userId) {
+          await updateDoc(doc(db, "employee", employeeDoc.id), { userId: user.uid });
+          toast({
+            title: "Account Linked",
+            description: "Your login has been successfully linked to your employee profile.",
+          });
+        }
+      }
+    }
+     router.push("/");
+  };
+
+
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
@@ -72,9 +98,9 @@ export default function LoginPage() {
     }
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      await handleAuthSuccess(userCredential.user);
     
-      router.push("/");
     } catch (err: any) {
       let errorMessage = "An unexpected error occurred.";
       if (err.code) {
@@ -102,9 +128,56 @@ export default function LoginPage() {
         title: "Login Failed",
         description: errorMessage,
       });
-      setIsLoading(false);
+    } finally {
+        setIsLoading(false);
     }
   };
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    setError(null);
+    if (!isFirebaseConfigured) {
+       const configError = "Firebase is not configured correctly. Please check all keys in your config file.";
+      setError(configError);
+      toast({
+        variant: "destructive",
+        title: "Configuration Error",
+        description: configError,
+      });
+      setIsGoogleLoading(false);
+      return;
+    }
+
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      await handleAuthSuccess(result.user);
+    } catch (error: any) {
+       let errorMessage = "An unexpected error occurred during Google Sign-In.";
+      if (error.code) {
+        switch (error.code) {
+          case 'auth/account-exists-with-different-credential':
+            errorMessage = 'An account already exists with the same email address but different sign-in credentials. Please sign in using the original method.';
+            break;
+          case 'auth/popup-closed-by-user':
+            errorMessage = 'The sign-in window was closed before completing. Please try again.';
+            break;
+          default:
+            errorMessage = `Google Sign-In failed: ${error.message}`;
+            break;
+        }
+      }
+      setError(errorMessage);
+      toast({
+        variant: "destructive",
+        title: "Google Sign-In Failed",
+        description: errorMessage,
+      });
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
 
   if (isCheckingAuth && isFirebaseConfigured) {
     return (
@@ -149,6 +222,32 @@ export default function LoginPage() {
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
+             <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleGoogleSignIn}
+              disabled={isGoogleLoading || !isFirebaseConfigured}
+            >
+              {isGoogleLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Icons.Logo className="mr-2 h-4 w-4" />
+              )}
+              Sign in with Google
+            </Button>
+
+            <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                    Or continue with
+                    </span>
+                </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -194,7 +293,7 @@ export default function LoginPage() {
                 </>
               ) : (
                 <>
-                  Sign In
+                  Sign In with Email
                   <LogInIcon className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </>
               )}

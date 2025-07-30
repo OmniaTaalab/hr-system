@@ -113,7 +113,7 @@ export function SidebarNav() {
 export function AppLogo() {
   return (
     <Link href="/" className="flex items-center space-x-2 px-2 py-4" aria-label={siteConfig.name}>
-      <Icons.Logo className="h-8 w-8 text-sidebar-foreground" />
+      <Icons.NisLogo className="h-8 w-8 text-sidebar-foreground" />
       <span className="font-headline text-lg font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
         {siteConfig.name}
       </span>

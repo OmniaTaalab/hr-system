@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -6,29 +5,30 @@ import { AppLayout } from '@/components/layout/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
-import { format, parse, startOfDay } from 'date-fns';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { format } from 'date-fns'; // يمكنك استخدام date-fns لتنسيق التاريخ إذا لزم الأمر
 import { Loader2, BookOpenCheck, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 
-// Matches the structure from the user's screenshot
+// Matches the structure from the user's screenshot in Firebase
 interface RawAttendanceLog {
   docId: string;
-  checkTime: string; // "YYYY-MM-DD HH:mm:ss"
-  checkType: 'I' | 'O' | string; // 'I' for In (Come), 'O' for Out (Leave)
+  checkIn: string | null; // Assuming it's a string, adjust if needed
+  checkOut: string | null; // Assuming it's a string, adjust if needed
+  date: string; // Assuming it's a string like "YYYY-MM-DD", adjust if needed
   userId: number;
   userName: string;
 }
 
 // Processed structure for display
 interface ProcessedAttendanceRecord {
-  key: string; // Combination of userId and date string
+  key: string; // Use docId as key
   userName: string;
   userId: number;
-  date: string; // Formatted as 'PPP'
-  comeTime: string | null; // Earliest In time
-  leaveTime: string | null; // Latest Out time
+  date: string; // Use the date directly from the Firebase document
+  comeTime: string | null; // Use checkIn from Firebase document
+  leaveTime: string | null; // Use checkOut from Firebase document
 }
 
 export default function OmniaPage() {
@@ -39,13 +39,19 @@ export default function OmniaPage() {
 
   useEffect(() => {
     setIsLoading(true);
-    // Order by checkTime to process chronologically
-    const q = query(collection(db, "attendance_logs"), orderBy("checkTime", "desc"));
+    // Order by date descending to show latest records first (adjust if needed)
+    const q = query(collection(db, "attendance_logs"), orderBy("date", "desc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const logsData = snapshot.docs.map(doc => ({
         docId: doc.id,
-        ...doc.data(),
+        // Map the data fields from Firebase document to RawAttendanceLog interface
+        checkIn: doc.data().checkIn || null, // Assuming 'checkIn' exists in Firebase doc
+        checkOut: doc.data().checkOut || null, // Assuming 'checkOut' exists in Firebase doc
+        date: doc.data().date, // Assuming 'date' exists in Firebase doc
+        userId: doc.data().userId, // Assuming 'userId' exists in Firebase doc
+        userName: doc.data().userName, // Assuming 'userName' exists in Firebase doc
+        // Add any other fields you need
       } as RawAttendanceLog));
       setLogs(logsData);
       setIsLoading(false);
@@ -61,63 +67,19 @@ export default function OmniaPage() {
 
     return () => unsubscribe();
   }, [toast]);
-  
+
   const processedRecords = useMemo(() => {
-    const recordsMap = new Map<string, ProcessedAttendanceRecord>();
-
-    // Sort logs from earliest to latest to correctly establish first-in and last-out
-    const sortedLogs = [...logs].sort((a, b) => {
-        try {
-            return parse(a.checkTime, "yyyy-MM-dd HH:mm:ss", new Date()).getTime() - parse(b.checkTime, "yyyy-MM-dd HH:mm:ss", new Date()).getTime();
-        } catch {
-            return 0; // Don't sort if dates are invalid
-        }
-    });
-
-    sortedLogs.forEach(log => {
-      if (!log.checkTime || !log.userId) return;
-
-      try {
-        const logDate = parse(log.checkTime, "yyyy-MM-dd HH:mm:ss", new Date());
-        if (isNaN(logDate.getTime())) {
-            console.warn(`Skipping log with invalid date format: ${log.checkTime}`);
-            return;
-        }
-        
-        const dayKey = format(startOfDay(logDate), 'yyyy-MM-dd');
-        const recordKey = `${log.userId}-${dayKey}`;
-        
-        const timeString = format(logDate, 'p');
-
-        if (!recordsMap.has(recordKey)) {
-          recordsMap.set(recordKey, {
-            key: recordKey,
-            userId: log.userId,
-            userName: log.userName,
-            date: format(logDate, 'PPP'),
-            comeTime: null,
-            leaveTime: null,
-          });
-        }
-
-        const record = recordsMap.get(recordKey)!;
-
-        if (log.checkType === 'I') { // Come Time (Clock-in)
-          // Since we sorted by time asc, the first 'I' we see is the earliest.
-          if (!record.comeTime) {
-              record.comeTime = timeString;
-          }
-        } else if (log.checkType === 'O') { // Leave Time (Clock-out)
-          // Any subsequent 'O' will be later, so we just overwrite to get the last one.
-          record.leaveTime = timeString;
-        }
-      } catch (error) {
-        console.warn(`Skipping log due to processing error: ${log.docId}`, error);
-      }
-    });
-    
-    // Sort final results by date descending for display
-    return Array.from(recordsMap.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Since each document in Firebase represents a daily record,
+    // we just map RawAttendanceLog to ProcessedAttendanceRecord directly.
+    return logs.map(log => ({
+      key: log.docId, // Use docId as the key for react list
+      userId: log.userId,
+      userName: log.userName,
+      date: log.date, // Use the date directly from the Firebase document
+      comeTime: log.checkIn, // Use checkIn from Firebase document
+      leaveTime: log.checkOut, // Use checkOut from Firebase document
+    }));
+    // No need for complex sorting and grouping like before
   }, [logs]);
 
   const filteredRecords = useMemo(() => {
@@ -125,10 +87,12 @@ export default function OmniaPage() {
           return processedRecords;
       }
       const lowercasedFilter = searchTerm.toLowerCase();
-      return processedRecords.filter(record => 
+      return processedRecords.filter(record =>
           record.userName.toLowerCase().includes(lowercasedFilter) ||
           record.userId.toString().includes(lowercasedFilter) ||
-          record.date.toLowerCase().includes(lowercasedFilter)
+          record.date.toLowerCase().includes(lowercasedFilter) ||
+          (record.comeTime && record.comeTime.toLowerCase().trim()) ||
+          (record.leaveTime && record.leaveTime.toLowerCase().includes(lowercasedFilter))
       );
   }, [processedRecords, searchTerm]);
 
@@ -139,7 +103,7 @@ export default function OmniaPage() {
         <header>
           <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
             <BookOpenCheck className="mr-3 h-8 w-8 text-primary" />
-            Omnia - Daily Attendance Summary
+            Daily Attendance Summary
           </h1>
           <p className="text-muted-foreground">
             A consolidated daily summary of employee clock-in and clock-out times.
@@ -191,8 +155,8 @@ export default function OmniaPage() {
                                     <TableCell className="font-medium">{record.userName}</TableCell>
                                     <TableCell>{record.userId}</TableCell>
                                     <TableCell>{record.date}</TableCell>
-                                    <TableCell>{record.comeTime || '-'}</TableCell>
-                                    <TableCell>{record.leaveTime || '-'}</TableCell>
+                                    <TableCell>{record.comeTime || 'No'}</TableCell>
+                                    <TableCell>{record.leaveTime || 'None'}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>

@@ -6,7 +6,7 @@ export default {
     submit_leave_request: 'Submit Leave Request',
     employee_work_leave_summary: 'Work & Leave Summary',
     all_leave_requests: 'All Leave Requests',
-    omnia_logs: 'Omnia Logs',
+    attendance_logs: 'Attendance Logs',
     payroll_calculation: 'Payroll Calculation',
     annual_payroll_report: 'Annual Payroll Report',
     tpi: 'TPIs',

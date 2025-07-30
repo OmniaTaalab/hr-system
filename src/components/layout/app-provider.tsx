@@ -93,7 +93,7 @@ export function AppProvider({ children }: AppProviderProps) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <Icons.Logo className="h-20 w-20" />
+          <Icons.NisLogo className="h-20 w-20" />
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </div>
@@ -104,7 +104,7 @@ export function AppProvider({ children }: AppProviderProps) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <Icons.Logo className="h-20 w-20" />
+          <Icons.NisLogo className="h-20 w-20" />
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </div>

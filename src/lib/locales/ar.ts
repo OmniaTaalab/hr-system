@@ -11,7 +11,7 @@ export default {
     payroll_calculation: 'حساب الرواتب',
     annual_payroll_report: 'تقرير الرواتب السنوي',
     tpi: 'مؤشرات الأداء',
-    omnia_logs: 'سجلات أومنيا',
+    attendance_logs: 'سجلات أومنيا',
     job_board: 'لوحة الوظائف',
     job_applications: 'طلبات التوظيف',
     career_advisor: 'مستشار مهني',
