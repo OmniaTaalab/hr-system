@@ -68,7 +68,7 @@ export default function OmniaPage() {
     // Sort logs from earliest to latest to correctly establish first-in and last-out
     const sortedLogs = [...logs].sort((a, b) => {
         try {
-            return parse(a.checkTime, "yyyy-MM-dd hh:mm a", new Date()).getTime() - parse(b.checkTime, "yyyy-MM-dd hh:mm a", new Date()).getTime();
+            return parse(a.checkTime, "yyyy-MM-dd HH:mm:ss", new Date()).getTime() - parse(b.checkTime, "yyyy-MM-dd HH:mm:ss", new Date()).getTime();
         } catch {
             return 0; // Don't sort if dates are invalid
         }
@@ -78,7 +78,7 @@ export default function OmniaPage() {
       if (!log.checkTime || !log.userId) return;
 
       try {
-        const logDate = parse(log.checkTime, "yyyy-MM-dd hh:mm a", new Date());
+        const logDate = parse(log.checkTime, "yyyy-MM-dd HH:mm:ss", new Date());
         if (isNaN(logDate.getTime())) {
             console.warn(`Skipping log with invalid date format: ${log.checkTime}`);
             return;
