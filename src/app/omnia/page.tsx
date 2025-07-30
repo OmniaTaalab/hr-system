@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
-import { format, parseISO, startOfDay } from 'date-fns';
+import { format, parseISO, startOfDay, isBefore, isAfter } from 'date-fns';
 import { Loader2, BookOpenCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
@@ -66,42 +66,48 @@ export default function OmniaPage() {
   const processedRecords = useMemo(() => {
     const recordsMap = new Map<string, ProcessedAttendanceRecord>();
 
-    logs.forEach(log => {
+    // Reverse the logs to process from earliest to latest for correct time comparison
+    const sortedLogs = [...logs].sort((a, b) => new Date(a.DATE).getTime() - new Date(b.DATE).getTime());
+
+    sortedLogs.forEach(log => {
       if (!log.DATE || !log.ID) return;
 
-      const logDate = parseISO(log.DATE);
-      const dayKey = format(startOfDay(logDate), 'yyyy-MM-dd');
-      const recordKey = `${log.ID}-${dayKey}`;
-      
-      const timeString = format(logDate, 'p');
+      try {
+        const logDate = parseISO(log.DATE);
+        const dayKey = format(startOfDay(logDate), 'yyyy-MM-dd');
+        const recordKey = `${log.ID}-${dayKey}`;
+        
+        const timeString = format(logDate, 'p');
 
-      if (!recordsMap.has(recordKey)) {
-        recordsMap.set(recordKey, {
-          key: recordKey,
-          userId: log.ID,
-          userName: log.NAME,
-          date: format(logDate, 'PPP'),
-          comeTime: null,
-          leaveTime: null,
-        });
-      }
-
-      const record = recordsMap.get(recordKey)!;
-
-      if (log.TYPE === 0) { // Come Time
-        // If comeTime is null or the new time is earlier, update it
-        if (!record.comeTime || logDate < parseISO(logs.find(l => l.docId === record.key.split('-')[2])?.DATE || '')) {
-             record.comeTime = timeString;
+        if (!recordsMap.has(recordKey)) {
+          recordsMap.set(recordKey, {
+            key: recordKey,
+            userId: log.ID,
+            userName: log.NAME,
+            date: format(logDate, 'PPP'),
+            comeTime: null,
+            leaveTime: null,
+          });
         }
-      } else if (log.TYPE === 1) { // Leave Time
-         // If leaveTime is null or the new time is later, update it
-        if (!record.leaveTime || logDate > parseISO(logs.find(l => l.docId === record.key.split('-')[3])?.DATE || '')) {
-            record.leaveTime = timeString;
+
+        const record = recordsMap.get(recordKey)!;
+
+        if (log.TYPE === 0) { // Come Time
+          // If comeTime is null or the new time is earlier, update it
+          if (!record.comeTime) {
+              record.comeTime = timeString;
+          }
+        } else if (log.TYPE === 1) { // Leave Time
+          // Always update leave time to get the latest one for the day
+          record.leaveTime = timeString;
         }
+      } catch (error) {
+        console.warn(`Skipping log due to invalid date format: ${log.DATE}`, error);
       }
     });
     
-    return Array.from(recordsMap.values());
+    // Sort final results by date descending
+    return Array.from(recordsMap.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [logs]);
 
   const filteredRecords = useMemo(() => {
