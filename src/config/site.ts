@@ -33,16 +33,6 @@ export const navItems: NavItem[] = [
     iconName: 'ListChecks', 
   },
   {
-    i18nKey: 'sidebar.attendance',
-    href: '/attendance',
-    iconName: 'CheckCircle2',
-  },
-  {
-    i18nKey: 'sidebar.daily_clock_in_out',
-    href: '/attendance/clock',
-    iconName: 'Clock',
-  },
-  {
     i18nKey: 'sidebar.payroll_calculation',
     href: '/payroll',
     iconName: 'Calculator',

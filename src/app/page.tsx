@@ -264,14 +264,6 @@ function DashboardPageContent() {
       adminOnly: true,
     },
     {
-      title: "Attendance",
-      description: "Track employee attendance.",
-      iconName: "CheckCircle2",
-      href: "/attendance",
-      linkText: "View Attendance",
-      adminOnly: true,
-    },
-    {
       title: "Job Board",
       description: "Explore current openings.",
       iconName: "Briefcase",
