@@ -163,7 +163,7 @@ export default function ManualAttendancePage() {
 
     // Fetch attendance records for the selected date
     const attendanceQuery = query(
-      collection(db, "attendanceRecords"),
+      collection(db, "attendance_logs"),
       where("date", ">=", Timestamp.fromDate(dateForQueryStart)),
       where("date", "<=", Timestamp.fromDate(dateForQueryEnd))
     );
@@ -466,3 +466,5 @@ export default function ManualAttendancePage() {
     </AppLayout>
   );
 }
+
+    

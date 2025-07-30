@@ -6,6 +6,8 @@ import { db } from '@/lib/firebase/config';
 import { collection, addDoc, query, where, getDocs, serverTimestamp, Timestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
 import { isValid } from 'date-fns';
 
+const COLLECTION_NAME = "attendance_logs";
+
 // --- Existing ClockIn/ClockOut Actions (largely unchanged but kept for potential other uses) ---
 
 const ClockInFormSchema = z.object({
@@ -48,7 +50,7 @@ export async function clockInAction(
 
   try {
     const qExisting = query(
-      collection(db, "attendanceRecords"),
+      collection(db, COLLECTION_NAME),
       where("employeeDocId", "==", employeeDocId),
       where("date", ">=", Timestamp.fromDate(todayUTCStart)),
       where("date", "<", Timestamp.fromDate(new Date(todayUTCStart.getTime() + 24 * 60 * 60 * 1000))) // Less than start of next UTC day
@@ -81,7 +83,7 @@ export async function clockInAction(
       status: "ClockedIn", 
     };
     
-    const docRef = await addDoc(collection(db, "attendanceRecords"), attendanceData);
+    const docRef = await addDoc(collection(db, COLLECTION_NAME), attendanceData);
     
     return { 
       message: `${employeeName} clocked in successfully.`, 
@@ -156,7 +158,7 @@ export async function clockOutAction(
 
   try {
     const qExisting = query(
-        collection(db, "attendanceRecords"),
+        collection(db, COLLECTION_NAME),
         where("__name__", "==", attendanceRecordId), 
         where("employeeDocId", "==", employeeDocId)
     );
@@ -221,7 +223,7 @@ export async function clockOutAction(
         durationMinutes = 0;
     }
     
-    await updateDoc(doc(db, "attendanceRecords", attendanceDoc.id), { 
+    await updateDoc(doc(db, COLLECTION_NAME, attendanceDoc.id), { 
       clockOutTime: clockOutTimestamp, 
       workDurationMinutes: durationMinutes,
       status: "Completed",
@@ -375,17 +377,17 @@ export async function manualUpdateAttendanceAction(
 
     if (originalRecordId) {
       console.log('[ManualUpdateAttendanceAction] Updating existing record ID:', originalRecordId);
-      const recordRef = doc(db, "attendanceRecords", originalRecordId);
+      const recordRef = doc(db, COLLECTION_NAME, originalRecordId);
       await updateDoc(recordRef, attendanceEntry);
       return { message: `Attendance for ${employeeName} on ${yyyyMmDdDateString} updated.`, success: true, updatedEmployeeDocId: employeeDocId };
     } else if (finalClockInTime || finalClockOutTime) { 
       console.log('[ManualUpdateAttendanceAction] Creating new record.');
-      await addDoc(collection(db, "attendanceRecords"), attendanceEntry);
+      await addDoc(collection(db, COLLECTION_NAME), attendanceEntry);
       return { message: `Attendance for ${employeeName} on ${yyyyMmDdDateString} saved.`, success: true, updatedEmployeeDocId: employeeDocId };
     } else {
        if(originalRecordId) { 
          console.log('[ManualUpdateAttendanceAction] Clearing existing record ID (no times provided):', originalRecordId);
-         const recordRef = doc(db, "attendanceRecords", originalRecordId);
+         const recordRef = doc(db, COLLECTION_NAME, originalRecordId);
          await updateDoc(recordRef, {
             clockInTime: null,
             clockOutTime: null,
@@ -421,7 +423,7 @@ export async function getOpenAttendanceRecordForEmployee(employeeDocId: string):
 
   try {
     const q = query(
-      collection(db, "attendanceRecords"),
+      collection(db, COLLECTION_NAME),
       where("employeeDocId", "==", employeeDocId),
       where("date", ">=", Timestamp.fromDate(todayUTCStart)),
       where("date", "<=", Timestamp.fromDate(todayUTCEnd)),
@@ -442,3 +444,5 @@ export async function getOpenAttendanceRecordForEmployee(employeeDocId: string):
     return null; 
   }
 }
+
+    

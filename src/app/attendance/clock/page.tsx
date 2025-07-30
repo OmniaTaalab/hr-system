@@ -68,7 +68,7 @@ export default function DailyAttendanceClockPage() {
   // Fetch today's attendance records
   useEffect(() => {
     const todayStart = getTodayUTCStart();
-    const q = query(collection(db, "attendanceRecords"), where("date", ">=", Timestamp.fromDate(todayStart)));
+    const q = query(collection(db, "attendance_logs"), where("date", ">=", Timestamp.fromDate(todayStart)));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const recData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
       setTodaysRecords(recData);
@@ -156,7 +156,7 @@ export default function DailyAttendanceClockPage() {
                         {emp.displayStatus === "Not Clocked In" && (
                             <ClockInButton employeeId={emp.id} employeeName={emp.name} />
                         )}
-                        {emp.displayStatus === "  In" && emp.attendanceRecordId && (
+                        {emp.displayStatus === "Clocked In" && emp.attendanceRecordId && (
                             <ClockOutButton attendanceRecordId={emp.attendanceRecordId} employeeId={emp.id} employeeName={emp.name} />
                         )}
                         {emp.displayStatus === "Completed Shift" && (
@@ -180,3 +180,5 @@ export default function DailyAttendanceClockPage() {
     </AppLayout>
   );
 }
+
+    
