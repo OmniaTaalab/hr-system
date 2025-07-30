@@ -7,19 +7,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
-import { format, parseISO, startOfDay, isBefore, isAfter } from 'date-fns';
-import { Loader2, BookOpenCheck } from 'lucide-react';
+import { format, parse, startOfDay } from 'date-fns';
+import { Loader2, BookOpenCheck, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
 
-// Raw log structure from Firestore
+// Matches the structure from the user's screenshot
 interface RawAttendanceLog {
   docId: string;
-  ID: number;
-  NAME: string;
-  DATE: string; // ISO String
-  TYPE: number; // 0 for come, 1 for leave
+  checkTime: string; // "YYYY-MM-DD HH:mm:ss"
+  checkType: 'I' | 'O' | string; // 'I' for In (Come), 'O' for Out (Leave)
+  userId: number;
+  userName: string;
 }
 
 // Processed structure for display
@@ -28,8 +27,8 @@ interface ProcessedAttendanceRecord {
   userName: string;
   userId: number;
   date: string; // Formatted as 'PPP'
-  comeTime: string | null;
-  leaveTime: string | null;
+  comeTime: string | null; // Earliest In time
+  leaveTime: string | null; // Latest Out time
 }
 
 export default function OmniaPage() {
@@ -40,8 +39,8 @@ export default function OmniaPage() {
 
   useEffect(() => {
     setIsLoading(true);
-    // Order by date to process chronologically
-    const q = query(collection(db, "attendance_logs"), orderBy("DATE", "desc"));
+    // Order by checkTime to process chronologically
+    const q = query(collection(db, "attendance_logs"), orderBy("checkTime", "desc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const logsData = snapshot.docs.map(doc => ({
@@ -66,24 +65,35 @@ export default function OmniaPage() {
   const processedRecords = useMemo(() => {
     const recordsMap = new Map<string, ProcessedAttendanceRecord>();
 
-    // Reverse the logs to process from earliest to latest for correct time comparison
-    const sortedLogs = [...logs].sort((a, b) => new Date(a.DATE).getTime() - new Date(b.DATE).getTime());
+    // Sort logs from earliest to latest to correctly establish first-in and last-out
+    const sortedLogs = [...logs].sort((a, b) => {
+        try {
+            return parse(a.checkTime, "yyyy-MM-dd hh:mm a", new Date()).getTime() - parse(b.checkTime, "yyyy-MM-dd hh:mm a", new Date()).getTime();
+        } catch {
+            return 0; // Don't sort if dates are invalid
+        }
+    });
 
     sortedLogs.forEach(log => {
-      if (!log.DATE || !log.ID) return;
+      if (!log.checkTime || !log.userId) return;
 
       try {
-        const logDate = parseISO(log.DATE);
+        const logDate = parse(log.checkTime, "yyyy-MM-dd hh:mm a", new Date());
+        if (isNaN(logDate.getTime())) {
+            console.warn(`Skipping log with invalid date format: ${log.checkTime}`);
+            return;
+        }
+        
         const dayKey = format(startOfDay(logDate), 'yyyy-MM-dd');
-        const recordKey = `${log.ID}-${dayKey}`;
+        const recordKey = `${log.userId}-${dayKey}`;
         
         const timeString = format(logDate, 'p');
 
         if (!recordsMap.has(recordKey)) {
           recordsMap.set(recordKey, {
             key: recordKey,
-            userId: log.ID,
-            userName: log.NAME,
+            userId: log.userId,
+            userName: log.userName,
             date: format(logDate, 'PPP'),
             comeTime: null,
             leaveTime: null,
@@ -92,21 +102,21 @@ export default function OmniaPage() {
 
         const record = recordsMap.get(recordKey)!;
 
-        if (log.TYPE === 0) { // Come Time
-          // If comeTime is null or the new time is earlier, update it
+        if (log.checkType === 'I') { // Come Time (Clock-in)
+          // Since we sorted by time asc, the first 'I' we see is the earliest.
           if (!record.comeTime) {
               record.comeTime = timeString;
           }
-        } else if (log.TYPE === 1) { // Leave Time
-          // Always update leave time to get the latest one for the day
+        } else if (log.checkType === 'O') { // Leave Time (Clock-out)
+          // Any subsequent 'O' will be later, so we just overwrite to get the last one.
           record.leaveTime = timeString;
         }
       } catch (error) {
-        console.warn(`Skipping log due to invalid date format: ${log.DATE}`, error);
+        console.warn(`Skipping log due to processing error: ${log.docId}`, error);
       }
     });
     
-    // Sort final results by date descending
+    // Sort final results by date descending for display
     return Array.from(recordsMap.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [logs]);
 
