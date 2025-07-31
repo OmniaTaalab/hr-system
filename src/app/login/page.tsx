@@ -17,12 +17,24 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { ArrowRight, LogInIcon, Loader2, AlertTriangle } from "lucide-react";
 import { Icons } from "@/components/icons";
-import { signInWithEmailAndPassword, onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import {
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithPopup,
+  GoogleAuthProvider,
+} from "firebase/auth";
 import { auth, db } from "@/lib/firebase/config";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { collection, query, where, getDocs, doc, updateDoc, limit } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  updateDoc,
+  limit,
+} from "firebase/firestore";
 import { Separator } from "@/components/ui/separator";
-
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -34,10 +46,10 @@ export default function LoginPage() {
 
   const router = useRouter();
   const { toast } = useToast();
-  
+
   // A more robust check to see if any of the values are still placeholders
   const isFirebaseConfigured = Object.values(auth.app.options).every(
-    (value) => typeof value !== 'string' || !value.includes('REPLACE_WITH')
+    (value) => typeof value !== "string" || !value.includes("REPLACE_WITH")
   );
 
   useEffect(() => {
@@ -56,29 +68,34 @@ export default function LoginPage() {
     }
   }, [router, isFirebaseConfigured]);
 
-
   const handleAuthSuccess = async (user: any) => {
     // After any successful login, check if the user's email exists in the employee collection
     // and if the employee record is missing a userId.
     if (user?.email) {
-      const q = query(collection(db, "employee"), where("email", "==", user.email), limit(1));
+      const q = query(
+        collection(db, "employee"),
+        where("email", "==", user.email),
+        limit(1)
+      );
       const employeeSnapshot = await getDocs(q);
 
       if (!employeeSnapshot.empty) {
         const employeeDoc = employeeSnapshot.docs[0];
         // If employee exists but doesn't have a userId, link them.
         if (!employeeDoc.data().userId) {
-          await updateDoc(doc(db, "employee", employeeDoc.id), { userId: user.uid });
+          await updateDoc(doc(db, "employee", employeeDoc.id), {
+            userId: user.uid,
+          });
           toast({
             title: "Account Linked",
-            description: "Your login has been successfully linked to your employee profile.",
+            description:
+              "Your login has been successfully linked to your employee profile.",
           });
         }
       }
     }
-     router.push("/");
+    router.push("/");
   };
-
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -86,7 +103,8 @@ export default function LoginPage() {
     setError(null);
 
     if (!isFirebaseConfigured) {
-      const configError = "Firebase is not configured correctly. Please check all keys in your config file.";
+      const configError =
+        "Firebase is not configured correctly. Please check all keys in your config file.";
       setError(configError);
       toast({
         variant: "destructive",
@@ -98,9 +116,12 @@ export default function LoginPage() {
     }
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
       await handleAuthSuccess(userCredential.user);
-    
     } catch (err: any) {
       let errorMessage = "An unexpected error occurred.";
       if (err.code) {
@@ -112,7 +133,8 @@ export default function LoginPage() {
             errorMessage = "Invalid email address format.";
             break;
           case "auth/too-many-requests":
-            errorMessage = "Too many login attempts. Please try again later.";
+            errorMessage =
+              "Too many login attempts. Please try again later.";
             break;
           case "auth/user-disabled":
             errorMessage = "This user account has been disabled.";
@@ -129,7 +151,7 @@ export default function LoginPage() {
         description: errorMessage,
       });
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -137,7 +159,8 @@ export default function LoginPage() {
     setIsGoogleLoading(true);
     setError(null);
     if (!isFirebaseConfigured) {
-       const configError = "Firebase is not configured correctly. Please check all keys in your config file.";
+      const configError =
+        "Firebase is not configured correctly. Please check all keys in your config file.";
       setError(configError);
       toast({
         variant: "destructive",
@@ -153,22 +176,25 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       await handleAuthSuccess(result.user);
     } catch (error: any) {
-       let errorMessage = "An unexpected error occurred during Google Sign-In.";
+      let errorMessage = "An unexpected error occurred during Google Sign-In.";
       if (error.code) {
-        switch (error.code) {
+         switch (error.code) {
           case 'auth/account-exists-with-different-credential':
             errorMessage = 'An account already exists with the same email address but different sign-in credentials. Please sign in using the original method.';
             break;
           case 'auth/popup-closed-by-user':
-            errorMessage = 'The sign-in window was closed before completing. Please try again.';
-            break;
+              errorMessage = 'Sign-in cancelled. The pop-up window was closed before completing the sign-in process.';
+              break;
+          case 'auth/cancelled-popup-request':
+              errorMessage = 'Sign-in cancelled. Multiple pop-up requests were made.';
+              break;
           default:
             errorMessage = `Google Sign-In failed: ${error.message}`;
             break;
-        }
+         }
       }
       setError(errorMessage);
-      toast({
+       toast({
         variant: "destructive",
         title: "Google Sign-In Failed",
         description: errorMessage,
@@ -178,18 +204,16 @@ export default function LoginPage() {
     }
   };
 
-
   if (isCheckingAuth && isFirebaseConfigured) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-            <Icons.Logo className="h-20 w-20" />
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <Icons.Logo className="h-20 w-20" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </div>
     );
   }
-
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 selection:bg-primary/20">
@@ -202,10 +226,15 @@ export default function LoginPage() {
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Configuration Required</AlertTitle>
           <AlertDescription>
-             One or more of your Firebase keys are missing or still have placeholder values (e.g., "REPLACE_WITH..."). Please ensure all keys like `apiKey`, `messagingSenderId`, and `appId` are copied correctly from your Firebase project settings into:
-            <br/>
-            <code className="mt-2 block font-mono text-xs bg-muted p-1 rounded">src/lib/firebase/config.ts</code>
-            <br/>
+            One or more of your Firebase keys are missing or still have
+            placeholder values (e.g., "REPLACE_WITH..."). Please ensure all keys
+            like `apiKey`, `messagingSenderId`, and `appId` are copied
+            correctly from your Firebase project settings into:
+            <br />
+            <code className="mt-2 block font-mono text-xs bg-muted p-1 rounded">
+              src/lib/firebase/config.ts
+            </code>
+            <br />
             The app will not work until this is done.
           </AlertDescription>
         </Alert>
@@ -222,7 +251,7 @@ export default function LoginPage() {
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
-             <Button
+            <Button
               type="button"
               variant="outline"
               className="w-full"
@@ -238,14 +267,14 @@ export default function LoginPage() {
             </Button>
 
             <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">
-                    Or continue with
-                    </span>
-                </div>
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or continue with
+                </span>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -305,9 +334,7 @@ export default function LoginPage() {
         variant="link"
         asChild
         className="mt-8 text-muted-foreground hover:text-primary"
-      >
-     
-      </Button>
+      ></Button>
     </div>
   );
 }
