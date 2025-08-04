@@ -1,11 +1,11 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff } from "lucide-react";
+import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon } from "lucide-react";
 import { auth, db } from "@/lib/firebase/config";
 import { 
   onAuthStateChanged, 
@@ -22,6 +22,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogClose
+} from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { createEmployeeProfileAction, type CreateProfileState } from "@/lib/firebase/admin-actions";
 
 
 // Define the Employee interface to include all necessary fields
@@ -38,7 +51,6 @@ interface EmployeeProfile {
   photoURL?: string | null;
   dateOfBirth?: Timestamp;
   joiningDate?: Timestamp;
-
 }
 
 interface ProfileDetailItemProps {
@@ -70,6 +82,76 @@ function EmployeeStatusBadge({ status }: { status: EmployeeProfile["status"] | u
     default:
       return <Badge>{status}</Badge>;
   }
+}
+
+const initialCreateProfileState: CreateProfileState = { success: false, message: null, errors: {} };
+
+function CreateProfileForm({ user }: { user: User }) {
+  const { toast } = useToast();
+  const [state, formAction, isPending] = useActionState(createEmployeeProfileAction, initialCreateProfileState);
+  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
+
+  useEffect(() => {
+    if (state.message) {
+      toast({
+        title: state.success ? "Success" : "Error",
+        description: state.message,
+        variant: state.success ? "default" : "destructive",
+      });
+      // Do not close the dialog on error, let user correct. On success, page will refresh.
+    }
+  }, [state, toast]);
+
+  return (
+    <form action={formAction} className="space-y-4">
+      <input type="hidden" name="userId" value={user.uid} />
+      <input type="hidden" name="email" value={user.email || ""} />
+      <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
+      
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="firstName">First Name</Label>
+          <Input id="firstName" name="firstName" required />
+          {state.errors?.firstName && <p className="text-sm text-destructive">{state.errors.firstName.join(', ')}</p>}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="lastName">Last Name</Label>
+          <Input id="lastName" name="lastName" required />
+          {state.errors?.lastName && <p className="text-sm text-destructive">{state.errors.lastName.join(', ')}</p>}
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="phone">Phone Number</Label>
+        <Input id="phone" name="phone" type="tel" required />
+        {state.errors?.phone && <p className="text-sm text-destructive">{state.errors.phone.join(', ')}</p>}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="dateOfBirth">Date of Birth</Label>
+        <Popover>
+          <PopoverTrigger asChild>
+              <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
+              </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0">
+              <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
+          </PopoverContent>
+        </Popover>
+        {state.errors?.dateOfBirth && <p className="text-sm text-destructive">{state.errors.dateOfBirth.join(', ')}</p>}
+      </div>
+
+      {state.errors?.form && (
+        <p className="text-sm text-center text-destructive">{state.errors.form.join(', ')}</p>
+      )}
+      
+      <DialogFooter>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Create Profile"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
 }
 
 
@@ -243,13 +325,13 @@ export default function ProfilePage() {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateProfileDialog, setShowCreateProfileDialog] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setAuthUser(user);
         try {
-          // Query the 'employee' collection to find the document with matching userId
           const q = query(
             collection(db, "employee"),
             where("userId", "==", user.uid),
@@ -260,23 +342,22 @@ export default function ProfilePage() {
           if (!querySnapshot.empty) {
             const employeeDoc = querySnapshot.docs[0];
             setEmployeeProfile({ id: employeeDoc.id, ...employeeDoc.data() } as EmployeeProfile);
+            setShowCreateProfileDialog(false);
           } else {
             setError("No employee profile linked to this user account.");
+            setShowCreateProfileDialog(true);
           }
         } catch (err) {
           console.error("Error fetching employee profile:", err);
           setError("Failed to fetch employee profile data.");
         }
       } else {
-        // User is signed out
         setAuthUser(null);
         setEmployeeProfile(null);
         setError("You are not logged in. Please log in to view your profile.");
       }
       setLoading(false);
     });
-
-    // Cleanup subscription on unmount
     return () => unsubscribe();
   }, []);
 
@@ -322,45 +403,37 @@ export default function ProfilePage() {
           </div>
         </header>
 
-        {error && !loading && (
-          <Card className="border-destructive bg-destructive/10">
-            <CardHeader>
-                <CardTitle className="flex items-center text-destructive">
-                <AlertTriangle className="mr-2 h-5 w-5" />
-                Error
-                </CardTitle>
-            </CardHeader>
-            <CardContent>
-                <p className="text-destructive">{error}</p>
-            </CardContent>
-          </Card>
+        {loading && <Loader2 className="h-8 w-8 animate-spin text-primary" />}
+
+        {!loading && authUser && showCreateProfileDialog && (
+          <Dialog open={showCreateProfileDialog} onOpenChange={setShowCreateProfileDialog}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create Your Profile</DialogTitle>
+                <DialogDescription>
+                  It looks like you're new here! Please fill out your information to create your employee profile.
+                </DialogDescription>
+              </DialogHeader>
+              <CreateProfileForm user={authUser} />
+            </DialogContent>
+          </Dialog>
         )}
 
-        {!error && (
+        {!loading && employeeProfile && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
               <div className="md:col-span-1">
                   <Card className="shadow-lg">
                   <CardContent className="pt-6 flex flex-col items-center text-center">
-                      {loading ? (
-                          <>
-                              <Skeleton className="h-24 w-24 rounded-full mb-4" />
-                              <Skeleton className="h-6 w-3/4 mb-2" />
-                              <Skeleton className="h-4 w-1/2" />
-                          </>
-                      ) : (
-                          <>
-                              <Avatar className="h-24 w-24 mb-4 border-2 border-primary shadow-md">
-                                  <AvatarImage src={employeeProfile?.photoURL || `https://placehold.co/100x100.png`} alt={employeeProfile?.name || ""} data-ai-hint="profile picture" />
-                                  <AvatarFallback>{getInitials(employeeProfile?.name)}</AvatarFallback>
-                              </Avatar>
-                              <h2 className="text-xl font-semibold font-headline mt-2">{employeeProfile?.name || "N/A"}</h2>
-                              <p className="text-sm text-primary font-medium">{employeeProfile?.role || "N/A"}</p>
-                              <div className="mt-2">
-                                  <EmployeeStatusBadge status={employeeProfile?.status} />
-                              </div>
-                          </>
-                      )}
+                      <Avatar className="h-24 w-24 mb-4 border-2 border-primary shadow-md">
+                          <AvatarImage src={employeeProfile?.photoURL || `https://placehold.co/100x100.png`} alt={employeeProfile?.name || ""} data-ai-hint="profile picture" />
+                          <AvatarFallback>{getInitials(employeeProfile?.name)}</AvatarFallback>
+                      </Avatar>
+                      <h2 className="text-xl font-semibold font-headline mt-2">{employeeProfile?.name || "N/A"}</h2>
+                      <p className="text-sm text-primary font-medium">{employeeProfile?.role || "N/A"}</p>
+                      <div className="mt-2">
+                          <EmployeeStatusBadge status={employeeProfile?.status} />
+                      </div>
                   </CardContent>
                   </Card>
               </div>
@@ -375,7 +448,6 @@ export default function ProfilePage() {
                       <dl className="divide-y divide-border">
                       <ProfileDetailItem label="Full Name" value={employeeProfile?.name} isLoading={loading} />
                       <ProfileDetailItem label="Group Name" value={employeeProfile?.groupName} isLoading={loading} />
-
                       <ProfileDetailItem label="Employee ID" value={employeeProfile?.employeeId} isLoading={loading} />
                       <ProfileDetailItem label="Email Address" value={authUser?.email} isLoading={loading} />
                       <ProfileDetailItem label="Phone" value={employeeProfile?.phone} isLoading={loading} />
@@ -392,6 +464,19 @@ export default function ProfilePage() {
           </>
         )}
 
+        {!loading && error && !showCreateProfileDialog && (
+           <Card className="border-destructive bg-destructive/10">
+            <CardHeader>
+                <CardTitle className="flex items-center text-destructive">
+                <AlertTriangle className="mr-2 h-5 w-5" />
+                Error
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p className="text-destructive">{error}</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AppLayout>
   );

@@ -403,3 +403,110 @@ export async function deleteEmployeeAction(
     return { success: false, errors: {form: [`Failed to delete employee: ${error.message}`]} };
   }
 }
+
+// --- NEW ACTION FOR USER-FACING PROFILE CREATION ---
+
+const CreateProfileFormSchema = z.object({
+  userId: z.string().min(1, "User ID is required."),
+  email: z.string().email(),
+  firstName: z.string().min(1, "First name is required."),
+  lastName: z.string().min(1, "Last name is required."),
+  phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
+  dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
+});
+
+export type CreateProfileState = {
+  errors?: {
+    firstName?: string[];
+    lastName?: string[];
+    phone?: string[];
+    dateOfBirth?: string[];
+    form?: string[];
+  };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function createEmployeeProfileAction(
+  prevState: CreateProfileState,
+  formData: FormData
+): Promise<CreateProfileState> {
+  
+  const validatedFields = CreateProfileFormSchema.safeParse({
+    userId: formData.get('userId'),
+    email: formData.get('email'),
+    firstName: formData.get('firstName'),
+    lastName: formData.get('lastName'),
+    phone: formData.get('phone'),
+    dateOfBirth: formData.get('dateOfBirth'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      success: false,
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Validation failed. Please check your input.',
+    };
+  }
+
+  const { userId, email, firstName, lastName, phone, dateOfBirth } = validatedFields.data;
+  const name = `${firstName} ${lastName}`;
+
+  try {
+    const employeeCollectionRef = collection(db, "employee");
+
+    // Check if a profile already exists for this userId
+    const userQuery = query(employeeCollectionRef, where("userId", "==", userId), limit(1));
+    const userSnapshot = await getDocs(userQuery);
+    if (!userSnapshot.empty) {
+      return { success: false, errors: { form: ["A profile already exists for this user."] } };
+    }
+
+    // Check if email is used by another employee record (edge case)
+    const emailQuery = query(employeeCollectionRef, where("email", "==", email), limit(1));
+    const emailSnapshot = await getDocs(emailQuery);
+    if (!emailSnapshot.empty) {
+        return { success: false, errors: { form: ["This email is already linked to another employee profile."] } };
+    }
+    
+    // Generate a unique employee ID
+    const countSnapshot = await getCountFromServer(employeeCollectionRef);
+    const employeeCount = countSnapshot.data().count;
+    const employeeId = (1001 + employeeCount).toString();
+
+    const employeeData = {
+      name,
+      firstName,
+      lastName,
+      email,
+      userId,
+      employeeId,
+      phone,
+      dateOfBirth: Timestamp.fromDate(dateOfBirth),
+      // Set default values for fields not in the form
+      department: "Unassigned",
+      role: "Unassigned",
+      groupName: "Unassigned",
+      system: "Unassigned",
+      campus: "Unassigned",
+      photoURL: null,
+      hourlyRate: 0,
+      status: "Active", 
+      joiningDate: serverTimestamp(),
+      leavingDate: null,
+      leaveBalances: {},
+      documents: [],
+      createdAt: serverTimestamp(),
+    };
+
+    await addDoc(employeeCollectionRef, employeeData);
+    
+    return { success: true, message: `Your profile has been created successfully!` };
+  } catch (error: any) {
+    console.error("Error creating user profile:", error);
+    return {
+      success: false,
+      errors: { form: [`Failed to create profile: ${error.message}`] },
+    };
+  }
+}
