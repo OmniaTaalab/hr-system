@@ -39,7 +39,8 @@ export function SidebarNav() {
                 item.href?.startsWith('/attendance') ||
                 item.href?.startsWith('/payroll') ||
                 item.href?.startsWith('/jobs/applications') ||
-                item.href?.startsWith('/tpi');
+                item.href?.startsWith('/tpi') ||
+                item.href?.startsWith('/omnia');
             return !isProtected;
         });
     }
@@ -60,7 +61,8 @@ export function SidebarNav() {
         item.href?.startsWith('/attendance') ||
         item.href?.startsWith('/payroll') ||
         item.href?.startsWith('/jobs/applications') ||
-        item.href?.startsWith('/tpi');
+        item.href?.startsWith('/tpi') ||
+        item.href?.startsWith('/omnia');
       
       return !isProtected;
     });

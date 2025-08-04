@@ -1,15 +1,17 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { AppLayout } from '@/components/layout/app-layout';
+import { AppLayout, useUserProfile } from '@/components/layout/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { format } from 'date-fns'; // يمكنك استخدام date-fns لتنسيق التاريخ إذا لزم الأمر
-import { Loader2, BookOpenCheck, Search } from 'lucide-react';
+import { Loader2, BookOpenCheck, Search, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
+import { useRouter } from 'next/navigation';
 
 // Matches the structure from the user's screenshot in Firebase
 interface RawAttendanceLog {
@@ -31,13 +33,24 @@ interface ProcessedAttendanceRecord {
   leaveTime: string | null; // Use checkOut from Firebase document
 }
 
-export default function OmniaPage() {
+function OmniaContent() {
   const [logs, setLogs] = useState<RawAttendanceLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
+  const { profile, loading: isLoadingProfile } = useUserProfile();
+  const router = useRouter();
+
+  const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
 
   useEffect(() => {
+    if (isLoadingProfile) return;
+    
+    if (!canViewPage) {
+        router.replace('/');
+        return;
+    }
+
     setIsLoading(true);
     // Order by date descending to show latest records first (adjust if needed)
     const q = query(collection(db, "attendance_logs"), orderBy("date", "desc"));
@@ -66,7 +79,7 @@ export default function OmniaPage() {
     });
 
     return () => unsubscribe();
-  }, [toast]);
+  }, [toast, canViewPage, isLoadingProfile, router]);
 
   const processedRecords = useMemo(() => {
     // Since each document in Firebase represents a daily record,
@@ -96,75 +109,98 @@ export default function OmniaPage() {
       );
   }, [processedRecords, searchTerm]);
 
+  if (isLoadingProfile || isLoading) {
+    return (
+        <div className="flex justify-center items-center h-full">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+    );
+  }
+
+  if (!canViewPage) {
+    return (
+        <div className="flex justify-center items-center h-full flex-col gap-4">
+            <AlertTriangle className="h-12 w-12 text-destructive" />
+            <h2 className="text-xl font-semibold">Access Denied</h2>
+            <p className="text-muted-foreground">You do not have permission to view attendance logs.</p>
+        </div>
+    );
+  }
 
   return (
-    <AppLayout>
-      <div className="space-y-8">
-        <header>
-          <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
-            <BookOpenCheck className="mr-3 h-8 w-8 text-primary" />
-            Daily Attendance Summary
-          </h1>
-          <p className="text-muted-foreground">
-            A consolidated daily summary of employee clock-in and clock-out times.
-          </p>
-        </header>
+    <div className="space-y-8">
+      <header>
+        <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
+          <BookOpenCheck className="mr-3 h-8 w-8 text-primary" />
+          Daily Attendance Summary
+        </h1>
+        <p className="text-muted-foreground">
+          A consolidated daily summary of employee clock-in and clock-out times.
+        </p>
+      </header>
 
-        <Card className="shadow-lg">
-            <CardHeader>
-                <CardTitle>Attendance Log</CardTitle>
-                <CardDescription>
-                    Showing the earliest clock-in and latest clock-out for each employee per day.
-                </CardDescription>
-                 <div className="relative pt-2">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        type="search"
-                        placeholder="Search by name, ID, or date..."
-                        className="w-full pl-8 sm:w-1/2 md:w-1/3"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-            </CardHeader>
-            <CardContent>
-                 {isLoading ? (
-                    <div className="flex justify-center items-center h-64">
-                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                        <p className="ml-4 text-lg">Loading logs...</p>
-                    </div>
-                 ) : filteredRecords.length === 0 ? (
-                    <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
-                        <h3 className="text-xl font-semibold">No Attendance Logs Found</h3>
-                        <p className="mt-2">{searchTerm ? `No records match your search for "${searchTerm}".` : "There are currently no logs in the `attendance_logs` collection."}</p>
-                    </div>
-                 ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>User Name</TableHead>
-                                <TableHead>User ID</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Come Time</TableHead>
-                                <TableHead>Leave Time</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredRecords.map((record) => (
-                                <TableRow key={record.key}>
-                                    <TableCell className="font-medium">{record.userName}</TableCell>
-                                    <TableCell>{record.userId}</TableCell>
-                                    <TableCell>{record.date}</TableCell>
-                                    <TableCell>{record.comeTime || 'No'}</TableCell>
-                                    <TableCell>{record.leaveTime || 'None'}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                 )}
-            </CardContent>
-        </Card>
-      </div>
-    </AppLayout>
+      <Card className="shadow-lg">
+          <CardHeader>
+              <CardTitle>Attendance Log</CardTitle>
+              <CardDescription>
+                  Showing the earliest clock-in and latest clock-out for each employee per day.
+              </CardDescription>
+               <div className="relative pt-2">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                      type="search"
+                      placeholder="Search by name, ID, or date..."
+                      className="w-full pl-8 sm:w-1/2 md:w-1/3"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+              </div>
+          </CardHeader>
+          <CardContent>
+               {isLoading ? (
+                  <div className="flex justify-center items-center h-64">
+                      <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                      <p className="ml-4 text-lg">Loading logs...</p>
+                  </div>
+               ) : filteredRecords.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
+                      <h3 className="text-xl font-semibold">No Attendance Logs Found</h3>
+                      <p className="mt-2">{searchTerm ? `No records match your search for "${searchTerm}".` : "There are currently no logs in the `attendance_logs` collection."}</p>
+                  </div>
+               ) : (
+                  <Table>
+                      <TableHeader>
+                          <TableRow>
+                              <TableHead>User Name</TableHead>
+                              <TableHead>User ID</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Come Time</TableHead>
+                              <TableHead>Leave Time</TableHead>
+                          </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                          {filteredRecords.map((record) => (
+                              <TableRow key={record.key}>
+                                  <TableCell className="font-medium">{record.userName}</TableCell>
+                                  <TableCell>{record.userId}</TableCell>
+                                  <TableCell>{record.date}</TableCell>
+                                  <TableCell>{record.comeTime || 'No'}</TableCell>
+                                  <TableCell>{record.leaveTime || 'None'}</TableCell>
+                              </TableRow>
+                          ))}
+                      </TableBody>
+                  </Table>
+               )}
+          </CardContent>
+      </Card>
+    </div>
   );
+}
+
+export default function OmniaPage() {
+    return (
+        <AppLayout>
+            <OmniaContent />
+        </AppLayout>
+    )
 }
