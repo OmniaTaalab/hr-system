@@ -38,6 +38,7 @@ export function SidebarNav() {
                 item.href?.startsWith('/career-advisor') ||
                 item.href?.startsWith('/attendance') ||
                 item.href?.startsWith('/payroll') ||
+                item.href?.startsWith('/jobs/applications') ||
                 item.href?.startsWith('/tpi');
             return !isProtected;
         });
@@ -58,6 +59,7 @@ export function SidebarNav() {
         item.href?.startsWith('/career-advisor') ||
         item.href?.startsWith('/attendance') ||
         item.href?.startsWith('/payroll') ||
+        item.href?.startsWith('/jobs/applications') ||
         item.href?.startsWith('/tpi');
       
       return !isProtected;
