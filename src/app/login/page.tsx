@@ -179,6 +179,9 @@ export default function LoginPage() {
       let errorMessage = "An unexpected error occurred during Google Sign-In.";
       if (error.code) {
          switch (error.code) {
+          case 'auth/popup-blocked':
+            errorMessage = 'Sign-in pop-up was blocked by the browser. Please allow pop-ups for this site and try again.';
+            break;
           case 'auth/account-exists-with-different-credential':
             errorMessage = 'An account already exists with the same email address but different sign-in credentials. Please sign in using the original method.';
             break;
@@ -338,3 +341,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+    
