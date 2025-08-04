@@ -211,7 +211,7 @@ export default function LoginPage() {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <Icons.Logo className="h-20 w-20" />
+          <Icons.NisLogo className="h-20 w-20" />
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </div>
@@ -221,7 +221,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 selection:bg-primary/20">
       <div className="mb-8">
-        <Icons.Logo className="h-20 w-20" />
+        <Icons.NisLogo className="h-20 w-20" />
       </div>
 
       {!isFirebaseConfigured && (
@@ -264,7 +264,7 @@ export default function LoginPage() {
               {isGoogleLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                <Icons.Logo className="mr-2 h-4 w-4" />
+                <Icons.NisLogo className="mr-2 h-4 w-4" />
               )}
               Sign in with Google
             </Button>
@@ -341,5 +341,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-    

@@ -36,16 +36,16 @@ const GoogleLogo = ({ className }: { className?: string }) => (
 
 
 export const Icons = {
-  Logo: GoogleLogo, // Changed to use GoogleLogo for sign-in button
-  NisLogo: ({ className }: NisLogoProps) => { // Kept original logo as NisLogo
+  Logo: GoogleLogo,
+  NisLogo: ({ className }: NisLogoProps) => { 
     return (
       <div className={cn("relative", className)}>
         <Image
-          src="/nis_logo.png" // This will resolve to public/nis_logo.png
+          src="/nis_logo.png"
           alt="NIS HR System Logo"
-          layout="fill"
-          objectFit="contain" // This will maintain aspect ratio and fit within the div
-          priority // Consider loading the logo with priority
+          fill
+          style={{ objectFit: 'contain' }}
+          priority
         />
       </div>
     );
