@@ -411,6 +411,9 @@ const CreateProfileFormSchema = z.object({
   email: z.string().email(),
   firstName: z.string().min(1, "First name is required."),
   lastName: z.string().min(1, "Last name is required."),
+  department: z.string().min(1, "Department is required."),
+  role: z.string().min(1, "Role is required."),
+  groupName: z.string().min(1, "Group Name is required."),
   phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
   dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
 });
@@ -419,6 +422,9 @@ export type CreateProfileState = {
   errors?: {
     firstName?: string[];
     lastName?: string[];
+    department?: string[];
+    role?: string[];
+    groupName?: string[];
     phone?: string[];
     dateOfBirth?: string[];
     form?: string[];
@@ -437,6 +443,9 @@ export async function createEmployeeProfileAction(
     email: formData.get('email'),
     firstName: formData.get('firstName'),
     lastName: formData.get('lastName'),
+    department: formData.get('department'),
+    role: formData.get('role'),
+    groupName: formData.get('groupName'),
     phone: formData.get('phone'),
     dateOfBirth: formData.get('dateOfBirth'),
   });
@@ -449,7 +458,7 @@ export async function createEmployeeProfileAction(
     };
   }
 
-  const { userId, email, firstName, lastName, phone, dateOfBirth } = validatedFields.data;
+  const { userId, email, firstName, lastName, department, role, groupName, phone, dateOfBirth } = validatedFields.data;
   const name = `${firstName} ${lastName}`;
 
   try {
@@ -483,10 +492,9 @@ export async function createEmployeeProfileAction(
       employeeId,
       phone,
       dateOfBirth: Timestamp.fromDate(dateOfBirth),
-      // Set default values for fields not in the form
-      department: "Unassigned",
-      role: "Unassigned",
-      groupName: "Unassigned",
+      department,
+      role,
+      groupName,
       system: "Unassigned",
       campus: "Unassigned",
       photoURL: null,

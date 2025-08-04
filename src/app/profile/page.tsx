@@ -35,6 +35,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { createEmployeeProfileAction, type CreateProfileState } from "@/lib/firebase/admin-actions";
+import { useOrganizationLists } from "@/hooks/use-organization-lists";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 // Define the Employee interface to include all necessary fields
@@ -90,6 +92,7 @@ function CreateProfileForm({ user }: { user: User }) {
   const { toast } = useToast();
   const [state, formAction, isPending] = useActionState(createEmployeeProfileAction, initialCreateProfileState);
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
+  const { roles, groupNames, isLoading: areListsLoading } = useOrganizationLists();
 
   useEffect(() => {
     if (state.message) {
@@ -120,11 +123,38 @@ function CreateProfileForm({ user }: { user: User }) {
           {state.errors?.lastName && <p className="text-sm text-destructive">{state.errors.lastName.join(', ')}</p>}
         </div>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="phone">Phone Number</Label>
-        <Input id="phone" name="phone" type="tel" required />
-        {state.errors?.phone && <p className="text-sm text-destructive">{state.errors.phone.join(', ')}</p>}
+       <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+            <Label htmlFor="department">Department</Label>
+            <Input id="department" name="department" required />
+            {state.errors?.department && <p className="text-sm text-destructive">{state.errors.department.join(', ')}</p>}
+        </div>
+        <div className="space-y-2">
+            <Label htmlFor="phone">Phone Number</Label>
+            <Input id="phone" name="phone" type="tel" required />
+            {state.errors?.phone && <p className="text-sm text-destructive">{state.errors.phone.join(', ')}</p>}
+        </div>
       </div>
+
+       <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="role">Role</Label>
+          <Select name="role" required disabled={areListsLoading}>
+            <SelectTrigger><SelectValue placeholder="Select a role..." /></SelectTrigger>
+            <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
+          </Select>
+          {state.errors?.role && <p className="text-sm text-destructive">{state.errors.role.join(', ')}</p>}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="groupName">Group Name</Label>
+          <Select name="groupName" required disabled={areListsLoading}>
+            <SelectTrigger><SelectValue placeholder="Select a group..." /></SelectTrigger>
+            <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
+          </Select>
+          {state.errors?.groupName && <p className="text-sm text-destructive">{state.errors.groupName.join(', ')}</p>}
+        </div>
+      </div>
+
       <div className="space-y-2">
         <Label htmlFor="dateOfBirth">Date of Birth</Label>
         <Popover>
@@ -146,7 +176,7 @@ function CreateProfileForm({ user }: { user: User }) {
       )}
       
       <DialogFooter>
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" disabled={isPending || areListsLoading}>
           {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Create Profile"}
         </Button>
       </DialogFooter>
