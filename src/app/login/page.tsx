@@ -264,7 +264,7 @@ export default function LoginPage() {
               {isGoogleLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                <Icons.NisLogo className="mr-2 h-4 w-4" />
+                <Icons.Logo className="mr-2 h-4 w-4" />
               )}
               Sign in with Google
             </Button>
