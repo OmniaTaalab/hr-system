@@ -90,7 +90,7 @@ function TpiManagementContent() {
             setIsLoadingLeaderboard(true);
             setLeaderboardError(null);
             try {
-                const apiToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im9tbmlhIHRhYWxhYiIsImlkIjoyMjI3MTAsInJvbGUiOiJzdXBlciBhZG1pbiIsImRvbWFpbiI6bnVsbCwiaWF0IjoxNzU0NTYxMjExLCJleHAiOjE3NTQ2NDc2MTF9.u1q0aA1eF4p13t82y_2lVkCv-0Z5pDkQz0J0aB8m_wA";
+                const apiToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im9tbmlhIHRhYWxhYiIsImlkIjoyMjI3MTAsInJvbGUiOiJzdXBlciBhZG1pbiIsImRvbWFpbiI6bnVsbCwiaWF0IjoxNzU0NjQ4MzgzLCJleHAiOjE3NTQ3MzQ3ODN9.hX0o2w-JbCo_q3Qx36dCi5tOWV925sLg6gTupSMDkI8";
                 const response = await fetch(`https://blb-staging-hwnidclrba-uc.a.run.app/reports/leaderBoard?stage_tag_ids=${selectedStageTagId}`, {
                     headers: {
                         'Authorization': `Bearer ${apiToken}`
