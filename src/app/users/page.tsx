@@ -62,25 +62,7 @@ function UsersContent() {
       setError(null);
       try {
         const authUsers = await getAllAuthUsers();
-
-        // Fetch all employees to check for linked accounts
-        const employeeQuery = query(collection(db, "employee"));
-        const employeeSnapshot = await getDocs(employeeQuery);
-        const linkedUserIds = new Set(employeeSnapshot.docs.map(doc => doc.data().userId));
-
-        const processedUsers = authUsers.map(user => ({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          metadata: {
-            lastSignInTime: user.metadata.lastSignInTime,
-            creationTime: user.metadata.creationTime,
-          },
-          disabled: user.disabled,
-          isLinked: linkedUserIds.has(user.uid),
-        }));
-
-        setUsers(processedUsers);
+        setUsers(authUsers);
       } catch (err: any) {
         setError(err.message || "An unknown error occurred while fetching users.");
         toast({

@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { z } from 'zod';
@@ -196,6 +197,11 @@ export async function getAllAuthUsers() {
       users.push(...result.users);
       nextPageToken = result.pageToken;
     } while (nextPageToken);
+    
+    const employeeQuery = query(collection(db, "employee"));
+    const employeeSnapshot = await getDocs(employeeQuery);
+    const linkedUserIds = new Set(employeeSnapshot.docs.map(doc => doc.data().userId).filter(Boolean));
+
 
     // Map the complex UserRecord objects to plain, serializable objects
     return users.map(user => ({
@@ -207,6 +213,7 @@ export async function getAllAuthUsers() {
         lastSignInTime: user.metadata.lastSignInTime,
         creationTime: user.metadata.creationTime,
       },
+      isLinked: linkedUserIds.has(user.uid),
     }));
   } catch (error: any) {
     console.error("Error listing Firebase Auth users:", error);
@@ -551,6 +558,3 @@ export async function createEmployeeProfileAction(
     };
   }
 }
-
-    
-    
