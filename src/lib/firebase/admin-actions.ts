@@ -180,6 +180,29 @@ export async function createEmployeeAction(
   }
 }
 
+export async function getAllAuthUsers() {
+  if (!adminAuth) {
+    const errorMessage = "Firebase Admin SDK is not configured. Administrative actions require FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY to be set in the .env file.";
+    console.error(errorMessage);
+    throw new Error(errorMessage); // Throw an error to be caught by the caller
+  }
+
+  let users: any[] = [];
+  let nextPageToken: string | undefined;
+
+  try {
+    do {
+      const result = await adminAuth.listUsers(1000, nextPageToken); // Fetch up to 1000 users at a time
+      users = users.concat(result.users);
+      nextPageToken = result.pageToken;
+    } while (nextPageToken);
+
+    return users;
+  } catch (error: any) {
+    console.error("Error listing Firebase Auth users:", error);
+    throw new Error(`Failed to fetch users: ${error.message}`);
+  }
+}
 // Sub-schema for validating the parsed leave balances object
 const LeaveBalancesSchema = z.record(z.string(), z.coerce.number().nonnegative("Leave balance must be a non-negative number."));
 
@@ -292,7 +315,7 @@ export async function updateEmployeeAction(
 
 
   try {
-    const employeeRef = doc(db, "employee", employeeDocId);
+    const employeeRef = doc(db, "employee", email);
 
     let finalStatus = status;
     let finalLeavingDate: Timestamp | null = null;

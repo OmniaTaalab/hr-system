@@ -3,10 +3,11 @@ export default {
   sidebar: {
     dashboard: 'لوحة التحكم',
     employee_management: 'إدارة الموظفين',
+    users: 'المستخدمون',
     submit_leave_request: 'تقديم طلب إجازة',
     employee_work_leave_summary: 'ملخص الإجازات والعمل',
     all_leave_requests: 'كل طلبات الإجازة',
-    attendance: 'الحضور اليدوي',
+    attendance: 'الحاضر',
     daily_clock_in_out: 'تسجيل الحضور اليومي',
     payroll_calculation: 'حساب الرواتب',
     annual_payroll_report: 'تقرير الرواتب السنوي',

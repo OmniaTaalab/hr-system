@@ -903,7 +903,7 @@ function EmployeeManagementContent() {
   }, [toast, isLoadingProfile, profile, hasFullView]);
   
   useEffect(() => {
-    const today = new Date();
+    const today = new Date(); // Define today here
     const startOfToday = new Date(today.setHours(0, 0, 0, 0));
     const endOfToday = new Date(today.setHours(23, 59, 59, 999));
 
