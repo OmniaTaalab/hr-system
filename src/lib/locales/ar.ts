@@ -3,7 +3,6 @@ export default {
   sidebar: {
     dashboard: 'لوحة التحكم',
     employee_management: 'إدارة الموظفين',
-    users: 'المستخدمون',
     submit_leave_request: 'تقديم طلب إجازة',
     employee_work_leave_summary: 'ملخص الإجازات والعمل',
     all_leave_requests: 'كل طلبات الإجازة',

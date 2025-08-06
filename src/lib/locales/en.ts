@@ -3,7 +3,6 @@ export default {
   sidebar: {
     dashboard: 'Dashboard',
     employee_management: 'Employee Management',
-    users: 'Users',
     submit_leave_request: 'Submit Leave Request',
     employee_work_leave_summary: 'Work & Leave Summary',
     all_leave_requests: 'All Leave Requests',

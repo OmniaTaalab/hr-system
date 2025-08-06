@@ -18,11 +18,6 @@ export const navItems: NavItem[] = [
     iconName: 'Users',
   },
   {
-    i18nKey: 'sidebar.users',
-    href: '/users',
-    iconName: 'UserCog',
-  },
-  {
     i18nKey: 'sidebar.submit_leave_request',
     href: '/leave/request',
     iconName: 'CalendarPlus',
