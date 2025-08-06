@@ -184,20 +184,30 @@ export async function getAllAuthUsers() {
   if (!adminAuth) {
     const errorMessage = "Firebase Admin SDK is not configured. Administrative actions require FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY to be set in the .env file.";
     console.error(errorMessage);
-    throw new Error(errorMessage); // Throw an error to be caught by the caller
+    throw new Error(errorMessage);
   }
 
-  let users: any[] = [];
+  const users: any[] = [];
   let nextPageToken: string | undefined;
 
   try {
     do {
-      const result = await adminAuth.listUsers(1000, nextPageToken); // Fetch up to 1000 users at a time
-      users = users.concat(result.users);
+      const result = await adminAuth.listUsers(1000, nextPageToken);
+      users.push(...result.users);
       nextPageToken = result.pageToken;
     } while (nextPageToken);
 
-    return users;
+    // Map the complex UserRecord objects to plain, serializable objects
+    return users.map(user => ({
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      disabled: user.disabled,
+      metadata: {
+        lastSignInTime: user.metadata.lastSignInTime,
+        creationTime: user.metadata.creationTime,
+      },
+    }));
   } catch (error: any) {
     console.error("Error listing Firebase Auth users:", error);
     throw new Error(`Failed to fetch users: ${error.message}`);
@@ -315,7 +325,7 @@ export async function updateEmployeeAction(
 
 
   try {
-    const employeeRef = doc(db, "employee", email);
+    const employeeRef = doc(db, "employee", employeeDocId);
 
     let finalStatus = status;
     let finalLeavingDate: Timestamp | null = null;
@@ -542,4 +552,5 @@ export async function createEmployeeProfileAction(
   }
 }
 
+    
     
