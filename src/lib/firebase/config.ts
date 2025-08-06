@@ -8,13 +8,13 @@ import { getStorage, type Storage } from "firebase/storage";
 
 // Your project's Firebase configuration
 const firebaseConfig = {
-  apiKey: "REPLACE_WITH_YOUR_API_KEY",
-  authDomain: "REPLACE_WITH_YOUR_AUTH_DOMAIN",
-  projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
-  storageBucket: "REPLACE_WITH_YOUR_STORAGE_BUCKET",
-  messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
-  appId: "REPLACE_WITH_YOUR_APP_ID",
-  measurementId: "REPLACE_WITH_YOUR_MEASUREMENT_ID"
+  apiKey: "AIzaSyBSs_07LU1yI6lNPvq50hs-zP_hrgtPQ84",
+  authDomain: "streamlined-hr-assistant.firebaseapp.com",
+  projectId: "streamlined-hr-assistant",
+  storageBucket: "streamlined-hr-assistant.appspot.com",
+  messagingSenderId: "738520001905",
+  appId: "1:738520001905:web:b94818595a2713e8251ad0",
+  measurementId: ""
 };
 
 // Initialize Firebase
