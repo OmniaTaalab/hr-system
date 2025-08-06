@@ -1105,6 +1105,7 @@ function EmployeeManagementContent() {
   const calculateAge = (dobTimestamp?: Timestamp): number | null => {
     if (!dobTimestamp) return null;
     const dob = dobTimestamp.toDate();
+    if (!dob || isNaN(dob.getTime())) return null;
     const today = new Date();
     let age = today.getFullYear() - dob.getFullYear();
     const m = today.getMonth() - dob.getMonth();
@@ -1545,3 +1546,5 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
+    
