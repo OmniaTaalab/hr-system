@@ -41,7 +41,7 @@ import {
   updateAuthUserPasswordAction, type UpdateAuthPasswordState
 } from "@/app/actions/auth-creation-actions";
 import { db, storage } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayUnion, arrayRemove, getCountFromServer } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -76,7 +76,6 @@ interface Employee {
   email: string;
   phone: string;
   hourlyRate?: number;
-  status: "Active" | "On Leave" | "Terminated";
   userId?: string | null;
   photoURL?: string | null;
   dateOfBirth?: Timestamp;
@@ -85,29 +84,6 @@ interface Employee {
   leaveBalances?: { [key: string]: number };
   documents?: EmployeeFile[];
   createdAt?: Timestamp; 
-}
-
-// Interface for leave requests to determine current status
-interface LeaveRequestEntry {
-  id: string; 
-  requestingEmployeeDocId: string;
-  startDate: Timestamp;
-  endDate: Timestamp;
-  status: "Pending" | "Approved" | "Rejected";
-}
-
-
-function EmployeeStatusBadge({ status }: { status: Employee["status"] }) {
-  switch (status) {
-    case "Active":
-      return <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100">Active</Badge>;
-    case "On Leave":
-      return <Badge variant="outline" className="border-yellow-500 text-yellow-600 dark:border-yellow-400 dark:text-yellow-300">On Leave</Badge>;
-    case "Terminated":
-      return <Badge variant="destructive">Terminated</Badge>;
-    default:
-      return <Badge>{status}</Badge>;
-  }
 }
 
 const initialCreateEmployeeState: CreateEmployeeState = {
@@ -698,15 +674,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                     <Input id="edit-hourlyRate" name="hourlyRate" type="number" step="0.01" defaultValue={employee.hourlyRate?.toString() ?? ""} placeholder="e.g., 25.50" />
                     {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="edit-status">Status</Label>
-                    <select id="edit-status" name="status" defaultValue={employee.status} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" >
-                        <option value="Active">Active</option>
-                        <option value="On Leave">On Leave</option>
-                        <option value="Terminated">Terminated</option>
-                    </select>
-                    {serverState?.errors?.status && <p className="text-sm text-destructive">{serverState.errors.status.join(', ')}</p>}
-                </div>
             </div>
              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -822,8 +789,8 @@ function EmployeeManagementContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const [searchTerm, setSearchTerm] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [approvedLeaves, setApprovedLeaves] = useState<LeaveRequestEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [totalEmployees, setTotalEmployees] = useState(0);
   const { toast } = useToast();
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -854,7 +821,6 @@ function EmployeeManagementContent() {
   const canManageEmployees = useMemo(() => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();
-    // Principals can only ADD employees, not see the full list initially
     return userRole === 'admin' || userRole === 'hr';
   }, [profile]);
   
@@ -881,6 +847,10 @@ function EmployeeManagementContent() {
       setIsLoading(false);
       return;
     }
+
+    getCountFromServer(q).then(snapshot => {
+        setTotalEmployees(snapshot.data().count);
+    });
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const employeesData: Employee[] = [];
@@ -901,38 +871,6 @@ function EmployeeManagementContent() {
 
     return () => unsubscribe();
   }, [toast, isLoadingProfile, profile, hasFullView]);
-  
-  useEffect(() => {
-    const today = new Date(); // Define today here
-    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
-    const endOfToday = new Date(today.setHours(23, 59, 59, 999));
-
-    const leavesQuery = query(
-      collection(db, "leaveRequests"),
-      where("status", "==", "Approved"),
-      where("startDate", "<=", Timestamp.fromDate(endOfToday))
-    );
-
-    const unsubscribe = onSnapshot(leavesQuery, (snapshot) => {
-      const relevantLeaves: LeaveRequestEntry[] = [];
-      snapshot.forEach(doc => {
-        const leaveData = doc.data();
-        if (leaveData.endDate && leaveData.endDate.toDate() >= startOfToday) {
-          relevantLeaves.push({ id: doc.id, ...leaveData } as LeaveRequestEntry);
-        }
-      });
-      setApprovedLeaves(relevantLeaves);
-    }, (error) => {
-        console.error("Error fetching leave requests for status check:", error);
-        toast({
-            variant: "destructive",
-            title: "Could Not Check Leave Statuses",
-            description: "Failed to fetch leave data to update employee statuses.",
-        });
-    });
-
-    return () => unsubscribe();
-  }, [toast]);
   
   useEffect(() => {
     if (createLoginServerState?.message) {
@@ -1005,42 +943,18 @@ function EmployeeManagementContent() {
       }
     }
   }, [changePasswordServerState, toast]);
-
-  const processedEmployees = useMemo(() => {
-    return employees.map(emp => {
-      const isOnLeaveToday = approvedLeaves.some(
-        leave => leave.requestingEmployeeDocId === emp.id
-      );
-      const displayStatus = (emp.status === "Active" && isOnLeaveToday) ? "On Leave" : emp.status;
-      return { ...emp, displayStatus };
-    });
-  }, [employees, approvedLeaves]);
   
   const filteredEmployees = useMemo(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
     if (!searchTerm.trim()) {
-      return processedEmployees;
+      return employees;
     }
-    return processedEmployees.filter(employee =>
+    return employees.filter(employee =>
       Object.values(employee).some(value =>
         String(value).toLowerCase().includes(lowercasedFilter)
       )
     );
-  }, [processedEmployees, searchTerm]);
-
-  const employeeStats = useMemo(() => {
-    return processedEmployees.reduce(
-      (acc, emp) => {
-        if (emp.displayStatus === "Active") acc.active++;
-        else if (emp.displayStatus === "On Leave") acc.onLeave++;
-        else if (emp.displayStatus === "Terminated") acc.terminated++;
-        acc.total++;
-        return acc;
-      },
-      { active: 0, onLeave: 0, terminated: 0, total: 0 }
-    );
-  }, [processedEmployees]);
-
+  }, [employees, searchTerm]);
 
   const openAddDialog = () => {
     setAddFormKey(prevKey => prevKey + 1); 
@@ -1131,41 +1045,14 @@ function EmployeeManagementContent() {
             Manage employee records, add new hires, and update details.
           </p>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-1 gap-4">
           <Card>
             <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs font-medium sm:text-sm">Total Employees</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent className="p-3 pt-0">
-              <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.total}</div>
-            </CardContent>
-          </Card>
-            <Card>
-            <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium sm:text-sm">Active Employees</CardTitle>
-              <UserCheck className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent className="p-3 pt-0">
-              <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.active}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium sm:text-sm">On Leave</CardTitle>
-              <Clock className="h-4 w-4 text-yellow-500" />
-            </CardHeader>
-            <CardContent className="p-3 pt-0">
-              <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.onLeave}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium sm:text-sm">Terminated</CardTitle>
-              <UserX className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent className="p-3 pt-0">
-              <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : employeeStats.terminated}</div>
+              <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : totalEmployees}</div>
             </CardContent>
           </Card>
         </div>
@@ -1209,7 +1096,6 @@ function EmployeeManagementContent() {
                 <TableHead>Role</TableHead>
                 <TableHead>Group Name</TableHead>
                 <TableHead>Campus</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead>Account</TableHead>
                 {canManageEmployees && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
@@ -1231,9 +1117,6 @@ function EmployeeManagementContent() {
                     <TableCell>{employee.role}</TableCell>
                     <TableCell>{employee.groupName}</TableCell>
                     <TableCell>{employee.campus}</TableCell>
-                    <TableCell>
-                      <EmployeeStatusBadge status={employee.displayStatus} />
-                    </TableCell>
                     <TableCell>
                       <TooltipProvider>
                           <Tooltip>
@@ -1285,7 +1168,7 @@ function EmployeeManagementContent() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={canManageEmployees ? 8 : 7} className="h-24 text-center">
+                  <TableCell colSpan={canManageEmployees ? 7 : 6} className="h-24 text-center">
                     {searchTerm ? "No employees found matching your search." : "No employees found. Try adding some!"}
                   </TableCell>
                 </TableRow>
@@ -1546,5 +1429,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
-    

@@ -139,7 +139,6 @@ export async function createEmployeeAction(
       phone,
       photoURL: null,
       hourlyRate: hourlyRate ?? 0,
-      status: "Active", 
       dateOfBirth: Timestamp.fromDate(dateOfBirth),
       joiningDate: Timestamp.fromDate(joiningDate),
       leavingDate: null,
@@ -235,7 +234,6 @@ const UpdateEmployeeFormSchema = z.object({
   campus: z.string().min(1, "Campus is required."),
   email: z.string().email({ message: 'Invalid email address.' }),
   phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
-  status: z.enum(["Active", "On Leave", "Terminated"]),
   hourlyRate: z.preprocess(
     (val) => {
       if (val === '' || val === null || val === undefined) return undefined;
@@ -261,7 +259,6 @@ export type UpdateEmployeeState = {
     campus?: string[];
     email?: string[];
     phone?: string[];
-    status?: string[];
     hourlyRate?: string[];
     dateOfBirth?: string[];
     joiningDate?: string[];
@@ -287,7 +284,6 @@ export async function updateEmployeeAction(
     campus: formData.get('campus'),
     email: formData.get('email'),
     phone: formData.get('phone'),
-    status: formData.get('status'),
     hourlyRate: formData.get('hourlyRate') || undefined,
     dateOfBirth: formData.get('dateOfBirth'),
     joiningDate: formData.get('joiningDate'),
@@ -303,7 +299,7 @@ export async function updateEmployeeAction(
   }
 
   const { 
-    employeeDocId, firstName, lastName, department, role, groupName, system, campus, email, phone, status, hourlyRate,
+    employeeDocId, firstName, lastName, department, role, groupName, system, campus, email, phone, hourlyRate,
     dateOfBirth, joiningDate, leavingDate: leavingDateString, leaveBalancesJson
   } = validatedFields.data;
 
@@ -334,7 +330,6 @@ export async function updateEmployeeAction(
   try {
     const employeeRef = doc(db, "employee", employeeDocId);
 
-    let finalStatus = status;
     let finalLeavingDate: Timestamp | null = null;
 
     // Handle optional leavingDate and automatically adjust status
@@ -342,13 +337,6 @@ export async function updateEmployeeAction(
       const parsedLeavingDate = new Date(leavingDateString);
       if (isValid(parsedLeavingDate)) {
         finalLeavingDate = Timestamp.fromDate(parsedLeavingDate);
-        finalStatus = "Terminated"; // If there's a leaving date, status must be Terminated
-      }
-    } else {
-      // If leavingDate is cleared and status was Terminated, revert it to Active.
-      // Otherwise, respect the submitted status (e.g. user might want to set to 'On Leave').
-      if (finalStatus === "Terminated") {
-        finalStatus = "Active";
       }
     }
 
@@ -364,7 +352,6 @@ export async function updateEmployeeAction(
       campus,
       email,
       phone,
-      status: finalStatus, // Use the derived status
       hourlyRate: hourlyRate ?? 0,
       dateOfBirth: Timestamp.fromDate(dateOfBirth),
       joiningDate: Timestamp.fromDate(joiningDate),
@@ -539,7 +526,6 @@ export async function createEmployeeProfileAction(
       campus: "Unassigned",
       photoURL: null,
       hourlyRate: 0,
-      status: "Active", 
       joiningDate: serverTimestamp(),
       leavingDate: null,
       leaveBalances: {},
