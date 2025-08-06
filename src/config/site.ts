@@ -54,7 +54,7 @@ export const navItems: NavItem[] = [
   },
   {
     i18nKey: 'sidebar.attendance_log',
-    href: '/omnia',
+    href: '/attendance-logs',
     iconName: 'BookOpenCheck',
   },
   {
