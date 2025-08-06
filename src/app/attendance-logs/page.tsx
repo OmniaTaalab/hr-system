@@ -7,31 +7,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { Loader2, BookOpenCheck, Search, AlertTriangle } from 'lucide-react';
+import { Loader2, BookOpenCheck, Search, AlertTriangle, LogIn, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
+import { Badge } from '@/components/ui/badge';
 
-interface RawAttendanceLog {
-  docId: string;
-  checkIn: string | null;
-  checkOut: string | null;
-  date: string;
-  userId: number;
-  userName: string;
-}
-
-interface ProcessedAttendanceRecord {
-  key: string;
-  userName: string;
-  userId: number;
-  date: string;
-  comeTime: string | null;
-  leaveTime: string | null;
+interface AttendanceLog {
+  id: string;
+  employee_id: string;
+  name: string;
+  check_time: string; // The script sends it as a string
+  type: string;
 }
 
 function AttendanceLogsContent() {
-  const [logs, setLogs] = useState<RawAttendanceLog[]>([]);
+  const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
@@ -49,17 +40,13 @@ function AttendanceLogsContent() {
     }
 
     setIsLoading(true);
-    const q = query(collection(db, "attendance_log"), orderBy("date", "desc"));
+    const q = query(collection(db, "attendance_log"), orderBy("check_time", "desc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const logsData = snapshot.docs.map(doc => ({
-        docId: doc.id,
-        checkIn: doc.data().checkIn || null,
-        checkOut: doc.data().checkOut || null,
-        date: doc.data().date,
-        userId: doc.data().userId,
-        userName: doc.data().userName,
-      } as RawAttendanceLog));
+        id: doc.id,
+        ...doc.data()
+      } as AttendanceLog));
       setLogs(logsData);
       setIsLoading(false);
     }, (error) => {
@@ -75,30 +62,17 @@ function AttendanceLogsContent() {
     return () => unsubscribe();
   }, [toast, canViewPage, isLoadingProfile, router]);
 
-  const processedRecords = useMemo(() => {
-    return logs.map(log => ({
-      key: log.docId,
-      userId: log.userId,
-      userName: log.userName,
-      date: log.date,
-      comeTime: log.checkIn,
-      leaveTime: log.checkOut,
-    }));
-  }, [logs]);
-
   const filteredRecords = useMemo(() => {
       if (!searchTerm) {
-          return processedRecords;
+          return logs;
       }
       const lowercasedFilter = searchTerm.toLowerCase();
-      return processedRecords.filter(record =>
-          record.userName.toLowerCase().includes(lowercasedFilter) ||
-          record.userId.toString().includes(lowercasedFilter) ||
-          record.date.toLowerCase().includes(lowercasedFilter) ||
-          (record.comeTime && record.comeTime.toLowerCase().trim()) ||
-          (record.leaveTime && record.leaveTime.toLowerCase().includes(lowercasedFilter))
+      return logs.filter(record =>
+          record.name.toLowerCase().includes(lowercasedFilter) ||
+          record.employee_id.toString().includes(lowercasedFilter) ||
+          record.check_time.toLowerCase().includes(lowercasedFilter)
       );
-  }, [processedRecords, searchTerm]);
+  }, [logs, searchTerm]);
 
   if (isLoadingProfile || isLoading) {
     return (
@@ -126,7 +100,7 @@ function AttendanceLogsContent() {
           Attendance Logs
         </h1>
         <p className="text-muted-foreground">
-          A summary of employee clock-in and clock-out times from the `attendance_log` collection.
+          A real-time log of employee check-in and check-out events from the `attendance_log` collection.
         </p>
       </header>
 
@@ -134,13 +108,13 @@ function AttendanceLogsContent() {
           <CardHeader>
               <CardTitle>Log Data</CardTitle>
               <CardDescription>
-                  Showing daily check-in and check-out times for each employee.
+                  Showing individual clock-in and clock-out events for each employee.
               </CardDescription>
                <div className="relative pt-2">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                       type="search"
-                      placeholder="Search by name, ID, or date..."
+                      placeholder="Search by name, ID, or timestamp..."
                       className="w-full pl-8 sm:w-1/2 md:w-1/3"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
@@ -162,21 +136,31 @@ function AttendanceLogsContent() {
                   <Table>
                       <TableHeader>
                           <TableRow>
-                              <TableHead>User Name</TableHead>
-                              <TableHead>User ID</TableHead>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Come Time</TableHead>
-                              <TableHead>Leave Time</TableHead>
+                              <TableHead>Employee Name</TableHead>
+                              <TableHead>Employee ID</TableHead>
+                              <TableHead>Timestamp</TableHead>
+                              <TableHead>Event Type</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
                           {filteredRecords.map((record) => (
-                              <TableRow key={record.key}>
-                                  <TableCell className="font-medium">{record.userName}</TableCell>
-                                  <TableCell>{record.userId}</TableCell>
-                                  <TableCell>{record.date}</TableCell>
-                                  <TableCell>{record.comeTime || 'No'}</TableCell>
-                                  <TableCell>{record.leaveTime || 'None'}</TableCell>
+                              <TableRow key={record.id}>
+                                  <TableCell className="font-medium">{record.name}</TableCell>
+                                  <TableCell>{record.employee_id}</TableCell>
+                                  <TableCell>{record.check_time}</TableCell>
+                                  <TableCell>
+                                    {record.type === 'I' ? (
+                                      <Badge variant="secondary" className="bg-green-100 text-green-800">
+                                        <LogIn className="mr-1 h-3 w-3"/>
+                                        Check-In
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline">
+                                        <LogOut className="mr-1 h-3 w-3"/>
+                                        Check-Out
+                                      </Badge>
+                                    )}
+                                  </TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
