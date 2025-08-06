@@ -950,11 +950,15 @@ function EmployeeManagementContent() {
       return employees;
     }
     return employees.filter(employee =>
-      Object.values(employee).some(value =>
-        String(value).toLowerCase().includes(lowercasedFilter)
-      )
+      Object.entries(employee).some(([key, value]) => {
+        if (value === null || value === undefined) return false;
+        // Avoid trying to search on objects like Timestamps
+        if (typeof value === 'object' && !Array.isArray(value)) return false;
+        return String(value).toLowerCase().includes(lowercasedFilter);
+      })
     );
   }, [employees, searchTerm]);
+
 
   const openAddDialog = () => {
     setAddFormKey(prevKey => prevKey + 1); 
