@@ -34,7 +34,6 @@ import {
   doc,
   updateDoc,
   limit,
-  getDoc,
 } from "firebase/firestore";
 import { Separator } from "@/components/ui/separator";
 
@@ -174,13 +173,24 @@ export default function LoginPage() {
       const user = result.user;
       
       if (user?.email) {
-        const employeeDocRef = doc(db, "employees", user.email);
-        const employeeDocSnap = await getDoc(employeeDocRef);
-
-        if (employeeDocSnap.exists()) {
+        const q = query(
+          collection(db, "employee"),
+          where("email", "==", user.email),
+          limit(1)
+        );
+        const employeeSnapshot = await getDocs(q);
+        
+        if (!employeeSnapshot.empty) {
+          const employeeDoc = employeeSnapshot.docs[0];
           // Employee found, update their record with the Firebase Auth UID if it's missing
-          if (!employeeDocSnap.data().userId) {
-            await updateDoc(employeeDocRef, { userId: user.uid });
+          if (!employeeDoc.data().userId) {
+            await updateDoc(doc(db, "employee", employeeDoc.id), {
+              userId: user.uid,
+            });
+             toast({
+              title: "Account Linked",
+              description: "Your Google account is now linked to your employee profile.",
+            });
           }
           router.push("/"); // Redirect to dashboard on successful login
         } else {
@@ -361,3 +371,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+    

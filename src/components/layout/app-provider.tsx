@@ -4,7 +4,7 @@
 import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, onSnapshot, DocumentData } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, DocumentData, limit } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase/config';
 import { Loader2 } from 'lucide-react';
 import { Icons } from '../icons';
@@ -50,14 +50,19 @@ export function AppProvider({ children }: AppProviderProps) {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      if (currentUser && currentUser.email) {
-        // If user is authenticated, listen for their profile in the 'employees' collection using their email as the ID.
-        const employeeDocRef = doc(db, "employees", currentUser.email);
-        const unsubscribeFirestore = onSnapshot(employeeDocRef, (docSnap) => {
-          if (docSnap.exists()) {
-            setProfile({ id: docSnap.id, ...docSnap.data() } as EmployeeProfile);
+      if (currentUser) {
+        // If user is authenticated, listen for their profile using their auth UID
+        const q = query(
+          collection(db, "employee"),
+          where("userId", "==", currentUser.uid),
+          limit(1)
+        );
+        const unsubscribeFirestore = onSnapshot(q, (querySnapshot) => {
+          if (!querySnapshot.empty) {
+            const employeeDoc = querySnapshot.docs[0];
+            setProfile({ id: employeeDoc.id, ...employeeDoc.data() } as EmployeeProfile);
           } else {
-            // User is authenticated but has no employee profile in 'employees' collection.
+            // User is authenticated but has no linked employee profile.
             setProfile(null);
           }
           setLoading(false);
@@ -116,3 +121,5 @@ export function AppProvider({ children }: AppProviderProps) {
     </AppContext.Provider>
   );
 }
+
+    
