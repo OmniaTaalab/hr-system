@@ -22,6 +22,7 @@ import {
   onAuthStateChanged,
   signInWithPopup,
   GoogleAuthProvider,
+  signOut,
 } from "firebase/auth";
 import { auth, db } from "@/lib/firebase/config";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -33,6 +34,7 @@ import {
   doc,
   updateDoc,
   limit,
+  getDoc,
 } from "firebase/firestore";
 import { Separator } from "@/components/ui/separator";
 
@@ -159,14 +161,9 @@ export default function LoginPage() {
     setIsGoogleLoading(true);
     setError(null);
     if (!isFirebaseConfigured) {
-      const configError =
-        "Firebase is not configured correctly. Please check all keys in your config file.";
+      const configError = "Firebase is not configured correctly.";
       setError(configError);
-      toast({
-        variant: "destructive",
-        title: "Configuration Error",
-        description: configError,
-      });
+      toast({ variant: "destructive", title: "Configuration Error", description: configError });
       setIsGoogleLoading(false);
       return;
     }
@@ -174,7 +171,30 @@ export default function LoginPage() {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      await handleAuthSuccess(result.user);
+      const user = result.user;
+      
+      if (user?.email) {
+        const employeeDocRef = doc(db, "employees", user.email);
+        const employeeDocSnap = await getDoc(employeeDocRef);
+
+        if (employeeDocSnap.exists()) {
+          // Employee found, update their record with the Firebase Auth UID if it's missing
+          if (!employeeDocSnap.data().userId) {
+            await updateDoc(employeeDocRef, { userId: user.uid });
+          }
+          router.push("/"); // Redirect to dashboard on successful login
+        } else {
+          // Employee not found, show error and sign out
+          toast({
+            variant: "destructive",
+            title: "Access Denied",
+            description: "You are not registered as an employee.",
+          });
+          await signOut(auth);
+        }
+      } else {
+          throw new Error("Could not retrieve user email from Google Sign-In.");
+      }
     } catch (error: any) {
       let errorMessage = "An unexpected error occurred during Google Sign-In.";
       if (error.code) {
