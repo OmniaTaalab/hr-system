@@ -932,12 +932,13 @@ function EmployeeManagementContent() {
     } else {
       // Other roles (if any) see no one by default on this page
       setEmployees([]);
+      setTotalEmployees(0);
       setIsLoading(false);
       return;
     }
 
     getCountFromServer(q).then(snapshot => {
-        setTotalEmployees(snapshot.data().count);
+        setTotalEmployees(snapshot.data().count || 0);
     });
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
