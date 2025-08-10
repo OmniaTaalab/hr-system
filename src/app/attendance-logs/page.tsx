@@ -15,9 +15,9 @@ import { Badge } from '@/components/ui/badge';
 
 interface AttendanceLog {
   id: string;
-  employee_id: string;
+  userId: string;
   name: string;
-  check_time: string; // The script sends it as a string
+  checkTime: string; // The script sends it as a string
   type: string;
 }
 
@@ -40,7 +40,7 @@ function AttendanceLogsContent() {
     }
 
     setIsLoading(true);
-    const q = query(collection(db, "attendance_log"), orderBy("check_time", "desc"));
+    const q = query(collection(db, "attendance_log"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const logsData = snapshot.docs.map(doc => ({
@@ -69,8 +69,8 @@ function AttendanceLogsContent() {
       const lowercasedFilter = searchTerm.toLowerCase();
       return logs.filter(record =>
           record.name.toLowerCase().includes(lowercasedFilter) ||
-          record.employee_id.toString().includes(lowercasedFilter) ||
-          record.check_time.toLowerCase().includes(lowercasedFilter)
+          record.userId.toString().includes(lowercasedFilter) ||
+          record.checkTime.toLowerCase().includes(lowercasedFilter)
       );
   }, [logs, searchTerm]);
 
@@ -140,29 +140,15 @@ function AttendanceLogsContent() {
                               <TableHead>Employee ID</TableHead>
                               <TableHead>Check In</TableHead>
                               <TableHead>Check Out</TableHead>
-                              <TableHead>Event Type</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
                           {filteredRecords.map((record) => (
-                              <TableRow key={record.id}>
+                              <TableRow key={record.userId}>
                                   <TableCell className="font-medium">{record.name}</TableCell>
-                                  <TableCell>{record.employee_id}</TableCell>
-                                  <TableCell>{record.type === 'I' ? record.check_time : '-'}</TableCell>
-                                  <TableCell>{record.type === 'O' ? record.check_time : '-'}</TableCell>
-                                  <TableCell>
-                                    {record.type === 'I' ? (
-                                      <Badge variant="secondary" className="bg-green-100 text-green-800">
-                                        <LogIn className="mr-1 h-3 w-3"/>
-                                        Check-In
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="outline">
-                                        <LogOut className="mr-1 h-3 w-3"/>
-                                        Check-Out
-                                      </Badge>
-                                    )}
-                                  </TableCell>
+                                  <TableCell>{record.userId}</TableCell>
+                                  <TableCell>{record.type === 'IN' ? record.checkTime : '-'}</TableCell>
+                                  <TableCell>{record.type === 'OUT' ? record.checkTime : '-'}</TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
