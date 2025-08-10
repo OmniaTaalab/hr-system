@@ -666,7 +666,7 @@ function AllLeaveRequestsContent() {
                   filteredRequests.map((request) => {
                     const startDate = request.startDate.toDate();
                     const endDate = request.endDate.toDate();
-                    const fallbackDays = differenceInCalendarDays(endDate, startDate) + 1;
+                    const fallbackDays = 0;
                     return (
                       <TableRow key={request.id}>
                         <TableCell className="font-medium">{request.employeeName}</TableCell>
