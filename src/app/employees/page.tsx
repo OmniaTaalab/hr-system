@@ -949,14 +949,21 @@ function EmployeeManagementContent() {
     if (!searchTerm.trim()) {
       return employees;
     }
-    return employees.filter(employee =>
-      Object.entries(employee).some(([key, value]) => {
-        if (value === null || value === undefined) return false;
-        // Avoid trying to search on objects like Timestamps
-        if (typeof value === 'object' && !Array.isArray(value)) return false;
-        return String(value).toLowerCase().includes(lowercasedFilter);
-      })
-    );
+    return employees.filter(employee => {
+        const searchableFields = [
+            employee.name,
+            employee.employeeId,
+            employee.department,
+            employee.role,
+            employee.groupName,
+            employee.campus,
+            employee.email,
+            employee.phone,
+        ];
+        return searchableFields.some(field =>
+            field?.toLowerCase().includes(lowercasedFilter)
+        );
+    });
   }, [employees, searchTerm]);
 
 
@@ -1018,19 +1025,6 @@ function EmployeeManagementContent() {
     setEmployeeToChangePassword(null);
     setIsChangePasswordDialogOpen(false);
     setShowPassword(false);
-  };
-  
-  const calculateAge = (dobTimestamp?: Timestamp): number | null => {
-    if (!dobTimestamp) return null;
-    const dob = dobTimestamp.toDate();
-    if (!dob || isNaN(dob.getTime())) return null;
-    const today = new Date();
-    let age = today.getFullYear() - dob.getFullYear();
-    const m = today.getMonth() - dob.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-      age--;
-    }
-    return age;
   };
   
   const getInitials = (name?: string | null) => {
