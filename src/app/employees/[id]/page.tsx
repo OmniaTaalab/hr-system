@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -48,6 +48,28 @@ interface AttendanceLog {
   type: string;
 }
 
+interface LeaveRequest {
+  id: string;
+  leaveType: string;
+  startDate: Timestamp;
+  endDate: Timestamp;
+  numberOfDays?: number;
+  status: "Pending" | "Approved" | "Rejected";
+}
+
+function LeaveStatusBadge({ status }: { status: LeaveRequest["status"] }) {
+  switch (status) {
+    case "Approved":
+      return <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"><ShieldCheck className="mr-1 h-3 w-3" />Approved</Badge>;
+    case "Pending":
+      return <Badge variant="outline" className="border-yellow-500 text-yellow-600 dark:border-yellow-400 dark:text-yellow-300"><Hourglass className="mr-1 h-3 w-3" />Pending</Badge>;
+    case "Rejected":
+      return <Badge variant="destructive"><ShieldX className="mr-1 h-3 w-3" />Rejected</Badge>;
+    default:
+      return <Badge>{status}</Badge>;
+  }
+}
+
 function DetailItem({ icon: Icon, label, value }: { icon: React.ElementType, label: string, value: string | undefined | null }) {
   if (!value) return null;
   return (
@@ -71,10 +93,13 @@ function EmployeeProfileContent() {
   
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [loadingLeaves, setLoadingLeaves] = useState(false);
 
   useEffect(() => {
     if (id) {
-      const fetchEmployee = async () => {
+      const fetchEmployeeData = async () => {
         setLoading(true);
         setError(null);
         try {
@@ -82,7 +107,11 @@ function EmployeeProfileContent() {
           const docSnap = await getDoc(docRef);
 
           if (docSnap.exists()) {
-            setEmployee({ id: docSnap.id, ...docSnap.data() } as Employee);
+            const employeeData = { id: docSnap.id, ...docSnap.data() } as Employee;
+            setEmployee(employeeData);
+            // After fetching employee, fetch their logs and leaves
+            fetchAttendanceLogs(employeeData.employeeId);
+            fetchLeaveRequests(employeeData.id);
           } else {
             setError('Employee not found.');
           }
@@ -93,38 +122,46 @@ function EmployeeProfileContent() {
           setLoading(false);
         }
       };
-      fetchEmployee();
-    }
-  }, [id]);
 
-  useEffect(() => {
-    if (employee?.employeeId) {
-      const fetchLogs = async () => {
+      const fetchAttendanceLogs = async (employeeId: string) => {
         setLoadingLogs(true);
         try {
-          // Simplified query to avoid needing a composite index.
-          // Sorting will be handled client-side.
           const logsQuery = query(
             collection(db, 'attendance_log'),
-            where('employee_id', '==', employee.employeeId)
+            where('employee_id', '==', employeeId)
           );
           const querySnapshot = await getDocs(logsQuery);
           const logs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
-          
-          // Sort logs by check_time descending locally
           logs.sort((a, b) => b.check_time.localeCompare(a.check_time));
-          
           setAttendanceLogs(logs);
         } catch (e) {
           console.error("Error fetching attendance logs:", e);
-          // Optional: Show a toast or error message for logs
         } finally {
           setLoadingLogs(false);
         }
       };
-      fetchLogs();
+      
+      const fetchLeaveRequests = async (employeeDocId: string) => {
+        setLoadingLeaves(true);
+        try {
+          const leavesQuery = query(
+            collection(db, 'leaveRequests'),
+            where('requestingEmployeeDocId', '==', employeeDocId),
+            orderBy('startDate', 'desc')
+          );
+          const querySnapshot = await getDocs(leavesQuery);
+          const leaves = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequest));
+          setLeaveRequests(leaves);
+        } catch(e) {
+          console.error("Error fetching leave requests:", e);
+        } finally {
+          setLoadingLeaves(false);
+        }
+      };
+
+      fetchEmployeeData();
     }
-  }, [employee]);
+  }, [id]);
 
   const getInitials = (name?: string | null) => {
     if (!name) return "U";
@@ -209,6 +246,52 @@ function EmployeeProfileContent() {
                    <DetailItem icon={Star} label="Religion" value={employee.religion} />
                    <DetailItem icon={Stethoscope} label="Subject" value={employee.subject} />
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-lg">
+              <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <CalendarOff className="mr-2 h-6 w-6 text-primary" />
+                    Leave History
+                  </CardTitle>
+                  <CardDescription>
+                    A log of all leave requests submitted by this employee.
+                  </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingLeaves ? (
+                    <div className="flex justify-center items-center h-40">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                ) : leaveRequests.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-10">No leave requests found for this employee.</p>
+                ) : (
+                  <Table>
+                      <TableHeader>
+                          <TableRow>
+                              <TableHead>Leave Type</TableHead>
+                              <TableHead>Start Date</TableHead>
+                              <TableHead>End Date</TableHead>
+                              <TableHead>Days</TableHead>
+                              <TableHead className="text-right">Status</TableHead>
+                          </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                          {leaveRequests.map((request) => (
+                              <TableRow key={request.id}>
+                                  <TableCell>{request.leaveType}</TableCell>
+                                  <TableCell>{format(request.startDate.toDate(), "PPP")}</TableCell>
+                                  <TableCell>{format(request.endDate.toDate(), "PPP")}</TableCell>
+                                  <TableCell>{request.numberOfDays ?? 0}</TableCell>
+                                  <TableCell className="text-right">
+                                    <LeaveStatusBadge status={request.status} />
+                                  </TableCell>
+                              </TableRow>
+                          ))}
+                      </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
 
