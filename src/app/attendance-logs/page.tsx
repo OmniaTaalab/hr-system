@@ -144,7 +144,7 @@ function AttendanceLogsContent() {
                       </TableHeader>
                       <TableBody>
                           {filteredRecords.map((record) => (
-                              <TableRow key={record.userId}>
+                              <TableRow key={record.id}>
                                   <TableCell className="font-medium">{record.name}</TableCell>
                                   <TableCell>{record.userId}</TableCell>
                                   <TableCell>{record.type === 'IN' ? record.checkTime : '-'}</TableCell>
