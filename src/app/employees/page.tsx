@@ -961,7 +961,7 @@ function EmployeeManagementContent() {
             employee.phone,
         ];
         return searchableFields.some(field =>
-            field?.toLowerCase().includes(lowercasedFilter)
+            typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
         );
     });
   }, [employees, searchTerm]);
