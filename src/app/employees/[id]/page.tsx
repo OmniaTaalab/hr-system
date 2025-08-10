@@ -144,13 +144,17 @@ function EmployeeProfileContent() {
       const fetchLeaveRequests = async (employeeDocId: string) => {
         setLoadingLeaves(true);
         try {
+          // Remove the orderBy clause to avoid needing a composite index
           const leavesQuery = query(
             collection(db, 'leaveRequests'),
-            where('requestingEmployeeDocId', '==', employeeDocId),
-            orderBy('startDate', 'desc')
+            where('requestingEmployeeDocId', '==', employeeDocId)
           );
           const querySnapshot = await getDocs(leavesQuery);
           const leaves = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequest));
+          
+          // Sort the results in the client
+          leaves.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
+
           setLeaveRequests(leaves);
         } catch(e) {
           console.error("Error fetching leave requests:", e);
