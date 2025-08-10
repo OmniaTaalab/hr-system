@@ -23,6 +23,7 @@ interface Employee {
   id: string;
   name: string;
   department: string;
+  campus: string;
   status: "Active" | "On Leave" | "Terminated";
 }
 
@@ -85,7 +86,7 @@ function DashboardCard({
   );
 }
 
-interface DepartmentData {
+interface CampusData {
   name: string;
   count: number;
 }
@@ -104,14 +105,14 @@ function DashboardPageContent() {
   const [pendingLeaveRequests, setPendingLeaveRequests] = useState<number | null>(null);
   const [approvedLeaveRequests, setApprovedLeaveRequests] = useState<number | null>(null);
   const [rejectedLeaveRequests, setRejectedLeaveRequests] = useState<number | null>(null);
-  const [departmentData, setDepartmentData] = useState<DepartmentData[]>([]);
+  const [campusData, setCampusData] = useState<CampusData[]>([]);
 
   const [isLoadingTotalEmp, setIsLoadingTotalEmp] = useState(true);
   const [isLoadingActiveEmp, setIsLoadingActiveEmp] = useState(true);
   const [isLoadingPendingLeaves, setIsLoadingPendingLeaves] = useState(true);
   const [isLoadingApprovedLeaves, setIsLoadingApprovedLeaves] = useState(true);
   const [isLoadingRejectedLeaves, setIsLoadingRejectedLeaves] = useState(true);
-  const [isLoadingDeptData, setIsLoadingDeptData] = useState(true);
+  const [isLoadingCampusData, setIsLoadingCampusData] = useState(true);
   
   const { profile, loading: isLoadingProfile } = useUserProfile();
 
@@ -178,7 +179,7 @@ function DashboardPageContent() {
       }
     };
 
-    const fetchDepartmentData = async () => {
+    const fetchCampusData = async () => {
       try {
         const empCol = collection(db, "employee");
         const empDocsSnapshot = await getDocs(empCol);
@@ -186,21 +187,21 @@ function DashboardPageContent() {
 
         const counts: { [key: string]: number } = {};
         employees.forEach(emp => {
-          counts[emp.department] = (counts[emp.department] || 0) + 1;
+          counts[emp.campus] = (counts[emp.campus] || 0) + 1;
         });
 
         const formattedData = Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a,b) => b.count - a.count);
-        setDepartmentData(formattedData);
+        setCampusData(formattedData);
       } catch (error) {
-        console.error("Error fetching department data:", error);
-        setDepartmentData([]);
+        console.error("Error fetching campus data:", error);
+        setCampusData([]);
       } finally {
-        setIsLoadingDeptData(false);
+        setIsLoadingCampusData(false);
       }
     };
 
     fetchCounts();
-    fetchDepartmentData();
+    fetchCampusData();
   }, []);
 
   const statisticCards: DashboardCardProps[] = [
@@ -331,19 +332,19 @@ function DashboardPageContent() {
           <CardHeader>
             <CardTitle className="font-headline text-xl flex items-center">
               <iconMap.BarChartBig className="mr-2 h-6 w-6 text-primary" />
-              Employee Distribution by Department
+              Employee Distribution by Campus
             </CardTitle>
-            <CardDescription>Number of employees in each department.</CardDescription>
+            <CardDescription>Number of employees in each campus.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2 pr-6">
-            {isLoadingDeptData ? (
+            {isLoadingCampusData ? (
               <div className="flex justify-center items-center h-[350px]">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
               </div>
-            ) : departmentData.length > 0 ? (
+            ) : campusData.length > 0 ? (
               <ChartContainer config={chartConfig} className="h-[350px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart accessibilityLayer data={departmentData} margin={{ top: 5, right: 0, left: -20, bottom: 70 }}> {/* Increased bottom margin */}
+                  <BarChart accessibilityLayer data={campusData} margin={{ top: 5, right: 0, left: -20, bottom: 70 }}> {/* Increased bottom margin */}
                     <CartesianGrid vertical={false} strokeDasharray="3 3" />
                     <XAxis
                       dataKey="name"
@@ -366,7 +367,7 @@ function DashboardPageContent() {
                 </ResponsiveContainer>
               </ChartContainer>
             ) : (
-              <p className="text-center text-muted-foreground py-10">No department data available to display chart.</p>
+              <p className="text-center text-muted-foreground py-10">No campus data available to display chart.</p>
             )}
           </CardContent>
         </Card>
