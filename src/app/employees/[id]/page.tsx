@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code } from 'lucide-react';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -197,6 +197,8 @@ function EmployeeProfileContent() {
                    <DetailItem icon={FileText} label="National ID" value={employee.nationalId} />
                    <DetailItem icon={Cake} label="Birthday" value={employee.dateOfBirth ? format(employee.dateOfBirth.toDate(), 'PPP') : undefined} />
                    <DetailItem icon={CalendarDays} label="Joining Date" value={employee.joiningDate ? format(employee.joiningDate.toDate(), 'PPP') : undefined} />
+                   <DetailItem icon={Users} label="Group" value={employee.groupName} />
+                   <DetailItem icon={Code} label="System" value={employee.system} />
                    <DetailItem icon={MapPin} label="Campus" value={employee.campus} />
                    <DetailItem icon={BookOpen} label="Stage" value={employee.stage} />
                    <DetailItem icon={Star} label="Religion" value={employee.religion} />
