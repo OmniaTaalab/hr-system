@@ -102,13 +102,18 @@ function EmployeeProfileContent() {
       const fetchLogs = async () => {
         setLoadingLogs(true);
         try {
+          // Simplified query to avoid needing a composite index.
+          // Sorting will be handled client-side.
           const logsQuery = query(
             collection(db, 'attendance_log'),
-            where('employee_id', '==', employee.employeeId),
-            orderBy('check_time', 'desc')
+            where('employee_id', '==', employee.employeeId)
           );
           const querySnapshot = await getDocs(logsQuery);
           const logs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
+          
+          // Sort logs by check_time descending locally
+          logs.sort((a, b) => b.check_time.localeCompare(a.check_time));
+          
           setAttendanceLogs(logs);
         } catch (e) {
           console.error("Error fetching attendance logs:", e);
