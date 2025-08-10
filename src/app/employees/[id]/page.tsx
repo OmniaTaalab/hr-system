@@ -49,8 +49,7 @@ function DetailItem({ icon: Icon, label, value }: { icon: React.ElementType, lab
   );
 }
 
-
-export default function EmployeeProfilePage() {
+function EmployeeProfileContent() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -89,12 +88,11 @@ export default function EmployeeProfilePage() {
     if (!name) return "U";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
-
+  
   const canView = !profileLoading && profile;
 
   if (loading || profileLoading) {
     return (
-      <AppLayout>
         <div className="max-w-4xl mx-auto space-y-4">
           <Skeleton className="h-8 w-32" />
           <Card>
@@ -113,20 +111,16 @@ export default function EmployeeProfilePage() {
               </CardContent>
           </Card>
         </div>
-      </AppLayout>
     );
   }
 
    if (!canView) {
     return (
-        <AppLayout>
-            <div className="text-center">You do not have permission to view this page.</div>
-        </AppLayout>
+        <div className="text-center">You do not have permission to view this page.</div>
     );
   }
 
   return (
-    <AppLayout>
       <div className="max-w-4xl mx-auto">
         <Button variant="outline" size="sm" onClick={() => router.back()} className="mb-4">
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -170,7 +164,13 @@ export default function EmployeeProfilePage() {
           </Card>
         )}
       </div>
-    </AppLayout>
   );
 }
 
+export default function EmployeeProfilePage() {
+    return (
+        <AppLayout>
+            <EmployeeProfileContent />
+        </AppLayout>
+    );
+}
