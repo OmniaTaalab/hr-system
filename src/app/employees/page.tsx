@@ -938,8 +938,8 @@ function EmployeeManagementContent() {
     }
 
     getCountFromServer(q).then(snapshot => {
-        setTotalEmployees(snapshot.data().count || 0);
-    });
+        setTotalEmployees(snapshot.data().count);
+    }).catch(() => setTotalEmployees(0));
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const employeesData: Employee[] = [];
