@@ -204,6 +204,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         <input type="hidden" name="groupNames" value={formData.groupName} />
         <input type="hidden" name="campus" value={formData.campus} />
         <input type="hidden" name="system" value={formData.system} />
+        <input type="hidden" name="gender" value={formData.gender} />
+        <input type="hidden" name="stage" value={formData.stage} />
 
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-4 p-4 pr-6">
@@ -285,7 +287,14 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="gender">Gender</Label>
-                <Input id="gender" name="gender" placeholder="e.g., Male, Female" value={formData.gender} onChange={handleInputChange} />
+                <Select onValueChange={handleSelectChange('gender')} value={formData.gender}>
+                    <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="Male">Male</SelectItem>
+                        <SelectItem value="Female">Female</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                </Select>
                 {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
               </div>
               <div className="space-y-2">
@@ -302,8 +311,11 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 {serverState?.errors?.religion && <p className="text-sm text-destructive">{serverState.errors.religion.join(', ')}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="stage">Stage</Label>
-                <Input id="stage" name="stage" placeholder="e.g., High School" value={formData.stage} onChange={handleInputChange} />
+                <Label htmlFor="add-stage">Stage</Label>
+                <Select onValueChange={handleSelectChange('stage')} value={formData.stage} disabled={isLoadingLists}>
+                    <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
+                    <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
+                </Select>
                 {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
               </div>
             </div>
@@ -583,6 +595,8 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   const [groupName, setGroupName] = useState(employee.groupName);
   const [system, setSystem] = useState(employee.system);
   const [campus, setCampus] = useState(employee.campus);
+  const [gender, setGender] = useState(employee.gender || "");
+  const [stage, setStage] = useState(employee.stage || "");
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(employee.dateOfBirth?.toDate());
   const [joiningDate, setJoiningDate] = useState<Date | undefined>(employee.joiningDate?.toDate());
   const [leavingDate, setLeavingDate] = useState<Date | undefined>(employee.leavingDate?.toDate());
@@ -635,6 +649,8 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         <input type="hidden" name="groupNames" value={groupName} />
         <input type="hidden" name="system" value={system} />
         <input type="hidden" name="campus" value={campus} />
+        <input type="hidden" name="gender" value={gender} />
+        <input type="hidden" name="stage" value={stage} />
         
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
@@ -736,7 +752,14 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="edit-gender">Gender</Label>
-                    <Input id="edit-gender" name="gender" defaultValue={employee.gender} />
+                    <Select value={gender} onValueChange={setGender}>
+                        <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Male">Male</SelectItem>
+                            <SelectItem value="Female">Female</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                    </Select>
                     {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
@@ -748,7 +771,10 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="edit-stage">Stage</Label>
-                    <Input id="edit-stage" name="stage" defaultValue={employee.stage} />
+                    <Select value={stage} onValueChange={setStage} disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
+                        <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
+                    </Select>
                     {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
@@ -1516,3 +1542,5 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
+    
