@@ -111,7 +111,7 @@ export async function submitLeaveRequestAction(
 
     const numberOfDays = await calculateWorkingDays(startDate, endDate);
 
-    // The 'employeeId' field in Firestore will now store the unique document ID from 'employy' collection
+    // The 'requestingEmployeeDocId' field in Firestore stores the unique document ID from 'employee' collection
     await addDoc(collection(db, "leaveRequests"), {
       requestingEmployeeDocId, // Store the unique Firestore document ID of the employee
       employeeName, // Keep employee name for display purposes if needed elsewhere
