@@ -54,6 +54,7 @@ import { ImageUploader } from "@/components/image-uploader";
 import { useOrganizationLists, type ListItem } from "@/hooks/use-organization-lists";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import Link from "next/link";
 
 
 interface EmployeeFile {
@@ -84,6 +85,12 @@ interface Employee {
   leaveBalances?: { [key: string]: number };
   documents?: EmployeeFile[];
   createdAt?: Timestamp; 
+  gender?: string;
+  nationalId?: string;
+  religion?: string;
+  stage?: string;
+  subject?: string;
+  title?: string;
 }
 
 const initialCreateEmployeeState: CreateEmployeeState = {
@@ -136,6 +143,12 @@ const initialAddFormState = {
     confirmPassword: "",
     dateOfBirth: undefined as Date | undefined,
     joiningDate: undefined as Date | undefined,
+    gender: "",
+    nationalId: "",
+    religion: "",
+    stage: "",
+    subject: "",
+    title: "",
 };
 
 // Internal component for Add Employee Form content
@@ -266,6 +279,45 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                     <Label htmlFor="add-hourlyRate">Hourly Rate (Optional)</Label>
                     <Input id="add-hourlyRate" name="hourlyRate" type="number" step="0.01" placeholder="e.g., 25.50" value={formData.hourlyRate} onChange={handleInputChange} />
                     {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
+                </div>
+            </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="gender">Gender</Label>
+                <Input id="gender" name="gender" placeholder="e.g., Male, Female" value={formData.gender} onChange={handleInputChange} />
+                {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="nationalId">National ID</Label>
+                <Input id="nationalId" name="nationalId" placeholder="e.g., 1234567890" value={formData.nationalId} onChange={handleInputChange} />
+                {serverState?.errors?.nationalId && <p className="text-sm text-destructive">{serverState.errors.nationalId.join(', ')}</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="religion">Religion</Label>
+                <Input id="religion" name="religion" placeholder="e.g., Christianity" value={formData.religion} onChange={handleInputChange} />
+                {serverState?.errors?.religion && <p className="text-sm text-destructive">{serverState.errors.religion.join(', ')}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stage">Stage</Label>
+                <Input id="stage" name="stage" placeholder="e.g., High School" value={formData.stage} onChange={handleInputChange} />
+                {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
+              </div>
+            </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="subject">Subject</Label>
+                    <Input id="subject" name="subject" placeholder="e.g., Mathematics" value={formData.subject} onChange={handleInputChange} />
+                    {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="title">Title</Label>
+                    <Input id="title" name="title" placeholder="e.g., Mr., Ms., Dr." value={formData.title} onChange={handleInputChange} />
+                    {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
                 </div>
             </div>
 
@@ -674,7 +726,43 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                     <Input id="edit-hourlyRate" name="hourlyRate" type="number" step="0.01" defaultValue={employee.hourlyRate?.toString() ?? ""} placeholder="e.g., 25.50" />
                     {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
                 </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="edit-nationalId">National ID</Label>
+                    <Input id="edit-nationalId" name="nationalId" defaultValue={employee.nationalId} />
+                    {serverState?.errors?.nationalId && <p className="text-sm text-destructive">{serverState.errors.nationalId.join(', ')}</p>}
+                </div>
             </div>
+
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="edit-gender">Gender</Label>
+                    <Input id="edit-gender" name="gender" defaultValue={employee.gender} />
+                    {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="edit-religion">Religion</Label>
+                    <Input id="edit-religion" name="religion" defaultValue={employee.religion} />
+                    {serverState?.errors?.religion && <p className="text-sm text-destructive">{serverState.errors.religion.join(', ')}</p>}
+                </div>
+            </div>
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="edit-stage">Stage</Label>
+                    <Input id="edit-stage" name="stage" defaultValue={employee.stage} />
+                    {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="edit-subject">Subject</Label>
+                    <Input id="edit-subject" name="subject" defaultValue={employee.subject} />
+                    {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
+                </div>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="edit-title">Title</Label>
+                <Input id="edit-title" name="title" defaultValue={employee.title} />
+                {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
+            </div>
+
              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="edit-dateOfBirth">Date of Birth</Label>
@@ -1103,13 +1191,13 @@ function EmployeeManagementContent() {
                 filteredEmployees.map((employee) => (
                   <TableRow key={employee.id}>
                     <TableCell className="font-medium">
-                      <div className="flex items-center gap-3">
+                      <Link href={`/employees/${employee.id}`} className="flex items-center gap-3 hover:underline">
                         <Avatar>
                             <AvatarImage src={employee.photoURL || undefined} alt={employee.name} />
                             <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
                         </Avatar>
                         {employee.name}
-                      </div>
+                      </Link>
                     </TableCell>
                     <TableCell>{employee.employeeId}</TableCell>
                     <TableCell>{employee.role}</TableCell>

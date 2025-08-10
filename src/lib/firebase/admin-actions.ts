@@ -30,6 +30,12 @@ const CreateEmployeeFormSchema = z.object({
   joiningDate: z.coerce.date({ required_error: "Joining date is required." }),
   password: z.string().min(6, 'Password must be at least 6 characters long.'),
   confirmPassword: z.string().min(6, 'Password confirmation is required.'),
+  gender: z.string().optional(),
+  nationalId: z.string().optional(),
+  religion: z.string().optional(),
+  stage: z.string().optional(),
+  subject: z.string().optional(),
+  title: z.string().optional(),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords do not match.",
   path: ["confirmPassword"], // Set the error on the confirmPassword field
@@ -51,6 +57,12 @@ export type CreateEmployeeState = {
     joiningDate?: string[];
     password?: string[];
     confirmPassword?: string[];
+    gender?: string[];
+    nationalId?: string[];
+    religion?: string[];
+    stage?: string[];
+    subject?: string[];
+    title?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -84,6 +96,12 @@ export async function createEmployeeAction(
     joiningDate: formData.get('joiningDate'),
     password: formData.get('password'),
     confirmPassword: formData.get('confirmPassword'),
+    gender: formData.get('gender'),
+    nationalId: formData.get('nationalId'),
+    religion: formData.get('religion'),
+    stage: formData.get('stage'),
+    subject: formData.get('subject'),
+    title: formData.get('title'),
   });
 
   if (!validatedFields.success) {
@@ -93,7 +111,7 @@ export async function createEmployeeAction(
     };
   }
 
-  const { firstName, lastName, email, department, role, groupName, system, campus, phone, hourlyRate, dateOfBirth, joiningDate, password } = validatedFields.data;
+  const { firstName, lastName, email, department, role, groupName, system, campus, phone, hourlyRate, dateOfBirth, joiningDate, password, gender, nationalId, religion, stage, subject, title } = validatedFields.data;
   const name = `${firstName} ${lastName}`;
   let newUserId: string | null = null;
 
@@ -146,6 +164,12 @@ export async function createEmployeeAction(
       leaveBalances: {}, // Initialize leave balances
       documents: [], // Initialize documents array
       createdAt: serverTimestamp(),
+      gender: gender || "",
+      nationalId: nationalId || "",
+      religion: religion || "",
+      stage: stage || "",
+      subject: subject || "",
+      title: title || "",
     };
     
     const docRef = await addDoc(collection(db, "employee"), employeeData);
@@ -245,6 +269,12 @@ const UpdateEmployeeFormSchema = z.object({
   joiningDate: z.coerce.date({ required_error: "Joining date is required." }),
   leavingDate: z.string().optional().nullable(),
   leaveBalancesJson: z.string().optional(), // Receive balances as a JSON string
+  gender: z.string().optional(),
+  nationalId: z.string().optional(),
+  religion: z.string().optional(),
+  stage: z.string().optional(),
+  subject: z.string().optional(),
+  title: z.string().optional(),
 });
 
 export type UpdateEmployeeState = {
@@ -264,6 +294,12 @@ export type UpdateEmployeeState = {
     joiningDate?: string[];
     leavingDate?: string[];
     leaveBalances?: string[];
+    gender?: string[];
+    nationalId?: string[];
+    religion?: string[];
+    stage?: string[];
+    subject?: string[];
+    title?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -289,6 +325,12 @@ export async function updateEmployeeAction(
     joiningDate: formData.get('joiningDate'),
     leavingDate: formData.get('leavingDate') || null,
     leaveBalancesJson: formData.get('leaveBalancesJson'),
+    gender: formData.get('gender'),
+    nationalId: formData.get('nationalId'),
+    religion: formData.get('religion'),
+    stage: formData.get('stage'),
+    subject: formData.get('subject'),
+    title: formData.get('title'),
   });
 
   if (!validatedFields.success) {
@@ -300,7 +342,8 @@ export async function updateEmployeeAction(
 
   const { 
     employeeDocId, firstName, lastName, department, role, groupName, system, campus, email, phone, hourlyRate,
-    dateOfBirth, joiningDate, leavingDate: leavingDateString, leaveBalancesJson
+    dateOfBirth, joiningDate, leavingDate: leavingDateString, leaveBalancesJson,
+    gender, nationalId, religion, stage, subject, title
   } = validatedFields.data;
 
   const name = `${firstName} ${lastName}`;
@@ -332,7 +375,6 @@ export async function updateEmployeeAction(
 
     let finalLeavingDate: Timestamp | null = null;
 
-    // Handle optional leavingDate and automatically adjust status
     if (leavingDateString) {
       const parsedLeavingDate = new Date(leavingDateString);
       if (isValid(parsedLeavingDate)) {
@@ -340,7 +382,6 @@ export async function updateEmployeeAction(
       }
     }
 
-    // Using 'any' to build the update object dynamically
     const updateData: { [key: string]: any } = {
       name,
       firstName,
@@ -355,8 +396,14 @@ export async function updateEmployeeAction(
       hourlyRate: hourlyRate ?? 0,
       dateOfBirth: Timestamp.fromDate(dateOfBirth),
       joiningDate: Timestamp.fromDate(joiningDate),
-      leavingDate: finalLeavingDate, // Use the derived leaving date
-      leaveBalances, // Add the validated leave balances
+      leavingDate: finalLeavingDate,
+      leaveBalances,
+      gender: gender || "",
+      nationalId: nationalId || "",
+      religion: religion || "",
+      stage: stage || "",
+      subject: subject || "",
+      title: title || "",
     };
     
     await updateDoc(employeeRef, updateData);
@@ -396,20 +443,17 @@ export async function deleteEmployeeAction(
   }
 
   try {
-    // 1. Delete associated files from Firebase Storage if it exists
     if (adminStorage) {
-      // Delete avatar
       try {
         const avatarPath = `employee-avatars/${employeeDocId}`;
         await adminStorage.bucket().file(avatarPath).delete();
         console.log(`Avatar for employee ${employeeDocId} deleted.`);
       } catch (storageError: any) {
-        if (storageError.code !== 404) { // Only log if it's not a "not found" error
+        if (storageError.code !== 404) {
           console.warn(`Could not delete avatar for employee ${employeeDocId}: ${storageError.message}`);
         }
       }
 
-      // Delete all documents in the employee's folder
       try {
         const documentsPrefix = `employee-documents/${employeeDocId}/`;
         await adminStorage.bucket().deleteFiles({ prefix: documentsPrefix });
@@ -421,7 +465,6 @@ export async function deleteEmployeeAction(
       console.warn("Firebase Admin Storage is not configured. Skipping file deletions.");
     }
 
-    // 2. Delete the employee document from Firestore
     await deleteDoc(doc(db, "employee", employeeDocId));
     
     return { success: true, message: `Employee and associated data deleted successfully.` };
