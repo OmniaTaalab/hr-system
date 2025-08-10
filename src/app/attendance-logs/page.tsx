@@ -138,7 +138,8 @@ function AttendanceLogsContent() {
                           <TableRow>
                               <TableHead>Employee Name</TableHead>
                               <TableHead>Employee ID</TableHead>
-                              <TableHead>Timestamp</TableHead>
+                              <TableHead>Check In</TableHead>
+                              <TableHead>Check Out</TableHead>
                               <TableHead>Event Type</TableHead>
                           </TableRow>
                       </TableHeader>
@@ -147,7 +148,8 @@ function AttendanceLogsContent() {
                               <TableRow key={record.id}>
                                   <TableCell className="font-medium">{record.name}</TableCell>
                                   <TableCell>{record.employee_id}</TableCell>
-                                  <TableCell>{record.check_time}</TableCell>
+                                  <TableCell>{record.type === 'I' ? record.check_time : '-'}</TableCell>
+                                  <TableCell>{record.type === 'O' ? record.check_time : '-'}</TableCell>
                                   <TableCell>
                                     {record.type === 'I' ? (
                                       <Badge variant="secondary" className="bg-green-100 text-green-800">
