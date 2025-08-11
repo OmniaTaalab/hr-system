@@ -59,7 +59,7 @@ const LeaveRequestFormSchema = z.object({
   startDate: z.coerce.date({ required_error: "Start date is required." }),
   endDate: z.coerce.date({ required_error: "End date is required." }),
   reason: z.string().min(10, "Reason must be at least 10 characters.").max(500, "Reason must be at most 500 characters."),
-  attachmentURL: z.string().url().optional().nullable(),
+  attachmentURL: z.string().url("A valid URL is required for the attachment.").optional().or(z.literal("")).nullable(),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
   path: ["endDate"],

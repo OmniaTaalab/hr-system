@@ -40,10 +40,9 @@ function LeaveRequestForm() {
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [serverState, formAction] = useActionState(submitLeaveRequestAction, initialSubmitState);
+  const [serverState, formAction, isSubmitting] = useActionState(submitLeaveRequestAction, initialSubmitState);
   const [isUploading, setIsUploading] = useState(false);
-  const [isSubmitting, startTransition] = useTransition();
-
+  
   const isActionPending = isUploading || isSubmitting;
   
   const { profile, loading: isLoadingProfile } = useUserProfile();
@@ -94,13 +93,13 @@ function LeaveRequestForm() {
         if (selectedFile.type !== 'application/pdf') {
             setFileError("Attachment must be a PDF file.");
             setFile(null);
-            e.target.value = "";
+            if (e.target) e.target.value = ""; // Clear file input
             return;
         }
         if (selectedFile.size > 5 * 1024 * 1024) { // 5MB
             setFileError("Attachment must be smaller than 5MB.");
             setFile(null);
-            e.target.value = "";
+            if (e.target) e.target.value = ""; // Clear file input
             return;
         }
         setFile(selectedFile);
@@ -130,7 +129,7 @@ function LeaveRequestForm() {
               const attachmentURL = await getDownloadURL(fileRef);
               formData.set('attachmentURL', attachmentURL);
               
-              startTransition(() => formAction(formData));
+              formAction(formData);
 
           } catch (error) {
               console.error("File upload failed:", error);
@@ -144,7 +143,7 @@ function LeaveRequestForm() {
           }
       } else {
           // No file to upload, just submit the form
-          startTransition(() => formAction(formData));
+          formAction(formData);
       }
   };
   
