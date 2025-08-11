@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon, Send, Loader2, AlertTriangle, Upload, File as FileIcon } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
 import { Label } from "@/components/ui/label";
@@ -41,8 +41,8 @@ function LeaveRequestForm() {
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [serverState, formAction, isSubmitting] = useActionState(submitLeaveRequestAction, initialSubmitState);
-  const [isUploading, setIsUploading] = useState(false);
   
+  const [isUploading, setIsUploading] = useState(false);
   const isActionPending = isUploading || isSubmitting;
   
   const { profile, loading: isLoadingProfile } = useUserProfile();
