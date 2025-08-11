@@ -59,6 +59,7 @@ const LeaveRequestFormSchema = z.object({
   startDate: z.coerce.date({ required_error: "Start date is required." }),
   endDate: z.coerce.date({ required_error: "End date is required." }),
   reason: z.string().min(10, "Reason must be at least 10 characters.").max(500, "Reason must be at most 500 characters."),
+  attachmentURL: z.string().url().optional().nullable(),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
   path: ["endDate"],
@@ -71,6 +72,7 @@ export type SubmitLeaveRequestState = {
     startDate?: string[];
     endDate?: string[];
     reason?: string[];
+    attachmentURL?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -88,6 +90,7 @@ export async function submitLeaveRequestAction(
     startDate: formData.get('startDate'),
     endDate: formData.get('endDate'),
     reason: formData.get('reason'),
+    attachmentURL: formData.get('attachmentURL'),
   });
 
   if (!validatedFields.success) {
@@ -98,7 +101,7 @@ export async function submitLeaveRequestAction(
     };
   }
 
-  const { requestingEmployeeDocId, leaveType, startDate, endDate, reason } = validatedFields.data;
+  const { requestingEmployeeDocId, leaveType, startDate, endDate, reason, attachmentURL } = validatedFields.data;
 
   try {
     const employeeDocRef = doc(db, "employee", requestingEmployeeDocId);
@@ -121,6 +124,7 @@ export async function submitLeaveRequestAction(
       reason,
       numberOfDays, // Store calculated working days
       status: "Pending",
+      attachmentURL: attachmentURL || null,
       submittedAt: serverTimestamp(),
       managerNotes: "", 
     });

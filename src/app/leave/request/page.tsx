@@ -20,11 +20,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Send, Loader2, AlertTriangle } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { CalendarIcon, Send, Loader2, AlertTriangle, Upload, File as FileIcon } from "lucide-react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { storage } from "@/lib/firebase/config";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { nanoid } from "nanoid";
 
 const initialSubmitState: SubmitLeaveRequestState = {
   message: null,
@@ -35,7 +39,12 @@ const initialSubmitState: SubmitLeaveRequestState = {
 function LeaveRequestForm() {
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
-  const [serverState, formAction, isActionPending] = useActionState(submitLeaveRequestAction, initialSubmitState);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [serverState, formAction] = useActionState(submitLeaveRequestAction, initialSubmitState);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, startTransition] = useTransition();
+
+  const isActionPending = isUploading || isSubmitting;
   
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
@@ -44,11 +53,11 @@ function LeaveRequestForm() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [reason, setReason] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   
-  // State for popover visibility
   const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
   const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
-
 
   useEffect(() => {
     if (serverState?.message) {
@@ -63,6 +72,10 @@ function LeaveRequestForm() {
         setStartDate(undefined);
         setEndDate(undefined);
         setReason("");
+        setFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
       } else {
         const errorDescription = serverState.errors?.form?.join(", ") || serverState.message || "Please check the form for errors.";
         toast({
@@ -74,6 +87,66 @@ function LeaveRequestForm() {
     }
   }, [serverState, toast]);
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    setFileError(null);
+    if (selectedFile) {
+        if (selectedFile.type !== 'application/pdf') {
+            setFileError("Attachment must be a PDF file.");
+            setFile(null);
+            e.target.value = "";
+            return;
+        }
+        if (selectedFile.size > 5 * 1024 * 1024) { // 5MB
+            setFileError("Attachment must be smaller than 5MB.");
+            setFile(null);
+            e.target.value = "";
+            return;
+        }
+        setFile(selectedFile);
+    } else {
+        setFile(null);
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const currentForm = formRef.current;
+      if (!currentForm) return;
+
+      const formData = new FormData(currentForm);
+      if (startDate) formData.set('startDate', startDate.toISOString());
+      if (endDate) formData.set('endDate', endDate.toISOString());
+
+      if (file) {
+          setIsUploading(true);
+          try {
+              const fileExtension = file.name.split('.').pop();
+              const fileName = `leave-${profile?.id}-${nanoid()}.${fileExtension}`;
+              const filePath = `leave-attachments/${fileName}`;
+              const fileRef = ref(storage, filePath);
+              
+              await uploadBytes(fileRef, file);
+              const attachmentURL = await getDownloadURL(fileRef);
+              formData.set('attachmentURL', attachmentURL);
+              
+              startTransition(() => formAction(formData));
+
+          } catch (error) {
+              console.error("File upload failed:", error);
+              toast({
+                  variant: "destructive",
+                  title: "File Upload Failed",
+                  description: "Could not upload your attachment. Please try again.",
+              });
+          } finally {
+              setIsUploading(false);
+          }
+      } else {
+          // No file to upload, just submit the form
+          startTransition(() => formAction(formData));
+      }
+  };
   
   if (isLoadingProfile) {
     return (
@@ -94,14 +167,9 @@ function LeaveRequestForm() {
           </p>
         </header>
 
-        <form ref={formRef} action={formAction} className="space-y-8">
-            {/* Hidden input for employeeDocId */}
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-8">
             <input type="hidden" name="requestingEmployeeDocId" value={profile?.id || ''} />
             
-            {/* Hidden inputs for dates */}
-            {startDate && <input type="hidden" name="startDate" value={startDate.toISOString()} />}
-            {endDate && <input type="hidden" name="endDate" value={endDate.toISOString()} />}
-
             <div className="space-y-2">
                 <Label htmlFor="leaveType">Leave Type</Label>
                 <Select name="leaveType" onValueChange={setLeaveType} value={leaveType} disabled={isLoadingLeaveTypes || isLoadingProfile} required>
@@ -177,6 +245,13 @@ function LeaveRequestForm() {
                 {serverState?.errors?.reason && <p className="text-sm font-medium text-destructive">{serverState.errors.reason[0]}</p>}
             </div>
 
+            <div className="space-y-2">
+                <Label htmlFor="attachment">Attach Document (Optional, PDF only, max 5MB)</Label>
+                <Input id="attachment" ref={fileInputRef} name="attachment" type="file" accept=".pdf" onChange={handleFileChange} disabled={isActionPending} />
+                {fileError && <p className="text-sm text-destructive mt-1">{fileError}</p>}
+                {serverState?.errors?.attachmentURL && <p className="text-sm text-destructive mt-1">{serverState.errors.attachmentURL.join(', ')}</p>}
+            </div>
+
             {serverState?.errors?.form && (
               <div className="flex items-center text-sm text-destructive">
                 <AlertTriangle className="mr-2 h-4 w-4"/>
@@ -188,7 +263,7 @@ function LeaveRequestForm() {
               {isActionPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
+                  {isUploading ? "Uploading..." : "Submitting..."}
                 </>
               ) : (
                 <>
@@ -209,5 +284,3 @@ export default function LeaveRequestPage() {
     </AppLayout>
   );
 }
-
-    
