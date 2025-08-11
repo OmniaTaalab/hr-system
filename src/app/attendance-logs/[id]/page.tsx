@@ -42,10 +42,10 @@ function UserAttendanceLogContent() {
     }
 
     setIsLoading(true);
+    // Removed orderBy to prevent needing a composite index. Sorting is handled client-side.
     const logsQuery = query(
       collection(db, "attendance_log"), 
-      where("userId", "==", Number(userId)),
-      orderBy("date", "desc")
+      where("userId", "==", Number(userId))
     );
 
     const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
@@ -53,6 +53,10 @@ function UserAttendanceLogContent() {
         id: doc.id,
         ...doc.data()
       } as AttendanceLog));
+      
+      // Sort the logs by date in descending order on the client
+      logsData.sort((a, b) => b.date.localeCompare(a.date));
+
       setLogs(logsData);
       if (logsData.length > 0) {
         setEmployeeName(logsData[0].employeeName);
