@@ -110,13 +110,7 @@ function LeaveRequestForm() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      const currentForm = formRef.current;
-      if (!currentForm) return;
-
-      const formData = new FormData(currentForm);
-      if (startDate) formData.set('startDate', startDate.toISOString());
-      if (endDate) formData.set('endDate', endDate.toISOString());
-
+      
       let attachmentURL = "";
       if (file) {
           setIsUploading(true);
@@ -143,8 +137,15 @@ function LeaveRequestForm() {
           }
       }
       
-      // Now submit the form with the URL
-      formData.set('attachmentURL', attachmentURL);
+      // Create a new FormData object and populate it with all the state values
+      const formData = new FormData();
+      if (profile?.id) formData.append('requestingEmployeeDocId', profile.id);
+      formData.append('leaveType', leaveType);
+      if (startDate) formData.append('startDate', startDate.toISOString());
+      if (endDate) formData.append('endDate', endDate.toISOString());
+      formData.append('reason', reason);
+      formData.append('attachmentURL', attachmentURL);
+
       formAction(formData);
   };
   
