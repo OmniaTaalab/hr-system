@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { Loader2, BookOpenCheck, Search, AlertTriangle, LogIn, LogOut } from 'lucide-react';
+import { Loader2, BookOpenCheck, Search, AlertTriangle, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
@@ -18,8 +18,8 @@ interface AttendanceLog {
   userId: number;
   employeeName: string;
   date: string;
-  check_in: string;
-  check_out: string;
+  check_in: string | null;
+  check_out: string | null;
 }
 
 function AttendanceLogsContent() {
@@ -41,7 +41,6 @@ function AttendanceLogsContent() {
     }
 
     setIsLoading(true);
-    // Assuming the collection name is 'attendance_log' as per previous context
     const q = query(collection(db, "attendance_log"), orderBy("date", "desc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -64,17 +63,27 @@ function AttendanceLogsContent() {
     return () => unsubscribe();
   }, [toast, canViewPage, isLoadingProfile, router]);
 
+  const latestLogsPerUser = useMemo(() => {
+      const latestLogsMap = new Map<number, AttendanceLog>();
+      logs.forEach(log => {
+          if (!latestLogsMap.has(log.userId)) {
+              latestLogsMap.set(log.userId, log);
+          }
+      });
+      return Array.from(latestLogsMap.values());
+  }, [logs]);
+
   const filteredRecords = useMemo(() => {
       if (!searchTerm) {
-          return logs;
+          return latestLogsPerUser;
       }
       const lowercasedFilter = searchTerm.toLowerCase();
-      return logs.filter(record =>
+      return latestLogsPerUser.filter(record =>
           record.employeeName.toLowerCase().includes(lowercasedFilter) ||
           record.userId.toString().includes(lowercasedFilter) ||
           record.date.toLowerCase().includes(lowercasedFilter)
       );
-  }, [logs, searchTerm]);
+  }, [latestLogsPerUser, searchTerm]);
 
   if (isLoadingProfile || isLoading) {
     return (
@@ -102,15 +111,15 @@ function AttendanceLogsContent() {
           Attendance Logs
         </h1>
         <p className="text-muted-foreground">
-          A real-time log of employee check-in and check-out events from the `attendance_log` collection.
+          Showing the most recent log for each employee. Click on a row to see the full history.
         </p>
       </header>
 
       <Card className="shadow-lg">
           <CardHeader>
-              <CardTitle>Log Data</CardTitle>
+              <CardTitle>Latest Employee Logs</CardTitle>
               <CardDescription>
-                  Showing individual clock-in and clock-out events for each employee.
+                  A summary of the latest check-in/out activity for every employee.
               </CardDescription>
                <div className="relative pt-2">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -138,21 +147,32 @@ function AttendanceLogsContent() {
                   <Table>
                       <TableHeader>
                           <TableRow>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Employee Name</TableHead>
                               <TableHead>Employee ID</TableHead>
+                              <TableHead>Employee Name</TableHead>
+                              <TableHead>Last Activity Date</TableHead>
                               <TableHead>Check In</TableHead>
                               <TableHead>Check Out</TableHead>
+                              <TableHead className="text-right">History</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
                           {filteredRecords.map((record) => (
-                              <TableRow key={record.id}>
-                                  <TableCell>{record.date}</TableCell>
-                                  <TableCell className="font-medium">{record.employeeName}</TableCell>
+                              <TableRow 
+                                key={record.id} 
+                                onClick={() => router.push(`/attendance-logs/${record.userId}`)}
+                                className="cursor-pointer hover:bg-muted/50"
+                              >
                                   <TableCell>{record.userId}</TableCell>
+                                  <TableCell className="font-medium">{record.employeeName}</TableCell>
+                                  <TableCell>{record.date}</TableCell>
                                   <TableCell>{record.check_in || '-'}</TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
+                                  <TableCell className="text-right">
+                                    <Button variant="ghost" size="sm">
+                                      View All
+                                      <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                  </TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
