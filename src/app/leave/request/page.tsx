@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon, Send, Loader2, AlertTriangle, Upload, File as FileIcon } from "lucide-react";
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
 import { Label } from "@/components/ui/label";
@@ -117,6 +117,7 @@ function LeaveRequestForm() {
       if (startDate) formData.set('startDate', startDate.toISOString());
       if (endDate) formData.set('endDate', endDate.toISOString());
 
+      let attachmentURL = "";
       if (file) {
           setIsUploading(true);
           try {
@@ -126,25 +127,25 @@ function LeaveRequestForm() {
               const fileRef = ref(storage, filePath);
               
               await uploadBytes(fileRef, file);
-              const attachmentURL = await getDownloadURL(fileRef);
-              formData.set('attachmentURL', attachmentURL);
-              
-              formAction(formData);
+              attachmentURL = await getDownloadURL(fileRef);
 
           } catch (error) {
               console.error("File upload failed:", error);
               toast({
                   variant: "destructive",
                   title: "File Upload Failed",
-                  description: "Could not upload your attachment. Please try again.",
+                  description: "Could not upload your attachment. Please try again or check your storage security rules.",
               });
+              setIsUploading(false);
+              return; // Stop submission if upload fails
           } finally {
               setIsUploading(false);
           }
-      } else {
-          // No file to upload, just submit the form
-          formAction(formData);
       }
+      
+      // Now submit the form with the URL
+      formData.set('attachmentURL', attachmentURL);
+      formAction(formData);
   };
   
   if (isLoadingProfile) {
@@ -246,7 +247,7 @@ function LeaveRequestForm() {
 
             <div className="space-y-2">
                 <Label htmlFor="attachment">Attach Document (Optional, PDF only, max 5MB)</Label>
-                <Input id="attachment" ref={fileInputRef} name="attachment" type="file" accept=".pdf" onChange={handleFileChange} disabled={isActionPending} />
+                <Input id="attachment" ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileChange} disabled={isActionPending} />
                 {fileError && <p className="text-sm text-destructive mt-1">{fileError}</p>}
                 {serverState?.errors?.attachmentURL && <p className="text-sm text-destructive mt-1">{serverState.errors.attachmentURL.join(', ')}</p>}
             </div>
