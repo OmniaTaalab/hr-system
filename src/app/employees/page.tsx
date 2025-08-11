@@ -1542,5 +1542,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
-    
