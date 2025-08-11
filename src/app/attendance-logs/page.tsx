@@ -15,10 +15,11 @@ import { Badge } from '@/components/ui/badge';
 
 interface AttendanceLog {
   id: string;
-  userId: string;
-  name: string;
-  checkTime: string; // The script sends it as a string
-  type: string;
+  userId: number;
+  employeeName: string;
+  date: string;
+  check_in: string;
+  check_out: string;
 }
 
 function AttendanceLogsContent() {
@@ -40,7 +41,8 @@ function AttendanceLogsContent() {
     }
 
     setIsLoading(true);
-    const q = query(collection(db, "attendance_log"));
+    // Assuming the collection name is 'attendance_log' as per previous context
+    const q = query(collection(db, "attendance_log"), orderBy("date", "desc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const logsData = snapshot.docs.map(doc => ({
@@ -68,9 +70,9 @@ function AttendanceLogsContent() {
       }
       const lowercasedFilter = searchTerm.toLowerCase();
       return logs.filter(record =>
-          record.name.toLowerCase().includes(lowercasedFilter) ||
+          record.employeeName.toLowerCase().includes(lowercasedFilter) ||
           record.userId.toString().includes(lowercasedFilter) ||
-          record.checkTime.toLowerCase().includes(lowercasedFilter)
+          record.date.toLowerCase().includes(lowercasedFilter)
       );
   }, [logs, searchTerm]);
 
@@ -114,7 +116,7 @@ function AttendanceLogsContent() {
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                       type="search"
-                      placeholder="Search by name, ID, or timestamp..."
+                      placeholder="Search by name, ID, or date..."
                       className="w-full pl-8 sm:w-1/2 md:w-1/3"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
@@ -136,6 +138,7 @@ function AttendanceLogsContent() {
                   <Table>
                       <TableHeader>
                           <TableRow>
+                              <TableHead>Date</TableHead>
                               <TableHead>Employee Name</TableHead>
                               <TableHead>Employee ID</TableHead>
                               <TableHead>Check In</TableHead>
@@ -145,10 +148,11 @@ function AttendanceLogsContent() {
                       <TableBody>
                           {filteredRecords.map((record) => (
                               <TableRow key={record.id}>
-                                  <TableCell className="font-medium">{record.name}</TableCell>
+                                  <TableCell>{record.date}</TableCell>
+                                  <TableCell className="font-medium">{record.employeeName}</TableCell>
                                   <TableCell>{record.userId}</TableCell>
-                                  <TableCell>{record.type === 'IN' ? record.checkTime : '-'}</TableCell>
-                                  <TableCell>{record.type === 'OUT' ? record.checkTime : '-'}</TableCell>
+                                  <TableCell>{record.check_in || '-'}</TableCell>
+                                  <TableCell>{record.check_out || '-'}</TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
