@@ -174,9 +174,8 @@ function MyRequestsContent() {
         const monthlyAttendanceQuery = query(
           collection(db, "attendanceRecords"),
           where("employeeDocId", "==", currentEmployeeId),
-          where("date", ">=", Timestamp.fromDate(monthStart)), 
-          where("date", "<=", Timestamp.fromDate(monthEnd)),   
-          orderBy("date", "asc") 
+          where("date", ">=", Timestamp.fromDate(monthStart)),
+          where("date", "<=", Timestamp.fromDate(monthEnd))
         );
         const monthlyAttendanceSnapshot = await getDocs(monthlyAttendanceQuery);
         
@@ -194,13 +193,17 @@ function MyRequestsContent() {
             }
           }
         });
+        
+        // Sort the records by date client-side
+        detailedRecords.sort((a,b) => a.date.toMillis() - b.date.toMillis());
+
         setMonthlyWorkHours(totalMinutes);
         setMonthlyWorkDays(workDaysSet.size);
         setMonthlyAttendanceDetails(detailedRecords);
 
       } catch (e: any) {
         console.error("Error fetching monthly attendance/details:", e);
-        toast({ title: "Error", description: `Could not fetch monthly work stats/details. Firestore Index might be needed. Details: ${e.message}`, variant: "destructive"});
+        toast({ title: "Error", description: `Could not fetch monthly work stats/details. Details: ${e.message}`, variant: "destructive"});
       } finally {
         setIsLoadingMonthlyStats(false);
         setIsLoadingAttendanceDetails(false);

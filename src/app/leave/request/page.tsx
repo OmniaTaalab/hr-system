@@ -123,7 +123,7 @@ function LeaveRequestForm() {
           try {
               const fileExtension = file.name.split('.').pop();
               const fileName = `leave-${profile?.id}-${nanoid()}.${fileExtension}`;
-              const filePath = `leave-attachments/${fileName}`;
+              const filePath = `uploads/${fileName}`;
               const fileRef = ref(storage, filePath);
               
               await uploadBytes(fileRef, file);
