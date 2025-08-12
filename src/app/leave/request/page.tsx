@@ -119,34 +119,33 @@ function LeaveRequestForm() {
       if (startDate) formData.append('startDate', startDate.toISOString());
       if (endDate) formData.append('endDate', endDate.toISOString());
       formData.append('reason', reason);
-
       if (file) {
-          setIsUploading(true);
-          try {
-            const fileExtension = file.name.split('.').pop();
-            const fileName = `leave-${profile?.id}-${nanoid()}.${fileExtension}`;
-            const filePath = `uploads/${fileName}`;
-            const fileRef = ref(storage, filePath);
-            
-            await uploadBytes(fileRef, file);
-            const attachmentURL = await getDownloadURL(fileRef);
-            formData.append('attachmentURL', attachmentURL);
-            
-          } catch(e: any) {
-             console.error("Error during file upload:", e);
-             let errorMessage = "Could not upload your document. Please try again.";
-             if (e.code === 'storage/retry-limit-exceeded' || e.code === 'storage/unauthorized') {
-                errorMessage = "Upload failed due to network issues or permissions. Please check your connection and Firebase Storage rules.";
-             }
-             toast({ variant: "destructive", title: "Upload Failed", description: errorMessage });
-             setIsUploading(false);
-             return; // Stop form submission if upload fails
-          } finally {
-            setIsUploading(false);
+        setIsUploading(true);
+        try {
+          const fileExtension = file.name.split('.').pop();
+          const fileName = `leave-${profile?.id}-${nanoid()}.${fileExtension}`;
+          const filePath = `uploads/${fileName}`;
+          const fileRef = ref(storage, filePath);
+          await uploadBytes(fileRef, file);
+          const attachmentURL = await getDownloadURL(fileRef);
+          formData.append('attachmentURL', attachmentURL);
+        } catch (e: any) {
+          console.error("Error during file upload:", e);
+          let errorMessage = "Could not upload your document. Please try again.";
+          if (e.code === 'storage/retry-limit-exceeded') {
+              errorMessage = "File upload failed after multiple attempts. Please check your network connection.";
+          } else if (e.code === 'storage/unauthorized') {
+              errorMessage = "Upload failed due to network issues or permissions. Please check your connection and Firebase Storage rules.";
           }
-      } else {
-        formData.append('attachmentURL', '');
-      }
+          toast({ variant: "destructive", title: "Upload Failed", description: errorMessage });
+          setIsUploading(false);
+          return;
+        } finally {
+          setIsUploading(false);
+        }
+    } else {
+      formData.append('attachmentURL', '');
+    }
       
       formAction(formData);
   };
