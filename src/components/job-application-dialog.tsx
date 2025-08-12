@@ -61,9 +61,9 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       }
     }
   }, [state, toast]);
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
+    console.log(selectedFile);
     setFileError(null);
     if (selectedFile) {
         if (selectedFile.type !== 'application/pdf') {

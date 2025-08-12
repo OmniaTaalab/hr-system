@@ -27,7 +27,7 @@ import { useLeaveTypes } from "@/hooks/use-leave-types";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { storage } from "@/lib/firebase/config";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage/lite";
 import { nanoid } from "nanoid";
 
 const initialSubmitState: SubmitLeaveRequestState = {
@@ -107,44 +107,46 @@ function LeaveRequestForm() {
         setFile(null);
     }
   };
-
+ 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       
-      let attachmentURL = "";
+      const formData = new FormData();
+      
       if (file) {
           setIsUploading(true);
           try {
-              const fileExtension = file.name.split('.').pop();
-              const fileName = `leave-${profile?.id}-${nanoid()}.${fileExtension}`;
-              const filePath = `pdf/${fileName}`;
-              const fileRef = ref(storage, filePath);
-              
-              await uploadBytes(fileRef, file);
-              attachmentURL = await getDownloadURL(fileRef);
-
-          } catch (error) {
-              console.error("File upload failed:", error);
-              toast({
-                  variant: "destructive",
-                  title: "File Upload Failed",
-                  description: "Could not upload your attachment. Please try again or check your storage security rules.",
-              });
-              setIsUploading(false);
-              return; // Stop submission if upload fails
+            const fileExtension = file.name.split('.').pop();
+            const fileName = `leave-${profile?.id}-${nanoid()}.${fileExtension}`;
+            const filePath = `uploads/${fileName}`;
+            const fileRef = ref(storage, filePath);
+            
+            await uploadBytes(fileRef, file);
+            const attachmentURL = await getDownloadURL(fileRef);
+            formData.append('attachmentURL', attachmentURL);
+            
+          } catch(e: any) {
+             console.error("Error during file upload:", e);
+             let errorMessage = "Could not upload your document. Please try again.";
+             if (e.code === 'storage/retry-limit-exceeded' || e.code === 'storage/unauthorized') {
+                errorMessage = "Upload failed due to network issues or permissions. Please check your connection and Firebase Storage rules.";
+             }
+             toast({ variant: "destructive", title: "Upload Failed", description: errorMessage });
+             setIsUploading(false);
+             return;
           } finally {
-              setIsUploading(false);
+            setIsUploading(false);
           }
+      } else {
+        formData.append('attachmentURL', '');
       }
       
-      // Create a new FormData object and populate it with all the state values
-      const formData = new FormData();
+      // Populate the rest of the form data
       if (profile?.id) formData.append('requestingEmployeeDocId', profile.id);
       formData.append('leaveType', leaveType);
       if (startDate) formData.append('startDate', startDate.toISOString());
       if (endDate) formData.append('endDate', endDate.toISOString());
       formData.append('reason', reason);
-      formData.append('attachmentURL', attachmentURL);
 
       formAction(formData);
   };
