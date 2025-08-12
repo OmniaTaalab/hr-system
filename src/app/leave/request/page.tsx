@@ -27,7 +27,7 @@ import { useLeaveTypes } from "@/hooks/use-leave-types";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { storage } from "@/lib/firebase/config";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage/lite";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { nanoid } from "nanoid";
 
 const initialSubmitState: SubmitLeaveRequestState = {
@@ -40,8 +40,8 @@ function LeaveRequestForm() {
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [serverState, formAction, isSubmitting] = useActionState(submitLeaveRequestAction, initialSubmitState);
   
+  const [serverState, formAction, isSubmitting] = useActionState(submitLeaveRequestAction, initialSubmitState);
   const [isUploading, setIsUploading] = useState(false);
   const isActionPending = isUploading || isSubmitting;
   
@@ -113,6 +113,13 @@ function LeaveRequestForm() {
       
       const formData = new FormData();
       
+      // Manually add all fields to formData
+      if (profile?.id) formData.append('requestingEmployeeDocId', profile.id);
+      formData.append('leaveType', leaveType);
+      if (startDate) formData.append('startDate', startDate.toISOString());
+      if (endDate) formData.append('endDate', endDate.toISOString());
+      formData.append('reason', reason);
+
       if (file) {
           setIsUploading(true);
           try {
@@ -133,7 +140,7 @@ function LeaveRequestForm() {
              }
              toast({ variant: "destructive", title: "Upload Failed", description: errorMessage });
              setIsUploading(false);
-             return;
+             return; // Stop form submission if upload fails
           } finally {
             setIsUploading(false);
           }
@@ -141,13 +148,6 @@ function LeaveRequestForm() {
         formData.append('attachmentURL', '');
       }
       
-      // Populate the rest of the form data
-      if (profile?.id) formData.append('requestingEmployeeDocId', profile.id);
-      formData.append('leaveType', leaveType);
-      if (startDate) formData.append('startDate', startDate.toISOString());
-      if (endDate) formData.append('endDate', endDate.toISOString());
-      formData.append('reason', reason);
-
       formAction(formData);
   };
   
