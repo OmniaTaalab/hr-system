@@ -5,7 +5,6 @@ import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, Timestamp, deleteDoc, getDoc } from 'firebase/firestore';
 // Assuming these functions exist for getting user info
-import { getCurrentUserRole, getCurrentUserId } from '@/lib/auth'; 
 import { getWeekendSettings } from './settings-actions';
 
 // New helper function to calculate working days, excluding weekends and holidays

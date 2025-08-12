@@ -2,9 +2,9 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore"; // Corrected import path
+import { getFirestore, type Firestore } from "firebase/firestore";
 import { getAnalytics, type Analytics } from "firebase/analytics";
-import { getStorage, type Storage } from "firebase/storage";
+import { getStorage, type FirebaseStorage } from "firebase/storage"; // Import FirebaseStorage
 
 // Your project's Firebase configuration
 const firebaseConfig = {
@@ -21,7 +21,7 @@ const firebaseConfig = {
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
-let storage: Storage;
+let storage: FirebaseStorage; // Use FirebaseStorage type
 let analytics: Analytics | null = null;
 
 if (!getApps().length) {
@@ -30,6 +30,7 @@ if (!getApps().length) {
   db = getFirestore(app);
   storage = getStorage(app);
   if (typeof window !== 'undefined') {
+   console.log("undefined");
     try {
         analytics = getAnalytics(app);
      } catch (e) {
@@ -37,6 +38,8 @@ if (!getApps().length) {
      }
   }
 } else {
+   console.log("ssssssss");
+
   app = getApps()[0];
   auth = getAuth(app);
   db = getFirestore(app);
@@ -50,4 +53,4 @@ if (!getApps().length) {
   }
 }
 
-export { app, auth, db, storage, analytics };
+export { app, auth, db, storage, analytics }; // Export storage
