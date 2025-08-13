@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useActionState, useRef } from "rea
 import { AppLayout } from "@/components/layout/app-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon } from "lucide-react";
+import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown } from "lucide-react";
 import { auth, db } from "@/lib/firebase/config";
 import { 
   onAuthStateChanged, 
@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { createEmployeeProfileAction, type CreateProfileState } from "@/lib/firebase/admin-actions";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import jsPDF from "jspdf";
 
 
 // Define the Employee interface to include all necessary fields
@@ -417,6 +418,43 @@ export default function ProfilePage() {
     return undefined;
   }, [employeeProfile?.dateOfBirth]);
 
+  const handleDownloadHrLetter = () => {
+    if (!employeeProfile) return;
+
+    const doc = new jsPDF();
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("HR Letter", 105, 20, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    
+    const issueDate = new Date().toLocaleDateString();
+    doc.text(`Date: ${issueDate}`, 20, 40);
+    
+    doc.text(`To: ${employeeProfile.name}`, 20, 50);
+    doc.text(`Employee ID: ${employeeProfile.employeeId}`, 20, 60);
+    doc.text("Department: Human Resources", 20, 70);
+    
+    doc.setFont("helvetica", "bold");
+    doc.text("Subject: ", 20, 90);
+    doc.setFont("helvetica", "normal");
+    
+    // Draw a line for the subject
+    doc.line(38, 90, 190, 90);
+
+    doc.text("Dear Sir/Madam,", 20, 110);
+    
+    // Placeholder for the body
+    
+    doc.text("Sincerely,", 20, 250);
+    doc.text("________________________", 20, 260);
+    doc.text("HR Manager", 20, 265);
+    
+    doc.save(`HR_Letter_${employeeProfile.name.replace(/\s/g, '_')}.pdf`);
+  };
+
 
   return (
     <AppLayout>
@@ -491,6 +529,18 @@ export default function ProfilePage() {
               </div>
             </div>
             <ChangePasswordForm />
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle>Document Templates</CardTitle>
+                <CardDescription>Download common HR document templates.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button onClick={handleDownloadHrLetter}>
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Download HR Letter Template
+                </Button>
+              </CardContent>
+            </Card>
           </>
         )}
 
