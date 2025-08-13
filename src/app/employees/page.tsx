@@ -904,7 +904,7 @@ function EmployeeManagementContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [totalEmployees, setTotalEmployees] = useState(0);
+  const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const { toast } = useToast();
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);

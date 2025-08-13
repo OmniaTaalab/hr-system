@@ -123,8 +123,9 @@ function LeaveRequestForm() {
         setIsUploading(true);
         try {
           const fileExtension = file.name.split('.').pop();
-          const fileName = `leave-attachments/${profile?.id}/${nanoid()}.${fileExtension}`;
-          const fileRef = ref(storage, fileName);
+          const fileName = `leave-${profile?.id}-${nanoid()}.${fileExtension}`;
+          const filePath = `pdf/${fileName}`;
+          const fileRef = ref(storage, filePath);
           await uploadBytes(fileRef, file);
           const attachmentURL = await getDownloadURL(fileRef);
           formData.append('attachmentURL', attachmentURL);

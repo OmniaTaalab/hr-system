@@ -16,7 +16,6 @@ interface Employee {
   role: string;
   photoURL?: string | null;
   groupName?: string; 
-  stage?: string; 
 }
 
 interface TreeNode {
@@ -41,7 +40,7 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
             </Avatar>
             <div className="text-sm font-semibold">{node.employee.name}</div>
             <div className="text-xs text-muted-foreground">{node.employee.role}</div>
-            {node.employee.stage && <div className="text-xs text-blue-500 font-medium">{node.employee.stage}</div>}
+            {node.employee.role && <div className="text-xs text-blue-500 font-medium">{node.employee.role}</div>}
           </CardContent>
         </Card>
       </Link>
@@ -75,13 +74,14 @@ const EmployeesChartContent = () => {
       setIsLoading(true);
       const q = query(collection(db, 'employee'));
       const querySnapshot = await getDocs(q);
+      
       const employees = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Employee[];
 
       const employeesByRole: Record<string, Employee[]> = {
-          'Director': [],
+          'Campus Director': [],
           'Principal': [],
           'Teacher': [],
       };
@@ -93,7 +93,7 @@ const EmployeesChartContent = () => {
       });
       
       const buildTree = (): TreeNode[] => {
-          const directors = employeesByRole['Director'] || [];
+          const directors = employeesByRole['Campus Director'] || [];
           const principals = employeesByRole['Principal'] || [];
           const teachers = employeesByRole['Teacher'] || [];
 
@@ -113,8 +113,9 @@ const EmployeesChartContent = () => {
           // Create principal nodes with their teachers
           const principalNodes = principals.map(principal => {
               const childrenNodes = teacherNodes.filter(
-                  tn => tn.employee.stage === principal.stage
+                  tn => tn.employee.role === principal.role
               );
+              
               return { employee: principal, children: childrenNodes };
           });
           
