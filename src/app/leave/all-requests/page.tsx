@@ -41,7 +41,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send, Filter, AlertTriangle, FileText } from "lucide-react";
+import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send, Filter, AlertTriangle } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { db } from '@/lib/firebase/config';
@@ -657,7 +657,6 @@ function AllLeaveRequestsContent() {
                   <TableHead>End Date</TableHead>
                   <TableHead>Working Days</TableHead>
                   <TableHead>Reason</TableHead>
-                  <TableHead>Attachment</TableHead>
                   <TableHead>Manager Notes</TableHead>
                   <TableHead>Status</TableHead>
                   {canManageRequests && <TableHead className="text-right">Actions</TableHead>}
@@ -678,17 +677,6 @@ function AllLeaveRequestsContent() {
                         <TableCell>{format(endDate, "PPP")}</TableCell>
                         <TableCell>{request.numberOfDays ?? fallbackDays}</TableCell>
                         <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
-                        <TableCell>
-                          {request.attachmentURL ? (
-                            <Button asChild variant="outline" size="sm">
-                              <a href={request.attachmentURL} target="_blank" rel="noopener noreferrer">
-                                <FileText className="mr-2 h-4 w-4" /> View
-                              </a>
-                            </Button>
-                          ) : (
-                            "-"
-                          )}
-                        </TableCell>
                         <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>
                         <TableCell>
                           <LeaveStatusBadge status={request.status} />
@@ -736,7 +724,7 @@ function AllLeaveRequestsContent() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={canManageRequests ? 11 : 9} className="h-24 text-center">
+                    <TableCell colSpan={canManageRequests ? 10 : 8} className="h-24 text-center">
                       {searchTerm || statusFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
                     </TableCell>
                   </TableRow>
