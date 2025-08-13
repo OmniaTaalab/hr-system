@@ -5,10 +5,9 @@ import React, { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/app-layout';
 import { db } from '@/lib/firebase/config';
 import { collection, query, getDocs } from 'firebase/firestore';
-import { Loader2, User, Users } from 'lucide-react';
+import { Loader2, Users } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 
 interface Employee {
@@ -16,8 +15,8 @@ interface Employee {
   name: string;
   role: string;
   photoURL?: string | null;
-  groupName?: string; // For Director -> Principal mapping
-  stage?: string; // For Principal -> Teacher mapping
+  groupName?: string; 
+  stage?: string; 
 }
 
 interface TreeNode {
@@ -42,7 +41,7 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
             </Avatar>
             <div className="text-sm font-semibold">{node.employee.name}</div>
             <div className="text-xs text-muted-foreground">{node.employee.role}</div>
-            {node.employee.stage && node.employee.role !== 'Principal' && <div className="text-xs text-blue-500 font-medium">{node.employee.stage}</div>}
+            {node.employee.stage && <div className="text-xs text-blue-500 font-medium">{node.employee.stage}</div>}
           </CardContent>
         </Card>
       </Link>
@@ -50,9 +49,11 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
         <>
           <div className="w-px h-6 bg-gray-400" />
           <div className="flex justify-center relative">
-            <div className="absolute top-0 h-px w-full bg-gray-400" />
+            {/* Horizontal connecting line */}
+            {node.children.length > 1 && <div className="absolute top-0 h-px w-full bg-gray-400" />}
             {node.children.map((child, index) => (
               <div key={child.employee.id} className="px-4 relative">
+                 {/* Vertical line connecting to the horizontal line */}
                 <div className="absolute -top-6 left-1/2 w-px h-6 bg-gray-400" />
                 <EmployeeNode node={child} />
               </div>
@@ -96,54 +97,35 @@ const EmployeesChartContent = () => {
           const principals = employeesByRole['Principal'] || [];
           const teachers = employeesByRole['Teacher'] || [];
 
-          // Group teachers by their stage
-          const teachersByStage: Record<string, Employee[]> = {};
-          teachers.forEach(teacher => {
-              const stage = teacher.stage || 'Unassigned';
-              if (!teachersByStage[stage]) {
-                  teachersByStage[stage] = [];
+          // Create teacher nodes
+          const teacherNodes = teachers.map(t => ({ employee: t, children: [] }));
+
+          // Group principals by their groupName
+          const principalsByGroup: Record<string, Employee[]> = {};
+          principals.forEach(principal => {
+              const group = principal.groupName || 'Unassigned';
+              if (!principalsByGroup[group]) {
+                  principalsByGroup[group] = [];
               }
-              teachersByStage[stage].push(teacher);
+              principalsByGroup[group].push(principal);
           });
           
-          // Create teacher nodes grouped by stage
-          const stageNodes: Record<string, TreeNode[]> = {};
-          for(const stage in teachersByStage){
-              stageNodes[stage] = teachersByStage[stage].map(t => ({ employee: t, children: [] }));
-          }
-
-          // Assign teachers (via stages) to principals
+          // Create principal nodes with their teachers
           const principalNodes = principals.map(principal => {
-              const childrenNodes: TreeNode[] = [];
-              // A principal might be associated with a group that corresponds to a stage.
-              const principalStage = principal.stage;
-              if (principalStage && stageNodes[principalStage]) {
-                  childrenNodes.push(...stageNodes[principalStage]);
-                  // To avoid duplicating teachers under multiple principals if stages overlap
-                  delete stageNodes[principalStage];
-              }
+              const childrenNodes = teacherNodes.filter(
+                  tn => tn.employee.stage === principal.stage
+              );
               return { employee: principal, children: childrenNodes };
           });
           
-          // Distribute any remaining (unassigned) teachers among principals
-          const remainingTeachers = Object.values(stageNodes).flat();
-          if (remainingTeachers.length > 0 && principalNodes.length > 0) {
-              let principalIdx = 0;
-              remainingTeachers.forEach(teacherNode => {
-                  principalNodes[principalIdx].children.push(teacherNode);
-                  principalIdx = (principalIdx + 1) % principalNodes.length;
-              });
-          }
-          
           // Assign principals to directors
           const directorNodes = directors.map(director => {
-              // Assuming directors are associated with principals via groupName
-              const directorGroupName = director.groupName;
-              const assignedPrincipals = principalNodes.filter(p => p.employee.groupName === directorGroupName);
-              return { employee: director, children: assignedPrincipals };
+              const childrenNodes = principalNodes.filter(
+                  pn => pn.employee.groupName === director.groupName
+              );
+              return { employee: director, children: childrenNodes };
           });
 
-          // Return top-level nodes (directors, or principals if no directors)
           return directorNodes.length > 0 ? directorNodes : principalNodes;
       };
 
@@ -172,7 +154,7 @@ const EmployeesChartContent = () => {
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
              </div>
           ) : tree.length > 0 ? (
-            <div className="flex justify-center space-x-8">
+            <div className="flex justify-center space-x-8 py-8">
               {tree.map(rootNode => (
                 <EmployeeNode key={rootNode.employee.id} node={rootNode} />
               ))}
