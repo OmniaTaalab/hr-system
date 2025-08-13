@@ -5,7 +5,11 @@ import React, { useState, useEffect, useActionState, useMemo, useRef } from 'rea
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { manageListItemAction, type ManageListItemState, syncGroupNamesFromEmployeesAction, type SyncState } from "@/app/actions/settings-actions";
+import { 
+    manageListItemAction, type ManageListItemState, 
+    syncGroupNamesFromEmployeesAction, type SyncState,
+    syncRolesFromEmployeesAction
+} from "@/app/actions/settings-actions";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -45,7 +49,9 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   const [addState, addAction, isAddPending] = useActionState(manageListItemAction, initialManageState);
   const [editState, editAction, isEditPending] = useActionState(manageListItemAction, initialManageState);
   const [deleteState, deleteAction, isDeletePending] = useActionState(manageListItemAction, initialManageState);
-  const [syncState, syncAction, isSyncPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
+  
+  const [syncGroupState, syncGroupAction, isSyncGroupPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
+  const [syncRoleState, syncRoleAction, isSyncRolePending] = useActionState(syncRolesFromEmployeesAction, initialSyncState);
 
   const addFormRef = useRef<HTMLFormElement>(null);
   const editFormRef = useRef<HTMLFormElement>(null);
@@ -95,14 +101,24 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   }, [deleteState, toast]);
 
   useEffect(() => {
-    if (syncState?.message) {
+    if (syncGroupState?.message) {
         toast({
-            title: syncState.success ? "Sync Complete" : "Sync Failed",
-            description: syncState.message,
-            variant: syncState.success ? "default" : "destructive"
+            title: syncGroupState.success ? "Sync Complete" : "Sync Failed",
+            description: syncGroupState.message,
+            variant: syncGroupState.success ? "default" : "destructive"
         });
     }
-  }, [syncState, toast]);
+  }, [syncGroupState, toast]);
+
+   useEffect(() => {
+    if (syncRoleState?.message) {
+        toast({
+            title: syncRoleState.success ? "Sync Complete" : "Sync Failed",
+            description: syncRoleState.message,
+            variant: syncRoleState.success ? "default" : "destructive"
+        });
+    }
+  }, [syncRoleState, toast]);
 
   const filteredItems = useMemo(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
@@ -120,10 +136,18 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
         <CardTitle className="flex justify-between items-center text-lg">
           {title}
           <div className="flex items-center gap-2">
+             {collectionName === 'roles' && (
+              <form action={syncRoleAction}>
+                  <Button size="sm" variant="secondary" disabled={isSyncRolePending}>
+                      {isSyncRolePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Sync from Employees
+                  </Button>
+              </form>
+            )}
             {collectionName === 'groupNames' && (
-              <form action={syncAction}>
-                  <Button size="sm" variant="secondary" disabled={isSyncPending}>
-                      {isSyncPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+              <form action={syncGroupAction}>
+                  <Button size="sm" variant="secondary" disabled={isSyncGroupPending}>
+                      {isSyncGroupPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
                       Sync from Employees
                   </Button>
               </form>

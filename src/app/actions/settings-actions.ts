@@ -366,3 +366,49 @@ export async function syncGroupNamesFromEmployeesAction(): Promise<SyncState> {
     };
   }
 }
+
+// --- NEW ACTION: Sync Roles from Employees ---
+export async function syncRolesFromEmployeesAction(): Promise<SyncState> {
+  try {
+    // 1. Get all unique roles from the 'employee' collection
+    const employeeSnapshot = await getDocs(collection(db, "employee"));
+    const employeeRoles = new Set(
+      employeeSnapshot.docs
+        .map(doc => doc.data().role)
+        .filter(Boolean) // Filter out any falsy values (null, undefined, '')
+    );
+
+    // 2. Get all existing roles from the 'roles' collection
+    const rolesSnapshot = await getDocs(collection(db, "roles"));
+    const existingRoles = new Set(
+      rolesSnapshot.docs.map(doc => doc.data().name)
+    );
+
+    // 3. Determine which roles are new
+    const newRoles = [...employeeRoles].filter(
+      name => !existingRoles.has(name)
+    );
+
+    if (newRoles.length === 0) {
+      return { success: true, message: "Roles are already up-to-date." };
+    }
+
+    // 4. Add the new roles to the 'roles' collection
+    const batch = [];
+    for (const name of newRoles) {
+      batch.push(addDoc(collection(db, "roles"), { name }));
+    }
+    await Promise.all(batch);
+
+    return { 
+      success: true, 
+      message: `Successfully added ${newRoles.length} new role(s).` 
+    };
+  } catch (error: any) {
+    console.error("Error syncing roles from employees:", error);
+    return {
+      success: false,
+      message: `Failed to sync roles. An unexpected error occurred: ${error.message}`
+    };
+  }
+}
