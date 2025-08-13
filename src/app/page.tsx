@@ -9,7 +9,8 @@ import Link from "next/link";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useMemo } from "react";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, query, where, getCountFromServer, type Timestamp, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, getCountFromServer, Timestamp, orderBy } from 'firebase/firestore';
+import type { Timestamp as FirebaseTimestamp } from 'firebase/firestore';
 import {
   ChartContainer,
   ChartTooltip,
@@ -31,7 +32,7 @@ interface Employee {
 interface Holiday {
   id: string;
   name: string;
-  date: Timestamp;
+  date: FirebaseTimestamp;
 }
 
 
