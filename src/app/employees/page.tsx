@@ -177,13 +177,16 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         description: serverState.message,
       });
       onSuccess();
-    } else if (serverState.errors) {
-      const errorMessages = Object.values(serverState.errors).flat().join(' ');
-      toast({
-        variant: "destructive",
-        title: "Validation Error",
-        description: errorMessages || serverState.message || "Please check the form for errors.",
-      });
+    } else if (serverState.message && serverState.errors) {
+      // Don't show a toast for validation errors, they are displayed inline.
+      // You could show a toast for a general form error if needed.
+      if (serverState.errors.form) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: serverState.errors.form.join(', '),
+        });
+      }
     }
   }, [serverState, toast, onSuccess]);
 
