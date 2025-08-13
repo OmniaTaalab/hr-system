@@ -4,12 +4,12 @@
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, CalendarCheck2 } from "lucide-react";
 import Link from "next/link";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useMemo } from "react";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, query, where, getCountFromServer, type Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, getCountFromServer, type Timestamp, orderBy } from 'firebase/firestore';
 import {
   ChartContainer,
   ChartTooltip,
@@ -18,6 +18,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { format } from 'date-fns';
 
 interface Employee {
   id: string;
@@ -26,6 +27,13 @@ interface Employee {
   campus: string;
   status: "Active" | "On Leave" | "Terminated";
 }
+
+interface Holiday {
+  id: string;
+  name: string;
+  date: Timestamp;
+}
+
 
 interface DashboardCardProps {
   title: string;
@@ -106,6 +114,8 @@ function DashboardPageContent() {
   const [approvedLeaveRequests, setApprovedLeaveRequests] = useState<number | null>(null);
   const [rejectedLeaveRequests, setRejectedLeaveRequests] = useState<number | null>(null);
   const [campusData, setCampusData] = useState<CampusData[]>([]);
+  const [upcomingHolidays, setUpcomingHolidays] = useState<Holiday[]>([]);
+
 
   const [isLoadingTotalEmp, setIsLoadingTotalEmp] = useState(true);
   const [isLoadingActiveEmp, setIsLoadingActiveEmp] = useState(true);
@@ -113,6 +123,8 @@ function DashboardPageContent() {
   const [isLoadingApprovedLeaves, setIsLoadingApprovedLeaves] = useState(true);
   const [isLoadingRejectedLeaves, setIsLoadingRejectedLeaves] = useState(true);
   const [isLoadingCampusData, setIsLoadingCampusData] = useState(true);
+  const [isLoadingHolidays, setIsLoadingHolidays] = useState(true);
+
   
   const { profile, loading: isLoadingProfile } = useUserProfile();
 
@@ -200,8 +212,30 @@ function DashboardPageContent() {
       }
     };
 
+    const fetchHolidays = async () => {
+      try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Start of today for comparison
+        const holidaysQuery = query(
+          collection(db, "holidays"),
+          where("date", ">=", Timestamp.fromDate(today)),
+          orderBy("date", "asc")
+        );
+        const holidaysSnapshot = await getDocs(holidaysQuery);
+        const holidaysData = holidaysSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Holiday));
+        setUpcomingHolidays(holidaysData);
+      } catch (error) {
+        console.error("Error fetching upcoming holidays:", error);
+        setUpcomingHolidays([]);
+      } finally {
+        setIsLoadingHolidays(false);
+      }
+    };
+
+
     fetchCounts();
     fetchCampusData();
+    fetchHolidays();
   }, []);
 
   const statisticCards: DashboardCardProps[] = [
@@ -323,6 +357,41 @@ function DashboardPageContent() {
           ))}
         </div>
       </section>
+      
+      {(isLoadingHolidays || upcomingHolidays.length > 0) && (
+        <section aria-labelledby="holidays-title" className="mt-8">
+          <h2 id="holidays-title" className="text-2xl font-semibold font-headline mb-4">
+            Announcements
+          </h2>
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="font-headline text-xl flex items-center">
+                <CalendarCheck2 className="mr-2 h-6 w-6 text-primary" />
+                Upcoming Holidays
+              </CardTitle>
+              <CardDescription>Official company holidays for the upcoming period.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingHolidays ? (
+                <div className="flex justify-center items-center h-[100px]">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : upcomingHolidays.length > 0 ? (
+                <ul className="space-y-3">
+                  {upcomingHolidays.map(holiday => (
+                    <li key={holiday.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                      <span className="font-medium text-foreground">{holiday.name}</span>
+                      <span className="text-sm text-muted-foreground">{format(holiday.date.toDate(), 'PPP')}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-center text-muted-foreground py-6">No upcoming holidays scheduled.</p>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       <section aria-labelledby="charts-title" className="mt-8">
          <h2 id="charts-title" className="text-2xl font-semibold font-headline mb-4">
