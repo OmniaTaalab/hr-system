@@ -1,0 +1,177 @@
+
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { AppLayout } from '@/components/layout/app-layout';
+import { db } from '@/lib/firebase/config';
+import { collection, query, getDocs } from 'firebase/firestore';
+import { Loader2, User, Users } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
+import Link from 'next/link';
+
+interface Employee {
+  id: string;
+  name: string;
+  role: string;
+  photoURL?: string | null;
+}
+
+interface TreeNode {
+  employee: Employee;
+  children: TreeNode[];
+}
+
+const EmployeeNode = ({ node }: { node: TreeNode }) => {
+  const getInitials = (name?: string | null) => {
+    if (!name) return "U";
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  };
+
+  return (
+    <div className="flex flex-col items-center">
+      <Link href={`/employees/${node.employee.id}`}>
+        <Card className="p-2 min-w-32 text-center shadow-md hover:shadow-lg transition-shadow cursor-pointer">
+          <CardContent className="p-2 flex flex-col items-center gap-2">
+            <Avatar className="h-12 w-12">
+              <AvatarImage src={node.employee.photoURL || undefined} alt={node.employee.name} />
+              <AvatarFallback>{getInitials(node.employee.name)}</AvatarFallback>
+            </Avatar>
+            <div className="text-sm font-semibold">{node.employee.name}</div>
+            <div className="text-xs text-muted-foreground">{node.employee.role}</div>
+          </CardContent>
+        </Card>
+      </Link>
+      {node.children.length > 0 && (
+        <>
+          <div className="w-px h-6 bg-gray-400" />
+          <div className="flex justify-center relative">
+            <div className="absolute top-0 h-px w-full bg-gray-400" />
+            {node.children.map((child, index) => (
+              <div key={child.employee.id} className="px-4 relative">
+                <div className="absolute -top-6 left-1/2 w-px h-6 bg-gray-400" />
+                <EmployeeNode node={child} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+
+const EmployeesChartContent = () => {
+  const [tree, setTree] = useState<TreeNode[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      const q = query(collection(db, 'employee'));
+      const querySnapshot = await getDocs(q);
+      const employees = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Employee[];
+
+      const roleHierarchy = ['Director', 'Principal', 'Teacher'];
+      const employeesByRole: Record<string, Employee[]> = {};
+      roleHierarchy.forEach(role => employeesByRole[role] = []);
+      
+      employees.forEach(emp => {
+        if (employeesByRole[emp.role]) {
+          employeesByRole[emp.role].push(emp);
+        }
+      });
+      
+      const buildTree = (): TreeNode[] => {
+          const directors = employeesByRole['Director'] || [];
+          const principals = employeesByRole['Principal'] || [];
+          const teachers = employeesByRole['Teacher'] || [];
+
+          const teacherNodes = teachers.map(t => ({ employee: t, children: [] }));
+          
+          let principalIndex = 0;
+          const principalNodes = principals.map(p => {
+              const assignedTeachers: TreeNode[] = [];
+              // Distribute teachers under principals
+              const teachersPerPrincipal = Math.ceil(teacherNodes.length / principals.length);
+              
+              if (principals.length > 0 && teacherNodes.length > 0) {
+                 const start = principalIndex * teachersPerPrincipal;
+                 const end = Math.min(start + teachersPerPrincipal, teacherNodes.length);
+                 assignedTeachers.push(...teacherNodes.slice(start, end));
+                 principalIndex++;
+              }
+              
+              return { employee: p, children: assignedTeachers };
+          });
+          
+          let directorIndex = 0;
+          const directorNodes = directors.map(d => {
+              const assignedPrincipals: TreeNode[] = [];
+              const principalsPerDirector = Math.ceil(principalNodes.length / directors.length);
+
+              if(directors.length > 0 && principalNodes.length > 0) {
+                  const start = directorIndex * principalsPerDirector;
+                  const end = Math.min(start + principalsPerDirector, principalNodes.length);
+                  assignedPrincipals.push(...principalNodes.slice(start, end));
+                  directorIndex++;
+              } else {
+                 assignedPrincipals.push(...principalNodes); // Assign all principals if no director
+              }
+
+              return { employee: d, children: assignedPrincipals };
+          });
+
+          return directorNodes.length > 0 ? directorNodes : principalNodes.length > 0 ? principalNodes : teacherNodes;
+      };
+
+      setTree(buildTree());
+      setIsLoading(false);
+    };
+    fetchData();
+  }, []);
+
+  return (
+    <div className="space-y-8">
+      <header>
+        <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
+          <Users className="mr-3 h-8 w-8 text-primary" />
+          Employees Chart
+        </h1>
+        <p className="text-muted-foreground">
+          Organizational structure based on roles.
+        </p>
+      </header>
+
+      <Card className="shadow-lg">
+        <CardContent className="p-6 overflow-x-auto">
+          {isLoading ? (
+             <div className="flex justify-center items-center h-64">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+             </div>
+          ) : tree.length > 0 ? (
+            <div className="flex justify-center space-x-8">
+              {tree.map(rootNode => (
+                <EmployeeNode key={rootNode.employee.id} node={rootNode} />
+              ))}
+            </div>
+          ) : (
+             <p className="text-center text-muted-foreground py-10">No employees found to build the chart.</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default function EmployeesChartPage() {
+  return (
+    <AppLayout>
+      <EmployeesChartContent />
+    </AppLayout>
+  );
+}
