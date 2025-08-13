@@ -16,6 +16,8 @@ interface Employee {
   name: string;
   role: string;
   photoURL?: string | null;
+  groupName?: string; // For Director -> Principal mapping
+  stage?: string; // For Principal -> Teacher mapping
 }
 
 interface TreeNode {
@@ -40,6 +42,7 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
             </Avatar>
             <div className="text-sm font-semibold">{node.employee.name}</div>
             <div className="text-xs text-muted-foreground">{node.employee.role}</div>
+            {node.employee.stage && node.employee.role !== 'Principal' && <div className="text-xs text-blue-500 font-medium">{node.employee.stage}</div>}
           </CardContent>
         </Card>
       </Link>
@@ -76,9 +79,11 @@ const EmployeesChartContent = () => {
         ...doc.data()
       })) as Employee[];
 
-      const roleHierarchy = ['Director', 'Principal', 'Teacher'];
-      const employeesByRole: Record<string, Employee[]> = {};
-      roleHierarchy.forEach(role => employeesByRole[role] = []);
+      const employeesByRole: Record<string, Employee[]> = {
+          'Director': [],
+          'Principal': [],
+          'Teacher': [],
+      };
       
       employees.forEach(emp => {
         if (employeesByRole[emp.role]) {
@@ -91,42 +96,55 @@ const EmployeesChartContent = () => {
           const principals = employeesByRole['Principal'] || [];
           const teachers = employeesByRole['Teacher'] || [];
 
-          const teacherNodes = teachers.map(t => ({ employee: t, children: [] }));
-          
-          let principalIndex = 0;
-          const principalNodes = principals.map(p => {
-              const assignedTeachers: TreeNode[] = [];
-              // Distribute teachers under principals
-              const teachersPerPrincipal = Math.ceil(teacherNodes.length / principals.length);
-              
-              if (principals.length > 0 && teacherNodes.length > 0) {
-                 const start = principalIndex * teachersPerPrincipal;
-                 const end = Math.min(start + teachersPerPrincipal, teacherNodes.length);
-                 assignedTeachers.push(...teacherNodes.slice(start, end));
-                 principalIndex++;
+          // Group teachers by their stage
+          const teachersByStage: Record<string, Employee[]> = {};
+          teachers.forEach(teacher => {
+              const stage = teacher.stage || 'Unassigned';
+              if (!teachersByStage[stage]) {
+                  teachersByStage[stage] = [];
               }
-              
-              return { employee: p, children: assignedTeachers };
+              teachersByStage[stage].push(teacher);
           });
           
-          let directorIndex = 0;
-          const directorNodes = directors.map(d => {
-              const assignedPrincipals: TreeNode[] = [];
-              const principalsPerDirector = Math.ceil(principalNodes.length / directors.length);
+          // Create teacher nodes grouped by stage
+          const stageNodes: Record<string, TreeNode[]> = {};
+          for(const stage in teachersByStage){
+              stageNodes[stage] = teachersByStage[stage].map(t => ({ employee: t, children: [] }));
+          }
 
-              if(directors.length > 0 && principalNodes.length > 0) {
-                  const start = directorIndex * principalsPerDirector;
-                  const end = Math.min(start + principalsPerDirector, principalNodes.length);
-                  assignedPrincipals.push(...principalNodes.slice(start, end));
-                  directorIndex++;
-              } else {
-                 assignedPrincipals.push(...principalNodes); // Assign all principals if no director
+          // Assign teachers (via stages) to principals
+          const principalNodes = principals.map(principal => {
+              const childrenNodes: TreeNode[] = [];
+              // A principal might be associated with a group that corresponds to a stage.
+              const principalStage = principal.stage;
+              if (principalStage && stageNodes[principalStage]) {
+                  childrenNodes.push(...stageNodes[principalStage]);
+                  // To avoid duplicating teachers under multiple principals if stages overlap
+                  delete stageNodes[principalStage];
               }
-
-              return { employee: d, children: assignedPrincipals };
+              return { employee: principal, children: childrenNodes };
+          });
+          
+          // Distribute any remaining (unassigned) teachers among principals
+          const remainingTeachers = Object.values(stageNodes).flat();
+          if (remainingTeachers.length > 0 && principalNodes.length > 0) {
+              let principalIdx = 0;
+              remainingTeachers.forEach(teacherNode => {
+                  principalNodes[principalIdx].children.push(teacherNode);
+                  principalIdx = (principalIdx + 1) % principalNodes.length;
+              });
+          }
+          
+          // Assign principals to directors
+          const directorNodes = directors.map(director => {
+              // Assuming directors are associated with principals via groupName
+              const directorGroupName = director.groupName;
+              const assignedPrincipals = principalNodes.filter(p => p.employee.groupName === directorGroupName);
+              return { employee: director, children: assignedPrincipals };
           });
 
-          return directorNodes.length > 0 ? directorNodes : principalNodes.length > 0 ? principalNodes : teacherNodes;
+          // Return top-level nodes (directors, or principals if no directors)
+          return directorNodes.length > 0 ? directorNodes : principalNodes;
       };
 
       setTree(buildTree());
@@ -143,7 +161,7 @@ const EmployeesChartContent = () => {
           Employees Chart
         </h1>
         <p className="text-muted-foreground">
-          Organizational structure based on roles.
+          Organizational structure based on roles and stages.
         </p>
       </header>
 
@@ -160,7 +178,7 @@ const EmployeesChartContent = () => {
               ))}
             </div>
           ) : (
-             <p className="text-center text-muted-foreground py-10">No employees found to build the chart.</p>
+             <p className="text-center text-muted-foreground py-10">No employees with roles Director/Principal found to build the chart.</p>
           )}
         </CardContent>
       </Card>
