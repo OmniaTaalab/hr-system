@@ -5,7 +5,7 @@ import React, { useState, useEffect, useActionState, useMemo, useRef } from 'rea
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { manageListItemAction, type ManageListItemState } from "@/app/actions/settings-actions";
+import { manageListItemAction, type ManageListItemState, syncGroupNamesFromEmployeesAction, type SyncState } from "@/app/actions/settings-actions";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, PlusCircle, Edit, Trash2, Search } from 'lucide-react';
+import { Loader2, PlusCircle, Edit, Trash2, Search, RefreshCw } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 
@@ -27,7 +27,8 @@ interface ListManagerProps {
   collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes";
 }
 
-const initialState: ManageListItemState = { success: false, message: null, errors: {} };
+const initialManageState: ManageListItemState = { success: false, message: null, errors: {} };
+const initialSyncState: SyncState = { success: false, message: null };
 
 export function ListManager({ title, collectionName }: ListManagerProps) {
   const { toast } = useToast();
@@ -41,9 +42,10 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
 
   const [selectedItem, setSelectedItem] = useState<ListItem | null>(null);
 
-  const [addState, addAction, isAddPending] = useActionState(manageListItemAction, initialState);
-  const [editState, editAction, isEditPending] = useActionState(manageListItemAction, initialState);
-  const [deleteState, deleteAction, isDeletePending] = useActionState(manageListItemAction, initialState);
+  const [addState, addAction, isAddPending] = useActionState(manageListItemAction, initialManageState);
+  const [editState, editAction, isEditPending] = useActionState(manageListItemAction, initialManageState);
+  const [deleteState, deleteAction, isDeletePending] = useActionState(manageListItemAction, initialManageState);
+  const [syncState, syncAction, isSyncPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
 
   const addFormRef = useRef<HTMLFormElement>(null);
   const editFormRef = useRef<HTMLFormElement>(null);
@@ -92,6 +94,16 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
       }
   }, [deleteState, toast]);
 
+  useEffect(() => {
+    if (syncState?.message) {
+        toast({
+            title: syncState.success ? "Sync Complete" : "Sync Failed",
+            description: syncState.message,
+            variant: syncState.success ? "default" : "destructive"
+        });
+    }
+  }, [syncState, toast]);
+
   const filteredItems = useMemo(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
     if (!searchTerm.trim()) {
@@ -107,34 +119,44 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
       <CardHeader className="pb-4">
         <CardTitle className="flex justify-between items-center text-lg">
           {title}
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                  <Button size="sm" variant="outline"><PlusCircle className="mr-2 h-4 w-4" /> Add New</Button>
-              </DialogTrigger>
-              <DialogContent>
-                  <form ref={addFormRef} action={addAction}>
-                      <DialogHeader>
-                          <DialogTitle>Add New {title.slice(0, -1)}</DialogTitle>
-                          <DialogDescription>Enter the name for the new item.</DialogDescription>
-                      </DialogHeader>
-                      <div className="py-4">
-                          <input type="hidden" name="collectionName" value={collectionName} />
-                          <input type="hidden" name="operation" value="add" />
-                          <Label htmlFor={`add-name-${collectionName}`}>Name</Label>
-                          <Input id={`add-name-${collectionName}`} name="name" required/>
-                          {addState?.errors?.name && <p className="text-sm text-destructive mt-1">{addState.errors.name.join(', ')}</p>}
-                          {addState?.errors?.form && <p className="text-sm text-destructive mt-1">{addState.errors.form.join(', ')}</p>}
-                      </div>
-                      <DialogFooter>
-                          <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                          <Button type="submit" disabled={isAddPending}>
-                              {isAddPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                              Add
-                          </Button>
-                      </DialogFooter>
-                  </form>
-              </DialogContent>
-          </Dialog>
+          <div className="flex items-center gap-2">
+            {collectionName === 'groupNames' && (
+              <form action={syncAction}>
+                  <Button size="sm" variant="secondary" disabled={isSyncPending}>
+                      {isSyncPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Sync from Employees
+                  </Button>
+              </form>
+            )}
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogTrigger asChild>
+                    <Button size="sm" variant="outline"><PlusCircle className="mr-2 h-4 w-4" /> Add New</Button>
+                </DialogTrigger>
+                <DialogContent>
+                    <form ref={addFormRef} action={addAction}>
+                        <DialogHeader>
+                            <DialogTitle>Add New {title.slice(0, -1)}</DialogTitle>
+                            <DialogDescription>Enter the name for the new item.</DialogDescription>
+                        </DialogHeader>
+                        <div className="py-4">
+                            <input type="hidden" name="collectionName" value={collectionName} />
+                            <input type="hidden" name="operation" value="add" />
+                            <Label htmlFor={`add-name-${collectionName}`}>Name</Label>
+                            <Input id={`add-name-${collectionName}`} name="name" required/>
+                            {addState?.errors?.name && <p className="text-sm text-destructive mt-1">{addState.errors.name.join(', ')}</p>}
+                            {addState?.errors?.form && <p className="text-sm text-destructive mt-1">{addState.errors.form.join(', ')}</p>}
+                        </div>
+                        <DialogFooter>
+                            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                            <Button type="submit" disabled={isAddPending}>
+                                {isAddPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                                Add
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent>

@@ -315,3 +315,54 @@ export async function manageListItemAction(
     };
   }
 }
+
+// --- NEW ACTION: Sync Group Names from Employees ---
+export type SyncState = {
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function syncGroupNamesFromEmployeesAction(): Promise<SyncState> {
+  try {
+    // 1. Get all unique group names from the 'employee' collection
+    const employeeSnapshot = await getDocs(collection(db, "employee"));
+    const employeeGroupNames = new Set(
+      employeeSnapshot.docs
+        .map(doc => doc.data().groupName)
+        .filter(Boolean) // Filter out any falsy values (null, undefined, '')
+    );
+
+    // 2. Get all existing group names from the 'groupNames' collection
+    const groupNamesSnapshot = await getDocs(collection(db, "groupNames"));
+    const existingGroupNames = new Set(
+      groupNamesSnapshot.docs.map(doc => doc.data().name)
+    );
+
+    // 3. Determine which group names are new
+    const newGroupNames = [...employeeGroupNames].filter(
+      name => !existingGroupNames.has(name)
+    );
+
+    if (newGroupNames.length === 0) {
+      return { success: true, message: "Group Names are already up-to-date." };
+    }
+
+    // 4. Add the new group names to the 'groupNames' collection
+    const batch = [];
+    for (const name of newGroupNames) {
+      batch.push(addDoc(collection(db, "groupNames"), { name }));
+    }
+    await Promise.all(batch);
+
+    return { 
+      success: true, 
+      message: `Successfully added ${newGroupNames.length} new group name(s).` 
+    };
+  } catch (error: any) {
+    console.error("Error syncing group names from employees:", error);
+    return {
+      success: false,
+      message: `Failed to sync group names. An unexpected error occurred: ${error.message}`
+    };
+  }
+}
