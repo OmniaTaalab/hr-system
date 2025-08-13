@@ -65,6 +65,7 @@ export interface LeaveRequestEntry {
   requestingEmployeeDocId: string; // Added this for robust linking
   employeeName: string;
   employeeGroupName?: string; // For filtering
+  employeeStage?: string; // For filtering
   leaveType: string;
   startDate: Timestamp;
   endDate: Timestamp;
@@ -74,7 +75,6 @@ export interface LeaveRequestEntry {
   managerNotes?: string;
   updatedAt?: Timestamp;
   numberOfDays?: number; // Number of working days
-  attachmentURL?: string | null;
 }
 
 const initialUpdateStatusState: UpdateLeaveStatusState = { message: null, errors: {}, success: false };
@@ -411,22 +411,22 @@ function AllLeaveRequestsContent() {
         if (userRole === 'admin' || userRole === 'hr') {
             q = query(leaveRequestsCollection, ...queryConstraints);
         } 
-        // Principals see requests from their own group.
-        else if (userRole === 'principal' && profile.groupName) {
-            const groupEmployeesQuery = query(
+        // Principals see requests from employees in the same stage.
+        else if (userRole === 'principal' && profile.stage) {
+            const stageEmployeesQuery = query(
                 collection(db, "employee"),
-                where("groupName", "==", profile.groupName)
+                where("stage", "==", profile.stage)
             );
-            const groupSnapshot = await getDocs(groupEmployeesQuery);
-            const employeeIdsInGroup = groupSnapshot.docs.map(doc => doc.id);
+            const stageSnapshot = await getDocs(stageEmployeesQuery);
+            const employeeIdsInStage = stageSnapshot.docs.map(doc => doc.id);
             
-            if (employeeIdsInGroup.length > 0) {
-                 // Firestore 'in' queries are limited to 30 items. For larger groups, this needs a different approach.
-                 // For now, assuming groups are smaller than 30.
-                queryConstraints.push(where("requestingEmployeeDocId", "in", employeeIdsInGroup));
+            if (employeeIdsInStage.length > 0) {
+                 if (employeeIdsInStage.length > 30) {
+                    console.warn("Warning: 'in' query for leave requests has more than 30 IDs. This may fail. Consider paginating or restructuring data.");
+                 }
+                queryConstraints.push(where("requestingEmployeeDocId", "in", employeeIdsInStage));
                 q = query(leaveRequestsCollection, ...queryConstraints);
             } else {
-                // If a principal has no employees in their group, show no requests.
                 setAllRequests([]);
                 setIsLoading(false);
                 return;
@@ -441,22 +441,35 @@ function AllLeaveRequestsContent() {
         const unsubscribe = onSnapshot(q, async (querySnapshot: { docs: any[]; }) => {
             const requestsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
             
-            // To avoid N+1 queries, fetch all employees once and map their group names.
             const employeeDataMap = new Map();
-            const allEmployeeDocs = await getDocs(collection(db, "employee"));
-            allEmployeeDocs.forEach(doc => {
-                employeeDataMap.set(doc.id, doc.data());
-            });
+            if (requestsData.length > 0) {
+                const employeeIds = [...new Set(requestsData.map(req => req.requestingEmployeeDocId))];
+                // Firestore 'in' query is limited to 30 items per query
+                const idChunks = [];
+                for (let i = 0; i < employeeIds.length; i += 30) {
+                    idChunks.push(employeeIds.slice(i, i + 30));
+                }
 
-            const requestsWithGroup = requestsData.map(req => {
+                for (const chunk of idChunks) {
+                     const employeeQuery = query(collection(db, "employee"), where("__name__", "in", chunk));
+                     const allEmployeeDocs = await getDocs(employeeQuery);
+                     allEmployeeDocs.forEach(doc => {
+                        employeeDataMap.set(doc.id, doc.data());
+                     });
+                }
+            }
+            
+
+            const requestsWithDetails = requestsData.map(req => {
                 const employeeData = employeeDataMap.get(req.requestingEmployeeDocId);
                 return {
                     ...req,
-                    employeeGroupName: employeeData?.groupName || 'N/A'
+                    employeeGroupName: employeeData?.groupName || 'N/A',
+                    employeeStage: employeeData?.stage || 'N/A'
                 };
             });
 
-            setAllRequests(requestsWithGroup);
+            setAllRequests(requestsWithDetails);
             setIsLoading(false);
         }, (error) => {
             console.error("Error fetching leave requests: ", error);
@@ -516,6 +529,7 @@ function AllLeaveRequestsContent() {
           item.employeeName.toLowerCase().includes(lowercasedFilter) ||
           item.leaveType.toLowerCase().includes(lowercasedFilter) ||
           (item.employeeGroupName && item.employeeGroupName.toLowerCase().includes(lowercasedFilter)) ||
+          (item.employeeStage && item.employeeStage.toLowerCase().includes(lowercasedFilter)) ||
           item.reason.toLowerCase().includes(lowercasedFilter) ||
           item.status.toLowerCase().includes(lowercasedFilter) || 
           format(item.startDate.toDate(), "PPP").toLowerCase().includes(lowercasedFilter) ||
@@ -652,6 +666,7 @@ function AllLeaveRequestsContent() {
                 <TableRow>
                   <TableHead>Employee Name</TableHead>
                   {canManageRequests && <TableHead>Group</TableHead>}
+                  {canManageRequests && <TableHead>Stage</TableHead>}
                   <TableHead>Leave Type</TableHead>
                   <TableHead>Start Date</TableHead>
                   <TableHead>End Date</TableHead>
@@ -672,6 +687,7 @@ function AllLeaveRequestsContent() {
                       <TableRow key={request.id}>
                         <TableCell className="font-medium">{request.employeeName}</TableCell>
                         {canManageRequests && <TableCell>{request.employeeGroupName}</TableCell>}
+                        {canManageRequests && <TableCell>{request.employeeStage}</TableCell>}
                         <TableCell>{request.leaveType}</TableCell>
                         <TableCell>{format(startDate, "PPP")}</TableCell>
                         <TableCell>{format(endDate, "PPP")}</TableCell>
@@ -724,7 +740,7 @@ function AllLeaveRequestsContent() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={canManageRequests ? 10 : 8} className="h-24 text-center">
+                    <TableCell colSpan={canManageRequests ? 11 : 8} className="h-24 text-center">
                       {searchTerm || statusFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
                     </TableCell>
                   </TableRow>
