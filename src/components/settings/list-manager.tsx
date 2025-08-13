@@ -8,7 +8,8 @@ import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { 
     manageListItemAction, type ManageListItemState, 
     syncGroupNamesFromEmployeesAction, type SyncState,
-    syncRolesFromEmployeesAction
+    syncRolesFromEmployeesAction,
+    syncCampusesFromEmployeesAction
 } from "@/app/actions/settings-actions";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -52,6 +53,8 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   
   const [syncGroupState, syncGroupAction, isSyncGroupPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
   const [syncRoleState, syncRoleAction, isSyncRolePending] = useActionState(syncRolesFromEmployeesAction, initialSyncState);
+  const [syncCampusState, syncCampusAction, isSyncCampusPending] = useActionState(syncCampusesFromEmployeesAction, initialSyncState);
+
 
   const addFormRef = useRef<HTMLFormElement>(null);
   const editFormRef = useRef<HTMLFormElement>(null);
@@ -120,6 +123,16 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
     }
   }, [syncRoleState, toast]);
 
+  useEffect(() => {
+    if (syncCampusState?.message) {
+        toast({
+            title: syncCampusState.success ? "Sync Complete" : "Sync Failed",
+            description: syncCampusState.message,
+            variant: syncCampusState.success ? "default" : "destructive"
+        });
+    }
+  }, [syncCampusState, toast]);
+
   const filteredItems = useMemo(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
     if (!searchTerm.trim()) {
@@ -148,6 +161,14 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
               <form action={syncGroupAction}>
                   <Button size="sm" variant="secondary" disabled={isSyncGroupPending}>
                       {isSyncGroupPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Sync from Employees
+                  </Button>
+              </form>
+            )}
+            {collectionName === 'campuses' && (
+              <form action={syncCampusAction}>
+                  <Button size="sm" variant="secondary" disabled={isSyncCampusPending}>
+                      {isSyncCampusPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
                       Sync from Employees
                   </Button>
               </form>

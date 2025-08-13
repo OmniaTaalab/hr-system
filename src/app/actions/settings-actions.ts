@@ -412,3 +412,49 @@ export async function syncRolesFromEmployeesAction(): Promise<SyncState> {
     };
   }
 }
+
+// --- NEW ACTION: Sync Campuses from Employees ---
+export async function syncCampusesFromEmployeesAction(): Promise<SyncState> {
+  try {
+    // 1. Get all unique campuses from the 'employee' collection
+    const employeeSnapshot = await getDocs(collection(db, "employee"));
+    const employeeCampuses = new Set(
+      employeeSnapshot.docs
+        .map(doc => doc.data().campus)
+        .filter(Boolean) // Filter out any falsy values (null, undefined, '')
+    );
+
+    // 2. Get all existing campuses from the 'campuses' collection
+    const campusesSnapshot = await getDocs(collection(db, "campuses"));
+    const existingCampuses = new Set(
+      campusesSnapshot.docs.map(doc => doc.data().name)
+    );
+
+    // 3. Determine which campuses are new
+    const newCampuses = [...employeeCampuses].filter(
+      name => !existingCampuses.has(name)
+    );
+
+    if (newCampuses.length === 0) {
+      return { success: true, message: "Campuses are already up-to-date." };
+    }
+
+    // 4. Add the new campuses to the 'campuses' collection
+    const batch = [];
+    for (const name of newCampuses) {
+      batch.push(addDoc(collection(db, "campuses"), { name }));
+    }
+    await Promise.all(batch);
+
+    return { 
+      success: true, 
+      message: `Successfully added ${newCampuses.length} new campus(es).` 
+    };
+  } catch (error: any) {
+    console.error("Error syncing campuses from employees:", error);
+    return {
+      success: false,
+      message: `Failed to sync campuses. An unexpected error occurred: ${error.message}`
+    };
+  }
+}
