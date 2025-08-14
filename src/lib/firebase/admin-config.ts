@@ -3,7 +3,6 @@ require('dotenv').config();
 import admin from 'firebase-admin';
 
 // This ensures the private key is parsed correctly
-const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
 // Initialize Firebase Admin SDK only if it's not already initialized
   if (!admin.apps.length) {
@@ -18,7 +17,7 @@ const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
         credential: admin.credential.cert({
           projectId: process.env.FIREBASE_PROJECT_ID,
           clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey,
+          privateKey:privateKey,
         }),
         storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
       });

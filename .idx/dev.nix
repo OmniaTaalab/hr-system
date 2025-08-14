@@ -8,13 +8,15 @@
     pkgs.nodejs_20
     pkgs.zulu
   ];
+  #demo-app
   # Sets environment variables in the workspace
   env = {};
   # This adds a file watcher to startup the firebase emulators. The emulators will only start if
   # a firebase.json file is written into the user's directory
   services.firebase.emulators = {
     detect = true;
-    projectId = "demo-app";
+    projectId = "streamlined-hr-assistant
+";
     services = ["auth" "firestore"];
   };
   idx = {

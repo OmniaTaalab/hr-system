@@ -31,7 +31,6 @@ import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, 
 import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  createEmployeeAction, type CreateEmployeeState, 
   updateEmployeeAction, type UpdateEmployeeState, 
   deleteEmployeeAction, type DeleteEmployeeState 
 } from "@/lib/firebase/admin-actions";
@@ -93,11 +92,6 @@ interface Employee {
   title?: string;
 }
 
-const initialCreateEmployeeState: CreateEmployeeState = {
-  message: null,
-  errors: {},
-};
-
 const initialEditEmployeeState: UpdateEmployeeState = {
   message: null,
   errors: {},
@@ -127,326 +121,6 @@ const initialUpdatePasswordState: UpdateAuthPasswordState = {
   success: false,
 };
 
-
-const initialAddFormState = {
-    firstName: "",
-    lastName: "",
-    email: "",
-    department: "",
-    role: "",
-    groupName: "",
-    system: "",
-    campus: "",
-    phone: "",
-    hourlyRate: "",
-    password: "",
-    confirmPassword: "",
-    dateOfBirth: undefined as Date | undefined,
-    joiningDate: undefined as Date | undefined,
-    gender: "",
-    nationalId: "",
-    religion: "",
-    stage: "",
-    subject: "",
-    title: "",
-};
-
-// Internal component for Add Employee Form content
-function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
-  const { toast } = useToast();
-  const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
-  const [formData, setFormData] = useState(initialAddFormState);
-  const { roles, groupNames, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
-  const [showPassword, setShowPassword] = useState(false);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSelectChange = (name: keyof typeof initialAddFormState) => (value: string) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  useEffect(() => {
-    if (!serverState) return;
-
-    if (serverState.message && !serverState.errors) {
-      toast({
-        title: "Employee Added",
-        description: serverState.message,
-      });
-      onSuccess();
-    } else if (serverState.message && serverState.errors) {
-      // Don't show a toast for validation errors, they are displayed inline.
-      // You could show a toast for a general form error if needed.
-      if (serverState.errors.form) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: serverState.errors.form.join(', '),
-        });
-      }
-    }
-  }, [serverState, toast, onSuccess]);
-
-  return (
-    <>
-      <AlertDialogHeader>
-        <AlertDialogTitle>Add New Employee</AlertDialogTitle>
-        <AlertDialogDescription>
-          Fill in the details below. A login account will be created simultaneously.
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <form
-        id="add-employee-form"
-        action={formAction}
-        className="flex flex-col overflow-hidden"
-      >
-        <input type="hidden" name="role" value={formData.role} />
-        <input type="hidden" name="groupNames" value={formData.groupName} />
-        <input type="hidden" name="campus" value={formData.campus} />
-        <input type="hidden" name="system" value={formData.system} />
-        <input type="hidden" name="gender" value={formData.gender} />
-        <input type="hidden" name="stage" value={formData.stage} />
-
-        <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
-          <div className="space-y-4 p-4 pr-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="add-firstName">First Name</Label>
-                  <Input id="add-firstName" name="firstName" placeholder="e.g., John" value={formData.firstName} onChange={handleInputChange} />
-                  {serverState?.errors?.firstName && <p className="text-sm text-destructive">{serverState.errors.firstName.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-lastName">Last Name</Label>
-                  <Input id="add-lastName" name="lastName" placeholder="e.g., Doe" value={formData.lastName} onChange={handleInputChange} />
-                  {serverState?.errors?.lastName && <p className="text-sm text-destructive">{serverState.errors.lastName.join(', ')}</p>}
-                </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="add-email">Email</Label>
-              <Input id="add-email" name="email" type="email" placeholder="e.g., john.doe@example.com" value={formData.email} onChange={handleInputChange} />
-              {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="add-department">Department</Label>
-                <Input id="add-department" name="department" placeholder="e.g., Technology" value={formData.department} onChange={handleInputChange} />
-                {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
-              </div>
-              <div className="space-y-2">
-                  <Label htmlFor="add-role">Role</Label>
-                  <Select onValueChange={handleSelectChange('role')} value={formData.role} disabled={isLoadingLists}>
-                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
-                      <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                  <Label htmlFor="add-groupName">Group Name</Label>
-                  <Select onValueChange={handleSelectChange('groupName')} value={formData.groupName} disabled={isLoadingLists}>
-                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Group"} /></SelectTrigger>
-                      <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {serverState?.errors?.groupName && <p className="text-sm text-destructive">{serverState.errors.groupName.join(', ')}</p>}
-              </div>
-              <div className="space-y-2">
-                  <Label htmlFor="add-campus">Campus</Label>
-                   <Select onValueChange={handleSelectChange('campus')} value={formData.campus} disabled={isLoadingLists}>
-                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger>
-                      <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {serverState?.errors?.campus && <p className="text-sm text-destructive">{serverState.errors.campus.join(', ')}</p>}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-                <Label htmlFor="add-system">System</Label>
-                <Select onValueChange={handleSelectChange('system')} value={formData.system} disabled={isLoadingLists}>
-                    <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger>
-                    <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
-                </Select>
-                {serverState?.errors?.system && <p className="text-sm text-destructive">{serverState.errors.system.join(', ')}</p>}
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="add-phone">Phone</Label>
-                    <Input id="add-phone" name="phone" placeholder="e.g., 5550107 (Numbers only)" value={formData.phone} onChange={handleInputChange} />
-                    {serverState?.errors?.phone && <p className="text-sm text-destructive">{serverState.errors.phone.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="add-hourlyRate">Hourly Rate (Optional)</Label>
-                    <Input id="add-hourlyRate" name="hourlyRate" type="number" step="0.01" placeholder="e.g., 25.50" value={formData.hourlyRate} onChange={handleInputChange} />
-                    {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
-                </div>
-            </div>
-
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="gender">Gender</Label>
-                <Select onValueChange={handleSelectChange('gender')} value={formData.gender}>
-                    <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="Male">Male</SelectItem>
-                        <SelectItem value="Female">Female</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
-                    </SelectContent>
-                </Select>
-                {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="nationalId">National ID</Label>
-                <Input id="nationalId" name="nationalId" placeholder="e.g., 1234567890" value={formData.nationalId} onChange={handleInputChange} />
-                {serverState?.errors?.nationalId && <p className="text-sm text-destructive">{serverState.errors.nationalId.join(', ')}</p>}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="religion">Religion</Label>
-                <Input id="religion" name="religion" placeholder="e.g., Christianity" value={formData.religion} onChange={handleInputChange} />
-                {serverState?.errors?.religion && <p className="text-sm text-destructive">{serverState.errors.religion.join(', ')}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-stage">Stage</Label>
-                <Select onValueChange={handleSelectChange('stage')} value={formData.stage} disabled={isLoadingLists}>
-                    <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
-                    <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
-                </Select>
-                {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
-              </div>
-            </div>
-
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="subject">Subject</Label>
-                    <Input id="subject" name="subject" placeholder="e.g., Mathematics" value={formData.subject} onChange={handleInputChange} />
-                    {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="title">Title</Label>
-                    <Input id="title" name="title" placeholder="e.g., Mr., Ms., Dr." value={formData.title} onChange={handleInputChange} />
-                    {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="add-password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="add-password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Min. 6 characters"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                  />
-                  <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => setShowPassword(prev => !prev)}
-                      tabIndex={-1}
-                  >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
-                  </Button>
-                </div>
-                {serverState?.errors?.password && <p className="text-sm text-destructive">{serverState.errors.password.join(', ')}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-confirmPassword">Confirm Password</Label>
-                <div className="relative">
-                    <Input
-                        id="add-confirmPassword"
-                        name="confirmPassword"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Re-enter password"
-                        value={formData.confirmPassword}
-                        onChange={handleInputChange}
-                    />
-                     <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowPassword(prev => !prev)}
-                        tabIndex={-1}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
-                      </Button>
-                </div>
-                {serverState?.errors?.confirmPassword && <p className="text-sm text-destructive">{serverState.errors.confirmPassword.join(', ')}</p>}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="add-dateOfBirth">Date of Birth</Label>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !formData.dateOfBirth && "text-muted-foreground")}>
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {formData.dateOfBirth ? format(formData.dateOfBirth, "PPP") : <span>Pick a date</span>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={formData.dateOfBirth} onSelect={(date) => setFormData(prev => ({...prev, dateOfBirth: date}))} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
-                        </PopoverContent>
-                    </Popover>
-                    <input type="hidden" name="dateOfBirth" value={formData.dateOfBirth?.toISOString() ?? ''} />
-                    {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="add-joiningDate">Joining Date</Label>
-                     <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !formData.joiningDate && "text-muted-foreground")}>
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {formData.joiningDate ? format(formData.joiningDate, "PPP") : <span>Pick a date</span>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={formData.joiningDate} onSelect={(date) => setFormData(prev => ({...prev, joiningDate: date}))} initialFocus />
-                        </PopoverContent>
-                    </Popover>
-                    <input type="hidden" name="joiningDate" value={formData.joiningDate?.toISOString() ?? ''} />
-                    {serverState?.errors?.joiningDate && <p className="text-sm text-destructive">{serverState.errors.joiningDate.join(', ')}</p>}
-                </div>
-            </div>
-            
-            {serverState?.errors?.form && (
-              <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
-                <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-                <span>{serverState.errors.form.join(', ')}</span>
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-        <AlertDialogFooter className="pt-4 flex-shrink-0 border-t">
-          <AlertDialogCancel type="button" onClick={() => { onSuccess(); }}>Cancel</AlertDialogCancel>
-          <Button type="submit" form="add-employee-form" disabled={isPending}>
-            {isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Adding...
-              </>
-            ) : "Add Employee"}
-          </Button>
-        </AlertDialogFooter>
-      </form>
-    </>
-  );
-}
 
 // Component for managing employee documents
 interface EmployeeFileManagerProps {
@@ -910,11 +584,9 @@ function EmployeeManagementContent() {
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const { toast } = useToast();
 
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   
-  const [addFormKey, setAddFormKey] = useState(0);
   const [editFormKey, setEditFormKey] = useState(0);
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -1085,14 +757,6 @@ function EmployeeManagementContent() {
   }, [employees, searchTerm]);
 
 
-  const openAddDialog = () => {
-    setAddFormKey(prevKey => prevKey + 1); 
-    setIsAddDialogOpen(true);
-  }
-  const closeAddDialog = () => {
-    setIsAddDialogOpen(false);
-  }
-
   const openEditDialog = (employee: Employee) => {
     setEditingEmployee(employee);
     setEditFormKey(prevKey => prevKey + 1); 
@@ -1190,10 +854,7 @@ function EmployeeManagementContent() {
             {isLoadingProfile ? (
               <Skeleton className="h-10 w-[190px]" />
             ) : canManageEmployees && (
-              <Button onClick={openAddDialog} className="w-full sm:w-auto">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add New Employee
-              </Button>
+              <p className="text-sm text-muted-foreground">Add new employees via spreadsheet upload.</p>
             )}
           </div>
         </CardHeader>
@@ -1294,14 +955,6 @@ function EmployeeManagementContent() {
           )}
         </CardContent>
       </Card>
-      
-      {isAddDialogOpen && (
-        <AlertDialog open={isAddDialogOpen} onOpenChange={(open) => { if(!open) closeAddDialog(); else setIsAddDialogOpen(true); }}>
-          <AlertDialogContent className="max-w-2xl">
-            <AddEmployeeFormContent key={`add-form-${addFormKey}`} onSuccess={closeAddDialog} />
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
       
       {isEditDialogOpen && editingEmployee && (
         <AlertDialog open={isEditDialogOpen} onOpenChange={(open) => { if(!open) closeEditDialog(); else setIsEditDialogOpen(true); }}>

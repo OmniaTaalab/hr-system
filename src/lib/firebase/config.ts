@@ -38,7 +38,6 @@ if (!getApps().length) {
      }
   }
 } else {
-   console.log("ssssssss");
 
   app = getApps()[0];
   auth = getAuth(app);
