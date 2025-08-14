@@ -15,7 +15,7 @@ interface Employee {
   name: string;
   role: string;
   photoURL?: string | null;
-  groupName?: string; 
+  stage?: string; 
 }
 
 interface TreeNode {
@@ -40,7 +40,7 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
             </Avatar>
             <div className="text-sm font-semibold">{node.employee.name}</div>
             <div className="text-xs text-muted-foreground">{node.employee.role}</div>
-            {node.employee.role && <div className="text-xs text-blue-500 font-medium">{node.employee.role}</div>}
+            {node.employee.stage && <div className="text-xs text-blue-500 font-medium">{node.employee.stage}</div>}
           </CardContent>
         </Card>
       </Link>
@@ -100,20 +100,20 @@ const EmployeesChartContent = () => {
           // Create teacher nodes
           const teacherNodes = teachers.map(t => ({ employee: t, children: [] }));
 
-          // Group principals by their groupName
-          const principalsByGroup: Record<string, Employee[]> = {};
+          // Group principals by their stage
+          const principalsByStage: Record<string, Employee[]> = {};
           principals.forEach(principal => {
-              const group = principal.groupName || 'Unassigned';
-              if (!principalsByGroup[group]) {
-                  principalsByGroup[group] = [];
+              const group = principal.stage || 'Unassigned';
+              if (!principalsByStage[group]) {
+                  principalsByStage[group] = [];
               }
-              principalsByGroup[group].push(principal);
+              principalsByStage[group].push(principal);
           });
           
           // Create principal nodes with their teachers
           const principalNodes = principals.map(principal => {
               const childrenNodes = teacherNodes.filter(
-                  tn => tn.employee.role === principal.role
+                  tn => tn.employee.stage === principal.stage
               );
               
               return { employee: principal, children: childrenNodes };
@@ -122,7 +122,7 @@ const EmployeesChartContent = () => {
           // Assign principals to directors
           const directorNodes = directors.map(director => {
               const childrenNodes = principalNodes.filter(
-                  pn => pn.employee.groupName === director.groupName
+                  pn => pn.employee.stage === director.stage
               );
               return { employee: director, children: childrenNodes };
           });

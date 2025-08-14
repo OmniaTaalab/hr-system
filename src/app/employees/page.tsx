@@ -273,7 +273,6 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
   const [role, setRole] = useState("");
-  const [groupName, setGroupName] = useState("");
   const [system, setSystem] = useState("");
   const [campus, setCampus] = useState("");
   const [gender, setGender] = useState("");
@@ -306,7 +305,6 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       <form id="add-employee-form" action={formAction} className="flex flex-col overflow-hidden">
         <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
         <input type="hidden" name="role" value={role} />
-        <input type="hidden" name="groupName" value={groupName} />
         <input type="hidden" name="system" value={system} />
         <input type="hidden" name="campus" value={campus} />
         <input type="hidden" name="gender" value={gender} />
@@ -360,13 +358,13 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 </Select>
                  {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
               </div>
-              <div className="space-y-2">
-                <Label>Group Name</Label>
-                 <Select onValueChange={setGroupName} value={groupName} disabled={isLoadingLists}>
-                    <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Group"} /></SelectTrigger>
+               <div className="space-y-2">
+                <Label>Stage</Label>
+                <Select onValueChange={setStage} value={stage} disabled={isLoadingLists}>
+                    <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
                     <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
                 </Select>
-                 {serverState?.errors?.groupName && <p className="text-sm text-destructive">{serverState.errors.groupName.join(', ')}</p>}
+                 {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
               </div>
             </div>
 
@@ -438,17 +436,6 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 </div>
             </div>
             
-            <div className="space-y-2">
-                <Label>Stage</Label>
-                <Select onValueChange={setStage} value={stage}>
-                    <SelectTrigger><SelectValue placeholder="Select Stage" /></SelectTrigger>
-                    <SelectContent>
-                         {groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                 {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
-            </div>
-            
             {serverState?.errors?.form && (
               <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
                 <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
@@ -480,7 +467,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
 
   // State for controlled components
   const [role, setRole] = useState(employee.role);
-  const [groupName, setGroupName] = useState(employee.groupName);
   const [system, setSystem] = useState(employee.system);
   const [campus, setCampus] = useState(employee.campus);
   const [gender, setGender] = useState(employee.gender || "");
@@ -534,7 +520,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         <input type="hidden" name="leaveBalancesJson" value={JSON.stringify(leaveBalances)} />
         {/* Hidden inputs for controlled Selects */}
         <input type="hidden" name="role" value={role} />
-        <input type="hidden" name="groupNames" value={groupName} />
         <input type="hidden" name="system" value={system} />
         <input type="hidden" name="campus" value={campus} />
         <input type="hidden" name="gender" value={gender} />
@@ -586,12 +571,12 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                  <Label>Group Name</Label>
-                  <Select value={groupName} onValueChange={setGroupName} disabled={isLoadingLists}>
-                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Group"} /></SelectTrigger>
+                  <Label>Stage</Label>
+                  <Select value={stage} onValueChange={setStage} disabled={isLoadingLists}>
+                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
                       <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
                   </Select>
-                  {serverState?.errors?.groupName && <p className="text-sm text-destructive">{serverState.errors.groupName.join(', ')}</p>}
+                  {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
               </div>
               <div className="space-y-2">
                   <Label>Campus</Label>
@@ -657,26 +642,18 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                 </div>
             </div>
              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="edit-stage">Stage</Label>
-                    <Select value={stage} onValueChange={setStage} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
-                        <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                    {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
+                 <div className="space-y-2">
                     <Label htmlFor="edit-subject">Subject</Label>
                     <Input id="edit-subject" name="subject" defaultValue={employee.subject} />
                     {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
                 </div>
+                <div className="space-y-2">
+                    <Label htmlFor="edit-title">Title</Label>
+                    <Input id="edit-title" name="title" defaultValue={employee.title} />
+                    {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
+                </div>
             </div>
-            <div className="space-y-2">
-                <Label htmlFor="edit-title">Title</Label>
-                <Input id="edit-title" name="title" defaultValue={employee.title} />
-                {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
-            </div>
-
+           
              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="edit-dateOfBirth">Date of Birth</Label>
@@ -962,7 +939,7 @@ function EmployeeManagementContent() {
             employee.employeeId,
             employee.department,
             employee.role,
-            employee.groupName,
+            employee.stage,
             employee.campus,
             employee.email,
             employee.phone,
@@ -1098,7 +1075,7 @@ function EmployeeManagementContent() {
                 <TableHead>Name</TableHead>
                 <TableHead>Employee ID</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>Group Name</TableHead>
+                <TableHead>Stage</TableHead>
                 <TableHead>Campus</TableHead>
                 <TableHead>Account</TableHead>
                 {canManageEmployees && <TableHead className="text-right">Actions</TableHead>}
@@ -1119,7 +1096,7 @@ function EmployeeManagementContent() {
                     </TableCell>
                     <TableCell>{employee.employeeId}</TableCell>
                     <TableCell>{employee.role}</TableCell>
-                    <TableCell>{employee.groupName}</TableCell>
+                    <TableCell>{employee.stage}</TableCell>
                     <TableCell>{employee.campus}</TableCell>
                     <TableCell>
                       <TooltipProvider>

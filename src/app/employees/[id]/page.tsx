@@ -243,10 +243,9 @@ function EmployeeProfileContent() {
                    <DetailItem icon={FileText} label="National ID" value={employee.nationalId} />
                    <DetailItem icon={Cake} label="Birthday" value={employee.dateOfBirth ? format(employee.dateOfBirth.toDate(), 'PPP') : undefined} />
                    <DetailItem icon={CalendarDays} label="Joining Date" value={employee.joiningDate ? format(employee.joiningDate.toDate(), 'PPP') : undefined} />
-                   <DetailItem icon={Users} label="Group" value={employee.groupName} />
+                   <DetailItem icon={Users} label="Stage" value={employee.stage} />
                    <DetailItem icon={Code} label="System" value={employee.system} />
                    <DetailItem icon={MapPin} label="Campus" value={employee.campus} />
-                   <DetailItem icon={BookOpen} label="Stage" value={employee.stage} />
                    <DetailItem icon={Star} label="Religion" value={employee.religion} />
                    <DetailItem icon={Stethoscope} label="Subject" value={employee.subject} />
                 </div>

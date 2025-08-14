@@ -54,7 +54,6 @@ const CreateEmployeeFormSchema = z.object({
   lastName: z.string().min(1, "Last name is required."),
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
-  groupName: z.string().min(1, "Group Name is required."),
   system: z.string().min(1, "System is required."),
   campus: z.string().min(1, "Campus is required."),
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -102,7 +101,6 @@ export async function createEmployeeAction(
     lastName: formData.get('lastName'),
     department: formData.get('department'),
     role: formData.get('role'),
-    groupName: formData.get('groupName'),
     system: formData.get('system'),
     campus: formData.get('campus'),
     email: formData.get('email'),
@@ -125,7 +123,7 @@ export async function createEmployeeAction(
   }
 
   const { 
-    firstName, lastName, department, role, groupName, system, campus, email, phone, 
+    firstName, lastName, department, role, system, campus, email, phone, 
     dateOfBirth, gender, nationalId, religion, stage, subject, title
   } = validatedFields.data;
   
@@ -150,7 +148,7 @@ export async function createEmployeeAction(
       lastName,
       department,
       role,
-      groupName,
+      groupName: stage, // Using stage value for groupName
       system,
       campus,
       email,
@@ -194,7 +192,6 @@ const UpdateEmployeeFormSchema = z.object({
   lastName: z.string().min(1, "Last name is required."),
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
-  groupName: z.string().min(1, "Group Name is required."),
   system: z.string().min(1, "System is required."),
   campus: z.string().min(1, "Campus is required."),
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -256,7 +253,6 @@ export async function updateEmployeeAction(
     lastName: formData.get('lastName'),
     department: formData.get('department'),
     role: formData.get('role'),
-    groupName: formData.get('groupNames'),
     system: formData.get('system'),
     campus: formData.get('campus'),
     email: formData.get('email'),
@@ -282,7 +278,7 @@ export async function updateEmployeeAction(
   }
 
   const { 
-    employeeDocId, firstName, lastName, department, role, groupName, system, campus, email, phone, hourlyRate,
+    employeeDocId, firstName, lastName, department, role, system, campus, email, phone, hourlyRate,
     dateOfBirth, joiningDate, leavingDate: leavingDateString, leaveBalancesJson,
     gender, nationalId, religion, stage, subject, title
   } = validatedFields.data;
@@ -329,7 +325,7 @@ export async function updateEmployeeAction(
       lastName,
       department,
       role,
-      groupName,
+      groupName: stage, // Using stage value for groupName
       system,
       campus,
       email,
@@ -424,7 +420,7 @@ const CreateProfileFormSchema = z.object({
   lastName: z.string().min(1, "Last name is required."),
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
-  groupName: z.string().min(1, "Group Name is required."),
+  stage: z.string().min(1, "Stage is required."),
   phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
   dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
 });
@@ -456,7 +452,7 @@ export async function createEmployeeProfileAction(
     lastName: formData.get('lastName'),
     department: formData.get('department'),
     role: formData.get('role'),
-    groupName: formData.get('groupName'),
+    stage: formData.get('stage'),
     phone: formData.get('phone'),
     dateOfBirth: formData.get('dateOfBirth'),
   });
@@ -469,7 +465,7 @@ export async function createEmployeeProfileAction(
     };
   }
 
-  const { userId, email, firstName, lastName, department, role, groupName, phone, dateOfBirth } = validatedFields.data;
+  const { userId, email, firstName, lastName, department, role, stage, phone, dateOfBirth } = validatedFields.data;
   const name = `${firstName} ${lastName}`;
 
   try {
@@ -505,7 +501,7 @@ export async function createEmployeeProfileAction(
       dateOfBirth: Timestamp.fromDate(dateOfBirth),
       department,
       role,
-      groupName,
+      groupName: stage, // Using stage value for groupName
       system: "Unassigned",
       campus: "Unassigned",
       photoURL: null,

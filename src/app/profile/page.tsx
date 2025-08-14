@@ -46,7 +46,7 @@ interface EmployeeProfile {
   name: string;
   email: string;
   role: string;
-  groupName: string;
+  stage: string;
   department: string;
   employeeId: string;
   phone: string;
@@ -147,9 +147,9 @@ function CreateProfileForm({ user }: { user: User }) {
           {state.errors?.role && <p className="text-sm text-destructive">{state.errors.role.join(', ')}</p>}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="groupName">Group Name</Label>
-          <Select name="groupName" required disabled={areListsLoading}>
-            <SelectTrigger><SelectValue placeholder="Select a group..." /></SelectTrigger>
+          <Label htmlFor="stage">Stage</Label>
+          <Select name="stage" required disabled={areListsLoading}>
+            <SelectTrigger><SelectValue placeholder="Select a stage..." /></SelectTrigger>
             <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
           </Select>
           {state.errors?.groupName && <p className="text-sm text-destructive">{state.errors.groupName.join(', ')}</p>}
@@ -349,7 +349,7 @@ export default function ProfilePage() {
                   <CardContent>
                       <dl className="divide-y divide-border">
                       <ProfileDetailItem label="Full Name" value={employeeProfile?.name} isLoading={loading} />
-                      <ProfileDetailItem label="Group Name" value={employeeProfile?.groupName} isLoading={loading} />
+                      <ProfileDetailItem label="Stage" value={employeeProfile?.stage} isLoading={loading} />
                       <ProfileDetailItem label="Employee ID" value={employeeProfile?.employeeId} isLoading={loading} />
                       <ProfileDetailItem label="Email Address" value={authUser?.email} isLoading={loading} />
                       <ProfileDetailItem label="Phone" value={employeeProfile?.phone} isLoading={loading} />

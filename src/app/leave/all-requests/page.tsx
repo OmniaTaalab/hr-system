@@ -64,7 +64,6 @@ export interface LeaveRequestEntry {
   id: string; 
   requestingEmployeeDocId: string; // Added this for robust linking
   employeeName: string;
-  employeeGroupName?: string; // For filtering
   employeeStage?: string; // For filtering
   leaveType: string;
   startDate: Timestamp;
@@ -464,7 +463,6 @@ function AllLeaveRequestsContent() {
                 const employeeData = employeeDataMap.get(req.requestingEmployeeDocId);
                 return {
                     ...req,
-                    employeeGroupName: employeeData?.groupName || 'N/A',
                     employeeStage: employeeData?.stage || 'N/A'
                 };
             });
@@ -528,7 +526,6 @@ function AllLeaveRequestsContent() {
         return (
           item.employeeName.toLowerCase().includes(lowercasedFilter) ||
           item.leaveType.toLowerCase().includes(lowercasedFilter) ||
-          (item.employeeGroupName && item.employeeGroupName.toLowerCase().includes(lowercasedFilter)) ||
           (item.employeeStage && item.employeeStage.toLowerCase().includes(lowercasedFilter)) ||
           item.reason.toLowerCase().includes(lowercasedFilter) ||
           item.status.toLowerCase().includes(lowercasedFilter) || 
@@ -665,7 +662,6 @@ function AllLeaveRequestsContent() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee Name</TableHead>
-                  {canManageRequests && <TableHead>Group</TableHead>}
                   {canManageRequests && <TableHead>Stage</TableHead>}
                   <TableHead>Leave Type</TableHead>
                   <TableHead>Start Date</TableHead>
@@ -686,7 +682,6 @@ function AllLeaveRequestsContent() {
                     return (
                       <TableRow key={request.id}>
                         <TableCell className="font-medium">{request.employeeName}</TableCell>
-                        {canManageRequests && <TableCell>{request.employeeGroupName}</TableCell>}
                         {canManageRequests && <TableCell>{request.employeeStage}</TableCell>}
                         <TableCell>{request.leaveType}</TableCell>
                         <TableCell>{format(startDate, "PPP")}</TableCell>
@@ -740,7 +735,7 @@ function AllLeaveRequestsContent() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={canManageRequests ? 11 : 8} className="h-24 text-center">
+                    <TableCell colSpan={canManageRequests ? 10 : 8} className="h-24 text-center">
                       {searchTerm || statusFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
                     </TableCell>
                   </TableRow>
