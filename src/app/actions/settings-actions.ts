@@ -227,7 +227,7 @@ export async function getWorkdaySettings(): Promise<{ standardHours: number }> {
 
 // --- ORGANIZATION LISTS (DEPARTMENTS, ROLES, ETC.) ---
 
-const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes"]);
+const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes", "stage"]);
 
 const ManageItemSchema = z.object({
   collectionName: collectionNames,
@@ -455,6 +455,53 @@ export async function syncCampusesFromEmployeesAction(): Promise<SyncState> {
     return {
       success: false,
       message: `Failed to sync campuses. An unexpected error occurred: ${error.message}`
+    };
+  }
+}
+
+
+// --- NEW ACTION: Sync Stages from Employees ---
+export async function syncStagesFromEmployeesAction(): Promise<SyncState> {
+  try {
+    // 1. Get all unique stages from the 'employee' collection
+    const employeeSnapshot = await getDocs(collection(db, "employee"));
+    const employeeStages = new Set(
+      employeeSnapshot.docs
+        .map(doc => doc.data().stage)
+        .filter(Boolean) // Filter out any falsy values (null, undefined, '')
+    );
+
+    // 2. Get all existing stages from the 'stage' collection
+    const stagesSnapshot = await getDocs(collection(db, "stage"));
+    const existingStages = new Set(
+      stagesSnapshot.docs.map(doc => doc.data().name)
+    );
+
+    // 3. Determine which stages are new
+    const newStages = [...employeeStages].filter(
+      name => !existingStages.has(name)
+    );
+
+    if (newStages.length === 0) {
+      return { success: true, message: "Stages are already up-to-date." };
+    }
+
+    // 4. Add the new stages to the 'stage' collection
+    const batch = [];
+    for (const name of newStages) {
+      batch.push(addDoc(collection(db, "stage"), { name }));
+    }
+    await Promise.all(batch);
+
+    return { 
+      success: true, 
+      message: `Successfully added ${newStages.length} new stage(s).` 
+    };
+  } catch (error: any) {
+    console.error("Error syncing stages from employees:", error);
+    return {
+      success: false,
+      message: `Failed to sync stages. An unexpected error occurred: ${error.message}`
     };
   }
 }

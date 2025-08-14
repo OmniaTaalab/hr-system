@@ -9,7 +9,8 @@ import {
     manageListItemAction, type ManageListItemState, 
     syncGroupNamesFromEmployeesAction, type SyncState,
     syncRolesFromEmployeesAction,
-    syncCampusesFromEmployeesAction
+    syncCampusesFromEmployeesAction,
+    syncStagesFromEmployeesAction
 } from "@/app/actions/settings-actions";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -29,7 +30,7 @@ interface ListItem {
 
 interface ListManagerProps {
   title: string;
-  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes";
+  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage";
 }
 
 const initialManageState: ManageListItemState = { success: false, message: null, errors: {} };
@@ -54,6 +55,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   const [syncGroupState, syncGroupAction, isSyncGroupPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
   const [syncRoleState, syncRoleAction, isSyncRolePending] = useActionState(syncRolesFromEmployeesAction, initialSyncState);
   const [syncCampusState, syncCampusAction, isSyncCampusPending] = useActionState(syncCampusesFromEmployeesAction, initialSyncState);
+  const [syncStageState, syncStageAction, isSyncStagePending] = useActionState(syncStagesFromEmployeesAction, initialSyncState);
 
 
   const addFormRef = useRef<HTMLFormElement>(null);
@@ -132,6 +134,16 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
         });
     }
   }, [syncCampusState, toast]);
+  
+  useEffect(() => {
+    if (syncStageState?.message) {
+        toast({
+            title: syncStageState.success ? "Sync Complete" : "Sync Failed",
+            description: syncStageState.message,
+            variant: syncStageState.success ? "default" : "destructive"
+        });
+    }
+  }, [syncStageState, toast]);
 
   const filteredItems = useMemo(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
@@ -169,6 +181,14 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
               <form action={syncCampusAction}>
                   <Button size="sm" variant="secondary" disabled={isSyncCampusPending}>
                       {isSyncCampusPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Sync from Employees
+                  </Button>
+              </form>
+            )}
+             {collectionName === 'stage' && (
+              <form action={syncStageAction}>
+                  <Button size="sm" variant="secondary" disabled={isSyncStagePending}>
+                      {isSyncStagePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
                       Sync from Employees
                   </Button>
               </form>

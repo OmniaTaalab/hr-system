@@ -28,6 +28,7 @@ export default function OrganizationSettingsPage() {
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <ListManager title="Roles" collectionName="roles" />
               <ListManager title="Group Names" collectionName="groupNames" />
+              <ListManager title="Stages" collectionName="stage" />
               <ListManager title="Systems" collectionName="systems" />
               <ListManager title="Campuses" collectionName="campuses" />
               <ListManager title="Leave Types" collectionName="leaveTypes" />
