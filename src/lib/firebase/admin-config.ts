@@ -1,4 +1,5 @@
 
+require('dotenv').config();
 import admin from 'firebase-admin';
 
 // This ensures the private key is parsed correctly
