@@ -47,6 +47,143 @@ export async function getAllAuthUsers() {
     throw new Error(`Failed to fetch users: ${error.message}`);
   }
 }
+
+// Schema for validating form data for creating an employee
+const CreateEmployeeFormSchema = z.object({
+  firstName: z.string().min(1, "First name is required."),
+  lastName: z.string().min(1, "Last name is required."),
+  department: z.string().min(1, "Department is required."),
+  role: z.string().min(1, "Role is required."),
+  groupName: z.string().min(1, "Group Name is required."),
+  system: z.string().min(1, "System is required."),
+  campus: z.string().min(1, "Campus is required."),
+  email: z.string().email({ message: 'Invalid email address.' }),
+  phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
+  dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
+  gender: z.string().optional(),
+  nationalId: z.string().optional(),
+  religion: z.string().optional(),
+  stage: z.string().min(1, "Stage is required."),
+  subject: z.string().optional(),
+  title: z.string().optional(),
+});
+
+
+export type CreateEmployeeState = {
+  errors?: {
+    firstName?: string[];
+    lastName?: string[];
+    department?: string[];
+    role?: string[];
+    groupName?: string[];
+    system?: string[];
+    campus?: string[];
+    email?: string[];
+    phone?: string[];
+    dateOfBirth?: string[];
+    gender?: string[];
+    nationalId?: string[];
+    religion?: string[];
+    stage?: string[];
+    subject?: string[];
+    title?: string[];
+    form?: string[];
+  };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function createEmployeeAction(
+  prevState: CreateEmployeeState,
+  formData: FormData
+): Promise<CreateEmployeeState> {
+  const validatedFields = CreateEmployeeFormSchema.safeParse({
+    firstName: formData.get('firstName'),
+    lastName: formData.get('lastName'),
+    department: formData.get('department'),
+    role: formData.get('role'),
+    groupName: formData.get('groupName'),
+    system: formData.get('system'),
+    campus: formData.get('campus'),
+    email: formData.get('email'),
+    phone: formData.get('phone'),
+    dateOfBirth: formData.get('dateOfBirth'),
+    gender: formData.get('gender'),
+    nationalId: formData.get('nationalId'),
+    religion: formData.get('religion'),
+    stage: formData.get('stage'),
+    subject: formData.get('subject'),
+    title: formData.get('title'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      success: false,
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Validation failed. Please check your input.',
+    };
+  }
+
+  const { 
+    firstName, lastName, department, role, groupName, system, campus, email, phone, 
+    dateOfBirth, gender, nationalId, religion, stage, subject, title
+  } = validatedFields.data;
+  
+  const name = `${firstName} ${lastName}`;
+
+  try {
+    const employeeCollectionRef = collection(db, "employee");
+
+    const emailQuery = query(employeeCollectionRef, where("email", "==", email), limit(1));
+    const emailSnapshot = await getDocs(emailQuery);
+    if (!emailSnapshot.empty) {
+      return { errors: { email: ["An employee with this email already exists."] } };
+    }
+
+    const countSnapshot = await getCountFromServer(employeeCollectionRef);
+    const employeeCount = countSnapshot.data().count;
+    const employeeId = (1001 + employeeCount).toString();
+
+    const employeeData = {
+      name,
+      firstName,
+      lastName,
+      department,
+      role,
+      groupName,
+      system,
+      campus,
+      email,
+      phone,
+      employeeId,
+      status: "Active",
+      hourlyRate: 0,
+      dateOfBirth: Timestamp.fromDate(dateOfBirth),
+      joiningDate: serverTimestamp(),
+      leavingDate: null,
+      leaveBalances: {},
+      documents: [],
+      photoURL: null,
+      createdAt: serverTimestamp(),
+      gender: gender || "",
+      nationalId: nationalId || "",
+      religion: religion || "",
+      stage: stage || "",
+      subject: subject || "",
+      title: title || "",
+    };
+
+    await addDoc(employeeCollectionRef, employeeData);
+    return { success: true, message: `Employee "${name}" created successfully.` };
+
+  } catch (error: any) {
+    return {
+      errors: { form: [`Failed to create employee: ${error.message}`] },
+    };
+  }
+}
+
+
 // Sub-schema for validating the parsed leave balances object
 const LeaveBalancesSchema = z.record(z.string(), z.coerce.number().nonnegative("Leave balance must be a non-negative number."));
 

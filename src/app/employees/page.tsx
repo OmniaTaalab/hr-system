@@ -32,7 +32,8 @@ import React, { useState, useEffect, useMemo, useActionState, useRef } from "rea
 import { useToast } from "@/hooks/use-toast";
 import { 
   updateEmployeeAction, type UpdateEmployeeState, 
-  deleteEmployeeAction, type DeleteEmployeeState 
+  deleteEmployeeAction, type DeleteEmployeeState,
+  createEmployeeAction, type CreateEmployeeState
 } from "@/lib/firebase/admin-actions";
 import { 
   createAuthUserForEmployeeAction, type CreateAuthUserState,
@@ -91,6 +92,11 @@ interface Employee {
   subject?: string;
   title?: string;
 }
+
+const initialAddEmployeeState: CreateEmployeeState = {
+  message: null,
+  errors: {},
+};
 
 const initialEditEmployeeState: UpdateEmployeeState = {
   message: null,
@@ -256,6 +262,211 @@ function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
         )}
       </div>
     </div>
+  );
+}
+
+// Internal component for Add Employee Form
+function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
+  const { toast } = useToast();
+  const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialAddEmployeeState);
+  const { roles, groupNames, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
+  
+  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
+  const [role, setRole] = useState("");
+  const [groupName, setGroupName] = useState("");
+  const [system, setSystem] = useState("");
+  const [campus, setCampus] = useState("");
+  const [gender, setGender] = useState("");
+  const [stage, setStage] = useState("");
+  
+  useEffect(() => {
+    if (serverState?.message) {
+      if (serverState.success) {
+        toast({ title: "Employee Added", description: serverState.message });
+        onSuccess();
+      } else {
+        const description = Object.values(serverState.errors ?? {}).flat().join(' ') || serverState.message || "An unexpected error occurred.";
+        toast({
+          variant: "destructive",
+          title: "Failed to Add Employee",
+          description: description
+        });
+      }
+    }
+  }, [serverState, toast, onSuccess]);
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Add New Employee</DialogTitle>
+        <DialogDescription>
+          Enter the new employee's details. An employee ID will be generated automatically.
+        </DialogDescription>
+      </DialogHeader>
+      <form id="add-employee-form" action={formAction} className="flex flex-col overflow-hidden">
+        <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
+        <input type="hidden" name="role" value={role} />
+        <input type="hidden" name="groupName" value={groupName} />
+        <input type="hidden" name="system" value={system} />
+        <input type="hidden" name="campus" value={campus} />
+        <input type="hidden" name="gender" value={gender} />
+        <input type="hidden" name="stage" value={stage} />
+
+        <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
+          <div className="space-y-6 p-4 pr-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="add-firstName">First Name</Label>
+                <Input id="add-firstName" name="firstName" required />
+                {serverState?.errors?.firstName && <p className="text-sm text-destructive">{serverState.errors.firstName.join(', ')}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-lastName">Last Name</Label>
+                <Input id="add-lastName" name="lastName" required />
+                {serverState?.errors?.lastName && <p className="text-sm text-destructive">{serverState.errors.lastName.join(', ')}</p>}
+              </div>
+            </div>
+             <div className="space-y-2">
+                <Label htmlFor="add-title">Title</Label>
+                <Input id="add-title" name="title" />
+                {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="add-email">Email</Label>
+                <Input id="add-email" name="email" type="email" required />
+                {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-phone">Phone</Label>
+                <Input id="add-phone" name="phone" required placeholder="Numbers only" />
+                {serverState?.errors?.phone && <p className="text-sm text-destructive">{serverState.errors.phone.join(', ')}</p>}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+                <Label htmlFor="add-department">Department</Label>
+                <Input id="add-department" name="department" required />
+                {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select onValueChange={setRole} value={role} disabled={isLoadingLists}>
+                    <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
+                    <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
+                </Select>
+                 {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label>Group Name</Label>
+                 <Select onValueChange={setGroupName} value={groupName} disabled={isLoadingLists}>
+                    <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Group"} /></SelectTrigger>
+                    <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
+                </Select>
+                 {serverState?.errors?.groupName && <p className="text-sm text-destructive">{serverState.errors.groupName.join(', ')}</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>System</Label>
+                 <Select onValueChange={setSystem} value={system} disabled={isLoadingLists}>
+                    <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger>
+                    <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                </Select>
+                {serverState?.errors?.system && <p className="text-sm text-destructive">{serverState.errors.system.join(', ')}</p>}
+              </div>
+               <div className="space-y-2">
+                <Label>Campus</Label>
+                 <Select onValueChange={setCampus} value={campus} disabled={isLoadingLists}>
+                    <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger>
+                    <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                </Select>
+                {serverState?.errors?.campus && <p className="text-sm text-destructive">{serverState.errors.campus.join(', ')}</p>}
+              </div>
+            </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Gender</Label>
+                <Select onValueChange={setGender} value={gender}>
+                    <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="Male">Male</SelectItem>
+                        <SelectItem value="Female">Female</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                </Select>
+                 {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
+              </div>
+               <div className="space-y-2">
+                <Label>Date of Birth</Label>
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                        <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
+                    </PopoverContent>
+                </Popover>
+                 {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+                <Label>National ID</Label>
+                <Input name="nationalId" />
+                {serverState?.errors?.nationalId && <p className="text-sm text-destructive">{serverState.errors.nationalId.join(', ')}</p>}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>Religion</Label>
+                    <Input name="religion" />
+                    {serverState?.errors?.religion && <p className="text-sm text-destructive">{serverState.errors.religion.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label>Subject</Label>
+                    <Input name="subject" />
+                    {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
+                </div>
+            </div>
+            
+            <div className="space-y-2">
+                <Label>Stage</Label>
+                <Select onValueChange={setStage} value={stage}>
+                    <SelectTrigger><SelectValue placeholder="Select Stage" /></SelectTrigger>
+                    <SelectContent>
+                         {groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                 {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
+            </div>
+            
+            {serverState?.errors?.form && (
+              <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
+                <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
+                <span>{serverState?.errors?.form?.join(', ')}</span>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+        <DialogFooter className="pt-4 flex-shrink-0 border-t">
+          <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+          <Button type="submit" form="add-employee-form" disabled={isPending || isLoadingLists}>
+              {isPending ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adding...</>
+              ) : "Add Employee"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </>
   );
 }
 
@@ -584,6 +795,7 @@ function EmployeeManagementContent() {
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const { toast } = useToast();
 
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   
@@ -735,11 +947,16 @@ function EmployeeManagementContent() {
   }, [changePasswordServerState, toast]);
   
   const filteredEmployees = useMemo(() => {
+    let employeesToList = employees;
+    if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
+      employeesToList = employees.filter(emp => emp.stage === profile.stage);
+    }
+  
     const lowercasedFilter = searchTerm.toLowerCase();
     if (!searchTerm.trim()) {
-      return employees;
+      return employeesToList;
     }
-    return employees.filter(employee => {
+    return employeesToList.filter(employee => {
         const searchableFields = [
             employee.name,
             employee.employeeId,
@@ -754,7 +971,7 @@ function EmployeeManagementContent() {
             typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
         );
     });
-  }, [employees, searchTerm]);
+  }, [employees, searchTerm, profile]);
 
 
   const openEditDialog = (employee: Employee) => {
@@ -854,7 +1071,17 @@ function EmployeeManagementContent() {
             {isLoadingProfile ? (
               <Skeleton className="h-10 w-[190px]" />
             ) : canManageEmployees && (
-              <p className="text-sm text-muted-foreground">Add new employees via spreadsheet upload.</p>
+                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                  <DialogTrigger asChild>
+                     <Button>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Add New Employee
+                      </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <AddEmployeeFormContent onSuccess={() => setIsAddDialogOpen(false)} />
+                  </DialogContent>
+                </Dialog>
             )}
           </div>
         </CardHeader>
