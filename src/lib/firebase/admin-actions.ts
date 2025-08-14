@@ -54,7 +54,6 @@ const CreateEmployeeFormSchema = z.object({
   lastName: z.string().min(1, "Last name is required."),
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
-  system: z.string().min(1, "System is required."),
   campus: z.string().min(1, "Campus is required."),
   email: z.string().email({ message: 'Invalid email address.' }),
   phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
@@ -64,7 +63,6 @@ const CreateEmployeeFormSchema = z.object({
   religion: z.string().optional(),
   stage: z.string().min(1, "Stage is required."),
   subject: z.string().optional(),
-  title: z.string().optional(),
 });
 
 
@@ -74,8 +72,6 @@ export type CreateEmployeeState = {
     lastName?: string[];
     department?: string[];
     role?: string[];
-    groupName?: string[];
-    system?: string[];
     campus?: string[];
     email?: string[];
     phone?: string[];
@@ -85,7 +81,6 @@ export type CreateEmployeeState = {
     religion?: string[];
     stage?: string[];
     subject?: string[];
-    title?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -101,7 +96,6 @@ export async function createEmployeeAction(
     lastName: formData.get('lastName'),
     department: formData.get('department'),
     role: formData.get('role'),
-    system: formData.get('system'),
     campus: formData.get('campus'),
     email: formData.get('email'),
     phone: formData.get('phone'),
@@ -111,7 +105,6 @@ export async function createEmployeeAction(
     religion: formData.get('religion'),
     stage: formData.get('stage'),
     subject: formData.get('subject'),
-    title: formData.get('title'),
   });
 
   if (!validatedFields.success) {
@@ -123,8 +116,8 @@ export async function createEmployeeAction(
   }
 
   const { 
-    firstName, lastName, department, role, system, campus, email, phone, 
-    dateOfBirth, gender, nationalId, religion, stage, subject, title
+    firstName, lastName, department, role, campus, email, phone, 
+    dateOfBirth, gender, nationalId, religion, stage, subject
   } = validatedFields.data;
   
   const name = `${firstName} ${lastName}`;
@@ -148,8 +141,8 @@ export async function createEmployeeAction(
       lastName,
       department,
       role,
-      groupName: stage, // Using stage value for groupName
-      system,
+      stage,
+      system: "Unassigned", // Default value
       campus,
       email,
       phone,
@@ -166,9 +159,8 @@ export async function createEmployeeAction(
       gender: gender || "",
       nationalId: nationalId || "",
       religion: religion || "",
-      stage: stage || "",
       subject: subject || "",
-      title: title || "",
+      title: "", // Default value
     };
 
     await addDoc(employeeCollectionRef, employeeData);
@@ -222,7 +214,6 @@ export type UpdateEmployeeState = {
     lastName?: string[];
     department?: string[];
     role?: string[];
-    groupName?: string[];
     system?: string[];
     campus?: string[];
     email?: string[];
@@ -325,7 +316,7 @@ export async function updateEmployeeAction(
       lastName,
       department,
       role,
-      groupName: stage, // Using stage value for groupName
+      stage,
       system,
       campus,
       email,
@@ -338,7 +329,6 @@ export async function updateEmployeeAction(
       gender: gender || "",
       nationalId: nationalId || "",
       religion: religion || "",
-      stage: stage || "",
       subject: subject || "",
       title: title || "",
     };
@@ -431,7 +421,7 @@ export type CreateProfileState = {
     lastName?: string[];
     department?: string[];
     role?: string[];
-    groupName?: string[];
+    stage?: string[];
     phone?: string[];
     dateOfBirth?: string[];
     form?: string[];
@@ -501,7 +491,7 @@ export async function createEmployeeProfileAction(
       dateOfBirth: Timestamp.fromDate(dateOfBirth),
       department,
       role,
-      groupName: stage, // Using stage value for groupName
+      stage,
       system: "Unassigned",
       campus: "Unassigned",
       photoURL: null,

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -71,7 +72,7 @@ interface Employee {
   employeeId: string; 
   department: string;
   role: string;
-  groupName: string;
+  stage: string;
   system: string;
   campus: string;
   email: string;
@@ -88,7 +89,6 @@ interface Employee {
   gender?: string;
   nationalId?: string;
   religion?: string;
-  stage?: string;
   subject?: string;
   title?: string;
 }
@@ -273,7 +273,6 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
   const [role, setRole] = useState("");
-  const [system, setSystem] = useState("");
   const [campus, setCampus] = useState("");
   const [gender, setGender] = useState("");
   const [stage, setStage] = useState("");
@@ -305,7 +304,6 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       <form id="add-employee-form" action={formAction} className="flex flex-col overflow-hidden">
         <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
         <input type="hidden" name="role" value={role} />
-        <input type="hidden" name="system" value={system} />
         <input type="hidden" name="campus" value={campus} />
         <input type="hidden" name="gender" value={gender} />
         <input type="hidden" name="stage" value={stage} />
@@ -323,11 +321,6 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 <Input id="add-lastName" name="lastName" required />
                 {serverState?.errors?.lastName && <p className="text-sm text-destructive">{serverState.errors.lastName.join(', ')}</p>}
               </div>
-            </div>
-             <div className="space-y-2">
-                <Label htmlFor="add-title">Title</Label>
-                <Input id="add-title" name="title" />
-                {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -369,14 +362,6 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>System</Label>
-                 <Select onValueChange={setSystem} value={system} disabled={isLoadingLists}>
-                    <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger>
-                    <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
-                </Select>
-                {serverState?.errors?.system && <p className="text-sm text-destructive">{serverState.errors.system.join(', ')}</p>}
-              </div>
                <div className="space-y-2">
                 <Label>Campus</Label>
                  <Select onValueChange={setCampus} value={campus} disabled={isLoadingLists}>
@@ -385,10 +370,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 </Select>
                 {serverState?.errors?.campus && <p className="text-sm text-destructive">{serverState.errors.campus.join(', ')}</p>}
               </div>
-            </div>
-
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
+               <div className="space-y-2">
                 <Label>Gender</Label>
                 <Select onValueChange={setGender} value={gender}>
                     <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
@@ -400,7 +382,10 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 </Select>
                  {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
               </div>
-               <div className="space-y-2">
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label>Date of Birth</Label>
                 <Popover>
                     <PopoverTrigger asChild>
@@ -415,12 +400,11 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 </Popover>
                  {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
               </div>
-            </div>
-
-            <div className="space-y-2">
+              <div className="space-y-2">
                 <Label>National ID</Label>
                 <Input name="nationalId" />
                 {serverState?.errors?.nationalId && <p className="text-sm text-destructive">{serverState.errors.nationalId.join(', ')}</p>}
+            </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
