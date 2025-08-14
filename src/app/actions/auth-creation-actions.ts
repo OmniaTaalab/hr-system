@@ -86,7 +86,7 @@ export async function createAuthUserForEmployeeAction(
 
     const newUserId = userRecord.uid;
 
-    const employeeDocRef = doc(db, "", employeeDocId);
+    const employeeDocRef = doc(db, "employee", employeeDocId);
     await updateDoc(employeeDocRef, {
       userId: newUserId,
     });
