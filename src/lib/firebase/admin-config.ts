@@ -3,36 +3,42 @@ require('dotenv').config();
 import admin from 'firebase-admin';
 
 // This ensures the private key is parsed correctly
+let adminAuth: admin.auth.Auth | null = null;
+let adminStorage: admin.storage.Storage | null = null;
+let adminDb: admin.firestore.Firestore | null = null;
 
 // Initialize Firebase Admin SDK only if it's not already initialized
-  if (!admin.apps.length) {
-    try {
-      const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-  
-      if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !privateKey) {
-        throw new Error('Missing Firebase Admin credentials in environment variables');
-      }
-  
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey:privateKey,
-        }),
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-      });
-  
-    } catch (error) {
-      console.error('Firebase admin initialization error', error);
+if (!admin.apps.length) {
+  try {
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+    if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !privateKey) {
+      throw new Error('Firebase Admin credentials are not set in environment variables. Ensure FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are present.');
     }
-  } else {
-    console.warn("Firebase Admin SDK credentials are not fully set in .env file. Administrative features will fail.");
+
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: privateKey,
+      }),
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    });
+
+    console.log("Firebase Admin SDK initialized successfully.");
+    adminAuth = admin.auth();
+    adminStorage = admin.storage();
+    adminDb = admin.firestore();
+
+  } catch (error: any) {
+    console.error('Firebase admin initialization error:', error.message);
+    // Keep adminAuth, adminStorage, and adminDb as null
   }
-
-
-// Export the initialized services, which will be null if initialization failed.
-const adminAuth = admin.apps.length ? admin.auth() : null;
-const adminStorage = admin.apps.length ? admin.storage() : null;
-const adminDb = admin.apps.length ? admin.firestore() : null;
+} else {
+    // If already initialized, get the services from the existing app
+    adminAuth = admin.auth();
+    adminStorage = admin.storage();
+    adminDb = admin.firestore();
+}
 
 export { adminAuth, adminDb, adminStorage };
