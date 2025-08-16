@@ -472,7 +472,7 @@ export async function syncStagesFromEmployeesAction(): Promise<SyncState> {
     );
 
     // 2. Get all existing stages from the 'stage' collection
-    const stagesSnapshot = await getDocs(collection(db, "stage"));
+    const stagesSnapshot = await getDocs(collection(db, "stages"));
     const existingStages = new Set(
       stagesSnapshot.docs.map(doc => doc.data().name)
     );

@@ -14,7 +14,7 @@ export interface ListItem {
 export interface OrganizationLists {
   roles: ListItem[];
   groupNames: ListItem[];
-  stages: ListItem[];
+  stage: ListItem[];
   systems: ListItem[];
   campuses: ListItem[];
   leaveTypes: ListItem[];
@@ -22,7 +22,7 @@ export interface OrganizationLists {
 }
 
 const listNames: (keyof Omit<OrganizationLists, 'isLoading'>)[] = [
-    'roles', 'groupNames', 'stages', 'systems', 'campuses', 'leaveTypes'
+    'roles', 'groupNames', 'stage', 'systems', 'campuses', 'leaveTypes'
 ];
 
 export function useOrganizationLists(): OrganizationLists {
@@ -30,7 +30,7 @@ export function useOrganizationLists(): OrganizationLists {
   const [lists, setLists] = useState<Omit<OrganizationLists, 'isLoading'>>({
     roles: [],
     groupNames: [],
-    stages: [],
+    stage: [],
     systems: [],
     campuses: [],
     leaveTypes: [],
@@ -39,7 +39,7 @@ export function useOrganizationLists(): OrganizationLists {
 
   useEffect(() => {
     const unsubscribes: (() => void)[] = [];
-    
+
     const loadingStates = listNames.reduce((acc, name) => ({ ...acc, [name]: true }), {} as Record<keyof typeof lists, boolean>);
     
     const checkLoadingDone = () => {

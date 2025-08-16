@@ -9,7 +9,7 @@ import Link from "next/link";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useMemo } from "react";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, query, where, getCountFromServer, Timestamp, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, getCountFromServer, Timestamp, orderBy, QueryConstraint } from 'firebase/firestore';
 import type { Timestamp as FirebaseTimestamp } from 'firebase/firestore';
 import {
   ChartContainer,
@@ -130,12 +130,30 @@ function DashboardPageContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
 
   useEffect(() => {
+    if (isLoadingProfile) return;
+
     const fetchCounts = async () => {
-      // Total Employees
+      // Total Employees based on role
+      setIsLoadingTotalEmp(true);
       try {
-        const empCol = collection(db, "employee");
-        const empSnapshot = await getCountFromServer(empCol);
-        setTotalEmployees(empSnapshot.data().count);
+        let empQuery;
+        const userRole = profile?.role?.toLowerCase();
+        const employeeCollection = collection(db, "employee");
+
+        if (userRole === 'admin' || userRole === 'hr') {
+          empQuery = query(employeeCollection);
+        } else if (userRole === 'principal' && profile?.stage) {
+          empQuery = query(employeeCollection, where("stage", "==", profile.stage));
+        } else {
+          setTotalEmployees(0); // Set to 0 if no specific role or stage
+          empQuery = null;
+        }
+        
+        if(empQuery){
+            const empSnapshot = await getCountFromServer(empQuery);
+            setTotalEmployees(empSnapshot.data().count);
+        }
+
       } catch (error) {
         console.error("Error fetching total employees count:", error);
         setTotalEmployees(0);
@@ -143,7 +161,7 @@ function DashboardPageContent() {
         setIsLoadingTotalEmp(false);
       }
 
-      // Active Employees
+      // Active Employees (Global)
       try {
         const activeEmpQuery = query(collection(db, "employee"), where("status", "==", "Active"));
         const activeEmpSnapshot = await getCountFromServer(activeEmpQuery);
@@ -155,7 +173,7 @@ function DashboardPageContent() {
         setIsLoadingActiveEmp(false);
       }
 
-      // Pending Leave Requests
+      // Leave Requests (Global)
       try {
         const pendingLeavesQuery = query(collection(db, "leaveRequests"), where("status", "==", "Pending"));
         const pendingLeavesSnapshot = await getCountFromServer(pendingLeavesQuery);
@@ -167,7 +185,6 @@ function DashboardPageContent() {
         setIsLoadingPendingLeaves(false);
       }
 
-      // Approved Leave Requests
       try {
         const approvedLeavesQuery = query(collection(db, "leaveRequests"), where("status", "==", "Approved"));
         const approvedLeavesSnapshot = await getCountFromServer(approvedLeavesQuery);
@@ -179,7 +196,6 @@ function DashboardPageContent() {
         setIsLoadingApprovedLeaves(false);
       }
 
-      // Rejected Leave Requests
       try {
         const rejectedLeavesQuery = query(collection(db, "leaveRequests"), where("status", "==", "Rejected"));
         const rejectedLeavesSnapshot = await getCountFromServer(rejectedLeavesQuery);
@@ -237,7 +253,7 @@ function DashboardPageContent() {
     fetchCounts();
     fetchCampusData();
     fetchHolidays();
-  }, []);
+  }, [profile, isLoadingProfile]);
 
   const statisticCards: DashboardCardProps[] = [
     {

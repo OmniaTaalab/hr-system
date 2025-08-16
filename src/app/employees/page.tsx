@@ -269,7 +269,7 @@ function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
 function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialAddEmployeeState);
-  const { roles, stages, campuses, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, stage, campuses, isLoading: isLoadingLists } = useOrganizationLists();
   
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
   
@@ -347,7 +347,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 <Label>Stage</Label>
                 <Select name="stage" disabled={isLoadingLists}>
                     <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
-                    <SelectContent>{stages.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>{stage.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
                 </Select>
                  {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
               </div>
@@ -438,7 +438,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; onSuccess: () => void }) {
   const { toast } = useToast();
   const [serverState, formAction, isPending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
-  const { roles, stages, systems, campuses, leaveTypes, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, stage, systems, campuses, leaveTypes, isLoading: isLoadingLists } = useOrganizationLists();
   const [formClientError, setFormClientError] = useState<string | null>(null);
 
   // State for controlled components
@@ -539,7 +539,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                   <Label>Stage</Label>
                   <Select name="stage" defaultValue={employee.stage} disabled={isLoadingLists}>
                       <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
-                      <SelectContent>{stages.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                      <SelectContent>{stage.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
                   </Select>
                   {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
               </div>
@@ -785,7 +785,7 @@ function EmployeeManagementContent() {
     // Admins and HR see all employees. Principals see employees in their stage.
     if (userRole === 'admin' || userRole === 'hr') {
         q = query(employeeCollection);
-    } else if (userRole === 'principal' && profile.stage) {
+    } else if (userRole === 'principal' && profile?.stage) {
         q = query(employeeCollection, where("stage", "==", profile.stage));
     } else {
         // Other roles see no one on this page.
