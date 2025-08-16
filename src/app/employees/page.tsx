@@ -770,7 +770,7 @@ function EmployeeManagementContent() {
   const hasFullView = useMemo(() => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();
-    return userRole === 'admin' || userRole === 'hr' || userRole === 'principal';
+    return userRole === 'admin' || userRole === 'hr';
   }, [profile]);
 
 
@@ -780,16 +780,19 @@ function EmployeeManagementContent() {
     setIsLoading(true);
     let q;
     const employeeCollection = collection(db, "employee");
+    const userRole = profile?.role?.toLowerCase();
 
-    // Admins, HR, and Principals see all employees
-    if (hasFullView) {
-      q = query(employeeCollection);
+    // Admins and HR see all employees. Principals see employees in their stage.
+    if (userRole === 'admin' || userRole === 'hr') {
+        q = query(employeeCollection);
+    } else if (userRole === 'principal' && profile.stage) {
+        q = query(employeeCollection, where("stage", "==", profile.stage));
     } else {
-      // Other roles (if any) see no one by default on this page
-      setEmployees([]);
-      setTotalEmployees(0);
-      setIsLoading(false);
-      return;
+        // Other roles see no one on this page.
+        setEmployees([]);
+        setTotalEmployees(0);
+        setIsLoading(false);
+        return;
     }
 
     getCountFromServer(q).then(snapshot => {
@@ -814,7 +817,7 @@ function EmployeeManagementContent() {
     });
 
     return () => unsubscribe();
-  }, [toast, isLoadingProfile, profile, hasFullView]);
+  }, [toast, isLoadingProfile, profile]);
   
   useEffect(() => {
     if (createLoginServerState?.message) {
@@ -890,9 +893,6 @@ function EmployeeManagementContent() {
   
   const filteredEmployees = useMemo(() => {
     let employeesToList = employees;
-    if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
-      employeesToList = employees.filter(emp => emp.stage === profile.stage);
-    }
   
     const lowercasedFilter = searchTerm.toLowerCase();
     if (!searchTerm.trim()) {
@@ -913,7 +913,7 @@ function EmployeeManagementContent() {
             typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
         );
     });
-  }, [employees, searchTerm, profile]);
+  }, [employees, searchTerm]);
 
 
   const openEditDialog = (employee: Employee) => {
