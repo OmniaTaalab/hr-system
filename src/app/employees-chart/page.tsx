@@ -148,47 +148,37 @@ const EmployeesChartContent = () => {
   }, [selectedPrincipalId, employees]);
 
 
-  const captureChartAsCanvas = async (exportTree: TreeNode[]) => {
-      const tempContainer = document.createElement('div');
-      tempContainer.style.position = 'absolute';
-      tempContainer.style.left = '-9999px';
-      tempContainer.style.top = '-9999px';
-      tempContainer.style.width = '100%';
-      document.body.appendChild(tempContainer);
+  const captureChartAsCanvas = async () => {
+    const chartElement = chartRef.current;
+    if (!chartElement) {
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Chart element not found for capture.',
+        });
+        throw new Error('Chart element not found');
+    }
 
-      const ReactDOMClient = await import('react-dom/client');
-      const root = ReactDOMClient.createRoot(tempContainer);
-      
-      await new Promise<void>(resolve => {
-        root.render(
-          <div className="bg-background p-8 inline-block">
-             <div className="flex items-start space-x-8">
-              {exportTree.map(rootNode => (
-                <EmployeeNode key={rootNode.employee.id} node={rootNode} />
-              ))}
-            </div>
-          </div>
-        );
-        // Use requestAnimationFrame to wait for the next frame after render
-        requestAnimationFrame(() => resolve());
-      });
-      
-      const canvas = await html2canvas(tempContainer.children[0] as HTMLElement, {
+    // Temporarily reset zoom to ensure full chart is captured cleanly
+    const originalTransform = chartElement.style.transform;
+    chartElement.style.transform = 'scale(1)';
+
+    const canvas = await html2canvas(chartElement, {
         useCORS: true,
-        backgroundColor: '#F2F3F4',
-      });
-      
-      root.unmount();
-      document.body.removeChild(tempContainer);
-      
-      return canvas;
-  };
+        backgroundColor: '#ffffff', // Use a solid background to prevent transparency issues
+        scale: 2, // Increase scale for better resolution
+    });
 
+    // Restore original zoom level
+    chartElement.style.transform = originalTransform;
+
+    return canvas;
+  };
+  
   const handleExportToPNG = async () => {
     toast({ title: 'Exporting...', description: 'Generating PNG image, please wait.' });
     try {
-      const fullTree = buildTree(employees, null);
-      const canvas = await captureChartAsCanvas(fullTree);
+      const canvas = await captureChartAsCanvas();
       const imgData = canvas.toDataURL('image/png');
       const link = document.createElement('a');
       link.href = imgData;
@@ -204,8 +194,7 @@ const EmployeesChartContent = () => {
   const handleExportToPDF = async () => {
       toast({ title: 'Exporting...', description: 'Generating PDF, please wait.' });
       try {
-        const fullTree = buildTree(employees, null);
-        const canvas = await captureChartAsCanvas(fullTree);
+        const canvas = await captureChartAsCanvas();
         const imgData = canvas.toDataURL('image/jpeg', 0.9);
         const pdf = new jsPDF({
             orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
