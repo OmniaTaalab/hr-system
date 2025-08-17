@@ -1,17 +1,20 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppLayout } from '@/components/layout/app-layout';
 import { db } from '@/lib/firebase/config';
 import { collection, query, getDocs } from 'firebase/firestore';
-import { Loader2, Users, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Loader2, Users, ZoomIn, ZoomOut, RotateCcw, FileDown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import { useToast } from '@/hooks/use-toast';
 
 interface Employee {
   id: string;
@@ -82,7 +85,10 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
 const EmployeesChartContent = () => {
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const { toast } = useToast();
+  const chartRef = useRef<HTMLDivElement>(null);
   const ZOOM_STEP = 0.1;
 
   useEffect(() => {
@@ -126,6 +132,42 @@ const EmployeesChartContent = () => {
     fetchData();
   }, []);
 
+  const handleExportToPdf = async () => {
+    if (!chartRef.current) return;
+    setIsExporting(true);
+    toast({ title: 'Exporting Chart', description: 'Please wait while the PDF is being generated...' });
+
+    try {
+      const canvas = await html2canvas(chartRef.current, {
+        scale: 2, // Increase resolution
+        useCORS: true,
+        backgroundColor: null,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'px',
+        format: [canvas.width, canvas.height],
+      });
+
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      pdf.save(`Employees_Chart_${new Date().toISOString().split('T')[0]}.pdf`);
+      
+      toast({ title: 'Success', description: 'Chart exported to PDF successfully.' });
+    } catch (error) {
+      console.error("Error exporting chart to PDF:", error);
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: "An error occurred while generating the PDF.",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+
   return (
     <div className="space-y-8">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -151,29 +193,34 @@ const EmployeesChartContent = () => {
                 <ZoomIn className="h-4 w-4"/>
                 <span className="sr-only">Zoom In</span>
             </Button>
+            <Button onClick={handleExportToPdf} disabled={isExporting} variant="outline">
+                {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+                Export PDF
+            </Button>
         </div>
       </header>
 
-      <Card className="shadow-lg">
-        <ScrollArea className="h-[70vh] w-full">
-            <CardContent className="p-6">
-            {isLoading ? (
-                <div className="flex justify-center items-center h-64">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                </div>
-            ) : tree.length > 0 ? (
-                <div 
-                className="flex justify-center items-start space-x-8 py-8 transition-transform duration-300"
-                style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center' }}
-                >
-                {tree.map(rootNode => (
-                    <EmployeeNode key={rootNode.employee.id} node={rootNode} />
-                ))}
-                </div>
-            ) : (
-                <p className="text-center text-muted-foreground py-10">No employees with roles Director/Principal found to build the chart.</p>
-            )}
-            </CardContent>
+      <Card className="shadow-lg overflow-hidden">
+        <ScrollArea className="h-[70vh] w-full bg-card">
+            <div 
+              ref={chartRef}
+              className="flex justify-center items-start p-8 transition-transform duration-300 min-w-max"
+              style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center' }}
+            >
+              {isLoading ? (
+                  <div className="flex justify-center items-center h-64">
+                      <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                  </div>
+              ) : tree.length > 0 ? (
+                  <div className="flex items-start space-x-8">
+                      {tree.map(rootNode => (
+                          <EmployeeNode key={rootNode.employee.id} node={rootNode} />
+                      ))}
+                  </div>
+              ) : (
+                  <p className="text-center text-muted-foreground py-10">No employees with roles Director/Principal found to build the chart.</p>
+              )}
+            </div>
         </ScrollArea>
       </Card>
     </div>
