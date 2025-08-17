@@ -142,7 +142,7 @@ const EmployeesChartContent = () => {
       const canvas = await html2canvas(chartRef.current, {
         scale: 2, // Increase resolution
         useCORS: true,
-        backgroundColor: null,
+        backgroundColor: '#ffffff', // Use a solid background color
       });
 
       const imgData = canvas.toDataURL('image/png');
@@ -171,8 +171,7 @@ const EmployeesChartContent = () => {
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
+      <header>
           <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
             <Users className="mr-3 h-8 w-8 text-primary" />
             Employees Chart
@@ -180,7 +179,6 @@ const EmployeesChartContent = () => {
           <p className="text-muted-foreground">
             Organizational structure based on roles, campuses, and stages.
           </p>
-        </div>
       </header>
 
       <Card className="shadow-lg overflow-hidden">
