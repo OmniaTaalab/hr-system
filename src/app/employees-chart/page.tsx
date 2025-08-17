@@ -70,12 +70,15 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
 };
 
 const EmployeesChartContent = () => {
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [tree, setTree] = useState<TreeNode[]>([]);
+  const [fullTree, setFullTree] = useState<TreeNode[]>([]); // New state for the unfiltered tree
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const { toast } = useToast();
   const chartRef = useRef<HTMLDivElement>(null);
+  const exportChartRef = useRef<HTMLDivElement>(null); // Ref for the hidden export chart
   const ZOOM_STEP = 0.1;
 
   const [principals, setPrincipals] = useState<Employee[]>([]);
@@ -88,84 +91,79 @@ const EmployeesChartContent = () => {
       const q = query(collection(db, 'employee'));
       const querySnapshot = await getDocs(q);
       
-      const employees = querySnapshot.docs.map(doc => ({
+      const fetchedEmployees = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Employee[];
+      setEmployees(fetchedEmployees);
 
-      const principalList = employees
+      const principalList = fetchedEmployees
         .filter(e => e.role === 'Principal')
         .sort((a,b) => a.name.localeCompare(b.name));
       setPrincipals(principalList);
 
-      const buildTree = (): TreeNode[] => {
-          let directors = employees.filter(e => e.role === 'Campus Director');
-          let currentPrincipals = employees.filter(e => e.role === 'Principal');
-          let otherStaff = employees.filter(e => e.role !== 'Campus Director' && e.role !== 'Principal');
-          
-          if(selectedPrincipalId){
-            const selectedPrincipal = currentPrincipals.find(p => p.id === selectedPrincipalId);
-            if(selectedPrincipal){
-                currentPrincipals = [selectedPrincipal];
-                otherStaff = otherStaff.filter(s => s.stage === selectedPrincipal.stage);
-                directors = directors.filter(d => d.campus === selectedPrincipal.campus);
-            }
-          }
-
-          const staffNodes = otherStaff.map(s => ({ employee: s, children: [] }));
-
-          const principalNodes = currentPrincipals.map(principal => {
-              const childrenNodes = staffNodes.filter(
-                  sn => sn.employee.stage === principal.stage
-              );
-              return { employee: principal, children: childrenNodes };
-          });
-          
-          const directorNodes = directors.map(director => {
-              const childrenNodes = principalNodes.filter(
-                  pn => pn.employee.campus === director.campus
-              );
-              return { employee: director, children: childrenNodes };
-          });
-
-          // If no directors, or if filtering by principal, the tree might start with principals
-          const rootNodes = directorNodes.length > 0 ? directorNodes : principalNodes;
-
-          if (selectedPrincipalId && directorNodes.length === 0) {
-              return principalNodes;
-          }
-
-          return rootNodes;
-      };
-
-      setTree(buildTree());
       setIsLoading(false);
     };
     fetchData();
-  }, [selectedPrincipalId]);
+  }, []);
+
+  useEffect(() => {
+    if (employees.length === 0) return;
+
+    const buildTree = (filterByPrincipalId: string | null): TreeNode[] => {
+      let directors = employees.filter(e => e.role === 'Campus Director');
+      let currentPrincipals = employees.filter(e => e.role === 'Principal');
+      let otherStaff = employees.filter(e => e.role !== 'Campus Director' && e.role !== 'Principal');
+      
+      if(filterByPrincipalId){
+        const selectedPrincipal = currentPrincipals.find(p => p.id === filterByPrincipalId);
+        if(selectedPrincipal){
+            currentPrincipals = [selectedPrincipal];
+            otherStaff = otherStaff.filter(s => s.stage === selectedPrincipal.stage);
+            directors = directors.filter(d => d.campus === selectedPrincipal.campus);
+        }
+      }
+
+      const staffNodes = otherStaff.map(s => ({ employee: s, children: [] }));
+
+      const principalNodes = currentPrincipals.map(principal => {
+          const childrenNodes = staffNodes.filter(
+              sn => sn.employee.stage === principal.stage
+          );
+          return { employee: principal, children: childrenNodes };
+      });
+      
+      const directorNodes = directors.map(director => {
+          const childrenNodes = principalNodes.filter(
+              pn => pn.employee.campus === director.campus
+          );
+          return { employee: director, children: childrenNodes };
+      });
+
+      const rootNodes = directorNodes.length > 0 ? directorNodes : principalNodes;
+
+      if (filterByPrincipalId && directorNodes.length === 0) {
+          return principalNodes;
+      }
+
+      return rootNodes;
+    };
+    
+    setTree(buildTree(selectedPrincipalId));
+    setFullTree(buildTree(null)); // Always build the full tree for export
+  }, [selectedPrincipalId, employees]);
+
 
   const handleExportToPdf = async () => {
-    if (!chartRef.current) return;
+    if (!exportChartRef.current) return;
     setIsExporting(true);
     toast({ title: 'Exporting Chart', description: 'Please wait while the PDF is being generated...' });
   
-    // Temporarily remove filter to show all employees
-    const currentFilter = selectedPrincipalId;
-    setSelectedPrincipalId(null);
-  
-    // Allow time for the DOM to update with all employees
-    await new Promise(resolve => setTimeout(resolve, 500));
-  
-    const chartElement = chartRef.current;
-    
-    // Temporarily reset transform to ensure clean capture
-    const originalTransform = chartElement.style.transform;
-    chartElement.style.transform = '';
-  
     try {
-      const canvas = await html2canvas(chartElement, {
+      // Capture the hidden, full chart
+      const canvas = await html2canvas(exportChartRef.current, {
           useCORS: true,
-          backgroundColor: '#ffffff', // Use a solid background
+          backgroundColor: '#ffffff', // Ensure a solid background
       });
   
       const imgData = canvas.toDataURL('image/jpeg', 1.0);
@@ -187,9 +185,6 @@ const EmployeesChartContent = () => {
         description: "An error occurred while generating the PDF.",
       });
     } finally {
-      // Restore transform and filter after capture
-      chartElement.style.transform = originalTransform;
-      setSelectedPrincipalId(currentFilter);
       setIsExporting(false);
     }
   };
@@ -206,6 +201,19 @@ const EmployeesChartContent = () => {
             Organizational structure based on roles, campuses, and stages.
           </p>
       </header>
+
+      {/* Hidden chart for export */}
+      <div style={{ position: 'absolute', left: '-9999px', top: 'auto', width: '1px', height: '1px', overflow: 'hidden' }}>
+        <div ref={exportChartRef} className="p-8 bg-background">
+          {fullTree.length > 0 ? (
+            <div className="flex items-start space-x-8">
+              {fullTree.map(rootNode => (
+                <EmployeeNode key={rootNode.employee.id} node={rootNode} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
 
       <Card className="shadow-lg overflow-hidden">
         <div className="p-4 border-b flex items-center justify-between flex-wrap gap-2">
@@ -233,7 +241,7 @@ const EmployeesChartContent = () => {
                         {principals.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
-                <Button onClick={handleExportToPdf} disabled={isExporting} variant="outline">
+                <Button onClick={handleExportToPdf} disabled={isExporting || isLoading} variant="outline">
                     {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
                     Export PDF
                 </Button>
