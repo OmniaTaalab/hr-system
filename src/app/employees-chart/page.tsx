@@ -34,7 +34,7 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
   };
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center relative">
       <Link href={`/employees/${node.employee.id}`}>
         <Card className="p-1 min-w-28 text-center shadow-md hover:shadow-lg transition-shadow cursor-pointer">
           <CardContent className="p-1 flex flex-col items-center gap-1">
@@ -51,11 +51,11 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
       {node.children.length > 0 && (
         <>
           <div className="w-px h-6 bg-gray-400" />
-          <div className="flex justify-center relative">
-            {node.children.length > 1 && <div className="absolute top-0 h-px w-full bg-gray-400" />}
+          <div className="flex flex-col items-center relative">
             {node.children.map((child, index) => (
-              <div key={child.employee.id} className="px-2 relative">
-                <div className="absolute -top-6 left-1/2 w-px h-6 bg-gray-400" />
+              <div key={child.employee.id} className="flex flex-col items-center relative">
+                 {/* Vertical line connecting to the child */}
+                <div className="w-px h-6 bg-gray-400" />
                 <EmployeeNode node={child} />
               </div>
             ))}
@@ -150,7 +150,7 @@ const EmployeesChartContent = () => {
                 </div>
             ) : tree.length > 0 ? (
                 <div 
-                className="flex justify-center space-x-8 py-8 transition-transform duration-300"
+                className="flex justify-center items-start space-x-8 py-8 transition-transform duration-300"
                 style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center' }}
                 >
                 {tree.map(rootNode => (
