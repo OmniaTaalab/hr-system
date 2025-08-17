@@ -100,26 +100,15 @@ const EmployeesChartContent = () => {
           // Create teacher nodes
           const teacherNodes = teachers.map(t => ({ employee: t, children: [] }));
 
-          // Group principals by their stage
-          const principalsByStage: Record<string, Employee[]> = {};
-          principals.forEach(principal => {
-              const group = principal.stage || 'Unassigned';
-              if (!principalsByStage[group]) {
-                  principalsByStage[group] = [];
-              }
-              principalsByStage[group].push(principal);
-          });
-          
-          // Create principal nodes with their teachers
+          // Create principal nodes, nesting their teachers underneath them
           const principalNodes = principals.map(principal => {
               const childrenNodes = teacherNodes.filter(
                   tn => tn.employee.stage === principal.stage
               );
-              
               return { employee: principal, children: childrenNodes };
           });
           
-          // Assign principals to directors
+          // Create director nodes, nesting their principals underneath them
           const directorNodes = directors.map(director => {
               const childrenNodes = principalNodes.filter(
                   pn => pn.employee.stage === director.stage
@@ -127,6 +116,8 @@ const EmployeesChartContent = () => {
               return { employee: director, children: childrenNodes };
           });
 
+          // If there are directors, they are the root of the tree.
+          // Otherwise, principals are the root.
           return directorNodes.length > 0 ? directorNodes : principalNodes;
       };
 
