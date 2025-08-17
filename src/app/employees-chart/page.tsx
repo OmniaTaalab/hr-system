@@ -5,16 +5,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { AppLayout } from '@/components/layout/app-layout';
 import { db } from '@/lib/firebase/config';
 import { collection, query, getDocs } from 'firebase/firestore';
-import { Loader2, Users, ZoomIn, ZoomOut, RotateCcw, FileDown } from 'lucide-react';
+import { Loader2, Users, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Employee {
@@ -72,13 +69,9 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
 const EmployeesChartContent = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [tree, setTree] = useState<TreeNode[]>([]);
-  const [fullTree, setFullTree] = useState<TreeNode[]>([]); // New state for the unfiltered tree
   const [isLoading, setIsLoading] = useState(true);
-  const [isExporting, setIsExporting] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
-  const { toast } = useToast();
   const chartRef = useRef<HTMLDivElement>(null);
-  const exportChartRef = useRef<HTMLDivElement>(null); // Ref for the hidden export chart
   const ZOOM_STEP = 0.1;
 
   const [principals, setPrincipals] = useState<Employee[]>([]);
@@ -150,44 +143,7 @@ const EmployeesChartContent = () => {
     };
     
     setTree(buildTree(selectedPrincipalId));
-    setFullTree(buildTree(null)); // Always build the full tree for export
   }, [selectedPrincipalId, employees]);
-
-
-  const handleExportToPdf = async () => {
-    if (!exportChartRef.current) return;
-    setIsExporting(true);
-    toast({ title: 'Exporting Chart', description: 'Please wait while the PDF is being generated...' });
-  
-    try {
-      // Capture the hidden, full chart
-      const canvas = await html2canvas(exportChartRef.current, {
-          useCORS: true,
-          backgroundColor: '#ffffff', // Ensure a solid background
-      });
-  
-      const imgData = canvas.toDataURL('image/jpeg', 1.0);
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'px',
-        format: [canvas.width, canvas.height],
-      });
-  
-      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
-      pdf.save(`Employees_Chart_${new Date().toISOString().split('T')[0]}.pdf`);
-      
-      toast({ title: 'Success', description: 'Chart exported to PDF successfully.' });
-    } catch (error) {
-      console.error("Error exporting chart to PDF:", error);
-      toast({
-        variant: "destructive",
-        title: "Export Failed",
-        description: "An error occurred while generating the PDF.",
-      });
-    } finally {
-      setIsExporting(false);
-    }
-  };
 
 
   return (
@@ -201,19 +157,6 @@ const EmployeesChartContent = () => {
             Organizational structure based on roles, campuses, and stages.
           </p>
       </header>
-
-      {/* Hidden chart for export */}
-      <div style={{ position: 'absolute', left: '-9999px', top: 'auto', width: '1px', height: '1px', overflow: 'hidden' }}>
-        <div ref={exportChartRef} className="p-8 bg-background">
-          {fullTree.length > 0 ? (
-            <div className="flex items-start space-x-8">
-              {fullTree.map(rootNode => (
-                <EmployeeNode key={rootNode.employee.id} node={rootNode} />
-              ))}
-            </div>
-          ) : null}
-        </div>
-      </div>
 
       <Card className="shadow-lg overflow-hidden">
         <div className="p-4 border-b flex items-center justify-between flex-wrap gap-2">
@@ -241,10 +184,6 @@ const EmployeesChartContent = () => {
                         {principals.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
-                <Button onClick={handleExportToPdf} disabled={isExporting || isLoading} variant="outline">
-                    {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
-                    Export PDF
-                </Button>
             </div>
         </div>
         <ScrollArea className="h-[70vh] w-full bg-card">
