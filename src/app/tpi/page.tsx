@@ -39,7 +39,8 @@ function TpiManagementContent() {
         const q = query(collection(db, "employee"));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedRoles = snapshot.docs.map(doc => (doc.data() as Employee).role);
-            const uniqueRoles = [...new Set(fetchedRoles)].sort();
+            // Filter out any falsy (null, undefined, '') values and ensure roles are unique and sorted.
+            const uniqueRoles = [...new Set(fetchedRoles.filter(Boolean))].sort();
             setRoles(uniqueRoles);
             setIsLoadingRoles(false);
         }, (error) => {
