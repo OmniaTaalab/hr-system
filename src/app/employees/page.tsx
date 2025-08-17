@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -755,6 +755,8 @@ function EmployeeManagementContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const { toast } = useToast();
+  const { stage: stages, isLoading: isLoadingLists } = useOrganizationLists();
+  const [stageFilter, setStageFilter] = useState("All");
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -909,10 +911,18 @@ function EmployeeManagementContent() {
   
   const filteredEmployees = useMemo(() => {
     let employeesToList = employees;
+    
+    // Principal stage filter
     if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
       employeesToList = employees.filter(emp => emp.stage === profile.stage);
     }
+
+    // Stage dropdown filter
+    if (stageFilter !== "All") {
+      employeesToList = employeesToList.filter(employee => employee.stage === stageFilter);
+    }
   
+    // Search term filter
     const lowercasedFilter = searchTerm.toLowerCase();
     if (!searchTerm.trim()) {
       return employeesToList;
@@ -932,7 +942,7 @@ function EmployeeManagementContent() {
             typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
         );
     });
-  }, [employees, searchTerm, profile]);
+  }, [employees, searchTerm, profile, stageFilter]);
 
 
   const openEditDialog = (employee: Employee) => {
@@ -1019,15 +1029,29 @@ function EmployeeManagementContent() {
       <Card className="shadow-lg">
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Search employees (name, ID, department...)"
-                className="w-full pl-10"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+            <div className="flex-1 flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-grow">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search employees..."
+                  className="w-full pl-10"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Filter by stage" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="All">All Stages</SelectItem>
+                        {stages.map(stage => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+              </div>
             </div>
             {isLoadingProfile ? (
               <Skeleton className="h-10 w-[190px]" />
@@ -1072,7 +1096,7 @@ function EmployeeManagementContent() {
                     <TableCell className="font-medium">
                       <Link href={`/employees/${employee.id}`} className="flex items-center gap-3 hover:underline">
                         <Avatar>
-                            <AvatarImage src={employee.photoURL || undefined} alt={employee.name} />
+                            <AvatarImage src={employee.photoURL || undefined} alt={employee.name || ''} />
                             <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
                         </Avatar>
                         {employee.name || '-'}
