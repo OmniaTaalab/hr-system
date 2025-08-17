@@ -138,11 +138,20 @@ const EmployeesChartContent = () => {
     setIsExporting(true);
     toast({ title: 'Exporting Chart', description: 'Please wait while the PDF is being generated...' });
 
+    const chartElement = chartRef.current;
+    
+    // Temporarily reset transform to ensure clean capture
+    const originalTransform = chartElement.style.transform;
+    chartElement.style.transform = '';
+
     try {
-      const canvas = await html2canvas(chartRef.current, {
+      const canvas = await html2canvas(chartElement, {
           useCORS: true,
-          backgroundColor: '#ffffff', // Ensure a solid background to prevent transparency issues
+          backgroundColor: '#ffffff', // Use a solid background
       });
+
+      // Restore transform after capture
+      chartElement.style.transform = originalTransform;
 
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
@@ -156,6 +165,8 @@ const EmployeesChartContent = () => {
       
       toast({ title: 'Success', description: 'Chart exported to PDF successfully.' });
     } catch (error) {
+      // Restore transform even if an error occurs
+      chartElement.style.transform = originalTransform;
       console.error("Error exporting chart to PDF:", error);
       toast({
         variant: "destructive",
