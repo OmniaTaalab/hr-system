@@ -1075,13 +1075,13 @@ function EmployeeManagementContent() {
                             <AvatarImage src={employee.photoURL || undefined} alt={employee.name} />
                             <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
                         </Avatar>
-                        {employee.name}
+                        {employee.name || '-'}
                       </Link>
                     </TableCell>
-                    <TableCell>{employee.employeeId}</TableCell>
-                    <TableCell>{employee.role}</TableCell>
-                    <TableCell>{employee.stage}</TableCell>
-                    <TableCell>{employee.campus}</TableCell>
+                    <TableCell>{employee.employeeId || '-'}</TableCell>
+                    <TableCell>{employee.role || '-'}</TableCell>
+                    <TableCell>{employee.stage || '-'}</TableCell>
+                    <TableCell>{employee.campus || '-'}</TableCell>
                     <TableCell>
                       <TooltipProvider>
                           <Tooltip>
