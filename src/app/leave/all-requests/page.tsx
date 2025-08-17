@@ -65,6 +65,7 @@ export interface LeaveRequestEntry {
   requestingEmployeeDocId: string; // Added this for robust linking
   employeeName: string;
   employeeStage?: string; // For filtering
+  employeeCampus?: string; // For filtering
   leaveType: string;
   startDate: Timestamp;
   endDate: Timestamp;
@@ -373,9 +374,11 @@ function AllLeaveRequestsContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Approved" | "Rejected">("All");
+  const [campusFilter, setCampusFilter] = useState<string>("All");
   const [allRequests, setAllRequests] = useState<LeaveRequestEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { campuses, isLoading: isLoadingCampuses } = useOrganizationLists();
   
   const [selectedRequestToAction, setSelectedRequestToAction] = useState<LeaveRequestEntry | null>(null);
   const [actionTypeForStatusUpdate, setActionTypeForStatusUpdate] = useState<"Approved" | "Rejected" | null>(null);
@@ -467,7 +470,8 @@ function AllLeaveRequestsContent() {
                 const employeeData = employeeDataMap.get(req.requestingEmployeeDocId);
                 return {
                     ...req,
-                    employeeStage: employeeData?.stage || 'N/A'
+                    employeeStage: employeeData?.stage || 'N/A',
+                    employeeCampus: employeeData?.campus || 'N/A',
                 };
             });
 
@@ -524,6 +528,10 @@ function AllLeaveRequestsContent() {
       requests = requests.filter(item => item.status === statusFilter);
     }
     
+    if (campusFilter !== "All") {
+      requests = requests.filter(item => item.employeeCampus === campusFilter);
+    }
+    
     if (searchTerm) {
       const lowercasedFilter = searchTerm.toLowerCase();
       requests = requests.filter(item => {
@@ -539,7 +547,7 @@ function AllLeaveRequestsContent() {
       });
     }
     return requests;
-  }, [allRequests, searchTerm, statusFilter]);
+  }, [allRequests, searchTerm, statusFilter, campusFilter]);
 
   const openStatusUpdateDialog = (request: LeaveRequestEntry, type: "Approved" | "Rejected") => {
     setSelectedRequestToAction(request);
@@ -652,6 +660,15 @@ function AllLeaveRequestsContent() {
                         <SelectItem value="Rejected">Rejected</SelectItem>
                     </SelectContent>
                 </Select>
+                 <Select value={campusFilter} onValueChange={(value) => setCampusFilter(value as string)} disabled={isLoadingCampuses}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Filter by campus" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="All">All Campuses</SelectItem>
+                        {campuses.map(campus => <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>)}
+                    </SelectContent>
+                </Select>
               </div>
           </div>
         </CardHeader>
@@ -666,7 +683,7 @@ function AllLeaveRequestsContent() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee Name</TableHead>
-                  {canManageRequests && <TableHead>Stage</TableHead>}
+                  {canManageRequests && <TableHead>Campus</TableHead>}
                   <TableHead>Leave Type</TableHead>
                   <TableHead>Start Date</TableHead>
                   <TableHead>End Date</TableHead>
@@ -684,7 +701,7 @@ function AllLeaveRequestsContent() {
                     return (
                       <TableRow key={request.id}>
                         <TableCell className="font-medium">{request.employeeName}</TableCell>
-                        {canManageRequests && <TableCell>{request.employeeStage}</TableCell>}
+                        {canManageRequests && <TableCell>{request.employeeCampus}</TableCell>}
                         <TableCell>{request.leaveType}</TableCell>
                         <TableCell>{format(startDate, "PPP")}</TableCell>
                         <TableCell>{format(endDate, "PPP")}</TableCell>
@@ -735,8 +752,8 @@ function AllLeaveRequestsContent() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={canManageRequests ? 8 : 6} className="h-24 text-center">
-                      {searchTerm || statusFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
+                    <TableCell colSpan={canManageRequests ? 8 : 7} className="h-24 text-center">
+                      {searchTerm || statusFilter !== "All" || campusFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
                     </TableCell>
                   </TableRow>
                 )}
