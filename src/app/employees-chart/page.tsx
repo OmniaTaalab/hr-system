@@ -81,30 +81,18 @@ const EmployeesChartContent = () => {
         ...doc.data()
       })) as Employee[];
 
-      const employeesByRole: Record<string, Employee[]> = {
-          'Campus Director': [],
-          'Principal': [],
-          'Teacher': [],
-      };
-      
-      employees.forEach(emp => {
-        if (employeesByRole[emp.role]) {
-          employeesByRole[emp.role].push(emp);
-        }
-      });
-      
       const buildTree = (): TreeNode[] => {
-          const directors = employeesByRole['Campus Director'] || [];
-          const principals = employeesByRole['Principal'] || [];
-          const teachers = employeesByRole['Teacher'] || [];
+          const directors = employees.filter(e => e.role === 'Campus Director');
+          const principals = employees.filter(e => e.role === 'Principal');
+          const otherStaff = employees.filter(e => e.role !== 'Campus Director' && e.role !== 'Principal');
+          
+          // Create nodes for all non-principal/director staff
+          const staffNodes = otherStaff.map(s => ({ employee: s, children: [] }));
 
-          // Create teacher nodes
-          const teacherNodes = teachers.map(t => ({ employee: t, children: [] }));
-
-          // Create principal nodes, nesting their teachers underneath them based on stage
+          // Create principal nodes, nesting their staff underneath them based on stage
           const principalNodes = principals.map(principal => {
-              const childrenNodes = teacherNodes.filter(
-                  tn => tn.employee.stage === principal.stage
+              const childrenNodes = staffNodes.filter(
+                  sn => sn.employee.stage === principal.stage
               );
               return { employee: principal, children: childrenNodes };
           });
