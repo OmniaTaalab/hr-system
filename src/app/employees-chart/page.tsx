@@ -5,14 +5,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { AppLayout } from '@/components/layout/app-layout';
 import { db } from '@/lib/firebase/config';
 import { collection, query, getDocs } from 'firebase/firestore';
-import { Loader2, Users, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Loader2, Users, ZoomIn, ZoomOut, RotateCcw, FileDown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 interface Employee {
   id: string;
@@ -53,7 +55,7 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
         <div className="flex flex-col items-center">
           <div className="w-px h-6 bg-gray-400" />
           <div className="flex flex-col items-center space-y-6">
-            {node.children.map((child, index) => (
+            {node.children.map((child) => (
               <div key={child.employee.id} className="relative flex flex-col items-center">
                 <div className="absolute top-0 left-1/2 w-px h-6 bg-gray-400 -translate-x-1/2" />
                 <EmployeeNode node={child} />
@@ -67,6 +69,7 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
 };
 
 const EmployeesChartContent = () => {
+  const { toast } = useToast();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,51 +103,125 @@ const EmployeesChartContent = () => {
     fetchData();
   }, []);
 
+  const buildTree = (employeeList: Employee[], filterByPrincipalId: string | null): TreeNode[] => {
+    let directors = employeeList.filter(e => e.role === 'Campus Director');
+    let currentPrincipals = employeeList.filter(e => e.role === 'Principal');
+    let otherStaff = employeeList.filter(e => e.role !== 'Campus Director' && e.role !== 'Principal');
+    
+    if(filterByPrincipalId){
+      const selectedPrincipal = currentPrincipals.find(p => p.id === filterByPrincipalId);
+      if(selectedPrincipal){
+          currentPrincipals = [selectedPrincipal];
+          otherStaff = otherStaff.filter(s => s.stage === selectedPrincipal.stage);
+          directors = directors.filter(d => d.campus === selectedPrincipal.campus);
+      }
+    }
+
+    const staffNodes = otherStaff.map(s => ({ employee: s, children: [] }));
+
+    const principalNodes = currentPrincipals.map(principal => {
+        const childrenNodes = staffNodes.filter(
+            sn => sn.employee.stage === principal.stage
+        );
+        return { employee: principal, children: childrenNodes };
+    });
+    
+    const directorNodes = directors.map(director => {
+        const childrenNodes = principalNodes.filter(
+            pn => pn.employee.campus === director.campus
+        );
+        return { employee: director, children: childrenNodes };
+    });
+
+    const rootNodes = directorNodes.length > 0 ? directorNodes : principalNodes;
+
+    if (filterByPrincipalId && directorNodes.length === 0) {
+        return principalNodes;
+    }
+
+    return rootNodes;
+  };
+
   useEffect(() => {
     if (employees.length === 0) return;
-
-    const buildTree = (filterByPrincipalId: string | null): TreeNode[] => {
-      let directors = employees.filter(e => e.role === 'Campus Director');
-      let currentPrincipals = employees.filter(e => e.role === 'Principal');
-      let otherStaff = employees.filter(e => e.role !== 'Campus Director' && e.role !== 'Principal');
-      
-      if(filterByPrincipalId){
-        const selectedPrincipal = currentPrincipals.find(p => p.id === filterByPrincipalId);
-        if(selectedPrincipal){
-            currentPrincipals = [selectedPrincipal];
-            otherStaff = otherStaff.filter(s => s.stage === selectedPrincipal.stage);
-            directors = directors.filter(d => d.campus === selectedPrincipal.campus);
-        }
-      }
-
-      const staffNodes = otherStaff.map(s => ({ employee: s, children: [] }));
-
-      const principalNodes = currentPrincipals.map(principal => {
-          const childrenNodes = staffNodes.filter(
-              sn => sn.employee.stage === principal.stage
-          );
-          return { employee: principal, children: childrenNodes };
-      });
-      
-      const directorNodes = directors.map(director => {
-          const childrenNodes = principalNodes.filter(
-              pn => pn.employee.campus === director.campus
-          );
-          return { employee: director, children: childrenNodes };
-      });
-
-      const rootNodes = directorNodes.length > 0 ? directorNodes : principalNodes;
-
-      if (filterByPrincipalId && directorNodes.length === 0) {
-          return principalNodes;
-      }
-
-      return rootNodes;
-    };
-    
-    setTree(buildTree(selectedPrincipalId));
+    setTree(buildTree(employees, selectedPrincipalId));
   }, [selectedPrincipalId, employees]);
 
+
+  const captureChartAsCanvas = async (exportTree: TreeNode[]) => {
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.top = '-9999px';
+      tempContainer.style.width = '100%';
+      document.body.appendChild(tempContainer);
+
+      const ReactDOM = await import('react-dom');
+      const root = ReactDOM.createRoot(tempContainer);
+      
+      await new Promise<void>(resolve => {
+        root.render(
+          <div className="bg-background p-8 inline-block">
+             <div className="flex items-start space-x-8">
+              {exportTree.map(rootNode => (
+                <EmployeeNode key={rootNode.employee.id} node={rootNode} />
+              ))}
+            </div>
+          </div>,
+          () => resolve()
+        );
+      });
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const canvas = await html2canvas(tempContainer.children[0] as HTMLElement, {
+        useCORS: true,
+        backgroundColor: '#F2F3F4',
+      });
+      
+      root.unmount();
+      document.body.removeChild(tempContainer);
+      
+      return canvas;
+  };
+
+  const handleExportToPNG = async () => {
+    toast({ title: 'Exporting...', description: 'Generating PNG image, please wait.' });
+    try {
+      const fullTree = buildTree(employees, null);
+      const canvas = await captureChartAsCanvas(fullTree);
+      const imgData = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = imgData;
+      link.download = `Employees_Chart_${new Date().toISOString().split('T')[0]}.png`;
+      link.click();
+      toast({ title: 'Success', description: 'Chart exported as PNG successfully.' });
+    } catch(e) {
+      console.error(e);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to export chart as PNG.' });
+    }
+  };
+
+  const handleExportToPDF = async () => {
+      toast({ title: 'Exporting...', description: 'Generating PDF, please wait.' });
+      try {
+        const fullTree = buildTree(employees, null);
+        const canvas = await captureChartAsCanvas(fullTree);
+        const imgData = canvas.toDataURL('image/jpeg', 0.9);
+        const pdf = new jsPDF({
+            orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+            unit: 'px',
+            format: [canvas.width, canvas.height],
+        });
+        pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+        pdf.save(`Employees_Chart_${new Date().toISOString().split('T')[0]}.pdf`);
+        toast({ title: 'Success', description: 'Chart exported to PDF successfully.' });
+      } catch(e) {
+          console.error(e);
+          toast({ variant: 'destructive', title: 'Error', description: 'Failed to export chart as PDF.' });
+      }
+  };
+  
 
   return (
     <div className="space-y-8">
@@ -184,6 +261,8 @@ const EmployeesChartContent = () => {
                         {principals.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
+                <Button onClick={handleExportToPNG} variant="outline"><FileDown className="mr-2 h-4 w-4"/>Download PNG</Button>
+                <Button onClick={handleExportToPDF} variant="outline"><FileDown className="mr-2 h-4 w-4"/>Export PDF</Button>
             </div>
         </div>
         <ScrollArea className="h-[70vh] w-full bg-card">
