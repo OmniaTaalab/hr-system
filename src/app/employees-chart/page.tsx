@@ -40,7 +40,7 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
   return (
     <div className="flex flex-col items-center relative">
       <Link href={`/employees/${node.employee.id}`}>
-        <Card className="p-1 min-w-28 text-center shadow-md hover:shadow-lg transition-shadow cursor-pointer">
+        <Card className="p-1 min-w-40 text-center shadow-md hover:shadow-lg transition-shadow cursor-pointer">
           <CardContent className="p-1 flex flex-col items-center gap-1">
             <Avatar className="h-10 w-10">
               <AvatarImage src={node.employee.photoURL || undefined} alt={node.employee.name} />
@@ -53,31 +53,17 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
         </Card>
       </Link>
       {node.children.length > 0 && (
-        <>
+        <div className="flex flex-col items-center">
           <div className="w-px h-6 bg-gray-400" />
-          <div className="flex items-start space-x-4 relative">
+          <div className="flex flex-col items-center space-y-6">
             {node.children.map((child, index) => (
-              <div key={child.employee.id} className="flex flex-col items-center relative">
-                 {/* Horizontal line connecting from parent */}
-                 {node.children.length > 1 && (
-                    <div className="absolute top-0 left-1/2 w-full h-px bg-gray-400 -translate-x-1/2">
-                        {/* Remove side lines for first and last child */}
-                        <div
-                        className={cn("absolute top-0 h-px bg-card",
-                            index === 0 ? "left-0 w-1/2" : "right-0 w-1/2"
-                        )}>
-                        </div>
-                    </div>
-                )}
-                 {/* Vertical line connecting to the child */}
+              <div key={child.employee.id} className="relative flex flex-col items-center">
                 <div className="absolute top-0 left-1/2 w-px h-6 bg-gray-400 -translate-x-1/2" />
-                <div className="mt-6">
-                    <EmployeeNode node={child} />
-                </div>
+                <EmployeeNode node={child} />
               </div>
             ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
