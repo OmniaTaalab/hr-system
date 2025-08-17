@@ -13,7 +13,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -148,45 +147,13 @@ const EmployeesChartContent = () => {
     setTree(buildTree(employees, selectedPrincipalId));
   }, [selectedPrincipalId, employees]);
 
-
-  const captureChartAsCanvas = async () => {
-    const chartElement = chartRef.current;
-    if (!chartElement) {
-        toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Chart element not found for capture.',
-        });
-        throw new Error('Chart element not found');
-    }
-    return await html2canvas(chartElement, {
-        useCORS: true,
-        backgroundColor: '#ffffff', // Use a solid background to prevent transparency issues
-    });
-  };
-  
-  const handleExportToPNG = async () => {
-    toast({ title: 'Exporting...', description: 'Generating PNG image, please wait.' });
-    try {
-      const canvas = await captureChartAsCanvas();
-      const imgData = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.href = imgData;
-      link.download = `Employees_Chart_${new Date().toISOString().split('T')[0]}.png`;
-      link.click();
-      toast({ title: 'Success', description: 'Chart exported as PNG successfully.' });
-    } catch(e) {
-      console.error(e);
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to export chart as PNG.' });
-    }
-  };
-
   const handleExportToPDF = () => {
       toast({ title: 'Exporting...', description: 'Generating PDF, please wait.' });
       try {
         const doc = new jsPDF();
-        const exportTree = buildTree(employees, null);
-        const employeeList = [];
+        // Always build the full tree for export
+        const exportTree = buildTree(employees, null); 
+        const employeeList: (string | null)[][] = [];
 
         function traverseTree(nodes: TreeNode[], level: number) {
             for (const node of nodes) {
@@ -256,7 +223,6 @@ const EmployeesChartContent = () => {
                         {principals.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
-                <Button onClick={handleExportToPNG} variant="outline"><FileDown className="mr-2 h-4 w-4"/>Download PNG</Button>
                 <Button onClick={handleExportToPDF} variant="outline"><FileDown className="mr-2 h-4 w-4"/>Export PDF</Button>
             </div>
         </div>
