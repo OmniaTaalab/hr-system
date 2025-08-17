@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { useToast } from '@/hooks/use-toast';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Employee {
   id: string;
@@ -91,6 +92,10 @@ const EmployeesChartContent = () => {
   const chartRef = useRef<HTMLDivElement>(null);
   const ZOOM_STEP = 0.1;
 
+  const [principals, setPrincipals] = useState<Employee[]>([]);
+  const [selectedPrincipalId, setSelectedPrincipalId] = useState<string | null>(null);
+
+
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
@@ -102,14 +107,28 @@ const EmployeesChartContent = () => {
         ...doc.data()
       })) as Employee[];
 
+      const principalList = employees
+        .filter(e => e.role === 'Principal')
+        .sort((a,b) => a.name.localeCompare(b.name));
+      setPrincipals(principalList);
+
       const buildTree = (): TreeNode[] => {
-          const directors = employees.filter(e => e.role === 'Campus Director');
-          const principals = employees.filter(e => e.role === 'Principal');
-          const otherStaff = employees.filter(e => e.role !== 'Campus Director' && e.role !== 'Principal');
+          let directors = employees.filter(e => e.role === 'Campus Director');
+          let currentPrincipals = employees.filter(e => e.role === 'Principal');
+          let otherStaff = employees.filter(e => e.role !== 'Campus Director' && e.role !== 'Principal');
           
+          if(selectedPrincipalId){
+            const selectedPrincipal = currentPrincipals.find(p => p.id === selectedPrincipalId);
+            if(selectedPrincipal){
+                currentPrincipals = [selectedPrincipal];
+                otherStaff = otherStaff.filter(s => s.stage === selectedPrincipal.stage);
+                directors = directors.filter(d => d.campus === selectedPrincipal.campus);
+            }
+          }
+
           const staffNodes = otherStaff.map(s => ({ employee: s, children: [] }));
 
-          const principalNodes = principals.map(principal => {
+          const principalNodes = currentPrincipals.map(principal => {
               const childrenNodes = staffNodes.filter(
                   sn => sn.employee.stage === principal.stage
               );
@@ -123,15 +142,21 @@ const EmployeesChartContent = () => {
               return { employee: director, children: childrenNodes };
           });
 
-          // If no directors, the tree starts with principals
-          return directorNodes.length > 0 ? directorNodes : principalNodes;
+          // If no directors, or if filtering by principal, the tree might start with principals
+          const rootNodes = directorNodes.length > 0 ? directorNodes : principalNodes;
+
+          if (selectedPrincipalId && directorNodes.length === 0) {
+              return principalNodes;
+          }
+
+          return rootNodes;
       };
 
       setTree(buildTree());
       setIsLoading(false);
     };
     fetchData();
-  }, []);
+  }, [selectedPrincipalId]);
 
   const handleExportToPdf = async () => {
     if (!chartRef.current) return;
@@ -192,23 +217,36 @@ const EmployeesChartContent = () => {
       </header>
 
       <Card className="shadow-lg overflow-hidden">
-        <div className="p-4 border-b flex items-center justify-end gap-2">
-            <Button variant="outline" size="icon" onClick={() => setZoomLevel(z => Math.max(0.2, z - ZOOM_STEP))}>
-                <ZoomOut className="h-4 w-4"/>
-                <span className="sr-only">Zoom Out</span>
-            </Button>
-            <Button variant="outline" size="icon" onClick={() => setZoomLevel(1)}>
-                <RotateCcw className="h-4 w-4"/>
-                <span className="sr-only">Reset Zoom</span>
-            </Button>
-            <Button variant="outline" size="icon" onClick={() => setZoomLevel(z => Math.min(2, z + ZOOM_STEP))}>
-                <ZoomIn className="h-4 w-4"/>
-                <span className="sr-only">Zoom In</span>
-            </Button>
-            <Button onClick={handleExportToPdf} disabled={isExporting} variant="outline">
-                {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
-                Export PDF
-            </Button>
+        <div className="p-4 border-b flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+                <Button variant="outline" size="icon" onClick={() => setZoomLevel(z => Math.max(0.2, z - ZOOM_STEP))}>
+                    <ZoomOut className="h-4 w-4"/>
+                    <span className="sr-only">Zoom Out</span>
+                </Button>
+                <Button variant="outline" size="icon" onClick={() => setZoomLevel(1)}>
+                    <RotateCcw className="h-4 w-4"/>
+                    <span className="sr-only">Reset Zoom</span>
+                </Button>
+                <Button variant="outline" size="icon" onClick={() => setZoomLevel(z => Math.min(2, z + ZOOM_STEP))}>
+                    <ZoomIn className="h-4 w-4"/>
+                    <span className="sr-only">Zoom In</span>
+                </Button>
+            </div>
+             <div className="flex items-center gap-2">
+                <Select onValueChange={(value) => setSelectedPrincipalId(value === "all" ? null : value)}>
+                    <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Filter by Principal..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Principals</SelectItem>
+                        {principals.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                <Button onClick={handleExportToPdf} disabled={isExporting} variant="outline">
+                    {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+                    Export PDF
+                </Button>
+            </div>
         </div>
         <ScrollArea className="h-[70vh] w-full bg-card">
             <div 
@@ -227,7 +265,9 @@ const EmployeesChartContent = () => {
                       ))}
                   </div>
               ) : (
-                  <p className="text-center text-muted-foreground py-10">No employees with roles Director/Principal found to build the chart.</p>
+                  <p className="text-center text-muted-foreground py-10">
+                    {selectedPrincipalId ? "No employees found for the selected principal." : "No employees with roles Director/Principal found to build the chart."}
+                  </p>
               )}
             </div>
         </ScrollArea>
