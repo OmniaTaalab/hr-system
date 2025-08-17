@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -42,7 +42,7 @@ import {
   updateAuthUserPasswordAction, type UpdateAuthPasswordState
 } from "@/app/actions/auth-creation-actions";
 import { db, storage } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayUnion, arrayRemove, getCountFromServer } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayUnion, arrayRemove, getCountFromServer, getDocs, orderBy, limit, startAfter, endBefore, limitToLast, DocumentData, DocumentSnapshot } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -126,6 +126,8 @@ const initialUpdatePasswordState: UpdateAuthPasswordState = {
   errors: {},
   success: false,
 };
+
+const PAGE_SIZE = 15;
 
 
 // Component for managing employee documents
@@ -781,6 +783,12 @@ function EmployeeManagementContent() {
   const [changePasswordServerState, changePasswordFormAction, isChangePasswordPending] = useActionState(updateAuthUserPasswordAction, initialUpdatePasswordState);
 
   const [showPassword, setShowPassword] = useState(false);
+  
+  // Pagination State
+  const [firstVisible, setFirstVisible] = useState<DocumentSnapshot | null>(null);
+  const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLastPage, setIsLastPage] = useState(false);
 
   const canManageEmployees = useMemo(() => {
     if (!profile) return false;
@@ -795,47 +803,82 @@ function EmployeeManagementContent() {
   }, [profile]);
 
 
+  const fetchEmployees = async (page: 'first' | 'next' | 'prev' = 'first') => {
+    setIsLoading(true);
+    try {
+        const employeeCollection = collection(db, "employee");
+        
+        let q;
+        if (page === 'first') {
+            q = query(employeeCollection, orderBy("name"), limit(PAGE_SIZE));
+        } else if (page === 'next' && lastVisible) {
+            q = query(employeeCollection, orderBy("name"), startAfter(lastVisible), limit(PAGE_SIZE));
+        } else if (page === 'prev' && firstVisible) {
+            q = query(employeeCollection, orderBy("name"), endBefore(firstVisible), limitToLast(PAGE_SIZE));
+        } else {
+            setIsLoading(false);
+            return;
+        }
+
+        const documentSnapshots = await getDocs(q);
+        const employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        
+        if (!documentSnapshots.empty) {
+            setEmployees(employeeData);
+            setFirstVisible(documentSnapshots.docs[0]);
+            setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
+            
+            // Check if it's the last page
+            const nextQuery = query(employeeCollection, orderBy("name"), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1));
+            const nextSnapshot = await getDocs(nextQuery);
+            setIsLastPage(nextSnapshot.empty);
+        } else if (page === 'next') {
+            setIsLastPage(true);
+        } else if (page === 'prev') {
+           // This case can be tricky; may need to refetch first page
+        }
+
+    } catch (error) {
+        console.error("Error fetching employees:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not load employees. A Firestore index might be required.",
+        });
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if(isLoadingProfile) return;
 
-    setIsLoading(true);
-    let q;
-    const employeeCollection = collection(db, "employee");
-
-    // Admins, HR, and Principals see all employees
     if (hasFullView) {
-      q = query(employeeCollection);
+      fetchEmployees('first');
+
+      const employeeCollection = collection(db, "employee");
+      getCountFromServer(employeeCollection).then(snapshot => {
+          setTotalEmployees(snapshot.data().count);
+      }).catch(() => setTotalEmployees(0));
     } else {
-      // Other roles (if any) see no one by default on this page
-      setEmployees([]);
-      setTotalEmployees(0);
-      setIsLoading(false);
-      return;
+        setIsLoading(false);
+        setTotalEmployees(0);
+        setEmployees([]);
     }
+  }, [hasFullView, isLoadingProfile, toast]);
+  
+  const goToNextPage = () => {
+    if (isLastPage) return;
+    setCurrentPage(prev => prev + 1);
+    fetchEmployees('next');
+  };
 
-    getCountFromServer(q).then(snapshot => {
-        setTotalEmployees(snapshot.data().count);
-    }).catch(() => setTotalEmployees(0));
-    
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const employeesData: Employee[] = [];
-      querySnapshot.forEach((doc) => {
-        employeesData.push({ id: doc.id, ...doc.data() } as Employee);
-      });
-      setEmployees(employeesData.sort((a, b) => a.name.localeCompare(b.name)));
-      setIsLoading(false);
-    }, (error) => {
-      console.error("Error fetching employees: ", error);
-      toast({
-        variant: "destructive",
-        title: "Error Fetching Employees",
-        description: "Could not load employee data from Firestore. Please try again later.",
-      });
-      setIsLoading(false);
-    });
+  const goToPrevPage = () => {
+    if (currentPage === 1) return;
+    setCurrentPage(prev => prev - 1);
+    fetchEmployees('prev');
+  };
 
-    return () => unsubscribe();
-  }, [toast, isLoadingProfile, profile, hasFullView]);
   
   useEffect(() => {
     if (createLoginServerState?.message) {
@@ -1166,6 +1209,29 @@ function EmployeeManagementContent() {
           </Table>
           )}
         </CardContent>
+        <CardContent>
+          <div className="flex items-center justify-end space-x-2 py-4">
+              <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToPrevPage}
+                  disabled={currentPage <= 1 || isLoading}
+              >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Previous
+              </Button>
+              <span className="text-sm font-medium">Page {currentPage}</span>
+              <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToNextPage}
+                  disabled={isLastPage || isLoading}
+              >
+                  Next
+                  <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+          </div>
+        </CardContent>
       </Card>
       
       {isEditDialogOpen && editingEmployee && (
@@ -1410,3 +1476,4 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
