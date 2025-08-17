@@ -404,7 +404,8 @@ function AllLeaveRequestsContent() {
 
     const fetchAndSetRequests = async () => {
         const userRole = profile.role?.toLowerCase();
-        let queryConstraints: QueryConstraint[] = [orderBy("submittedAt", "desc")];
+        // Base query constraints - removed orderBy
+        let queryConstraints: QueryConstraint[] = [];
         
         // Admins and HR see all requests.
         if (userRole === 'admin' || userRole === 'hr') {
@@ -438,8 +439,11 @@ function AllLeaveRequestsContent() {
         }
         
         const unsubscribe = onSnapshot(q, async (querySnapshot: { docs: any[]; }) => {
-            const requestsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+            let requestsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
             
+            // Sort client-side
+            requestsData.sort((a, b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
+
             const employeeDataMap = new Map();
             if (requestsData.length > 0) {
                 const employeeIds = [...new Set(requestsData.map(req => req.requestingEmployeeDocId))];
