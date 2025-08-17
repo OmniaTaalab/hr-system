@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface Employee {
   id: string;
@@ -158,21 +159,10 @@ const EmployeesChartContent = () => {
         });
         throw new Error('Chart element not found');
     }
-
-    // Temporarily reset zoom to ensure full chart is captured cleanly
-    const originalTransform = chartElement.style.transform;
-    chartElement.style.transform = 'scale(1)';
-
-    const canvas = await html2canvas(chartElement, {
+    return await html2canvas(chartElement, {
         useCORS: true,
         backgroundColor: '#ffffff', // Use a solid background to prevent transparency issues
-        scale: 2, // Increase scale for better resolution
     });
-
-    // Restore original zoom level
-    chartElement.style.transform = originalTransform;
-
-    return canvas;
   };
   
   const handleExportToPNG = async () => {
@@ -191,22 +181,39 @@ const EmployeesChartContent = () => {
     }
   };
 
-  const handleExportToPDF = async () => {
+  const handleExportToPDF = () => {
       toast({ title: 'Exporting...', description: 'Generating PDF, please wait.' });
       try {
-        const canvas = await captureChartAsCanvas();
-        const imgData = canvas.toDataURL('image/jpeg', 0.9);
-        const pdf = new jsPDF({
-            orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
-            unit: 'px',
-            format: [canvas.width, canvas.height],
+        const doc = new jsPDF();
+        const exportTree = buildTree(employees, null);
+        const employeeList = [];
+
+        function traverseTree(nodes: TreeNode[], level: number) {
+            for (const node of nodes) {
+                employeeList.push([ ' '.repeat(level * 2) + node.employee.name, node.employee.role, node.employee.campus || '', node.employee.stage || '' ]);
+                if (node.children.length > 0) {
+                    traverseTree(node.children, level + 1);
+                }
+            }
+        }
+
+        traverseTree(exportTree, 0);
+
+        doc.setFontSize(18);
+        doc.text("Employee Organization List", 14, 22);
+
+        autoTable(doc, {
+            head: [['Name', 'Role', 'Campus', 'Stage']],
+            body: employeeList,
+            startY: 30,
+            theme: 'grid',
         });
-        pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
-        pdf.save(`Employees_Chart_${new Date().toISOString().split('T')[0]}.pdf`);
-        toast({ title: 'Success', description: 'Chart exported to PDF successfully.' });
+
+        doc.save(`Employees_List_${new Date().toISOString().split('T')[0]}.pdf`);
+        toast({ title: 'Success', description: 'Employee list exported to PDF successfully.' });
       } catch(e) {
           console.error(e);
-          toast({ variant: 'destructive', title: 'Error', description: 'Failed to export chart as PDF.' });
+          toast({ variant: 'destructive', title: 'Error', description: 'Failed to export list as PDF.' });
       }
   };
   
