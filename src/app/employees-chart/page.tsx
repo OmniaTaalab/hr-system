@@ -153,14 +153,14 @@ const EmployeesChartContent = () => {
       // Restore transform after capture
       chartElement.style.transform = originalTransform;
 
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'px',
         format: [canvas.width, canvas.height],
       });
 
-      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
       pdf.save(`Employees_Chart_${new Date().toISOString().split('T')[0]}.pdf`);
       
       toast({ title: 'Success', description: 'Chart exported to PDF successfully.' });
