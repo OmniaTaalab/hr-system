@@ -21,8 +21,15 @@ interface AttendanceLog {
   check_out: string | null;
 }
 
+// New interface for the processed, unique daily log
+interface DailyAttendanceLog {
+    date: string;
+    check_in: string | null;
+    check_out: string | null;
+}
+
 function UserAttendanceLogContent() {
-  const [logs, setLogs] = useState<AttendanceLog[]>([]);
+  const [logs, setLogs] = useState<DailyAttendanceLog[]>([]);
   const [employeeName, setEmployeeName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -49,17 +56,41 @@ function UserAttendanceLogContent() {
     );
 
     const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
-      const logsData = snapshot.docs.map(doc => ({
+      const rawLogs = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       } as AttendanceLog));
       
-      // Sort the logs by date in descending order on the client
-      logsData.sort((a, b) => b.date.localeCompare(a.date));
+      // Group logs by date
+      const groupedLogs: { [key: string]: { check_ins: string[], check_outs: string[] } } = {};
+      rawLogs.forEach(log => {
+          if (!groupedLogs[log.date]) {
+              groupedLogs[log.date] = { check_ins: [], check_outs: [] };
+          }
+          if (log.check_in) groupedLogs[log.date].check_ins.push(log.check_in);
+          if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
+      });
+      
+      // Process grouped logs to find earliest check-in and latest check-out
+      const processedLogs: DailyAttendanceLog[] = Object.keys(groupedLogs).map(date => {
+          const { check_ins, check_outs } = groupedLogs[date];
+          // Sort to find the earliest and latest times
+          check_ins.sort();
+          check_outs.sort();
+          return {
+              date: date,
+              check_in: check_ins[0] || null, // Earliest check-in
+              check_out: check_outs[check_outs.length - 1] || null // Latest check-out
+          };
+      });
+      
+      // Sort the final aggregated logs by date in descending order on the client
+      processedLogs.sort((a, b) => b.date.localeCompare(a.date));
 
-      setLogs(logsData);
-      if (logsData.length > 0) {
-        setEmployeeName(logsData[0].employeeName);
+      setLogs(processedLogs);
+
+      if (rawLogs.length > 0) {
+        setEmployeeName(rawLogs[0].employeeName);
       }
       setIsLoading(false);
     }, (error) => {
@@ -136,7 +167,7 @@ function UserAttendanceLogContent() {
                       </TableHeader>
                       <TableBody>
                           {logs.map((record) => (
-                              <TableRow key={record.id}>
+                              <TableRow key={record.date}>
                                   <TableCell className="font-medium">{record.date}</TableCell>
                                   <TableCell>{record.check_in || '-'}</TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
