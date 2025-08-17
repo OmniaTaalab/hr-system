@@ -43,7 +43,7 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
               <AvatarFallback>{getInitials(node.employee.name)}</AvatarFallback>
             </Avatar>
             <div className="text-xs font-semibold">{node.employee.name}</div>
-            <div className="text-[10px] leading-tight text-muted-foreground">{node.employee.role}</div>
+            <div className="text-[10px] leading-tight text-muted-foreground">{node.employee.role || 'No Role'}</div>
             {node.employee.campus && <div className="text-[10px] leading-tight text-blue-500 font-medium">{node.employee.campus}</div>}
           </CardContent>
         </Card>
