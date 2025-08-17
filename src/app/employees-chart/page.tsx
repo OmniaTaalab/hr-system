@@ -140,9 +140,8 @@ const EmployeesChartContent = () => {
 
     try {
       const canvas = await html2canvas(chartRef.current, {
-        scale: 2, // Increase resolution
-        useCORS: true,
-        backgroundColor: '#ffffff', // Use a solid background color
+          useCORS: true,
+          backgroundColor: '#ffffff', // Ensure a solid background to prevent transparency issues
       });
 
       const imgData = canvas.toDataURL('image/png');
