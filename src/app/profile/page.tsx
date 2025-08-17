@@ -38,6 +38,7 @@ import { createEmployeeProfileAction, type CreateProfileState } from "@/lib/fire
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import jsPDF from "jspdf";
+import autoTable from 'jspdf-autotable';
 
 
 // Define the Employee interface to include all necessary fields
@@ -252,41 +253,88 @@ export default function ProfilePage() {
     return undefined;
   }, [employeeProfile?.dateOfBirth]);
 
-  const handleDownloadHrLetter = () => {
-    if (!employeeProfile) return;
+  const handleExportProfileToPdf = async () => {
+    if (!employeeProfile || !authUser) return;
 
     const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
 
+    // Header
+    doc.setFontSize(20);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.text("HR Letter", 105, 20, { align: 'center' });
+    doc.text("Employee Profile", pageWidth / 2, margin, { align: "center" });
+
+    // Profile picture and basic info
+    const imgX = margin;
+    const imgY = margin + 10;
+    const imgSize = 40;
     
+    // Add image if available
+    if (employeeProfile.photoURL) {
+      try {
+        const response = await fetch(employeeProfile.photoURL);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        await new Promise<void>((resolve, reject) => {
+            reader.onload = () => {
+                doc.addImage(reader.result as string, 'JPEG', imgX, imgY, imgSize, imgSize);
+                resolve();
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+      } catch (e) {
+          console.error("Error adding image to PDF:", e);
+          doc.rect(imgX, imgY, imgSize, imgSize, 'S'); // Draw placeholder if image fails
+          doc.text("?", imgX + imgSize/2, imgY + imgSize/2, { align: 'center', baseline: 'middle'});
+      }
+    } else {
+      doc.rect(imgX, imgY, imgSize, imgSize, 'S');
+      doc.text(getInitials(employeeProfile.name), imgX + imgSize/2, imgY + imgSize/2, { align: 'center', baseline: 'middle'});
+    }
+
+
+    const textX = imgX + imgSize + 10;
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text(employeeProfile.name, textX, imgY + 10);
     doc.setFontSize(12);
     doc.setFont("helvetica", "normal");
-    
-    const issueDate = new Date().toLocaleDateString();
-    doc.text(`Date: ${issueDate}`, 20, 40);
-    
-    doc.text(`To: ${employeeProfile.name}`, 20, 50);
-    doc.text(`Employee ID: ${employeeProfile.employeeId}`, 20, 60);
-    doc.text("Department: Human Resources", 20, 70);
-    
-    doc.setFont("helvetica", "bold");
-    doc.text("Subject: ", 20, 90);
-    doc.setFont("helvetica", "normal");
-    
-    // Draw a line for the subject
-    doc.line(38, 90, 190, 90);
+    doc.setTextColor(100);
+    doc.text(employeeProfile.role, textX, imgY + 18);
+    doc.text(`Status: ${employeeProfile.status}`, textX, imgY + 26);
+    doc.setTextColor(0);
 
-    doc.text("Dear Sir/Madam,", 20, 110);
-    
-    // Placeholder for the body
-    
-    doc.text("Sincerely,", 20, 250);
-    doc.text("________________________", 20, 260);
-    doc.text("HR Manager", 20, 265);
-    
-    doc.save(`HR_Letter_${employeeProfile.name.replace(/\s/g, '_')}.pdf`);
+    // Profile Details Table
+    const tableData = [
+      ["Full Name", employeeProfile.name || "-"],
+      ["Stage", employeeProfile.stage || "-"],
+      ["Employee ID", employeeProfile.employeeId || "-"],
+      ["Email Address", authUser.email || "-"],
+      ["Phone", employeeProfile.phone || "-"],
+      ["Role", employeeProfile.role || "-"],
+      ["Department", employeeProfile.department || "-"],
+      ["Date of Birth", formattedDob || "-"],
+      ["Joined Date", formattedJoiningDate || "-"],
+    ];
+
+    autoTable(doc, {
+      startY: imgY + imgSize + 10,
+      head: [["Detail", "Information"]],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [44, 58, 71] }, // Dark blue header
+      didDrawPage: (data) => {
+        // Footer
+        const pageCount = doc.internal.pages.length;
+        doc.setFontSize(10);
+        doc.text(`Page ${data.pageNumber}`, pageWidth - margin, pageHeight - 10, { align: "right" });
+      },
+    });
+
+    doc.save(`Profile_${employeeProfile.name.replace(/\s/g, '_')}.pdf`);
   };
 
 
@@ -364,13 +412,13 @@ export default function ProfilePage() {
             </div>
             <Card className="shadow-lg">
               <CardHeader>
-                <CardTitle>Document Templates</CardTitle>
-                <CardDescription>Download common HR document templates.</CardDescription>
+                <CardTitle>Actions</CardTitle>
+                <CardDescription>Download your profile information.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button onClick={handleDownloadHrLetter}>
+                <Button onClick={handleExportProfileToPdf}>
                   <FileDown className="mr-2 h-4 w-4" />
-                  Download HR Letter Template
+                  Export Profile to PDF
                 </Button>
               </CardContent>
             </Card>
