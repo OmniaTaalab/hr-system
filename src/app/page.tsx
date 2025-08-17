@@ -133,11 +133,12 @@ function DashboardPageContent() {
     if (isLoadingProfile) return;
 
     const fetchCounts = async () => {
+      const userRole = profile?.role?.toLowerCase();
+      
       // Total Employees based on role
       setIsLoadingTotalEmp(true);
       try {
         let empQuery;
-        const userRole = profile?.role?.toLowerCase();
         const employeeCollection = collection(db, "employee");
 
         if (userRole === 'admin' || userRole === 'hr') {
@@ -145,15 +146,15 @@ function DashboardPageContent() {
         } else if (userRole === 'principal' && profile?.stage) {
           empQuery = query(employeeCollection, where("stage", "==", profile.stage));
         } else {
-          setTotalEmployees(0); // Set to 0 if no specific role or stage
           empQuery = null;
         }
         
         if(empQuery){
             const empSnapshot = await getCountFromServer(empQuery);
             setTotalEmployees(empSnapshot.data().count);
+        } else {
+          setTotalEmployees(0); // Regular user sees 0 employees on management page
         }
-
       } catch (error) {
         console.error("Error fetching total employees count:", error);
         setTotalEmployees(0);
@@ -161,7 +162,7 @@ function DashboardPageContent() {
         setIsLoadingTotalEmp(false);
       }
 
-      // Active Employees (Global)
+      // Active Employees (Global for now, can be role-based if needed)
       try {
         const activeEmpQuery = query(collection(db, "employee"), where("status", "==", "Active"));
         const activeEmpSnapshot = await getCountFromServer(activeEmpQuery);
@@ -173,37 +174,55 @@ function DashboardPageContent() {
         setIsLoadingActiveEmp(false);
       }
 
-      // Leave Requests (Global)
+      // Role-based Leave Request Counts
+      setIsLoadingPendingLeaves(true);
+      setIsLoadingApprovedLeaves(true);
+      setIsLoadingRejectedLeaves(true);
+
       try {
-        const pendingLeavesQuery = query(collection(db, "leaveRequests"), where("status", "==", "Pending"));
-        const pendingLeavesSnapshot = await getCountFromServer(pendingLeavesQuery);
-        setPendingLeaveRequests(pendingLeavesSnapshot.data().count);
+        const leaveRequestsCollection = collection(db, "leaveRequests");
+        let baseLeaveQueryConstraints: QueryConstraint[] = [];
+
+        if (userRole === 'principal' && profile?.stage) {
+          const stageEmployeesQuery = query(collection(db, "employee"), where("stage", "==", profile.stage));
+          const stageSnapshot = await getDocs(stageEmployeesQuery);
+          const employeeIdsInStage = stageSnapshot.docs.map(doc => doc.id);
+          if (employeeIdsInStage.length > 0) {
+            baseLeaveQueryConstraints.push(where("requestingEmployeeDocId", "in", employeeIdsInStage));
+          } else {
+            // Principal with no employees in stage, set counts to 0 and return
+            setPendingLeaveRequests(0);
+            setApprovedLeaveRequests(0);
+            setRejectedLeaveRequests(0);
+            return;
+          }
+        } else if (userRole !== 'admin' && userRole !== 'hr' && profile?.id) {
+          // Regular user
+          baseLeaveQueryConstraints.push(where("requestingEmployeeDocId", "==", profile.id));
+        }
+        // Admins/HR have no constraints, see all
+
+        const pendingQuery = query(leaveRequestsCollection, ...baseLeaveQueryConstraints, where("status", "==", "Pending"));
+        const approvedQuery = query(leaveRequestsCollection, ...baseLeaveQueryConstraints, where("status", "==", "Approved"));
+        const rejectedQuery = query(leaveRequestsCollection, ...baseLeaveQueryConstraints, where("status", "==", "Rejected"));
+
+        const [pendingSnapshot, approvedSnapshot, rejectedSnapshot] = await Promise.all([
+          getCountFromServer(pendingQuery),
+          getCountFromServer(approvedQuery),
+          getCountFromServer(rejectedQuery)
+        ]);
+
+        setPendingLeaveRequests(pendingSnapshot.data().count);
+        setApprovedLeaveRequests(approvedSnapshot.data().count);
+        setRejectedLeaveRequests(rejectedSnapshot.data().count);
       } catch (error) {
-        console.error("Error fetching pending leave requests count:", error);
+        console.error("Error fetching leave requests count:", error);
         setPendingLeaveRequests(0);
-      } finally {
-        setIsLoadingPendingLeaves(false);
-      }
-
-      try {
-        const approvedLeavesQuery = query(collection(db, "leaveRequests"), where("status", "==", "Approved"));
-        const approvedLeavesSnapshot = await getCountFromServer(approvedLeavesQuery);
-        setApprovedLeaveRequests(approvedLeavesSnapshot.data().count);
-      } catch (error) {
-        console.error("Error fetching approved leave requests count:", error);
         setApprovedLeaveRequests(0);
-      } finally {
-        setIsLoadingApprovedLeaves(false);
-      }
-
-      try {
-        const rejectedLeavesQuery = query(collection(db, "leaveRequests"), where("status", "==", "Rejected"));
-        const rejectedLeavesSnapshot = await getCountFromServer(rejectedLeavesQuery);
-        setRejectedLeaveRequests(rejectedLeavesSnapshot.data().count);
-      } catch (error) {
-        console.error("Error fetching rejected leave requests count:", error);
         setRejectedLeaveRequests(0);
       } finally {
+        setIsLoadingPendingLeaves(false);
+        setIsLoadingApprovedLeaves(false);
         setIsLoadingRejectedLeaves(false);
       }
     };
