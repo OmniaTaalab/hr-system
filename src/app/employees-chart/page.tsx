@@ -16,6 +16,7 @@ interface Employee {
   role: string;
   photoURL?: string | null;
   stage?: string; 
+  campus?: string;
 }
 
 interface TreeNode {
@@ -40,7 +41,7 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
             </Avatar>
             <div className="text-sm font-semibold">{node.employee.name}</div>
             <div className="text-xs text-muted-foreground">{node.employee.role}</div>
-            {node.employee.stage && <div className="text-xs text-blue-500 font-medium">{node.employee.stage}</div>}
+            {node.employee.campus && <div className="text-xs text-blue-500 font-medium">{node.employee.campus}</div>}
           </CardContent>
         </Card>
       </Link>
@@ -100,7 +101,7 @@ const EmployeesChartContent = () => {
           // Create teacher nodes
           const teacherNodes = teachers.map(t => ({ employee: t, children: [] }));
 
-          // Create principal nodes, nesting their teachers underneath them
+          // Create principal nodes, nesting their teachers underneath them based on stage
           const principalNodes = principals.map(principal => {
               const childrenNodes = teacherNodes.filter(
                   tn => tn.employee.stage === principal.stage
@@ -108,10 +109,10 @@ const EmployeesChartContent = () => {
               return { employee: principal, children: childrenNodes };
           });
           
-          // Create director nodes, nesting their principals underneath them
+          // Create director nodes, nesting their principals underneath them based on campus
           const directorNodes = directors.map(director => {
               const childrenNodes = principalNodes.filter(
-                  pn => pn.employee.stage === director.stage
+                  pn => pn.employee.campus === director.campus
               );
               return { employee: director, children: childrenNodes };
           });
@@ -135,7 +136,7 @@ const EmployeesChartContent = () => {
           Employees Chart
         </h1>
         <p className="text-muted-foreground">
-          Organizational structure based on roles and stages.
+          Organizational structure based on roles, campuses, and stages.
         </p>
       </header>
 
