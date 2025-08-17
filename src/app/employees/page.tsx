@@ -269,9 +269,13 @@ function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
 function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialAddEmployeeState);
-  const { roles, stage, campuses, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, groupNames, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
   
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
+  const [role, setRole] = useState("");
+  const [campus, setCampus] = useState("");
+  const [gender, setGender] = useState("");
+  const [stage, setStage] = useState("");
   
   useEffect(() => {
     if (serverState?.message) {
@@ -299,7 +303,11 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       </DialogHeader>
       <form id="add-employee-form" action={formAction} className="flex flex-col overflow-hidden">
         <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
-        
+        <input type="hidden" name="role" value={role} />
+        <input type="hidden" name="campus" value={campus} />
+        <input type="hidden" name="gender" value={gender} />
+        <input type="hidden" name="stage" value={stage} />
+
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -337,7 +345,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Role</Label>
-                <Select name="role" disabled={isLoadingLists}>
+                <Select onValueChange={setRole} value={role} disabled={isLoadingLists}>
                     <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
                     <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
                 </Select>
@@ -345,9 +353,9 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               </div>
                <div className="space-y-2">
                 <Label>Stage</Label>
-                <Select name="stage" disabled={isLoadingLists}>
+                <Select onValueChange={setStage} value={stage} disabled={isLoadingLists}>
                     <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
-                    <SelectContent>{stage.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
                 </Select>
                  {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
               </div>
@@ -356,7 +364,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div className="space-y-2">
                 <Label>Campus</Label>
-                 <Select name="campus" disabled={isLoadingLists}>
+                 <Select onValueChange={setCampus} value={campus} disabled={isLoadingLists}>
                     <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger>
                     <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
                 </Select>
@@ -364,7 +372,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               </div>
                <div className="space-y-2">
                 <Label>Gender</Label>
-                <Select name="gender">
+                <Select onValueChange={setGender} value={gender}>
                     <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="Male">Male</SelectItem>
@@ -438,10 +446,15 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; onSuccess: () => void }) {
   const { toast } = useToast();
   const [serverState, formAction, isPending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
-  const { roles, stage, systems, campuses, leaveTypes, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, groupNames, systems, campuses, leaveTypes, isLoading: isLoadingLists } = useOrganizationLists();
   const [formClientError, setFormClientError] = useState<string | null>(null);
 
   // State for controlled components
+  const [role, setRole] = useState(employee.role);
+  const [system, setSystem] = useState(employee.system);
+  const [campus, setCampus] = useState(employee.campus);
+  const [gender, setGender] = useState(employee.gender || "");
+  const [stage, setStage] = useState(employee.stage || "");
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(employee.dateOfBirth?.toDate());
   const [joiningDate, setJoiningDate] = useState<Date | undefined>(employee.joiningDate?.toDate());
   const [leavingDate, setLeavingDate] = useState<Date | undefined>(employee.leavingDate?.toDate());
@@ -489,6 +502,12 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
       >
         <input type="hidden" name="employeeDocId" defaultValue={employee.id} />
         <input type="hidden" name="leaveBalancesJson" value={JSON.stringify(leaveBalances)} />
+        {/* Hidden inputs for controlled Selects */}
+        <input type="hidden" name="role" value={role} />
+        <input type="hidden" name="system" value={system} />
+        <input type="hidden" name="campus" value={campus} />
+        <input type="hidden" name="gender" value={gender} />
+        <input type="hidden" name="stage" value={stage} />
         
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
@@ -526,7 +545,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
               </div>
               <div className="space-y-2">
                   <Label>Role</Label>
-                  <Select name="role" defaultValue={employee.role} disabled={isLoadingLists}>
+                  <Select value={role} onValueChange={setRole} disabled={isLoadingLists}>
                       <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
                       <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
                   </Select>
@@ -537,15 +556,15 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                   <Label>Stage</Label>
-                  <Select name="stage" defaultValue={employee.stage} disabled={isLoadingLists}>
+                  <Select value={stage} onValueChange={setStage} disabled={isLoadingLists}>
                       <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
-                      <SelectContent>{stage.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                      <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
                   </Select>
                   {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
               </div>
               <div className="space-y-2">
                   <Label>Campus</Label>
-                   <Select name="campus" defaultValue={employee.campus} disabled={isLoadingLists}>
+                   <Select value={campus} onValueChange={setCampus} disabled={isLoadingLists}>
                       <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger>
                       <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
                   </Select>
@@ -555,7 +574,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
 
              <div className="space-y-2">
                 <Label>System</Label>
-                <Select name="system" defaultValue={employee.system} disabled={isLoadingLists}>
+                <Select value={system} onValueChange={setSystem} disabled={isLoadingLists}>
                     <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger>
                     <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
                 </Select>
@@ -590,7 +609,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="edit-gender">Gender</Label>
-                    <Select name="gender" defaultValue={employee.gender}>
+                    <Select value={gender} onValueChange={setGender}>
                         <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="Male">Male</SelectItem>
@@ -763,14 +782,14 @@ function EmployeeManagementContent() {
 
   const canManageEmployees = useMemo(() => {
     if (!profile) return false;
-    const userRole = profile.role?.toLowerCase();
+    const userRole = profile.title?.toLowerCase();
     return userRole === 'admin' || userRole === 'hr';
   }, [profile]);
   
   const hasFullView = useMemo(() => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();
-    return userRole === 'admin' || userRole === 'hr';
+    return userRole === 'admin' || userRole === 'hr' || userRole === 'principal';
   }, [profile]);
 
 
@@ -780,19 +799,16 @@ function EmployeeManagementContent() {
     setIsLoading(true);
     let q;
     const employeeCollection = collection(db, "employee");
-    const userRole = profile?.role?.toLowerCase();
 
-    // Admins and HR see all employees. Principals see employees in their stage.
-    if (userRole === 'admin' || userRole === 'hr') {
-        q = query(employeeCollection);
-    } else if (userRole === 'principal' && profile?.stage) {
-        q = query(employeeCollection, where("stage", "==", profile.stage));
+    // Admins, HR, and Principals see all employees
+    if (hasFullView) {
+      q = query(employeeCollection);
     } else {
-        // Other roles see no one on this page.
-        setEmployees([]);
-        setTotalEmployees(0);
-        setIsLoading(false);
-        return;
+      // Other roles (if any) see no one by default on this page
+      setEmployees([]);
+      setTotalEmployees(0);
+      setIsLoading(false);
+      return;
     }
 
     getCountFromServer(q).then(snapshot => {
@@ -817,7 +833,7 @@ function EmployeeManagementContent() {
     });
 
     return () => unsubscribe();
-  }, [toast, isLoadingProfile, profile]);
+  }, [toast, isLoadingProfile, profile, hasFullView]);
   
   useEffect(() => {
     if (createLoginServerState?.message) {
@@ -893,6 +909,9 @@ function EmployeeManagementContent() {
   
   const filteredEmployees = useMemo(() => {
     let employeesToList = employees;
+    if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
+      employeesToList = employees.filter(emp => emp.stage === profile.stage);
+    }
   
     const lowercasedFilter = searchTerm.toLowerCase();
     if (!searchTerm.trim()) {
@@ -913,7 +932,7 @@ function EmployeeManagementContent() {
             typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
         );
     });
-  }, [employees, searchTerm]);
+  }, [employees, searchTerm, profile]);
 
 
   const openEditDialog = (employee: Employee) => {

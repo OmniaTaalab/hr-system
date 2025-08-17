@@ -6,8 +6,8 @@ import { AppLayout, useUserProfile } from '@/components/layout/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { Loader2, BookOpenCheck, Search, AlertTriangle, ArrowRight } from 'lucide-react';
+import { collection, query, orderBy, limit, getDocs, startAfter, endBefore, limitToLast, DocumentSnapshot } from 'firebase/firestore';
+import { Loader2, BookOpenCheck, Search, AlertTriangle, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
@@ -23,56 +23,104 @@ interface AttendanceLog {
   check_out: string | null;
 }
 
+const PAGE_SIZE = 100;
+
 function AttendanceLogsContent() {
-  const [logs, setLogs] = useState<AttendanceLog[]>([]);
+  const [allLogs, setAllLogs] = useState<AttendanceLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
 
+  const [firstVisible, setFirstVisible] = useState<DocumentSnapshot | null>(null);
+  const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLastPage, setIsLastPage] = useState(false);
+
   const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
 
-  useEffect(() => {
-    if (isLoadingProfile) return;
-    
-    if (!canViewPage) {
-        router.replace('/');
-        return;
-    }
-
+  const fetchLogs = async (page: 'first' | 'next' | 'prev' = 'first') => {
     setIsLoading(true);
-    const q = query(collection(db, "attendance_log"), orderBy("date", "desc"));
+    try {
+      const logsCollection = collection(db, "attendance_log");
+      let q;
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const logsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as AttendanceLog));
-      setLogs(logsData);
-      setIsLoading(false);
-    }, (error) => {
+      if (page === 'first') {
+        q = query(logsCollection, orderBy("date", "desc"), limit(PAGE_SIZE));
+      } else if (page === 'next' && lastVisible) {
+        q = query(logsCollection, orderBy("date", "desc"), startAfter(lastVisible), limit(PAGE_SIZE));
+      } else if (page === 'prev' && firstVisible) {
+        q = query(logsCollection, orderBy("date", "desc"), endBefore(firstVisible), limitToLast(PAGE_SIZE));
+      } else {
+        setIsLoading(false);
+        return;
+      }
+
+      const documentSnapshots = await getDocs(q);
+      const logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
+
+      if (!documentSnapshots.empty) {
+        setAllLogs(logsData);
+        setFirstVisible(documentSnapshots.docs[0]);
+        setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
+        if (documentSnapshots.docs.length < PAGE_SIZE) {
+            setIsLastPage(true);
+        } else {
+            // Check if this is the last page
+            const nextQuery = query(logsCollection, orderBy("date", "desc"), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1));
+            const nextSnapshot = await getDocs(nextQuery);
+            setIsLastPage(nextSnapshot.empty);
+        }
+      } else {
+         if (page === 'next') {
+            setIsLastPage(true);
+         } else {
+            setAllLogs([]);
+            setFirstVisible(null);
+            setLastVisible(null);
+         }
+      }
+    } catch (error: any) {
       console.error("Error fetching attendance logs:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Could not load attendance logs. Please check Firestore rules and collection name.",
+        description: "Could not load attendance logs. An index might be required in Firestore.",
       });
+    } finally {
       setIsLoading(false);
-    });
+    }
+  };
 
-    return () => unsubscribe();
-  }, [toast, canViewPage, isLoadingProfile, router]);
+  useEffect(() => {
+    if (!canViewPage) {
+        if(!isLoadingProfile) router.replace('/');
+        return;
+    }
+    fetchLogs('first');
+  }, [canViewPage, isLoadingProfile, router]);
+
+
+  const goToNextPage = () => {
+    setCurrentPage(prev => prev + 1);
+    fetchLogs('next');
+  };
+
+  const goToPrevPage = () => {
+    setCurrentPage(prev => Math.max(1, prev - 1));
+    fetchLogs('prev');
+  };
 
   const latestLogsPerUser = useMemo(() => {
       const latestLogsMap = new Map<number, AttendanceLog>();
-      logs.forEach(log => {
+      allLogs.forEach(log => {
           if (!latestLogsMap.has(log.userId)) {
               latestLogsMap.set(log.userId, log);
           }
       });
       return Array.from(latestLogsMap.values());
-  }, [logs]);
+  }, [allLogs]);
 
   const filteredRecords = useMemo(() => {
       if (!searchTerm) {
@@ -86,7 +134,7 @@ function AttendanceLogsContent() {
       );
   }, [latestLogsPerUser, searchTerm]);
 
-  if (isLoadingProfile || isLoading) {
+  if (isLoadingProfile) {
     return (
         <div className="flex justify-center items-center h-full">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -180,6 +228,29 @@ function AttendanceLogsContent() {
                   </Table>
                )}
           </CardContent>
+           <CardContent>
+            <div className="flex items-center justify-end space-x-2 py-4">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={goToPrevPage}
+                    disabled={currentPage <= 1 || isLoading}
+                >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Previous
+                </Button>
+                <span className="text-sm font-medium">Page {currentPage}</span>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={goToNextPage}
+                    disabled={isLastPage || isLoading}
+                >
+                    Next
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+            </div>
+        </CardContent>
       </Card>
     </div>
   );
