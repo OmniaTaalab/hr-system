@@ -123,6 +123,7 @@ const EmployeesChartContent = () => {
               return { employee: director, children: childrenNodes };
           });
 
+          // If no directors, the tree starts with principals
           return directorNodes.length > 0 ? directorNodes : principalNodes;
       };
 
@@ -180,7 +181,10 @@ const EmployeesChartContent = () => {
             Organizational structure based on roles, campuses, and stages.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+      </header>
+
+      <Card className="shadow-lg overflow-hidden">
+        <div className="p-4 border-b flex items-center justify-end gap-2">
             <Button variant="outline" size="icon" onClick={() => setZoomLevel(z => Math.max(0.2, z - ZOOM_STEP))}>
                 <ZoomOut className="h-4 w-4"/>
                 <span className="sr-only">Zoom Out</span>
@@ -198,9 +202,6 @@ const EmployeesChartContent = () => {
                 Export PDF
             </Button>
         </div>
-      </header>
-
-      <Card className="shadow-lg overflow-hidden">
         <ScrollArea className="h-[70vh] w-full bg-card">
             <div 
               ref={chartRef}
