@@ -51,12 +51,25 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
       {node.children.length > 0 && (
         <>
           <div className="w-px h-6 bg-gray-400" />
-          <div className="flex flex-col items-center relative">
+          <div className="flex items-start space-x-4 relative">
             {node.children.map((child, index) => (
               <div key={child.employee.id} className="flex flex-col items-center relative">
+                 {/* Horizontal line connecting from parent */}
+                 {node.children.length > 1 && (
+                    <div className="absolute top-0 left-1/2 w-full h-px bg-gray-400 -translate-x-1/2">
+                        {/* Remove side lines for first and last child */}
+                        <div
+                        className={cn("absolute top-0 h-px bg-card",
+                            index === 0 ? "left-0 w-1/2" : "right-0 w-1/2"
+                        )}>
+                        </div>
+                    </div>
+                )}
                  {/* Vertical line connecting to the child */}
-                <div className="w-px h-6 bg-gray-400" />
-                <EmployeeNode node={child} />
+                <div className="absolute top-0 left-1/2 w-px h-6 bg-gray-400 -translate-x-1/2" />
+                <div className="mt-6">
+                    <EmployeeNode node={child} />
+                </div>
               </div>
             ))}
           </div>
