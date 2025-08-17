@@ -167,12 +167,11 @@ const EmployeesChartContent = () => {
                 <EmployeeNode key={rootNode.employee.id} node={rootNode} />
               ))}
             </div>
-          </div>,
-          () => resolve()
+          </div>
         );
+        // Use requestAnimationFrame to wait for the next frame after render
+        requestAnimationFrame(() => resolve());
       });
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
       
       const canvas = await html2canvas(tempContainer.children[0] as HTMLElement, {
         useCORS: true,
