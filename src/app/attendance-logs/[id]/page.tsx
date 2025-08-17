@@ -7,10 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, where, orderBy, getDocs } from 'firebase/firestore';
-import { Loader2, BookOpenCheck, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Loader2, BookOpenCheck, ArrowLeft, AlertTriangle, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface AttendanceLog {
   id: string;
@@ -37,6 +38,7 @@ function UserAttendanceLogContent() {
   const router = useRouter();
   const params = useParams();
   const userId = params.id as string;
+  const [searchTerm, setSearchTerm] = useState("");
 
   const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
   
@@ -106,6 +108,15 @@ function UserAttendanceLogContent() {
     return () => unsubscribe();
   }, [toast, canViewPage, isLoadingProfile, router, userId]);
   
+  const filteredLogs = useMemo(() => {
+    if (!searchTerm) {
+      return logs;
+    }
+    const lowercasedFilter = searchTerm.toLowerCase();
+    return logs.filter(log => log.date.toLowerCase().includes(lowercasedFilter));
+  }, [logs, searchTerm]);
+
+
   if (isLoadingProfile || isLoading) {
     return (
         <div className="flex justify-center items-center h-full">
@@ -144,6 +155,16 @@ function UserAttendanceLogContent() {
       <Card className="shadow-lg">
           <CardHeader>
               <CardTitle>Full Log Data</CardTitle>
+              <div className="relative pt-2">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                    type="search"
+                    placeholder="Search by date (YYYY-MM-DD)..."
+                    className="w-full pl-8 sm:w-72"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
           </CardHeader>
           <CardContent>
                {isLoading ? (
@@ -151,10 +172,10 @@ function UserAttendanceLogContent() {
                       <Loader2 className="h-12 w-12 animate-spin text-primary" />
                       <p className="ml-4 text-lg">Loading logs...</p>
                   </div>
-               ) : logs.length === 0 ? (
+               ) : filteredLogs.length === 0 ? (
                   <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
                       <h3 className="text-xl font-semibold">No Logs Found</h3>
-                      <p className="mt-2">{`No attendance records found for user ID ${userId}.`}</p>
+                      <p className="mt-2">{searchTerm ? `No records match your search for "${searchTerm}".` : `No attendance records found for user ID ${userId}.`}</p>
                   </div>
                ) : (
                   <Table>
@@ -166,7 +187,7 @@ function UserAttendanceLogContent() {
                           </TableRow>
                       </TableHeader>
                       <TableBody>
-                          {logs.map((record) => (
+                          {filteredLogs.map((record) => (
                               <TableRow key={record.date}>
                                   <TableCell className="font-medium">{record.date}</TableCell>
                                   <TableCell>{record.check_in || '-'}</TableCell>
