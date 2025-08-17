@@ -156,8 +156,8 @@ const EmployeesChartContent = () => {
       tempContainer.style.width = '100%';
       document.body.appendChild(tempContainer);
 
-      const ReactDOM = await import('react-dom');
-      const root = ReactDOM.createRoot(tempContainer);
+      const ReactDOMClient = await import('react-dom/client');
+      const root = ReactDOMClient.createRoot(tempContainer);
       
       await new Promise<void>(resolve => {
         root.render(
