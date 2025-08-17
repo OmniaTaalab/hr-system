@@ -16,15 +16,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Send, Loader2, AlertTriangle } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { CalendarIcon, Send, Loader2, AlertTriangle, FileUp, X } from "lucide-react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
 import { Label } from "@/components/ui/label";
+import { storage } from '@/lib/firebase/config';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { nanoid } from 'nanoid';
 
 const initialSubmitState: SubmitLeaveRequestState = {
   message: null,
@@ -35,19 +39,26 @@ const initialSubmitState: SubmitLeaveRequestState = {
 function LeaveRequestForm() {
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [serverState, formAction, isSubmitting] = useActionState(submitLeaveRequestAction, initialSubmitState);
+  const [serverState, formAction] = useActionState(submitLeaveRequestAction, initialSubmitState);
   
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
   
-  const [leaveType, setLeaveType] = useState("");
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
-  const [reason, setReason] = useState("");
   
   const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
   const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
+
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, startTransition] = useTransition();
+
+  const isPending = isUploading || isSubmitting;
 
   useEffect(() => {
     if (serverState?.message) {
@@ -58,10 +69,12 @@ function LeaveRequestForm() {
         });
         // Reset form state on success
         formRef.current?.reset();
-        setLeaveType("");
         setStartDate(undefined);
         setEndDate(undefined);
-        setReason("");
+        setFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
       } else {
         const errorDescription = serverState.errors?.form?.join(", ") || serverState.message || "Please check the form for errors.";
         toast({
@@ -72,6 +85,68 @@ function LeaveRequestForm() {
       }
     }
   }, [serverState, toast]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    setFileError(null);
+    if (selectedFile) {
+        if (selectedFile.type !== 'application/pdf') {
+            setFileError("File must be a PDF.");
+            setFile(null);
+            e.target.value = "";
+            return;
+        }
+        if (selectedFile.size > 5 * 1024 * 1024) { // 5MB
+            setFileError("File must be smaller than 5MB.");
+            setFile(null);
+            e.target.value = "";
+            return;
+        }
+        setFile(selectedFile);
+    } else {
+        setFile(null);
+    }
+  };
+
+  const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const currentForm = formRef.current;
+    if (!currentForm) return;
+
+    let attachmentURL = '';
+
+    if (file) {
+      setIsUploading(true);
+      try {
+        const fileExtension = file.name.split('.').pop();
+        const fileName = `${profile?.id}-${nanoid()}.${fileExtension}`;
+        const filePath = `leave-attachments/${fileName}`;
+        const fileRef = ref(storage, filePath);
+        
+        await uploadBytes(fileRef, file);
+        attachmentURL = await getDownloadURL(fileRef);
+      } catch (error: any) {
+        console.error("Error during file upload:", error);
+        toast({
+          variant: "destructive",
+          title: "File Upload Failed",
+          description: "Could not upload your attachment. Please try again.",
+        });
+        setIsUploading(false);
+        return; // Stop form submission if file upload fails
+      }
+      setIsUploading(false);
+    }
+
+    const formData = new FormData(currentForm);
+    if(attachmentURL) {
+      formData.set('attachmentURL', attachmentURL);
+    }
+
+    startTransition(() => {
+        formAction(formData);
+    });
+  };
 
   if (isLoadingProfile) {
     return (
@@ -92,12 +167,12 @@ function LeaveRequestForm() {
           </p>
         </header>
 
-        <form ref={formRef} action={formAction} className="space-y-8">
+        <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-8">
             <input type="hidden" name="requestingEmployeeDocId" value={profile?.id || ''} />
             
             <div className="space-y-2">
                 <Label htmlFor="leaveType">Leave Type</Label>
-                <Select name="leaveType" onValueChange={setLeaveType} value={leaveType} disabled={isLoadingLeaveTypes || isLoadingProfile} required>
+                <Select name="leaveType" disabled={isPending || isLoadingLeaveTypes || isLoadingProfile} required>
                     <SelectTrigger id="leaveType">
                         <SelectValue placeholder={isLoadingLeaveTypes ? "Loading types..." : "Select a leave type"} />
                     </SelectTrigger>
@@ -162,14 +237,46 @@ function LeaveRequestForm() {
                 <Textarea
                     id="reason"
                     name="reason"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
                     placeholder="Briefly explain the reason for your leave request"
                     className="resize-none"
                     required
                 />
                 <p className="text-sm text-muted-foreground">A brief reason helps in faster processing of your request.</p>
                 {serverState?.errors?.reason && <p className="text-sm font-medium text-destructive">{serverState.errors.reason[0]}</p>}
+            </div>
+
+            <div className="space-y-2">
+                <Label htmlFor="attachment">Attach Document (Optional)</Label>
+                <Input 
+                  id="attachment"
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileChange}
+                  disabled={isPending}
+                  className="file:text-primary file:font-semibold"
+                />
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>PDF only, max 5MB.</span>
+                     {file && (
+                      <div className="flex items-center gap-2">
+                        <span className="truncate max-w-xs">{file.name}</span>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6" 
+                          onClick={() => {
+                            setFile(null); 
+                            if(fileInputRef.current) fileInputRef.current.value = "";
+                          }}
+                        >
+                            <X className="h-4 w-4"/>
+                        </Button>
+                      </div>
+                    )}
+                </div>
+                {fileError && <p className="text-sm font-medium text-destructive">{fileError}</p>}
             </div>
 
             {serverState?.errors?.form && (
@@ -179,11 +286,11 @@ function LeaveRequestForm() {
               </div>
             )}
 
-            <Button type="submit" className="w-full md:w-auto group" disabled={isSubmitting || isLoadingProfile || isLoadingLeaveTypes || !profile?.id}>
-              {isSubmitting ? (
+            <Button type="submit" className="w-full md:w-auto group" disabled={isPending || isLoadingProfile || isLoadingLeaveTypes || !profile?.id}>
+              {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
+                  {isUploading ? 'Uploading file...' : 'Submitting...'}
                 </>
               ) : (
                 <>
