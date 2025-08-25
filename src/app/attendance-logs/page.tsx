@@ -23,7 +23,7 @@ interface AttendanceLog {
   date: string;
   check_in: string | null;
   check_out: string | null;
-  machine_id?: string;
+  machine?: string;
 }
 
 const PAGE_SIZE = 100;
@@ -58,8 +58,8 @@ function AttendanceLogsContent() {
             const machineSet = new Set<string>();
             snapshot.forEach(doc => {
                 const data = doc.data() as AttendanceLog;
-                if (data.machine_id) {
-                    machineSet.add(data.machine_id);
+                if (data.machine) {
+                    machineSet.add(data.machine);
                 }
             });
             setMachines(Array.from(machineSet).sort());
@@ -146,32 +146,36 @@ function AttendanceLogsContent() {
     fetchLogs('prev');
   };
 
-  const latestLogsPerUser = useMemo(() => {
-      let filteredByMachine = allLogs;
-      if (machineFilter !== 'All') {
-        filteredByMachine = allLogs.filter(log => log.machine_id === machineFilter);
-      }
-      
-      const latestLogsMap = new Map<number, AttendanceLog>();
-      filteredByMachine.forEach(log => {
-          if (!latestLogsMap.has(log.userId)) {
-              latestLogsMap.set(log.userId, log);
-          }
-      });
-      return Array.from(latestLogsMap.values());
-  }, [allLogs, machineFilter]);
+  const displayedRecords = useMemo(() => {
+    // Start with all logs from the current page
+    let records = allLogs;
 
-  const filteredRecords = useMemo(() => {
-      if (!searchTerm) {
-          return latestLogsPerUser;
-      }
+    // Filter by machine if a specific machine is selected
+    if (machineFilter !== 'All') {
+      records = records.filter(log => log.machine === machineFilter);
+    } else {
+      // If "All Machines" is selected, show only the latest log per user
+      const latestLogsMap = new Map<number, AttendanceLog>();
+      records.forEach(log => {
+        if (!latestLogsMap.has(log.userId)) {
+          latestLogsMap.set(log.userId, log);
+        }
+      });
+      records = Array.from(latestLogsMap.values());
+    }
+
+    // Then, filter by search term
+    if (searchTerm) {
       const lowercasedFilter = searchTerm.toLowerCase();
-      return latestLogsPerUser.filter(record =>
-          record.employeeName.toLowerCase().includes(lowercasedFilter) ||
-          record.userId.toString().includes(lowercasedFilter) ||
-          record.date.toLowerCase().includes(lowercasedFilter)
+      records = records.filter(record =>
+        record.employeeName.toLowerCase().includes(lowercasedFilter) ||
+        record.userId.toString().includes(lowercasedFilter) ||
+        record.date.toLowerCase().includes(lowercasedFilter)
       );
-  }, [latestLogsPerUser, searchTerm]);
+    }
+    
+    return records;
+  }, [allLogs, machineFilter, searchTerm]);
 
   if (isLoadingProfile) {
     return (
@@ -199,15 +203,19 @@ function AttendanceLogsContent() {
           Attendance Logs
         </h1>
         <p className="text-muted-foreground">
-          Showing the most recent log for each employee. Click on a row to see the full history.
+          {machineFilter === 'All' 
+            ? 'Showing the most recent log for each employee. Click a row for full history.' 
+            : `Showing all logs for machine: ${machineFilter}.`}
         </p>
       </header>
 
       <Card className="shadow-lg">
           <CardHeader>
-              <CardTitle>Latest Employee Logs</CardTitle>
+              <CardTitle>Employee Logs</CardTitle>
               <CardDescription>
-                  A summary of the latest check-in/out activity for every employee.
+                  {machineFilter === 'All' 
+                    ? 'A summary of the latest check-in/out activity for every employee.' 
+                    : `A detailed list of all check-in/out events for the selected machine.`}
               </CardDescription>
                <div className="flex flex-col sm:flex-row gap-4 pt-2">
                   <div className="relative flex-grow">
@@ -242,7 +250,7 @@ function AttendanceLogsContent() {
                       <Loader2 className="h-12 w-12 animate-spin text-primary" />
                       <p className="ml-4 text-lg">Loading logs...</p>
                   </div>
-               ) : filteredRecords.length === 0 ? (
+               ) : displayedRecords.length === 0 ? (
                   <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
                       <h3 className="text-xl font-semibold">No Attendance Logs Found</h3>
                       <p className="mt-2">{searchTerm || machineFilter !== 'All' ? `No records match your search/filter.` : "There are currently no logs in the `attendance_log` collection."}</p>
@@ -261,7 +269,7 @@ function AttendanceLogsContent() {
                           </TableRow>
                       </TableHeader>
                       <TableBody>
-                          {filteredRecords.map((record) => (
+                          {displayedRecords.map((record) => (
                               <TableRow 
                                 key={record.id} 
                                 onClick={() => router.push(`/attendance-logs/${record.userId}`)}
@@ -272,7 +280,7 @@ function AttendanceLogsContent() {
                                   <TableCell>{record.date}</TableCell>
                                   <TableCell>{record.check_in || '-'}</TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
-                                  <TableCell>{record.machine_id || '-'}</TableCell>
+                                  <TableCell>{record.machine || '-'}</TableCell>
                                   <TableCell className="text-right">
                                     <Button variant="ghost" size="sm">
                                       View All
