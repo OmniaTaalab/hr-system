@@ -161,14 +161,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
         <CardTitle className="flex justify-between items-center text-lg">
           {title}
           <div className="flex items-center gap-2">
-             {collectionName === 'roles' && (
-              <form action={syncRoleAction}>
-                  <Button size="sm" variant="secondary" disabled={isSyncRolePending}>
-                      {isSyncRolePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync from Employees
-                  </Button>
-              </form>
-            )}
+         
             {collectionName === 'groupNames' && (
               <form action={syncGroupAction}>
                   <Button size="sm" variant="secondary" disabled={isSyncGroupPending}>

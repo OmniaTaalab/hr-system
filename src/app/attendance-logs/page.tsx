@@ -7,12 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
 import { collection, query, orderBy, limit, getDocs, startAfter, endBefore, limitToLast, DocumentSnapshot } from 'firebase/firestore';
-import { Loader2, BookOpenCheck, Search, AlertTriangle, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Loader2, BookOpenCheck, Search, AlertTriangle, ArrowRight, ArrowLeft, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 
 interface AttendanceLog {
   id: string;
@@ -21,6 +23,7 @@ interface AttendanceLog {
   date: string;
   check_in: string | null;
   check_out: string | null;
+  machine_id?: string;
 }
 
 const PAGE_SIZE = 100;
@@ -38,7 +41,38 @@ function AttendanceLogsContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLastPage, setIsLastPage] = useState(false);
 
+  const [machineFilter, setMachineFilter] = useState("All");
+  const [machines, setMachines] = useState<string[]>([]);
+  const [isLoadingMachines, setIsLoadingMachines] = useState(true);
+
   const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
+
+  // Fetch unique machines
+  useEffect(() => {
+    if (!canViewPage) return;
+    setIsLoadingMachines(true);
+    const fetchMachines = async () => {
+        try {
+            const logsCollection = collection(db, "attendance_log");
+            const snapshot = await getDocs(logsCollection);
+            const machineSet = new Set<string>();
+            snapshot.forEach(doc => {
+                const data = doc.data() as AttendanceLog;
+                if (data.machine_id) {
+                    machineSet.add(data.machine_id);
+                }
+            });
+            setMachines(Array.from(machineSet).sort());
+        } catch (error) {
+            console.error("Error fetching machine IDs:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch machine IDs.' });
+        } finally {
+            setIsLoadingMachines(false);
+        }
+    };
+    fetchMachines();
+  }, [canViewPage, toast]);
+
 
   const fetchLogs = async (page: 'first' | 'next' | 'prev' = 'first') => {
     setIsLoading(true);
@@ -113,14 +147,19 @@ function AttendanceLogsContent() {
   };
 
   const latestLogsPerUser = useMemo(() => {
+      let filteredByMachine = allLogs;
+      if (machineFilter !== 'All') {
+        filteredByMachine = allLogs.filter(log => log.machine_id === machineFilter);
+      }
+      
       const latestLogsMap = new Map<number, AttendanceLog>();
-      allLogs.forEach(log => {
+      filteredByMachine.forEach(log => {
           if (!latestLogsMap.has(log.userId)) {
               latestLogsMap.set(log.userId, log);
           }
       });
       return Array.from(latestLogsMap.values());
-  }, [allLogs]);
+  }, [allLogs, machineFilter]);
 
   const filteredRecords = useMemo(() => {
       if (!searchTerm) {
@@ -170,16 +209,32 @@ function AttendanceLogsContent() {
               <CardDescription>
                   A summary of the latest check-in/out activity for every employee.
               </CardDescription>
-               <div className="relative pt-2">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                      type="search"
-                      placeholder="Search by name, ID, or date..."
-                      className="w-full pl-8 sm:w-1/2 md:w-1/3"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-              </div>
+               <div className="flex flex-col sm:flex-row gap-4 pt-2">
+                  <div className="relative flex-grow">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                          type="search"
+                          placeholder="Search by name, ID, or date..."
+                          className="w-full pl-8"
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                  </div>
+                  <div className="flex items-center gap-2">
+                      <Filter className="h-4 w-4 text-muted-foreground"/>
+                      <Select value={machineFilter} onValueChange={setMachineFilter} disabled={isLoadingMachines}>
+                          <SelectTrigger className="w-full sm:w-[200px]">
+                              <SelectValue placeholder="Filter by machine" />
+                          </SelectTrigger>
+                          <SelectContent>
+                              <SelectItem value="All">All Machines</SelectItem>
+                              {machines.map(machine => (
+                                  <SelectItem key={machine} value={machine}>{machine}</SelectItem>
+                              ))}
+                          </SelectContent>
+                      </Select>
+                  </div>
+               </div>
           </CardHeader>
           <CardContent>
                {isLoading ? (
@@ -190,7 +245,7 @@ function AttendanceLogsContent() {
                ) : filteredRecords.length === 0 ? (
                   <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
                       <h3 className="text-xl font-semibold">No Attendance Logs Found</h3>
-                      <p className="mt-2">{searchTerm ? `No records match your search for "${searchTerm}".` : "There are currently no logs in the `attendance_log` collection."}</p>
+                      <p className="mt-2">{searchTerm || machineFilter !== 'All' ? `No records match your search/filter.` : "There are currently no logs in the `attendance_log` collection."}</p>
                   </div>
                ) : (
                   <Table>
@@ -201,6 +256,7 @@ function AttendanceLogsContent() {
                               <TableHead>Last Activity Date</TableHead>
                               <TableHead>Check In</TableHead>
                               <TableHead>Check Out</TableHead>
+                              <TableHead>Machine ID</TableHead>
                               <TableHead className="text-right">History</TableHead>
                           </TableRow>
                       </TableHeader>
@@ -216,6 +272,7 @@ function AttendanceLogsContent() {
                                   <TableCell>{record.date}</TableCell>
                                   <TableCell>{record.check_in || '-'}</TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
+                                  <TableCell>{record.machine_id || '-'}</TableCell>
                                   <TableCell className="text-right">
                                     <Button variant="ghost" size="sm">
                                       View All
@@ -263,3 +320,5 @@ export default function AttendanceLogsPage() {
         </AppLayout>
     )
 }
+
+    
