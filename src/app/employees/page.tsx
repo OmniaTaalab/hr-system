@@ -792,7 +792,7 @@ function EmployeeManagementContent() {
 
   const canManageEmployees = useMemo(() => {
     if (!profile) return false;
-    const userRole = profile.title?.toLowerCase();
+    const userRole = profile.role?.toLowerCase();
     return userRole === 'admin' || userRole === 'hr';
   }, [profile]);
   
@@ -802,70 +802,72 @@ function EmployeeManagementContent() {
     return userRole === 'admin' || userRole === 'hr' || userRole === 'principal';
   }, [profile]);
 
-
   const fetchEmployees = async (page: 'first' | 'next' | 'prev' = 'first') => {
+    if (!hasFullView) {
+      setIsLoading(false);
+      setEmployees([]);
+      setTotalEmployees(0);
+      return;
+    }
+    
     setIsLoading(true);
     try {
-        const employeeCollection = collection(db, "employee");
-        
-        let queryConstraints: QueryConstraint[] = [orderBy("name")];
+      const employeeCollection = collection(db, "employee");
+      let queryConstraints: QueryConstraint[] = [orderBy("name")];
 
-        // Apply stage filter at query level for principals
-        if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
-            queryConstraints.push(where("stage", "==", profile.stage));
-        }
+      if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
+        queryConstraints.push(where("stage", "==", profile.stage));
+      }
 
-        let q;
-        if (page === 'first') {
-            q = query(employeeCollection, ...queryConstraints, limit(PAGE_SIZE));
-        } else if (page === 'next' && lastVisible) {
-            q = query(employeeCollection, ...queryConstraints, startAfter(lastVisible), limit(PAGE_SIZE));
-        } else if (page === 'prev' && firstVisible) {
-            q = query(employeeCollection, ...queryConstraints, endBefore(firstVisible), limitToLast(PAGE_SIZE));
-        } else {
-            setIsLoading(false);
-            return;
-        }
-
-        const documentSnapshots = await getDocs(q);
-        const employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-        
-        if (!documentSnapshots.empty) {
-            setEmployees(employeeData);
-            setFirstVisible(documentSnapshots.docs[0]);
-            setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
-            
-            const nextQueryConstraints = [...queryConstraints, startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
-            const nextQuery = query(employeeCollection, ...nextQueryConstraints);
-            const nextSnapshot = await getDocs(nextQuery);
-            setIsLastPage(nextSnapshot.empty);
-        } else if (page === 'next') {
-            setIsLastPage(true);
-        } else if (page === 'first' || page === 'prev') {
-            setEmployees([]);
-            setFirstVisible(null);
-            setLastVisible(null);
-            setIsLastPage(true);
-        }
-
-    } catch (error) {
-        console.error("Error fetching employees:", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not load employees. A Firestore index might be required.",
-        });
-    } finally {
+      let q;
+      if (page === 'first') {
+        q = query(employeeCollection, ...queryConstraints, limit(PAGE_SIZE));
+      } else if (page === 'next' && lastVisible) {
+        q = query(employeeCollection, ...queryConstraints, startAfter(lastVisible), limit(PAGE_SIZE));
+      } else if (page === 'prev' && firstVisible) {
+        q = query(employeeCollection, ...queryConstraints, endBefore(firstVisible), limitToLast(PAGE_SIZE));
+      } else {
         setIsLoading(false);
+        return;
+      }
+
+      const documentSnapshots = await getDocs(q);
+      const employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+      
+      if (!documentSnapshots.empty) {
+        setEmployees(employeeData);
+        setFirstVisible(documentSnapshots.docs[0]);
+        setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
+        
+        const nextQueryConstraints = [...queryConstraints, startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
+        const nextQuery = query(employeeCollection, ...nextQueryConstraints);
+        const nextSnapshot = await getDocs(nextQuery);
+        setIsLastPage(nextSnapshot.empty);
+      } else if (page === 'next') {
+        setIsLastPage(true);
+      } else if (page === 'first' || page === 'prev') {
+        setEmployees([]);
+        setFirstVisible(null);
+        setLastVisible(null);
+        setIsLastPage(true);
+      }
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not load employees. A Firestore index might be required.",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
-
+  
   useEffect(() => {
     if(isLoadingProfile) return;
 
     if (hasFullView) {
       fetchEmployees('first');
-
       const employeeCollection = collection(db, "employee");
       let countQuery;
        if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
@@ -877,11 +879,6 @@ function EmployeeManagementContent() {
       getCountFromServer(countQuery).then(snapshot => {
           setTotalEmployees(snapshot.data().count);
       }).catch(() => setTotalEmployees(0));
-
-    } else {
-        setIsLoading(false);
-        setTotalEmployees(0);
-        setEmployees([]);
     }
   }, [hasFullView, isLoadingProfile, toast, profile]);
   
@@ -896,7 +893,6 @@ function EmployeeManagementContent() {
     setCurrentPage(prev => prev - 1);
     fetchEmployees('prev');
   };
-
   
   useEffect(() => {
     if (createLoginServerState?.message) {
@@ -973,12 +969,12 @@ function EmployeeManagementContent() {
   const filteredEmployees = useMemo(() => {
     let employeesToList = employees;
     
-    // Stage dropdown filter - applies to admins/HR
+    // Client-side Stage dropdown filter - applies to admins/HR
     if (profile?.role?.toLowerCase() !== 'principal' && stageFilter !== "All") {
       employeesToList = employeesToList.filter(employee => employee.stage === stageFilter);
     }
   
-    // Search term filter
+    // Client-side Search term filter
     const lowercasedFilter = searchTerm.toLowerCase();
     if (!searchTerm.trim()) {
       return employeesToList;
@@ -1096,18 +1092,20 @@ function EmployeeManagementContent() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists || profile?.role?.toLowerCase() === 'principal'}>
-                    <SelectTrigger className="w-full sm:w-[180px]">
-                        <SelectValue placeholder="Filter by stage" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="All">All Stages</SelectItem>
-                        {stages.map(stage => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-              </div>
+              {profile?.role?.toLowerCase() !== 'principal' && (
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists}>
+                      <SelectTrigger className="w-full sm:w-[180px]">
+                          <SelectValue placeholder="Filter by stage" />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="All">All Stages</SelectItem>
+                          {stages.map(stage => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}
+                      </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             {isLoadingProfile ? (
               <Skeleton className="h-10 w-[190px]" />
