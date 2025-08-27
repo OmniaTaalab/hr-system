@@ -29,14 +29,16 @@ export function Notifications() {
   useEffect(() => {
     if (!user) return;
 
+    // Remove orderby from query to avoid needing a composite index
     const q = query(
       collection(db, 'notifications'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      where('userId', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+      // Sort on the client side
+      notifs.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
       setNotifications(notifs);
       setUnreadCount(notifs.filter(n => !n.read).length);
     });
