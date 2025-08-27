@@ -42,7 +42,7 @@ import {
   updateAuthUserPasswordAction, type UpdateAuthPasswordState
 } from "@/app/actions/auth-creation-actions";
 import { db, storage } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayUnion, arrayRemove, getCountFromServer, getDocs, orderBy, limit, startAfter, endBefore, limitToLast, DocumentData, DocumentSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayUnion, arrayRemove, getCountFromServer, getDocs, orderBy, limit, startAfter, endBefore, limitToLast, DocumentData, DocumentSnapshot, QueryConstraint } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -808,13 +808,20 @@ function EmployeeManagementContent() {
     try {
         const employeeCollection = collection(db, "employee");
         
+        let queryConstraints: QueryConstraint[] = [orderBy("name")];
+
+        // Apply stage filter at query level for principals
+        if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
+            queryConstraints.push(where("stage", "==", profile.stage));
+        }
+
         let q;
         if (page === 'first') {
-            q = query(employeeCollection, orderBy("name"), limit(PAGE_SIZE));
+            q = query(employeeCollection, ...queryConstraints, limit(PAGE_SIZE));
         } else if (page === 'next' && lastVisible) {
-            q = query(employeeCollection, orderBy("name"), startAfter(lastVisible), limit(PAGE_SIZE));
+            q = query(employeeCollection, ...queryConstraints, startAfter(lastVisible), limit(PAGE_SIZE));
         } else if (page === 'prev' && firstVisible) {
-            q = query(employeeCollection, orderBy("name"), endBefore(firstVisible), limitToLast(PAGE_SIZE));
+            q = query(employeeCollection, ...queryConstraints, endBefore(firstVisible), limitToLast(PAGE_SIZE));
         } else {
             setIsLoading(false);
             return;
@@ -828,14 +835,17 @@ function EmployeeManagementContent() {
             setFirstVisible(documentSnapshots.docs[0]);
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
             
-            // Check if it's the last page
-            const nextQuery = query(employeeCollection, orderBy("name"), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1));
+            const nextQueryConstraints = [...queryConstraints, startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
+            const nextQuery = query(employeeCollection, ...nextQueryConstraints);
             const nextSnapshot = await getDocs(nextQuery);
             setIsLastPage(nextSnapshot.empty);
         } else if (page === 'next') {
             setIsLastPage(true);
-        } else if (page === 'prev') {
-           // This case can be tricky; may need to refetch first page
+        } else if (page === 'first' || page === 'prev') {
+            setEmployees([]);
+            setFirstVisible(null);
+            setLastVisible(null);
+            setIsLastPage(true);
         }
 
     } catch (error) {
@@ -857,15 +867,23 @@ function EmployeeManagementContent() {
       fetchEmployees('first');
 
       const employeeCollection = collection(db, "employee");
-      getCountFromServer(employeeCollection).then(snapshot => {
+      let countQuery;
+       if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
+            countQuery = query(employeeCollection, where("stage", "==", profile.stage));
+       } else {
+            countQuery = query(employeeCollection);
+       }
+      
+      getCountFromServer(countQuery).then(snapshot => {
           setTotalEmployees(snapshot.data().count);
       }).catch(() => setTotalEmployees(0));
+
     } else {
         setIsLoading(false);
         setTotalEmployees(0);
         setEmployees([]);
     }
-  }, [hasFullView, isLoadingProfile, toast]);
+  }, [hasFullView, isLoadingProfile, toast, profile]);
   
   const goToNextPage = () => {
     if (isLastPage) return;
@@ -955,13 +973,8 @@ function EmployeeManagementContent() {
   const filteredEmployees = useMemo(() => {
     let employeesToList = employees;
     
-    // Principal stage filter
-    if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
-      employeesToList = employees.filter(emp => emp.stage === profile.stage);
-    }
-
-    // Stage dropdown filter
-    if (stageFilter !== "All") {
+    // Stage dropdown filter - applies to admins/HR
+    if (profile?.role?.toLowerCase() !== 'principal' && stageFilter !== "All") {
       employeesToList = employeesToList.filter(employee => employee.stage === stageFilter);
     }
   
@@ -1085,7 +1098,7 @@ function EmployeeManagementContent() {
               </div>
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
-                <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists}>
+                <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists || profile?.role?.toLowerCase() === 'principal'}>
                     <SelectTrigger className="w-full sm:w-[180px]">
                         <SelectValue placeholder="Filter by stage" />
                     </SelectTrigger>
@@ -1476,4 +1489,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
