@@ -813,10 +813,14 @@ function EmployeeManagementContent() {
     setIsLoading(true);
     try {
       const employeeCollection = collection(db, "employee");
-      let queryConstraints: QueryConstraint[] = [orderBy("name")];
-
-      if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
+      let queryConstraints: QueryConstraint[] = [];
+      
+      const isPrincipal = profile?.role?.toLowerCase() === 'principal';
+      
+      if (isPrincipal && profile.stage) {
         queryConstraints.push(where("stage", "==", profile.stage));
+      } else {
+        queryConstraints.push(orderBy("name"));
       }
 
       let q;
@@ -832,7 +836,12 @@ function EmployeeManagementContent() {
       }
 
       const documentSnapshots = await getDocs(q);
-      const employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+      let employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+      
+      // Client-side sort if not ordering by name on server (for principals)
+      if (isPrincipal) {
+        employeeData.sort((a, b) => a.name.localeCompare(b.name));
+      }
       
       if (!documentSnapshots.empty) {
         setEmployees(employeeData);
