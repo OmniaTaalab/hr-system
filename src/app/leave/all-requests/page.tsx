@@ -401,101 +401,101 @@ function AllLeaveRequestsContent() {
   useEffect(() => {
     if (isLoadingProfile || !profile) return;
     
-    setIsLoading(true);
-    let q: query;
-    const leaveRequestsCollection = collection(db, "leaveRequests");
-
-    const fetchAndSetRequests = async () => {
+    const fetchAllData = async () => {
+        setIsLoading(true);
         const userRole = profile.role?.toLowerCase();
-        // Base query constraints - removed orderBy
-        let queryConstraints: QueryConstraint[] = [];
         
-        // Admins and HR see all requests.
+        let employeeQuery;
+        // Admins and HR see all employees.
         if (userRole === 'admin' || userRole === 'hr') {
-            q = query(leaveRequestsCollection, ...queryConstraints);
+            employeeQuery = query(collection(db, "employee"));
         } 
-        // Principals see requests from employees in the same stage.
+        // Principals see employees in the same stage.
         else if (userRole === 'principal' && profile.stage) {
-            const stageEmployeesQuery = query(
-                collection(db, "employee"),
-                where("stage", "==", profile.stage)
-            );
-            const stageSnapshot = await getDocs(stageEmployeesQuery);
-            const employeeIdsInStage = stageSnapshot.docs.map(doc => doc.id);
-            
-            if (employeeIdsInStage.length > 0) {
-                 if (employeeIdsInStage.length > 30) {
-                    console.warn("Warning: 'in' query for leave requests has more than 30 IDs. This may fail. Consider paginating or restructuring data.");
-                 }
-                queryConstraints.push(where("requestingEmployeeDocId", "in", employeeIdsInStage));
-                q = query(leaveRequestsCollection, ...queryConstraints);
-            } else {
+            employeeQuery = query(collection(db, "employee"), where("stage", "==", profile.stage));
+        } 
+        // Regular employees shouldn't be on this page, but as a fallback, see no one.
+        else {
+            setAllRequests([]);
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            const employeeSnapshot = await getDocs(employeeQuery);
+            const employeeMap = new Map();
+            const employeeIds: string[] = [];
+            employeeSnapshot.forEach(doc => {
+                employeeMap.set(doc.id, doc.data());
+                employeeIds.push(doc.id);
+            });
+
+            if (employeeIds.length === 0) {
                 setAllRequests([]);
                 setIsLoading(false);
                 return;
             }
-        } 
-        // Regular employees see only their own requests.
-        else {
-            queryConstraints.push(where("requestingEmployeeDocId", "==", profile.id));
-            q = query(leaveRequestsCollection, ...queryConstraints);
-        }
-        
-        const unsubscribe = onSnapshot(q, async (querySnapshot: { docs: any[]; }) => {
-            let requestsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
-            
-            // Sort client-side
-            requestsData.sort((a, b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
 
-            const employeeDataMap = new Map();
-            if (requestsData.length > 0) {
-                const employeeIds = [...new Set(requestsData.map(req => req.requestingEmployeeDocId))];
-                // Firestore 'in' query is limited to 30 items per query
-                const idChunks = [];
-                for (let i = 0; i < employeeIds.length; i += 30) {
-                    idChunks.push(employeeIds.slice(i, i + 30));
-                }
+            // Fetch leave requests for the retrieved employees
+            // Firestore 'in' query supports up to 30 elements. Chunk if needed.
+            const idChunks: string[][] = [];
+            for (let i = 0; i < employeeIds.length; i += 30) {
+                idChunks.push(employeeIds.slice(i, i + 30));
+            }
 
-                for (const chunk of idChunks) {
-                     const employeeQuery = query(collection(db, "employee"), where("__name__", "in", chunk));
-                     const allEmployeeDocs = await getDocs(employeeQuery);
-                     allEmployeeDocs.forEach(doc => {
-                        employeeDataMap.set(doc.id, doc.data());
-                     });
-                }
+            const unsubscribes: (() => void)[] = [];
+            let allLeaveRequests: LeaveRequestEntry[] = [];
+
+            const processSnapshot = (snapshot: any) => {
+                const newRequests = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+                // Merge new requests with existing ones, replacing duplicates
+                const requestMap = new Map(allLeaveRequests.map(r => [r.id, r]));
+                newRequests.forEach(r => requestMap.set(r.id, r));
+                
+                let combinedRequests = Array.from(requestMap.values());
+                
+                combinedRequests.sort((a, b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
+                
+                const requestsWithDetails = combinedRequests.map(req => {
+                    const employeeData = employeeMap.get(req.requestingEmployeeDocId);
+                    return {
+                        ...req,
+                        employeeStage: employeeData?.stage || 'N/A',
+                        employeeCampus: employeeData?.campus || 'N/A',
+                    };
+                });
+                
+                setAllRequests(requestsWithDetails);
+                setIsLoading(false);
+            };
+
+            for (const chunk of idChunks) {
+                const leaveQuery = query(collection(db, "leaveRequests"), where("requestingEmployeeDocId", "in", chunk));
+                const unsubscribe = onSnapshot(leaveQuery, processSnapshot, (error) => {
+                    console.error("Error fetching leave requests: ", error);
+                    toast({
+                        variant: "destructive",
+                        title: "Error Fetching Requests",
+                        description: "Could not load leave requests. This might be due to a missing Firestore index.",
+                    });
+                     setIsLoading(false);
+                });
+                unsubscribes.push(unsubscribe);
             }
             
+            return () => {
+                unsubscribes.forEach(unsub => unsub());
+            };
 
-            const requestsWithDetails = requestsData.map(req => {
-                const employeeData = employeeDataMap.get(req.requestingEmployeeDocId);
-                return {
-                    ...req,
-                    employeeStage: employeeData?.stage || 'N/A',
-                    employeeCampus: employeeData?.campus || 'N/A',
-                };
-            });
-
-            setAllRequests(requestsWithDetails);
+        } catch (error) {
+            console.error("Error fetching employees for leave requests: ", error);
             setIsLoading(false);
-        }, (error) => {
-            console.error("Error fetching leave requests: ", error);
-            toast({
-                variant: "destructive",
-                title: "Error Fetching Requests",
-                description: "Could not load leave requests. This might be due to a missing Firestore index.",
-            });
-            setIsLoading(false);
-        });
-
-        return unsubscribe;
+        }
     };
-
-    const unsubscribePromise = fetchAndSetRequests();
     
-    return () => {
-        unsubscribePromise.then(unsub => { if (unsub) unsub(); });
-    };
-}, [toast, isLoadingProfile, profile]);
+    fetchAllData();
+    
+}, [profile, isLoadingProfile, toast]);
 
 
   useEffect(() => {
