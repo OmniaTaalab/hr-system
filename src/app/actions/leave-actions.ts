@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, Timestamp, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, Timestamp, deleteDoc, getDoc, limit } from 'firebase/firestore';
 // Assuming these functions exist for getting user info
 import { getWeekendSettings } from './settings-actions';
 
@@ -106,12 +106,13 @@ export async function submitLeaveRequestAction(
     if (!employeeSnap.exists()) {
         return { errors: { form: ["Employee record not found."] }, success: false };
     }
-    const employeeName = employeeSnap.data().name || "Unknown Employee";
+    const employeeData = employeeSnap.data();
+    const employeeName = employeeData.name || "Unknown Employee";
 
     const numberOfDays = await calculateWorkingDays(startDate, endDate);
 
     // The 'requestingEmployeeDocId' field in Firestore stores the unique document ID from 'employee' collection
-    await addDoc(collection(db, "leaveRequests"), {
+    const leaveRequestRef = await addDoc(collection(db, "leaveRequests"), {
       requestingEmployeeDocId, // Store the unique Firestore document ID of the employee
       employeeName, // Keep employee name for display purposes if needed elsewhere
       leaveType,
@@ -123,6 +124,39 @@ export async function submitLeaveRequestAction(
       submittedAt: serverTimestamp(),
       managerNotes: "", 
     });
+    
+    // --- Send notification to Principal ---
+    try {
+        const employeeStage = employeeData.stage;
+        if (employeeStage) {
+            const principalQuery = query(
+                collection(db, "employee"),
+                where("stage", "==", employeeStage),
+                where("role", "==", "Principal"),
+                limit(1)
+            );
+            const principalSnapshot = await getDocs(principalQuery);
+
+            if (!principalSnapshot.empty) {
+                const principalDoc = principalSnapshot.docs[0];
+                const principalUserId = principalDoc.data().userId;
+
+                if (principalUserId) {
+                    await addDoc(collection(db, "notifications"), {
+                        userId: principalUserId, // The user ID of the person to notify
+                        message: `${employeeName} has submitted a new leave request.`,
+                        link: `/leave/all-requests?requestId=${leaveRequestRef.id}`,
+                        read: false,
+                        createdAt: serverTimestamp(),
+                    });
+                }
+            }
+        }
+    } catch(notificationError) {
+        // Log the error but don't fail the entire transaction
+        console.error("Failed to send notification:", notificationError);
+    }
+
 
     return { message: "Leave request submitted successfully and is pending approval.", success: true };
   } catch (error: any) {

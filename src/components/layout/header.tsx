@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Bell, Settings, LogOut, User, ChevronDown } from "lucide-react";
+import { Settings, LogOut, User, ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +20,7 @@ import { auth } from "@/lib/firebase/config";
 import { useUserProfile } from "./app-layout";
 import { Skeleton } from "../ui/skeleton";
 import { Icons } from "../icons";
+import { Notifications } from "./notifications";
 
 export function Header() {
   const router = useRouter();
@@ -50,9 +51,7 @@ export function Header() {
           <SidebarTrigger />
         </div>
         <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="icon" aria-label="Notifications">
-            <Bell className="h-5 w-5" />
-          </Button>
+          {user && <Notifications />}
           {loading ? (
             <div className="flex items-center space-x-2">
               <Skeleton className="h-6 w-6 rounded-full" />
