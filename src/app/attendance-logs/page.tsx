@@ -264,7 +264,7 @@ function AttendanceLogsContent() {
                               <TableHead>Last Activity Date</TableHead>
                               <TableHead>Check In</TableHead>
                               <TableHead>Check Out</TableHead>
-                              <TableHead>Machine ID</TableHead>
+                              <TableHead>Machine Name</TableHead>
                               <TableHead className="text-right">History</TableHead>
                           </TableRow>
                       </TableHeader>
