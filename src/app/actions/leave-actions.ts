@@ -124,7 +124,7 @@ export async function submitLeaveRequestAction(
       submittedAt: serverTimestamp(),
       managerNotes: "", 
     });
-    
+
     // --- Send notification to Principal ---
     try {
         const employeeStage = employeeData.stage;
@@ -157,7 +157,7 @@ export async function submitLeaveRequestAction(
         console.error("Failed to send notification:", notificationError);
     }
 
-
+        
     return { message: "Leave request submitted successfully and is pending approval.", success: true };
   } catch (error: any) {
     console.error('Firestore Submit Leave Request Error:', error);
