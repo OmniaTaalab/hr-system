@@ -140,7 +140,8 @@ export async function submitLeaveRequestAction(
             if (!principalSnapshot.empty) {
                 const principalDoc = principalSnapshot.docs[0];
                 const principalUserId = principalDoc.data().userId;
-
+                  console.log('principalUserId');
+                  console.log(principalUserId);
                 if (principalUserId) {
                     await addDoc(collection(db, "notifications"), {
                         userId: principalUserId, // The user ID of the person to notify

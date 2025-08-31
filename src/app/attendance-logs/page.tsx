@@ -26,7 +26,7 @@ interface AttendanceLog {
   machine?: string;
 }
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 50;
 
 function AttendanceLogsContent() {
   const [allLogs, setAllLogs] = useState<AttendanceLog[]>([]);
@@ -328,5 +328,3 @@ export default function AttendanceLogsPage() {
         </AppLayout>
     )
 }
-
-    
