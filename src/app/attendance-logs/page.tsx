@@ -328,3 +328,5 @@ export default function AttendanceLogsPage() {
         </AppLayout>
     )
 }
+
+    
