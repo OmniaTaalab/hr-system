@@ -530,6 +530,7 @@ export async function createEmployeeProfileAction(
       department,
       role,
       stage,
+      status: "Active",
       system: "Unassigned",
       campus: "Unassigned",
       photoURL: null,

@@ -155,9 +155,36 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [gender, setGender] = useState("");
   const [stage, setStage] = useState("");
 
+  const [principals, setPrincipals] = useState<Employee[]>([]);
+  const [isLoadingPrincipals, setIsLoadingPrincipals] = useState(true);
+  const [reportLine1, setReportLine1] = useState("");
+
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [nationalIdFile, setNationalIdFile] = useState<File | null>(null);
   const [otherFiles, setOtherFiles] = useState<File[]>([]);
+
+  useEffect(() => {
+    const fetchPrincipals = async () => {
+        setIsLoadingPrincipals(true);
+        try {
+            const q = query(collection(db, "employee"), where("role", "==", "Principal"), orderBy("name"));
+            const querySnapshot = await getDocs(q);
+            const principalList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            setPrincipals(principalList);
+        } catch (error) {
+            console.error("Error fetching principals:", error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Could not load the list of principals.",
+            });
+        } finally {
+            setIsLoadingPrincipals(false);
+        }
+    };
+
+    fetchPrincipals();
+  }, [toast]);
 
   const handleFileUpload = async (employeeId: string) => {
     const allFiles = [cvFile, nationalIdFile, ...otherFiles].filter((file): file is File => file !== null);
@@ -230,6 +257,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         <input type="hidden" name="campus" value={campus} />
         <input type="hidden" name="gender" value={gender} />
         <input type="hidden" name="stage" value={stage} />
+        <input type="hidden" name="reportLine1" value={reportLine1} />
 
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
@@ -369,9 +397,16 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="add-reportLine1">Report Line 1</Label>
-                  <Input id="add-reportLine1" name="reportLine1" />
-                  {serverState?.errors?.reportLine1 && <p className="text-sm text-destructive">{serverState.errors.reportLine1.join(', ')}</p>}
+                    <Label htmlFor="add-reportLine1">Report Line 1</Label>
+                    <Select onValueChange={setReportLine1} value={reportLine1} disabled={isLoadingPrincipals}>
+                      <SelectTrigger>
+                          <SelectValue placeholder={isLoadingPrincipals ? "Loading..." : "Select a Principal"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                          {principals.map(p => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {serverState?.errors?.reportLine1 && <p className="text-sm text-destructive">{serverState.errors.reportLine1.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="add-reportLine2">Report Line 2</Label>
@@ -431,7 +466,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; onSuccess: () => void }) {
   const { toast } = useToast();
   const [serverState, formAction, isPending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
-  const { roles, stage: stages, systems, campuses, leaveTypes, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, stage: stages, systems, campuses, leaveTypes, subjects, isLoading: isLoadingLists } = useOrganizationLists();
   const [formClientError, setFormClientError] = useState<string | null>(null);
 
   // State for controlled components
@@ -440,6 +475,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   const [campus, setCampus] = useState(employee.campus);
   const [gender, setGender] = useState(employee.gender || "");
   const [stage, setStage] = useState(employee.stage || "");
+  const [subject, setSubject] = useState(employee.subject || "");
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(employee.dateOfBirth?.toDate());
   const [joiningDate, setJoiningDate] = useState<Date | undefined>(employee.joiningDate?.toDate());
   const [leavingDate, setLeavingDate] = useState<Date | undefined>(employee.leavingDate?.toDate());
@@ -493,6 +529,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         <input type="hidden" name="campus" value={campus} />
         <input type="hidden" name="gender" value={gender} />
         <input type="hidden" name="stage" value={stage} />
+        <input type="hidden" name="subject" value={subject} />
         
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
@@ -516,10 +553,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                     <Input id="edit-lastName" name="lastName" defaultValue={employee.lastName || employee.name.split(' ').slice(1).join(' ') || ''}  />
                     {serverState?.errors?.lastName && <p className="text-sm text-destructive">{serverState.errors.lastName.join(', ')}</p>}
                 </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-employeeIdDisplay">Employee ID</Label>
-              <Input id="edit-employeeIdDisplay" name="employeeIdDisplay" defaultValue={employee.employeeId} readOnly className="bg-muted/50" />
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -557,14 +590,25 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
               </div>
             </div>
 
-             <div className="space-y-2">
-                <Label>System</Label>
-                <Select value={system} onValueChange={setSystem} disabled={isLoadingLists}>
-                    <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger>
-                    <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
-                </Select>
-                {serverState?.errors?.system && <p className="text-sm text-destructive">{serverState.errors.system.join(', ')}</p>}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>System</Label>
+                    <Select value={system} onValueChange={setSystem} disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger>
+                        <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                    {serverState?.errors?.system && <p className="text-sm text-destructive">{serverState.errors.system.join(', ')}</p>}
+                </div>
+                 <div className="space-y-2">
+                    <Label>Subject</Label>
+                    <Select value={subject} onValueChange={setSubject} disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Subject"} /></SelectTrigger>
+                        <SelectContent>{subjects.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                    {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
+                </div>
             </div>
+
 
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -611,11 +655,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                 </div>
             </div>
              <div className="grid grid-cols-2 gap-4">
-                 <div className="space-y-2">
-                    <Label htmlFor="edit-subject">Subject</Label>
-                    <Input id="edit-subject" name="subject" defaultValue={employee.subject} />
-                    {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
-                </div>
                 <div className="space-y-2">
                     <Label htmlFor="edit-title">Title</Label>
                     <Input id="edit-title" name="title" defaultValue={employee.title} />
@@ -1012,13 +1051,13 @@ function EmployeeManagementContent() {
     return employeesToList.filter(employee => {
         const searchableFields = [
             employee.name,
-            employee.employeeId,
             employee.department,
             employee.role,
             employee.stage,
             employee.campus,
             employee.email,
             employee.phone,
+            employee.subject
         ];
         return searchableFields.some(field =>
             typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
@@ -1181,8 +1220,8 @@ function EmployeeManagementContent() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Employee ID</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Subject</TableHead>
                 <TableHead>Stage</TableHead>
                 <TableHead>Campus</TableHead>
                 <TableHead>Account</TableHead>
@@ -1202,8 +1241,8 @@ function EmployeeManagementContent() {
                         {employee.name || '-'}
                       </Link>
                     </TableCell>
-                    <TableCell>{employee.employeeId || '-'}</TableCell>
                     <TableCell>{employee.role || '-'}</TableCell>
+                    <TableCell>{employee.subject || '-'}</TableCell>
                     <TableCell>{employee.stage || '-'}</TableCell>
                     <TableCell>{employee.campus || '-'}</TableCell>
                     <TableCell>
@@ -1258,7 +1297,7 @@ function EmployeeManagementContent() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={canManageEmployees ? 7 : 6} className="h-24 text-center">
-                    {searchTerm ? "No employees found matching your search." : (campusFilter !== "All" || stageFilter !== "All") ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
+                    {searchTerm ? "No employees found matching your search." : (campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All") ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
                   </TableCell>
                 </TableRow>
               )}
@@ -1309,7 +1348,7 @@ function EmployeeManagementContent() {
                 <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete the employee record for <strong>{employeeToDelete.name}</strong> (ID: {employeeToDelete.employeeId}) and all their associated files (photo, documents).
+                    This action cannot be undone. This will permanently delete the employee record for <strong>{employeeToDelete.name}</strong> and all their associated files (photo, documents).
                 </AlertDialogDescription>
                 </AlertDialogHeader>
                 {deleteState.errors?.form && (
