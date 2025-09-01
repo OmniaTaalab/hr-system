@@ -329,15 +329,10 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             <div className="space-y-4">
               <h3 className="text-lg font-semibold flex items-center"><UserCircle2 className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="add-firstName">First Name</Label>
-                  <Input id="add-firstName" name="firstName" required />
-                  {serverState?.errors?.firstName && <p className="text-sm text-destructive">{serverState.errors.firstName.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-lastName">Last Name</Label>
-                  <Input id="add-lastName" name="lastName" required />
-                  {serverState?.errors?.lastName && <p className="text-sm text-destructive">{serverState.errors.lastName.join(', ')}</p>}
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="add-name">Full Name</Label>
+                  <Input id="add-name" name="name" required placeholder="e.g., John Doe" />
+                  {serverState?.errors?.name && <p className="text-sm text-destructive">{serverState.errors.name.join(', ')}</p>}
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -368,7 +363,47 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                   <Input id="add-emergencyContactNumber" name="emergencyContactNumber" required placeholder="Numbers only" />
                   {serverState?.errors?.emergencyContactNumber && <p className="text-sm text-destructive">{serverState.errors.emergencyContactNumber.join(', ')}</p>}
                 </div>
+                <div className="space-y-2">
+                    <Label>Gender</Label>
+                    <Select onValueChange={setGender} value={gender}>
+                        <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Male">Male</SelectItem>
+                            <SelectItem value="Female">Female</SelectItem>
+                        </SelectContent>
+                    </Select>
+                     {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Date of Birth</Label>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
+                        </PopoverContent>
+                    </Popover>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label>Religion</Label>
+                        <Input name="religion" />
+                        {serverState?.errors?.religion && <p className="text-sm text-destructive">{serverState.errors.religion.join(', ')}</p>}
+                        <div className="space-y-2">
+                    <Label>National ID</Label>
+                    <Input name="nationalId" />
+                    {serverState?.errors?.nationalId && <p className="text-sm text-destructive">{serverState.errors.nationalId.join(', ')}</p>}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
+             </div>
               </div>
+              
             </div>
 
             <Separator />
@@ -387,6 +422,41 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                   <Input id="add-title" name="title" required />
                   {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
                 </div>
+                <div className="space-y-2">
+                        <Label>Subject</Label>
+                        <Input name="subject" />
+                        {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
+                    </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="add-department">Department</Label>
+                    <Input id="add-department" name="department" required />
+                    {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label>Campus</Label>
+                     <Select onValueChange={setCampus} value={campus} disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger>
+                        <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                    {serverState?.errors?.campus && <p className="text-sm text-destructive">{serverState.errors.campus.join(', ')}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Stage</Label>
+                    <Select onValueChange={setStage} value={stage} disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
+                        <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                     {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Role</Label>
+                    <Select onValueChange={setRole} value={role} disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
+                        <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                     {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
+                  </div>
+                 
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -399,6 +469,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                   <Input id="add-reportLine2" name="reportLine2" />
                   {serverState?.errors?.reportLine2 && <p className="text-sm text-destructive">{serverState.errors.reportLine2.join(', ')}</p>}
                 </div>
+          
+              
               </div>
             </div>
 
@@ -407,88 +479,23 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
              {/* Other Information */}
             <div className="space-y-4">
                <h3 className="text-lg font-semibold flex items-center">Other Details</h3>
-                <div className="space-y-2">
-                    <Label htmlFor="add-department">Department</Label>
-                    <Input id="add-department" name="department" required />
-                    {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
+           
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               
+
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Role</Label>
-                    <Select onValueChange={setRole} value={role} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
-                        <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                     {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
-                  </div>
-                   <div className="space-y-2">
-                    <Label>Stage</Label>
-                    <Select onValueChange={setStage} value={stage} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
-                        <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                     {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div className="space-y-2">
-                    <Label>Campus</Label>
-                     <Select onValueChange={setCampus} value={campus} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger>
-                        <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                    {serverState?.errors?.campus && <p className="text-sm text-destructive">{serverState.errors.campus.join(', ')}</p>}
-                  </div>
-                   <div className="space-y-2">
-                    <Label>Gender</Label>
-                    <Select onValueChange={setGender} value={gender}>
-                        <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="Male">Male</SelectItem>
-                            <SelectItem value="Female">Female</SelectItem>
-                            <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                    </Select>
-                     {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
-                  </div>
+           
+                
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Date of Birth</Label>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
-                        </PopoverContent>
-                    </Popover>
-                     {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>National ID</Label>
-                    <Input name="nationalId" />
-                    {serverState?.errors?.nationalId && <p className="text-sm text-destructive">{serverState.errors.nationalId.join(', ')}</p>}
-                </div>
+         
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label>Religion</Label>
-                        <Input name="religion" />
-                        {serverState?.errors?.religion && <p className="text-sm text-destructive">{serverState.errors.religion.join(', ')}</p>}
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Subject</Label>
-                        <Input name="subject" />
-                        {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
-                    </div>
+                     </div>
+                
                 </div>
             </div>
             

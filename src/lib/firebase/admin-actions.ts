@@ -51,8 +51,7 @@ export async function getAllAuthUsers() {
 // Schema for validating form data for creating an employee
 const CreateEmployeeFormSchema = z.object({
   // Personal Info
-  firstName: z.string().min(1, "First name is required."),
-  lastName: z.string().min(1, "Last name is required."),
+  name: z.string().min(3, "Full name must be at least 3 characters.").refine(val => val.includes(' '), "Please enter both first and last name."),
   personalEmail: z.string().email({ message: 'A valid personal email is required.' }),
   personalPhone: z.string().min(1, "Personal phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
   emergencyContactName: z.string().min(1, "Emergency contact name is required."),
@@ -78,8 +77,7 @@ const CreateEmployeeFormSchema = z.object({
 
 export type CreateEmployeeState = {
   errors?: {
-    firstName?: string[];
-    lastName?: string[];
+    name?: string[];
     personalEmail?: string[];
     personalPhone?: string[];
     emergencyContactName?: string[];
@@ -110,8 +108,7 @@ export async function createEmployeeAction(
 ): Promise<CreateEmployeeState> {
   const validatedFields = CreateEmployeeFormSchema.safeParse({
     // Personal
-    firstName: formData.get('firstName'),
-    lastName: formData.get('lastName'),
+    name: formData.get('name'),
     personalEmail: formData.get('personalEmail'),
     personalPhone: formData.get('personalPhone'),
     emergencyContactName: formData.get('emergencyContactName'),
@@ -143,13 +140,15 @@ export async function createEmployeeAction(
   }
 
   const { 
-    firstName, lastName, personalEmail, personalPhone, emergencyContactName,
+    name, personalEmail, personalPhone, emergencyContactName,
     emergencyContactRelationship, emergencyContactNumber, dateOfBirth, gender,
     nationalId, religion, nisEmail, title, department, role, stage, campus,
     reportLine1, reportLine2, subject
   } = validatedFields.data;
   
-  const name = `${firstName} ${lastName}`;
+  const nameParts = name.trim().split(/\s+/);
+  const firstName = nameParts[0];
+  const lastName = nameParts.slice(1).join(' ');
 
   try {
     const employeeCollectionRef = collection(db, "employee");
