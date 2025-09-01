@@ -154,13 +154,61 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [campus, setCampus] = useState("");
   const [gender, setGender] = useState("");
   const [stage, setStage] = useState("");
-  
+
+  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setFilesToUpload(Array.from(event.target.files));
+    }
+  };
+
+  const handleFileUpload = async (employeeId: string) => {
+    if (filesToUpload.length === 0) return;
+    
+    toast({ title: "Uploading files...", description: `Uploading ${filesToUpload.length} document(s).`});
+
+    const employeeDocRef = doc(db, "employee", employeeId);
+    
+    try {
+      const uploadPromises = filesToUpload.map(async (file) => {
+        const filePath = `employee-documents/${employeeId}/${file.name}`;
+        const fileRef = storageRef(storage, filePath);
+        const snapshot = await uploadBytes(fileRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        return {
+          name: file.name,
+          url: downloadURL,
+          uploadedAt: Timestamp.now(),
+        };
+      });
+
+      const uploadedFiles = await Promise.all(uploadPromises);
+      
+      await updateDoc(employeeDocRef, {
+        documents: arrayUnion(...uploadedFiles)
+      });
+      
+      toast({ title: "Upload Complete", description: "Documents successfully linked to the new employee." });
+
+    } catch (error: any) {
+       toast({
+        variant: "destructive",
+        title: "File Upload Failed",
+        description: "Could not upload files. You can add them later by editing the employee.",
+      });
+    }
+  };
+
   useEffect(() => {
     if (serverState?.message) {
-      if (serverState.success) {
+      if (serverState.success && serverState.employeeId) {
         toast({ title: "Employee Added", description: serverState.message });
-        onSuccess();
-      } else {
+        handleFileUpload(serverState.employeeId).then(() => {
+          onSuccess();
+        });
+      } else if (!serverState.success) {
         const description = Object.values(serverState.errors ?? {}).flat().join(' ') || serverState.message || "An unexpected error occurred.";
         toast({
           variant: "destructive",
@@ -334,6 +382,27 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                   {serverState?.errors?.reportLine2 && <p className="text-sm text-destructive">{serverState.errors.reportLine2.join(', ')}</p>}
                 </div>
               </div>
+            </div>
+
+            <Separator />
+
+             {/* Documents Section */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold flex items-center"><File className="mr-2 h-5 w-5 text-primary" />Documents</h3>
+              <p className="text-sm text-muted-foreground">Upload CV, National ID, and other relevant documents. Files will be uploaded after the employee is created.</p>
+              <Input
+                type="file"
+                multiple
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                disabled={isPending}
+              />
+               {filesToUpload.length > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  Selected {filesToUpload.length} file(s): {filesToUpload.map(f => f.name).join(', ')}
+                </div>
+              )}
             </div>
 
             {serverState?.errors?.form && (

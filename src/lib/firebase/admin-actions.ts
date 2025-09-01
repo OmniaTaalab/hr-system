@@ -100,6 +100,7 @@ export type CreateEmployeeState = {
   };
   message?: string | null;
   success?: boolean;
+  employeeId?: string; // Return the new employee's document ID
 };
 
 export async function createEmployeeAction(
@@ -200,8 +201,8 @@ export async function createEmployeeAction(
       createdAt: serverTimestamp(),
     };
 
-    await addDoc(employeeCollectionRef, employeeData);
-    return { success: true, message: `Employee "${name}" created successfully.` };
+    const newEmployeeDoc = await addDoc(employeeCollectionRef, employeeData);
+    return { success: true, message: `Employee "${name}" created successfully.`, employeeId: newEmployeeDoc.id };
 
   } catch (error: any) {
     return {
