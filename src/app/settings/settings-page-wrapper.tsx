@@ -11,6 +11,7 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 const settingsNavItems = [
   { title: "General", href: "/settings/general" },
   { title: "Organization", href: "/settings/organization" },
+  { title: "Sync Data", href: "/settings/sync-data" },
 ];
 
 export default function SettingsPageWrapper({ children }: { children: React.ReactNode }) {

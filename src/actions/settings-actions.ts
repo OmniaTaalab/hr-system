@@ -227,7 +227,7 @@ export async function getWorkdaySettings(): Promise<{ standardHours: number }> {
 
 // --- ORGANIZATION LISTS (DEPARTMENTS, ROLES, ETC.) ---
 
-const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes"]);
+const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes", "stage"]);
 
 const ManageItemSchema = z.object({
   collectionName: collectionNames,
@@ -314,4 +314,84 @@ export async function manageListItemAction(
       success: false,
     };
   }
+}
+
+// --- DATA SYNC ACTIONS ---
+
+export type SyncState = {
+  message?: string | null;
+  success?: boolean;
+};
+
+// Generic sync function to reduce repetition
+async function syncListFromSource(
+    sourceCollection: string,
+    sourceField: string,
+    targetCollection: string
+): Promise<SyncState> {
+    try {
+        // 1. Get all unique values from the source collection
+        const sourceSnapshot = await getDocs(collection(db, sourceCollection));
+        const sourceValues = new Set(
+            sourceSnapshot.docs
+                .map(doc => doc.data()[sourceField])
+                .filter(Boolean) // Filter out any falsy values (null, undefined, '')
+        );
+
+        // 2. Get all existing names from the target collection
+        const targetSnapshot = await getDocs(collection(db, targetCollection));
+        const existingTargetNames = new Set(
+            targetSnapshot.docs.map(doc => doc.data().name)
+        );
+
+        // 3. Determine which values are new
+        const newValues = [...sourceValues].filter(
+            name => !existingTargetNames.has(name)
+        );
+
+        if (newValues.length === 0) {
+            return { success: true, message: `${targetCollection} are already up-to-date.` };
+        }
+
+        // 4. Add the new values to the target collection
+        const batch = [];
+        for (const name of newValues) {
+            batch.push(addDoc(collection(db, targetCollection), { name }));
+        }
+        await Promise.all(batch);
+
+        return {
+            success: true,
+            message: `Successfully added ${newValues.length} new item(s) to ${targetCollection}.`
+        };
+    } catch (error: any) {
+        console.error(`Error syncing to ${targetCollection}:`, error);
+        return {
+            success: false,
+            message: `Failed to sync ${targetCollection}. An unexpected error occurred: ${error.message}`
+        };
+    }
+}
+
+
+export async function syncGroupNamesFromEmployeesAction(): Promise<SyncState> {
+    return syncListFromSource("employee", "groupName", "groupNames");
+}
+
+export async function syncRolesFromEmployeesAction(): Promise<SyncState> {
+    return syncListFromSource("employee", "role", "roles");
+}
+
+export async function syncCampusesFromEmployeesAction(): Promise<SyncState> {
+    return syncListFromSource("employee", "campus", "campuses");
+}
+
+export async function syncStagesFromEmployeesAction(): Promise<SyncState> {
+    // Assuming stage data is in the 'groupName' field of employees and syncs to 'stage' collection
+    return syncListFromSource("employee", "groupName", "stage");
+}
+
+// New action to sync machine names from attendance logs
+export async function syncMachineNamesFromAttendanceLogsAction(): Promise<SyncState> {
+    return syncListFromSource("attendance_log", "machine", "machineNames");
 }

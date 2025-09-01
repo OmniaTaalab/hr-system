@@ -6,12 +6,11 @@ import { AppLayout, useUserProfile } from '@/components/layout/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
-import { collection, query, orderBy, limit, getDocs, startAfter, endBefore, limitToLast, DocumentSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, startAfter, endBefore, limitToLast, DocumentSnapshot, where } from 'firebase/firestore';
 import { Loader2, BookOpenCheck, Search, AlertTriangle, ArrowRight, ArrowLeft, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -24,6 +23,11 @@ interface AttendanceLog {
   check_in: string | null;
   check_out: string | null;
   machine?: string;
+}
+
+interface Machine {
+    id: string;
+    name: string;
 }
 
 const PAGE_SIZE = 50;
@@ -42,30 +46,25 @@ function AttendanceLogsContent() {
   const [isLastPage, setIsLastPage] = useState(false);
 
   const [machineFilter, setMachineFilter] = useState("All");
-  const [machines, setMachines] = useState<string[]>([]);
+  const [machines, setMachines] = useState<Machine[]>([]);
   const [isLoadingMachines, setIsLoadingMachines] = useState(true);
 
   const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
 
-  // Fetch unique machines
+  // Fetch unique machines from the new 'machineNames' collection
   useEffect(() => {
     if (!canViewPage) return;
     setIsLoadingMachines(true);
     const fetchMachines = async () => {
         try {
-            const logsCollection = collection(db, "attendance_log");
-            const snapshot = await getDocs(logsCollection);
-            const machineSet = new Set<string>();
-            snapshot.forEach(doc => {
-                const data = doc.data() as AttendanceLog;
-                if (data.machine) {
-                    machineSet.add(data.machine);
-                }
-            });
-            setMachines(Array.from(machineSet).sort());
+            const machinesCollection = collection(db, "machineNames");
+            const q = query(machinesCollection, orderBy("name"));
+            const snapshot = await getDocs(q);
+            const machineData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Machine));
+            setMachines(machineData);
         } catch (error) {
-            console.error("Error fetching machine IDs:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch machine IDs.' });
+            console.error("Error fetching machine names:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch machine names. Try syncing them in Settings > Sync Data.' });
         } finally {
             setIsLoadingMachines(false);
         }
@@ -78,14 +77,19 @@ function AttendanceLogsContent() {
     setIsLoading(true);
     try {
       const logsCollection = collection(db, "attendance_log");
-      let q;
+      
+      let q = query(logsCollection, orderBy("date", "desc"));
+      
+      if (machineFilter !== "All") {
+        q = query(q, where("machine", "==", machineFilter));
+      }
 
       if (page === 'first') {
-        q = query(logsCollection, orderBy("date", "desc"), limit(PAGE_SIZE));
+        q = query(q, limit(PAGE_SIZE));
       } else if (page === 'next' && lastVisible) {
-        q = query(logsCollection, orderBy("date", "desc"), startAfter(lastVisible), limit(PAGE_SIZE));
+        q = query(q, startAfter(lastVisible), limit(PAGE_SIZE));
       } else if (page === 'prev' && firstVisible) {
-        q = query(logsCollection, orderBy("date", "desc"), endBefore(firstVisible), limitToLast(PAGE_SIZE));
+        q = query(q, endBefore(firstVisible), limitToLast(PAGE_SIZE));
       } else {
         setIsLoading(false);
         return;
@@ -98,21 +102,19 @@ function AttendanceLogsContent() {
         setAllLogs(logsData);
         setFirstVisible(documentSnapshots.docs[0]);
         setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
-        if (documentSnapshots.docs.length < PAGE_SIZE) {
-            setIsLastPage(true);
-        } else {
-            // Check if this is the last page
-            const nextQuery = query(logsCollection, orderBy("date", "desc"), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1));
-            const nextSnapshot = await getDocs(nextQuery);
-            setIsLastPage(nextSnapshot.empty);
-        }
+        
+        // Check if this is the last page by attempting to fetch one more item
+        const nextQuery = query(logsCollection, orderBy("date", "desc"), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1));
+        const nextSnapshot = await getDocs(nextQuery);
+        setIsLastPage(nextSnapshot.empty);
       } else {
          if (page === 'next') {
             setIsLastPage(true);
-         } else {
+         } else if (page === 'first' || page === 'prev') {
             setAllLogs([]);
             setFirstVisible(null);
             setLastVisible(null);
+            setIsLastPage(true);
          }
       }
     } catch (error: any) {
@@ -132,8 +134,11 @@ function AttendanceLogsContent() {
         if(!isLoadingProfile) router.replace('/');
         return;
     }
+    // Reset to page 1 and fetch logs whenever the filter changes
+    setCurrentPage(1);
     fetchLogs('first');
-  }, [canViewPage, isLoadingProfile, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canViewPage, isLoadingProfile, router, machineFilter]);
 
 
   const goToNextPage = () => {
@@ -147,24 +152,9 @@ function AttendanceLogsContent() {
   };
 
   const displayedRecords = useMemo(() => {
-    // Start with all logs from the current page
     let records = allLogs;
 
-    // Filter by machine if a specific machine is selected
-    if (machineFilter !== 'All') {
-      records = records.filter(log => log.machine === machineFilter);
-    } else {
-      // If "All Machines" is selected, show only the latest log per user
-      const latestLogsMap = new Map<number, AttendanceLog>();
-      records.forEach(log => {
-        if (!latestLogsMap.has(log.userId)) {
-          latestLogsMap.set(log.userId, log);
-        }
-      });
-      records = Array.from(latestLogsMap.values());
-    }
-
-    // Then, filter by search term
+    // Search term filter is applied client-side on the current page's data
     if (searchTerm) {
       const lowercasedFilter = searchTerm.toLowerCase();
       records = records.filter(record =>
@@ -174,6 +164,17 @@ function AttendanceLogsContent() {
       );
     }
     
+    // When "All Machines" is selected, group by user for display
+    if (machineFilter === "All") {
+      const latestLogsMap = new Map<number, AttendanceLog>();
+      records.forEach(log => {
+        if (!latestLogsMap.has(log.userId)) {
+          latestLogsMap.set(log.userId, log);
+        }
+      });
+      return Array.from(latestLogsMap.values());
+    }
+
     return records;
   }, [allLogs, machineFilter, searchTerm]);
 
@@ -237,7 +238,7 @@ function AttendanceLogsContent() {
                           <SelectContent>
                               <SelectItem value="All">All Machines</SelectItem>
                               {machines.map(machine => (
-                                  <SelectItem key={machine} value={machine}>{machine}</SelectItem>
+                                  <SelectItem key={machine.id} value={machine.name}>{machine.name}</SelectItem>
                               ))}
                           </SelectContent>
                       </Select>
@@ -328,5 +329,3 @@ export default function AttendanceLogsPage() {
         </AppLayout>
     )
 }
-
-    
