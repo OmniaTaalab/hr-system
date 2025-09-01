@@ -173,7 +173,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         setIsLoadingDirectors(true);
         try {
             const principalQuery = query(collection(db, "employee"), where("role", "==", "Principal"));
-            const directorQuery = query(collection(db, "employee"), where("role", "==", "Director"));
+            const directorQuery = query(collection(db, "employee"), where("role", "==", "Campus Director"));
 
             const [principalSnapshot, directorSnapshot] = await Promise.all([
                 getDocs(principalQuery),
@@ -431,7 +431,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                   <Label htmlFor="add-reportLine2">Report Line 2</Label>
                   <Select onValueChange={setReportLine2} value={reportLine2} disabled={isLoadingDirectors}>
                       <SelectTrigger>
-                          <SelectValue placeholder={isLoadingDirectors ? "Loading..." : "Select a Director"} />
+                          <SelectValue placeholder={isLoadingDirectors ? "Loading..." : "Select a Campus Director"} />
                       </SelectTrigger>
                       <SelectContent>
                           {directors.map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
