@@ -830,6 +830,9 @@ function EmployeeManagementContent() {
     return userRole === 'admin' || userRole === 'hr' || userRole === 'principal';
   }, [profile]);
 
+  const isPrincipalView = useMemo(() => profile?.role?.toLowerCase() === 'principal', [profile]);
+  const isFiltered = useMemo(() => campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All", [campusFilter, stageFilter, subjectFilter]);
+
   const fetchEmployees = async (page: 'first' | 'next' | 'prev' = 'first') => {
     if (!hasFullView) {
       setIsLoading(false);
@@ -859,14 +862,14 @@ function EmployeeManagementContent() {
         }
       }
       
-      const isFiltered = campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All" || isPrincipal;
+      const isFilteredOrPrincipalView = isFiltered || isPrincipal;
       
-      if (!isFiltered) {
+      if (!isFilteredOrPrincipalView) {
         queryConstraints.push(orderBy("name"));
       }
 
       let q;
-      const isPaginated = !isFiltered;
+      const isPaginated = !isFilteredOrPrincipalView;
 
       if (isPaginated) {
         if (page === 'first') {
@@ -886,7 +889,7 @@ function EmployeeManagementContent() {
       const documentSnapshots = await getDocs(q);
       let employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
       
-      if (isFiltered) {
+      if (isFilteredOrPrincipalView) {
         employeeData.sort((a, b) => a.name.localeCompare(b.name));
       }
       
@@ -912,7 +915,7 @@ function EmployeeManagementContent() {
             setLastVisible(null);
             setIsLastPage(true);
          }
-         if (isFiltered) {
+         if (isFilteredOrPrincipalView) {
             setEmployees([]);
          }
       }
@@ -1586,10 +1589,6 @@ function EmployeeManagementContent() {
 }
 
 export default function EmployeeManagementPage() {
-  const { profile } = useUserProfile();
-  const isFiltered = false; // Placeholder, adjust based on actual filter state
-  const isPrincipalView = profile?.role?.toLowerCase() === 'principal';
-
   return (
     <AppLayout>
       <EmployeeManagementContent />
