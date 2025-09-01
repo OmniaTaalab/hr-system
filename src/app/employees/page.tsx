@@ -158,35 +158,50 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [principals, setPrincipals] = useState<Employee[]>([]);
   const [isLoadingPrincipals, setIsLoadingPrincipals] = useState(true);
   const [reportLine1, setReportLine1] = useState("");
+  
+  const [directors, setDirectors] = useState<Employee[]>([]);
+  const [isLoadingDirectors, setIsLoadingDirectors] = useState(true);
+  const [reportLine2, setReportLine2] = useState("");
 
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [nationalIdFile, setNationalIdFile] = useState<File | null>(null);
   const [otherFiles, setOtherFiles] = useState<File[]>([]);
 
   useEffect(() => {
-    const fetchPrincipals = async () => {
+    const fetchManagers = async () => {
         setIsLoadingPrincipals(true);
+        setIsLoadingDirectors(true);
         try {
-            // Remove orderBy from the query to prevent index error
-            const q = query(collection(db, "employee"), where("role", "==", "Principal"));
-            const querySnapshot = await getDocs(q);
-            const principalList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-            // Sort client-side
+            const principalQuery = query(collection(db, "employee"), where("role", "==", "Principal"));
+            const directorQuery = query(collection(db, "employee"), where("role", "==", "Director"));
+
+            const [principalSnapshot, directorSnapshot] = await Promise.all([
+                getDocs(principalQuery),
+                getDocs(directorQuery)
+            ]);
+            
+            const principalList = principalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
             principalList.sort((a, b) => a.name.localeCompare(b.name));
             setPrincipals(principalList);
+
+            const directorList = directorSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            directorList.sort((a, b) => a.name.localeCompare(b.name));
+            setDirectors(directorList);
+
         } catch (error) {
-            console.error("Error fetching principals:", error);
+            console.error("Error fetching managers:", error);
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: "Could not load the list of principals.",
+                description: "Could not load the list of principals or directors.",
             });
         } finally {
             setIsLoadingPrincipals(false);
+            setIsLoadingDirectors(false);
         }
     };
 
-    fetchPrincipals();
+    fetchManagers();
   }, [toast]);
 
   const handleFileUpload = async (employeeId: string) => {
@@ -261,6 +276,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         <input type="hidden" name="gender" value={gender} />
         <input type="hidden" name="stage" value={stage} />
         <input type="hidden" name="reportLine1" value={reportLine1} />
+        <input type="hidden" name="reportLine2" value={reportLine2} />
 
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
@@ -413,7 +429,14 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="add-reportLine2">Report Line 2</Label>
-                  <Input id="add-reportLine2" name="reportLine2" />
+                  <Select onValueChange={setReportLine2} value={reportLine2} disabled={isLoadingDirectors}>
+                      <SelectTrigger>
+                          <SelectValue placeholder={isLoadingDirectors ? "Loading..." : "Select a Director"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                          {directors.map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   {serverState?.errors?.reportLine2 && <p className="text-sm text-destructive">{serverState.errors.reportLine2.join(', ')}</p>}
                 </div>
               </div>
