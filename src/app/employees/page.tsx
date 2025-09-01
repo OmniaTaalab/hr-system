@@ -147,7 +147,7 @@ const PAGE_SIZE = 15;
 function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialAddEmployeeState);
-  const { roles, groupNames, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, stage: stages, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
   
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
   const [role, setRole] = useState("");
@@ -353,7 +353,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                     <Label>Stage</Label>
                     <Select onValueChange={setStage} value={stage} disabled={isLoadingLists}>
                         <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
-                        <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
+                        <SelectContent>{stages.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
                     </Select>
                      {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
                   </div>
@@ -431,7 +431,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; onSuccess: () => void }) {
   const { toast } = useToast();
   const [serverState, formAction, isPending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
-  const { roles, groupNames, systems, campuses, leaveTypes, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, stage: stages, systems, campuses, leaveTypes, isLoading: isLoadingLists } = useOrganizationLists();
   const [formClientError, setFormClientError] = useState<string | null>(null);
 
   // State for controlled components
@@ -543,7 +543,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                   <Label>Stage</Label>
                   <Select value={stage} onValueChange={setStage} disabled={isLoadingLists}>
                       <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
-                      <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
+                      <SelectContent>{stages.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
                   </Select>
                   {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
               </div>
@@ -740,8 +740,9 @@ function EmployeeManagementContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const { toast } = useToast();
-  const { campuses, isLoading: isLoadingLists } = useOrganizationLists();
+  const { campuses, stage: stages, isLoading: isLoadingLists } = useOrganizationLists();
   const [campusFilter, setCampusFilter] = useState("All");
+  const [stageFilter, setStageFilter] = useState("All");
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -807,11 +808,13 @@ function EmployeeManagementContent() {
         if (campusFilter !== "All") {
           queryConstraints.push(where("campus", "==", campusFilter));
         }
+        if (stageFilter !== "All") {
+          queryConstraints.push(where("stage", "==", stageFilter));
+        }
       }
       
-      const isFiltered = campusFilter !== "All";
+      const isFiltered = campusFilter !== "All" || stageFilter !== "All";
       
-      // Only add orderBy if not filtering (to avoid index error)
       if (!isFiltered && !isPrincipal) {
         queryConstraints.push(orderBy("name"));
       }
@@ -831,14 +834,12 @@ function EmployeeManagementContent() {
           return;
         }
       } else {
-        // Not paginated - fetch all for the filtered criteria
         q = query(employeeCollection, ...queryConstraints);
       }
 
       const documentSnapshots = await getDocs(q);
       let employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
       
-      // Client-side sorting if server-side sorting was skipped
       if (isFiltered || isPrincipal) {
         employeeData.sort((a, b) => a.name.localeCompare(b.name));
       }
@@ -865,7 +866,6 @@ function EmployeeManagementContent() {
             setLastVisible(null);
             setIsLastPage(true);
          }
-         // When filtered and no results, clear employees list
          if (isFiltered) {
             setEmployees([]);
          }
@@ -886,7 +886,6 @@ function EmployeeManagementContent() {
     if(isLoadingProfile) return;
 
     if (hasFullView) {
-        // Reset to first page whenever filter changes
         setCurrentPage(1);
         setFirstVisible(null);
         setLastVisible(null);
@@ -895,22 +894,23 @@ function EmployeeManagementContent() {
 
         const employeeCollection = collection(db, "employee");
         let countQuery;
+        let countFilters: QueryConstraint[] = [];
+        
         if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
-            countQuery = query(employeeCollection, where("stage", "==", profile.stage));
-        } else if (campusFilter !== 'All') {
-            let filters = [];
-            if (campusFilter !== 'All') filters.push(where("campus", "==", campusFilter));
-            countQuery = query(employeeCollection, ...filters);
+            countFilters.push(where("stage", "==", profile.stage));
         } else {
-            countQuery = query(employeeCollection);
+             if (campusFilter !== 'All') countFilters.push(where("campus", "==", campusFilter));
+             if (stageFilter !== 'All') countFilters.push(where("stage", "==", stageFilter));
         }
+        
+        countQuery = query(employeeCollection, ...countFilters);
         
         getCountFromServer(countQuery).then(snapshot => {
             setTotalEmployees(snapshot.data().count);
         }).catch(() => setTotalEmployees(0));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter]);
+  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter]);
   
   const goToNextPage = () => {
     if (isLastPage) return;
@@ -1128,6 +1128,15 @@ function EmployeeManagementContent() {
                             {campuses.map(campus => <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>)}
                         </SelectContent>
                     </Select>
+                     <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists}>
+                        <SelectTrigger className="w-full sm:w-[200px]">
+                            <SelectValue placeholder="Filter by stage..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="All">All Stages</SelectItem>
+                            {stages.map(stage => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
             {isLoadingProfile ? (
@@ -1235,7 +1244,7 @@ function EmployeeManagementContent() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={canManageEmployees ? 7 : 6} className="h-24 text-center">
-                    {searchTerm ? "No employees found matching your search." : (campusFilter !== "All") ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
+                    {searchTerm ? "No employees found matching your search." : (campusFilter !== "All" || stageFilter !== "All") ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
                   </TableCell>
                 </TableRow>
               )}
@@ -1243,7 +1252,7 @@ function EmployeeManagementContent() {
           </Table>
           )}
         </CardContent>
-        {(campusFilter === "All") && (
+        {(campusFilter === "All" && stageFilter === "All") && (
             <CardContent>
             <div className="flex items-center justify-end space-x-2 py-4">
                 <Button
