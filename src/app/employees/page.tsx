@@ -807,6 +807,9 @@ function EmployeeManagementContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const { toast } = useToast();
+  const { campuses, isLoading: isLoadingLists } = useOrganizationLists();
+  const [campusFilter, setCampusFilter] = useState("All");
+
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -867,46 +870,62 @@ function EmployeeManagementContent() {
       
       if (isPrincipal && profile?.stage) {
         queryConstraints.push(where("stage", "==", profile.stage));
-      } else {
+      } else if (campusFilter !== "All") {
+        queryConstraints.push(where("campus", "==", campusFilter));
+      }
+
+      if (!isPrincipal) {
         queryConstraints.push(orderBy("name"));
       }
 
       let q;
-      if (page === 'first') {
-        q = query(employeeCollection, ...queryConstraints, limit(PAGE_SIZE));
-      } else if (page === 'next' && lastVisible) {
-        q = query(employeeCollection, ...queryConstraints, startAfter(lastVisible), limit(PAGE_SIZE));
-      } else if (page === 'prev' && firstVisible) {
-        q = query(employeeCollection, ...queryConstraints, endBefore(firstVisible), limitToLast(PAGE_SIZE));
+      const isPaginated = campusFilter === "All";
+
+      if (isPaginated) {
+        if (page === 'first') {
+          q = query(employeeCollection, ...queryConstraints, limit(PAGE_SIZE));
+        } else if (page === 'next' && lastVisible) {
+          q = query(employeeCollection, ...queryConstraints, startAfter(lastVisible), limit(PAGE_SIZE));
+        } else if (page === 'prev' && firstVisible) {
+          q = query(employeeCollection, ...queryConstraints, endBefore(firstVisible), limitToLast(PAGE_SIZE));
+        } else {
+          setIsLoading(false);
+          return;
+        }
       } else {
-        setIsLoading(false);
-        return;
+        // Not paginated - fetch all for the filtered campus
+        q = query(employeeCollection, ...queryConstraints);
       }
 
       const documentSnapshots = await getDocs(q);
       let employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
       
-      // Client-side sort if not ordering by name on server (for principals)
       if (isPrincipal) {
         employeeData.sort((a, b) => a.name.localeCompare(b.name));
       }
       
       if (!documentSnapshots.empty) {
         setEmployees(employeeData);
-        setFirstVisible(documentSnapshots.docs[0]);
-        setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
-        
-        const nextQueryConstraints = [...queryConstraints, startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
-        const nextQuery = query(employeeCollection, ...nextQueryConstraints);
-        const nextSnapshot = await getDocs(nextQuery);
-        setIsLastPage(nextSnapshot.empty);
-      } else if (page === 'next') {
-        setIsLastPage(true);
-      } else if (page === 'first' || page === 'prev') {
-        setEmployees([]);
-        setFirstVisible(null);
-        setLastVisible(null);
-        setIsLastPage(true);
+
+        if (isPaginated) {
+            setFirstVisible(documentSnapshots.docs[0]);
+            setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
+            
+            const nextQueryConstraints = [...queryConstraints, startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
+            const nextQuery = query(employeeCollection, ...nextQueryConstraints);
+            const nextSnapshot = await getDocs(nextQuery);
+            setIsLastPage(nextSnapshot.empty);
+        }
+
+      } else {
+         if (isPaginated && page === 'next') {
+            setIsLastPage(true);
+         } else if (page === 'first' || page === 'prev') {
+            setEmployees([]);
+            setFirstVisible(null);
+            setLastVisible(null);
+            setIsLastPage(true);
+         }
       }
     } catch (error) {
       console.error("Error fetching employees:", error);
@@ -937,7 +956,7 @@ function EmployeeManagementContent() {
           setTotalEmployees(snapshot.data().count);
       }).catch(() => setTotalEmployees(0));
     }
-  }, [hasFullView, isLoadingProfile, toast, profile]);
+  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter]);
   
   const goToNextPage = () => {
     if (isLastPage) return;
@@ -1144,6 +1163,18 @@ function EmployeeManagementContent() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
+               <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-muted-foreground"/>
+                    <Select value={campusFilter} onValueChange={setCampusFilter} disabled={isLoadingLists}>
+                        <SelectTrigger className="w-full sm:w-[200px]">
+                            <SelectValue placeholder="Filter by campus..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="All">All Campuses</SelectItem>
+                            {campuses.map(campus => <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
             {isLoadingProfile ? (
               <Skeleton className="h-10 w-[190px]" />
@@ -1250,7 +1281,7 @@ function EmployeeManagementContent() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={canManageEmployees ? 7 : 6} className="h-24 text-center">
-                    {searchTerm ? "No employees found matching your search." : "No employees found. Try adding some!"}
+                    {searchTerm ? "No employees found matching your search." : campusFilter !== "All" ? `No employees found in campus: ${campusFilter}` : "No employees found. Try adding some!"}
                   </TableCell>
                 </TableRow>
               )}
@@ -1258,29 +1289,31 @@ function EmployeeManagementContent() {
           </Table>
           )}
         </CardContent>
-        <CardContent>
-          <div className="flex items-center justify-end space-x-2 py-4">
-              <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={goToPrevPage}
-                  disabled={currentPage <= 1 || isLoading}
-              >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Previous
-              </Button>
-              <span className="text-sm font-medium">Page {currentPage}</span>
-              <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={goToNextPage}
-                  disabled={isLastPage || isLoading}
-              >
-                  Next
-                  <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-          </div>
-        </CardContent>
+        {campusFilter === "All" && (
+            <CardContent>
+            <div className="flex items-center justify-end space-x-2 py-4">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={goToPrevPage}
+                    disabled={currentPage <= 1 || isLoading}
+                >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Previous
+                </Button>
+                <span className="text-sm font-medium">Page {currentPage}</span>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={goToNextPage}
+                    disabled={isLastPage || isLoading}
+                >
+                    Next
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+            </div>
+            </CardContent>
+        )}
       </Card>
       
       {isEditDialogOpen && editingEmployee && (
