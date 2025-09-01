@@ -49,7 +49,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ImageUploader } from "@/components/image-uploader";
 import { useOrganizationLists, type ListItem } from "@/hooks/use-organization-lists";
@@ -740,9 +740,10 @@ function EmployeeManagementContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const { toast } = useToast();
-  const { campuses, stage: stages, isLoading: isLoadingLists } = useOrganizationLists();
+  const { campuses, stage: stages, subjects, isLoading: isLoadingLists } = useOrganizationLists();
   const [campusFilter, setCampusFilter] = useState("All");
   const [stageFilter, setStageFilter] = useState("All");
+  const [subjectFilter, setSubjectFilter] = useState("All");
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -811,9 +812,12 @@ function EmployeeManagementContent() {
         if (stageFilter !== "All") {
           queryConstraints.push(where("stage", "==", stageFilter));
         }
+        if (subjectFilter !== "All") {
+          queryConstraints.push(where("subject", "==", subjectFilter));
+        }
       }
       
-      const isFiltered = campusFilter !== "All" || stageFilter !== "All";
+      const isFiltered = campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All";
       
       if (!isFiltered && !isPrincipal) {
         queryConstraints.push(orderBy("name"));
@@ -901,6 +905,7 @@ function EmployeeManagementContent() {
         } else {
              if (campusFilter !== 'All') countFilters.push(where("campus", "==", campusFilter));
              if (stageFilter !== 'All') countFilters.push(where("stage", "==", stageFilter));
+             if (subjectFilter !== 'All') countFilters.push(where("subject", "==", subjectFilter));
         }
         
         countQuery = query(employeeCollection, ...countFilters);
@@ -910,7 +915,7 @@ function EmployeeManagementContent() {
         }).catch(() => setTotalEmployees(0));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter]);
+  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter, subjectFilter]);
   
   const goToNextPage = () => {
     if (isLastPage) return;
@@ -1117,10 +1122,10 @@ function EmployeeManagementContent() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-               <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground"/>
+               <div className="flex flex-col sm:flex-row items-center gap-2">
+                    <Filter className="h-4 w-4 text-muted-foreground hidden sm:block"/>
                     <Select value={campusFilter} onValueChange={setCampusFilter} disabled={isLoadingLists}>
-                        <SelectTrigger className="w-full sm:w-[200px]">
+                        <SelectTrigger className="w-full sm:w-[150px]">
                             <SelectValue placeholder="Filter by campus..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -1129,12 +1134,21 @@ function EmployeeManagementContent() {
                         </SelectContent>
                     </Select>
                      <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists}>
-                        <SelectTrigger className="w-full sm:w-[200px]">
+                        <SelectTrigger className="w-full sm:w-[150px]">
                             <SelectValue placeholder="Filter by stage..." />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="All">All Stages</SelectItem>
                             {stages.map(stage => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                    <Select value={subjectFilter} onValueChange={setSubjectFilter} disabled={isLoadingLists}>
+                        <SelectTrigger className="w-full sm:w-[150px]">
+                            <SelectValue placeholder="Filter by subject..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="All">All Subjects</SelectItem>
+                            {subjects.map(subject => <SelectItem key={subject.id} value={subject.name}>{subject.name}</SelectItem>)}
                         </SelectContent>
                     </Select>
                 </div>
@@ -1252,7 +1266,7 @@ function EmployeeManagementContent() {
           </Table>
           )}
         </CardContent>
-        {(campusFilter === "All" && stageFilter === "All") && (
+        {(campusFilter === "All" && stageFilter === "All" && subjectFilter === "All") && (
             <CardContent>
             <div className="flex items-center justify-end space-x-2 py-4">
                 <Button

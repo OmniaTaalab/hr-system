@@ -19,11 +19,12 @@ export interface OrganizationLists {
   campuses: ListItem[];
   leaveTypes: ListItem[];
   stage: ListItem[];
+  subjects: ListItem[];
   isLoading: boolean;
 }
 
 const listNames: (keyof Omit<OrganizationLists, 'isLoading'>)[] = [
-    'roles', 'groupNames', 'systems', 'campuses', 'leaveTypes', 'stage'
+    'roles', 'groupNames', 'systems', 'campuses', 'leaveTypes', 'stage', 'subjects'
 ];
 
 export function useOrganizationLists(): OrganizationLists {
@@ -35,6 +36,7 @@ export function useOrganizationLists(): OrganizationLists {
     campuses: [],
     leaveTypes: [],
     stage: [],
+    subjects: [],
   });
   const [isLoading, setIsLoading] = useState(true);
 

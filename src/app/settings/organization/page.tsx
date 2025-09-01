@@ -31,6 +31,7 @@ export default function OrganizationSettingsPage() {
               <ListManager title="Stages" collectionName="stage" />
               <ListManager title="Systems" collectionName="systems" />
               <ListManager title="Campuses" collectionName="campuses" />
+              <ListManager title="Subjects" collectionName="subjects" />
               <ListManager title="Leave Types" collectionName="leaveTypes" />
             </CardContent>
           </Card>
