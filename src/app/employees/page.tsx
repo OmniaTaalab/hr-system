@@ -167,9 +167,12 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
     const fetchPrincipals = async () => {
         setIsLoadingPrincipals(true);
         try {
-            const q = query(collection(db, "employee"), where("role", "==", "Principal"), orderBy("name"));
+            // Remove orderBy from the query to prevent index error
+            const q = query(collection(db, "employee"), where("role", "==", "Principal"));
             const querySnapshot = await getDocs(q);
             const principalList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            // Sort client-side
+            principalList.sort((a, b) => a.name.localeCompare(b.name));
             setPrincipals(principalList);
         } catch (error) {
             console.error("Error fetching principals:", error);
