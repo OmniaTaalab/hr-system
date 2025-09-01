@@ -807,8 +807,6 @@ function EmployeeManagementContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const { toast } = useToast();
-  const { stage: stages, isLoading: isLoadingLists } = useOrganizationLists();
-  const [stageFilter, setStageFilter] = useState("All");
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -1028,11 +1026,6 @@ function EmployeeManagementContent() {
   const filteredEmployees = useMemo(() => {
     let employeesToList = employees;
     
-    // Client-side Stage dropdown filter - applies to admins/HR
-    if (profile?.role?.toLowerCase() !== 'principal' && stageFilter !== "All") {
-      employeesToList = employeesToList.filter(employee => employee.stage === stageFilter);
-    }
-  
     // Client-side Search term filter
     const lowercasedFilter = searchTerm.toLowerCase();
     if (!searchTerm.trim()) {
@@ -1053,7 +1046,7 @@ function EmployeeManagementContent() {
             typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
         );
     });
-  }, [employees, searchTerm, profile, stageFilter]);
+  }, [employees, searchTerm]);
 
 
   const openEditDialog = (employee: Employee) => {
@@ -1151,20 +1144,6 @@ function EmployeeManagementContent() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              {profile?.role?.toLowerCase() !== 'principal' && (
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists}>
-                      <SelectTrigger className="w-full sm:w-[180px]">
-                          <SelectValue placeholder="Filter by stage" />
-                      </SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="All">All Stages</SelectItem>
-                          {stages.map(stage => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}
-                      </SelectContent>
-                  </Select>
-                </div>
-              )}
             </div>
             {isLoadingProfile ? (
               <Skeleton className="h-10 w-[190px]" />
