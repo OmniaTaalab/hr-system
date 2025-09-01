@@ -807,8 +807,9 @@ function EmployeeManagementContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const { toast } = useToast();
-  const { campuses, isLoading: isLoadingLists } = useOrganizationLists();
+  const { campuses, stage: stages, isLoading: isLoadingLists } = useOrganizationLists();
   const [campusFilter, setCampusFilter] = useState("All");
+  const [stageFilter, setStageFilter] = useState("All");
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -870,17 +871,24 @@ function EmployeeManagementContent() {
       
       if (isPrincipal && profile?.stage) {
         queryConstraints.push(where("stage", "==", profile.stage));
-      } else if (campusFilter !== "All") {
-        queryConstraints.push(where("campus", "==", campusFilter));
+      } else {
+        if (campusFilter !== "All") {
+          queryConstraints.push(where("campus", "==", campusFilter));
+        }
+        if (stageFilter !== "All") {
+          queryConstraints.push(where("stage", "==", stageFilter));
+        }
       }
       
+      const isFiltered = campusFilter !== "All" || stageFilter !== "All";
+      
       // Only add orderBy if not filtering by campus (to avoid index error)
-      if (campusFilter === "All" && !isPrincipal) {
+      if (!isFiltered && !isPrincipal) {
         queryConstraints.push(orderBy("name"));
       }
 
       let q;
-      const isPaginated = campusFilter === "All";
+      const isPaginated = !isFiltered;
 
       if (isPaginated) {
         if (page === 'first') {
@@ -894,7 +902,7 @@ function EmployeeManagementContent() {
           return;
         }
       } else {
-        // Not paginated - fetch all for the filtered campus
+        // Not paginated - fetch all for the filtered campus/stage
         q = query(employeeCollection, ...queryConstraints);
       }
 
@@ -902,7 +910,7 @@ function EmployeeManagementContent() {
       let employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
       
       // Client-side sorting if server-side sorting was skipped
-      if (campusFilter !== "All" || isPrincipal) {
+      if (isFiltered || isPrincipal) {
         employeeData.sort((a, b) => a.name.localeCompare(b.name));
       }
       
@@ -927,6 +935,10 @@ function EmployeeManagementContent() {
             setFirstVisible(null);
             setLastVisible(null);
             setIsLastPage(true);
+         }
+         // When filtered and no results, clear employees list
+         if (isFiltered) {
+            setEmployees([]);
          }
       }
     } catch (error) {
@@ -956,8 +968,11 @@ function EmployeeManagementContent() {
         let countQuery;
         if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
             countQuery = query(employeeCollection, where("stage", "==", profile.stage));
-        } else if (campusFilter !== 'All') {
-            countQuery = query(employeeCollection, where("campus", "==", campusFilter));
+        } else if (campusFilter !== 'All' || stageFilter !== 'All') {
+            let filters = [];
+            if (campusFilter !== 'All') filters.push(where("campus", "==", campusFilter));
+            if (stageFilter !== 'All') filters.push(where("stage", "==", stageFilter));
+            countQuery = query(employeeCollection, ...filters);
         } else {
             countQuery = query(employeeCollection);
         }
@@ -967,7 +982,7 @@ function EmployeeManagementContent() {
         }).catch(() => setTotalEmployees(0));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter]);
+  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter]);
   
   const goToNextPage = () => {
     if (isLastPage) return;
@@ -1185,6 +1200,15 @@ function EmployeeManagementContent() {
                             {campuses.map(campus => <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>)}
                         </SelectContent>
                     </Select>
+                    <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists}>
+                        <SelectTrigger className="w-full sm:w-[200px]">
+                            <SelectValue placeholder="Filter by stage..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="All">All Stages</SelectItem>
+                            {stages.map(stage => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
             {isLoadingProfile ? (
@@ -1292,7 +1316,7 @@ function EmployeeManagementContent() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={canManageEmployees ? 7 : 6} className="h-24 text-center">
-                    {searchTerm ? "No employees found matching your search." : campusFilter !== "All" ? `No employees found in campus: ${campusFilter}` : "No employees found. Try adding some!"}
+                    {searchTerm ? "No employees found matching your search." : (campusFilter !== "All" || stageFilter !== "All") ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
                   </TableCell>
                 </TableRow>
               )}
@@ -1300,7 +1324,7 @@ function EmployeeManagementContent() {
           </Table>
           )}
         </CardContent>
-        {campusFilter === "All" && (
+        {(campusFilter === "All" && stageFilter === "All") && (
             <CardContent>
             <div className="flex items-center justify-end space-x-2 py-4">
                 <Button

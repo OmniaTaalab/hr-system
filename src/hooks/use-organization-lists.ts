@@ -44,7 +44,8 @@ export function useOrganizationLists(): OrganizationLists {
     const loadingStates = listNames.reduce((acc, name) => ({ ...acc, [name]: true }), {} as Record<keyof typeof lists, boolean>);
     
     const checkLoadingDone = () => {
-        if (Object.values(loadingStates).every(s => !s)) {
+        const allLoaded = Object.values(loadingStates).every(s => !s);
+        if (allLoaded) {
             setIsLoading(false);
         }
     };
