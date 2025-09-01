@@ -49,7 +49,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ImageUploader } from "@/components/image-uploader";
 import { useOrganizationLists, type ListItem } from "@/hooks/use-organization-lists";
@@ -740,9 +740,8 @@ function EmployeeManagementContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const { toast } = useToast();
-  const { campuses, stage: stages, isLoading: isLoadingLists } = useOrganizationLists();
+  const { campuses, isLoading: isLoadingLists } = useOrganizationLists();
   const [campusFilter, setCampusFilter] = useState("All");
-  const [stageFilter, setStageFilter] = useState("All");
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -808,12 +807,9 @@ function EmployeeManagementContent() {
         if (campusFilter !== "All") {
           queryConstraints.push(where("campus", "==", campusFilter));
         }
-        if (stageFilter !== "All") {
-          queryConstraints.push(where("stage", "==", stageFilter));
-        }
       }
       
-      const isFiltered = campusFilter !== "All" || stageFilter !== "All";
+      const isFiltered = campusFilter !== "All";
       
       // Only add orderBy if not filtering (to avoid index error)
       if (!isFiltered && !isPrincipal) {
@@ -901,10 +897,9 @@ function EmployeeManagementContent() {
         let countQuery;
         if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
             countQuery = query(employeeCollection, where("stage", "==", profile.stage));
-        } else if (campusFilter !== 'All' || stageFilter !== 'All') {
+        } else if (campusFilter !== 'All') {
             let filters = [];
             if (campusFilter !== 'All') filters.push(where("campus", "==", campusFilter));
-            if (stageFilter !== 'All') filters.push(where("stage", "==", stageFilter));
             countQuery = query(employeeCollection, ...filters);
         } else {
             countQuery = query(employeeCollection);
@@ -915,7 +910,7 @@ function EmployeeManagementContent() {
         }).catch(() => setTotalEmployees(0));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter]);
+  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter]);
   
   const goToNextPage = () => {
     if (isLastPage) return;
@@ -1133,15 +1128,6 @@ function EmployeeManagementContent() {
                             {campuses.map(campus => <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>)}
                         </SelectContent>
                     </Select>
-                    <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists}>
-                        <SelectTrigger className="w-full sm:w-[200px]">
-                            <SelectValue placeholder="Filter by stage..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="All">All Stages</SelectItem>
-                            {stages.map(stage => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
                 </div>
             </div>
             {isLoadingProfile ? (
@@ -1249,7 +1235,7 @@ function EmployeeManagementContent() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={canManageEmployees ? 7 : 6} className="h-24 text-center">
-                    {searchTerm ? "No employees found matching your search." : (campusFilter !== "All" || stageFilter !== "All") ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
+                    {searchTerm ? "No employees found matching your search." : (campusFilter !== "All") ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
                   </TableCell>
                 </TableRow>
               )}
@@ -1257,7 +1243,7 @@ function EmployeeManagementContent() {
           </Table>
           )}
         </CardContent>
-        {(campusFilter === "All" && stageFilter === "All") && (
+        {(campusFilter === "All") && (
             <CardContent>
             <div className="flex items-center justify-end space-x-2 py-4">
                 <Button
