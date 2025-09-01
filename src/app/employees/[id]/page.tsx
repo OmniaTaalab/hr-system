@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -8,7 +9,7 @@ import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserCircle2, MailWarning, PhoneCall } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserCircle2, MailWarning, PhoneCall, FileDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -20,6 +21,12 @@ interface EmergencyContact {
   name: string;
   relationship: string;
   number: string;
+}
+
+interface EmployeeFile {
+  name: string;
+  url: string;
+  uploadedAt: Timestamp;
 }
 
 interface Employee {
@@ -49,6 +56,7 @@ interface Employee {
   stage?: string;
   subject?: string;
   title?: string;
+  documents?: EmployeeFile[];
 }
 
 interface AttendanceLog {
@@ -290,6 +298,35 @@ function EmployeeProfileContent() {
 
               </CardContent>
             </Card>
+
+            {(employee.documents && employee.documents.length > 0) && (
+              <Card className="shadow-lg">
+                <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <FileDown className="mr-2 h-6 w-6 text-primary" />
+                      Attached Documents
+                    </CardTitle>
+                    <CardDescription>
+                      Download employee-related documents.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {employee.documents.map((file) => (
+                      <li key={file.name} className="flex items-center justify-between p-2 rounded-md border bg-muted/50">
+                        <span className="font-medium text-sm">{file.name}</span>
+                        <Button asChild variant="secondary" size="sm">
+                          <a href={file.url} target="_blank" rel="noopener noreferrer">
+                            <Download className="mr-2 h-4 w-4" />
+                            Download
+                          </a>
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="shadow-lg">
               <CardHeader>
