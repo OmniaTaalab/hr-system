@@ -873,8 +873,9 @@ function EmployeeManagementContent() {
       } else if (campusFilter !== "All") {
         queryConstraints.push(where("campus", "==", campusFilter));
       }
-
-      if (!isPrincipal) {
+      
+      // Only add orderBy if not filtering by campus (to avoid index error)
+      if (campusFilter === "All" && !isPrincipal) {
         queryConstraints.push(orderBy("name"));
       }
 
@@ -900,7 +901,8 @@ function EmployeeManagementContent() {
       const documentSnapshots = await getDocs(q);
       let employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
       
-      if (isPrincipal) {
+      // Client-side sorting if server-side sorting was skipped
+      if (campusFilter !== "All" || isPrincipal) {
         employeeData.sort((a, b) => a.name.localeCompare(b.name));
       }
       
@@ -943,19 +945,28 @@ function EmployeeManagementContent() {
     if(isLoadingProfile) return;
 
     if (hasFullView) {
-      fetchEmployees('first');
-      const employeeCollection = collection(db, "employee");
-      let countQuery;
-       if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
+        // Reset to first page whenever filter changes
+        setCurrentPage(1);
+        setFirstVisible(null);
+        setLastVisible(null);
+        
+        fetchEmployees('first');
+
+        const employeeCollection = collection(db, "employee");
+        let countQuery;
+        if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
             countQuery = query(employeeCollection, where("stage", "==", profile.stage));
-       } else {
+        } else if (campusFilter !== 'All') {
+            countQuery = query(employeeCollection, where("campus", "==", campusFilter));
+        } else {
             countQuery = query(employeeCollection);
-       }
-      
-      getCountFromServer(countQuery).then(snapshot => {
-          setTotalEmployees(snapshot.data().count);
-      }).catch(() => setTotalEmployees(0));
+        }
+        
+        getCountFromServer(countQuery).then(snapshot => {
+            setTotalEmployees(snapshot.data().count);
+        }).catch(() => setTotalEmployees(0));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasFullView, isLoadingProfile, toast, profile, campusFilter]);
   
   const goToNextPage = () => {
