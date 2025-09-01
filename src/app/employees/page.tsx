@@ -353,7 +353,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                   <Input id="add-emergencyContactName" name="emergencyContactName" required />
                   {serverState?.errors?.emergencyContactName && <p className="text-sm text-destructive">{serverState.errors.emergencyContactName.join(', ')}</p>}
                 </div>
-                <div className="space-y-2">
+                 <div className="space-y-2">
                   <Label htmlFor="add-emergencyContactRelationship">Relationship</Label>
                   <Input id="add-emergencyContactRelationship" name="emergencyContactRelationship" required />
                   {serverState?.errors?.emergencyContactRelationship && <p className="text-sm text-destructive">{serverState.errors.emergencyContactRelationship.join(', ')}</p>}
@@ -363,18 +363,9 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                   <Input id="add-emergencyContactNumber" name="emergencyContactNumber" required placeholder="Numbers only" />
                   {serverState?.errors?.emergencyContactNumber && <p className="text-sm text-destructive">{serverState.errors.emergencyContactNumber.join(', ')}</p>}
                 </div>
-                <div className="space-y-2">
-                    <Label>Gender</Label>
-                    <Select onValueChange={setGender} value={gender}>
-                        <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="Male">Male</SelectItem>
-                            <SelectItem value="Female">Female</SelectItem>
-                        </SelectContent>
-                    </Select>
-                     {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
-                  </div>
-                  <div className="space-y-2">
+              </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="space-y-2">
                     <Label>Date of Birth</Label>
                     <Popover>
                         <PopoverTrigger asChild>
@@ -387,23 +378,32 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                             <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
                         </PopoverContent>
                     </Popover>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label>Religion</Label>
-                        <Input name="religion" />
-                        {serverState?.errors?.religion && <p className="text-sm text-destructive">{serverState.errors.religion.join(', ')}</p>}
-                        <div className="space-y-2">
+                    {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label>Gender</Label>
+                    <Select onValueChange={setGender} value={gender}>
+                        <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Male">Male</SelectItem>
+                            <SelectItem value="Female">Female</SelectItem>
+                        </SelectContent>
+                    </Select>
+                     {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
+                  </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <Label>Religion</Label>
+                    <Input name="religion" />
+                    {serverState?.errors?.religion && <p className="text-sm text-destructive">{serverState.errors.religion.join(', ')}</p>}
+                  </div>
+                   <div className="space-y-2">
                     <Label>National ID</Label>
                     <Input name="nationalId" />
                     {serverState?.errors?.nationalId && <p className="text-sm text-destructive">{serverState.errors.nationalId.join(', ')}</p>}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
-                {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
-             </div>
+                  </div>
               </div>
-              
             </div>
 
             <Separator />
@@ -422,12 +422,12 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                   <Input id="add-title" name="title" required />
                   {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
                 </div>
+                 <div className="space-y-2">
+                    <Label>Subject</Label>
+                    <Input name="subject" />
+                    {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
+                </div>
                 <div className="space-y-2">
-                        <Label>Subject</Label>
-                        <Input name="subject" />
-                        {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
-                    </div>
-                    <div className="space-y-2">
                     <Label htmlFor="add-department">Department</Label>
                     <Input id="add-department" name="department" required />
                     {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
@@ -469,36 +469,9 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                   <Input id="add-reportLine2" name="reportLine2" />
                   {serverState?.errors?.reportLine2 && <p className="text-sm text-destructive">{serverState.errors.reportLine2.join(', ')}</p>}
                 </div>
-          
-              
               </div>
             </div>
 
-            <Separator />
-
-             {/* Other Information */}
-            <div className="space-y-4">
-               <h3 className="text-lg font-semibold flex items-center">Other Details</h3>
-           
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               
-
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-           
-                
-                </div>
-                
-         
-                </div>
-
-                     </div>
-                
-                </div>
-            </div>
-            
             {serverState?.errors?.form && (
               <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
                 <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
