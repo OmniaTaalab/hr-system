@@ -50,18 +50,28 @@ export async function getAllAuthUsers() {
 
 // Schema for validating form data for creating an employee
 const CreateEmployeeFormSchema = z.object({
+  // Personal Info
   firstName: z.string().min(1, "First name is required."),
   lastName: z.string().min(1, "Last name is required."),
-  department: z.string().min(1, "Department is required."),
-  role: z.string().min(1, "Role is required."),
-  campus: z.string().min(1, "Campus is required."),
-  email: z.string().email({ message: 'Invalid email address.' }),
-  phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
+  personalEmail: z.string().email({ message: 'A valid personal email is required.' }),
+  personalPhone: z.string().min(1, "Personal phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
+  emergencyContactName: z.string().min(1, "Emergency contact name is required."),
+  emergencyContactRelationship: z.string().min(1, "Emergency contact relationship is required."),
+  emergencyContactNumber: z.string().min(1, "Emergency contact number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
   dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
   gender: z.string().optional(),
   nationalId: z.string().optional(),
   religion: z.string().optional(),
+  
+  // Work Info
+  nisEmail: z.string().email({ message: 'A valid NIS email is required.' }),
+  title: z.string().min(1, "Title is required."),
+  department: z.string().min(1, "Department is required."),
+  role: z.string().min(1, "Role is required."),
   stage: z.string().min(1, "Stage is required."),
+  campus: z.string().min(1, "Campus is required."),
+  reportLine1: z.string().optional(),
+  reportLine2: z.string().optional(),
   subject: z.string().optional(),
 });
 
@@ -70,16 +80,23 @@ export type CreateEmployeeState = {
   errors?: {
     firstName?: string[];
     lastName?: string[];
-    department?: string[];
-    role?: string[];
-    campus?: string[];
-    email?: string[];
-    phone?: string[];
+    personalEmail?: string[];
+    personalPhone?: string[];
+    emergencyContactName?: string[];
+    emergencyContactRelationship?: string[];
+    emergencyContactNumber?: string[];
     dateOfBirth?: string[];
     gender?: string[];
     nationalId?: string[];
     religion?: string[];
+    nisEmail?: string[];
+    title?: string[];
+    department?: string[];
+    role?: string[];
     stage?: string[];
+    campus?: string[];
+    reportLine1?: string[];
+    reportLine2?: string[];
     subject?: string[];
     form?: string[];
   };
@@ -92,18 +109,28 @@ export async function createEmployeeAction(
   formData: FormData
 ): Promise<CreateEmployeeState> {
   const validatedFields = CreateEmployeeFormSchema.safeParse({
+    // Personal
     firstName: formData.get('firstName'),
     lastName: formData.get('lastName'),
-    department: formData.get('department'),
-    role: formData.get('role'),
-    campus: formData.get('campus'),
-    email: formData.get('email'),
-    phone: formData.get('phone'),
+    personalEmail: formData.get('personalEmail'),
+    personalPhone: formData.get('personalPhone'),
+    emergencyContactName: formData.get('emergencyContactName'),
+    emergencyContactRelationship: formData.get('emergencyContactRelationship'),
+    emergencyContactNumber: formData.get('emergencyContactNumber'),
     dateOfBirth: formData.get('dateOfBirth'),
     gender: formData.get('gender'),
     nationalId: formData.get('nationalId'),
     religion: formData.get('religion'),
+
+    // Work
+    nisEmail: formData.get('nisEmail'),
+    title: formData.get('title'),
+    department: formData.get('department'),
+    role: formData.get('role'),
     stage: formData.get('stage'),
+    campus: formData.get('campus'),
+    reportLine1: formData.get('reportLine1'),
+    reportLine2: formData.get('reportLine2'),
     subject: formData.get('subject'),
   });
 
@@ -116,8 +143,10 @@ export async function createEmployeeAction(
   }
 
   const { 
-    firstName, lastName, department, role, campus, email, phone, 
-    dateOfBirth, gender, nationalId, religion, stage, subject
+    firstName, lastName, personalEmail, personalPhone, emergencyContactName,
+    emergencyContactRelationship, emergencyContactNumber, dateOfBirth, gender,
+    nationalId, religion, nisEmail, title, department, role, stage, campus,
+    reportLine1, reportLine2, subject
   } = validatedFields.data;
   
   const name = `${firstName} ${lastName}`;
@@ -125,10 +154,10 @@ export async function createEmployeeAction(
   try {
     const employeeCollectionRef = collection(db, "employee");
 
-    const emailQuery = query(employeeCollectionRef, where("email", "==", email), limit(1));
+    const emailQuery = query(employeeCollectionRef, where("email", "==", nisEmail), limit(1));
     const emailSnapshot = await getDocs(emailQuery);
     if (!emailSnapshot.empty) {
-      return { errors: { email: ["An employee with this email already exists."] } };
+      return { errors: { nisEmail: ["An employee with this NIS email already exists."] } };
     }
 
     const countSnapshot = await getCountFromServer(employeeCollectionRef);
@@ -139,28 +168,37 @@ export async function createEmployeeAction(
       name,
       firstName,
       lastName,
+      personalEmail,
+      phone: personalPhone, // Storing personalPhone in 'phone' field
+      emergencyContact: {
+        name: emergencyContactName,
+        relationship: emergencyContactRelationship,
+        number: emergencyContactNumber,
+      },
+      dateOfBirth: Timestamp.fromDate(dateOfBirth),
+      gender: gender || "",
+      nationalId: nationalId || "",
+      religion: religion || "",
+      
+      email: nisEmail, // Storing nisEmail in 'email' field
+      title,
       department,
       role,
       stage,
-      system: "Unassigned", // Default value
       campus,
-      email,
-      phone,
+      reportLine1: reportLine1 || "",
+      reportLine2: reportLine2 || "",
+      subject: subject || "",
+      system: "Unassigned", // Default value
       employeeId,
       status: "Active",
       hourlyRate: 0,
-      dateOfBirth: Timestamp.fromDate(dateOfBirth),
       joiningDate: serverTimestamp(),
       leavingDate: null,
       leaveBalances: {},
       documents: [],
       photoURL: null,
       createdAt: serverTimestamp(),
-      gender: gender || "",
-      nationalId: nationalId || "",
-      religion: religion || "",
-      subject: subject || "",
-      title: "", // Default value
     };
 
     await addDoc(employeeCollectionRef, employeeData);

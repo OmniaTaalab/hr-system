@@ -8,26 +8,37 @@ import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserCircle2, MailWarning, PhoneCall } from 'lucide-react';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+
+interface EmergencyContact {
+  name: string;
+  relationship: string;
+  number: string;
+}
 
 interface Employee {
   id: string; 
   name: string;
   firstName?: string;
   lastName?: string;
+  personalEmail?: string;
+  emergencyContact?: EmergencyContact;
+  reportLine1?: string;
+  reportLine2?: string;
   employeeId: string; 
   department: string;
   role: string;
   groupName: string;
   system: string;
   campus: string;
-  email: string;
-  phone: string;
+  email: string; // NIS Email
+  phone: string; // Personal Phone
   hourlyRate?: number;
   photoURL?: string | null;
   dateOfBirth?: Timestamp;
@@ -233,22 +244,50 @@ function EmployeeProfileContent() {
                   </div>
               </CardHeader>
               <CardContent className="p-6">
+                {/* Work Information */}
+                <h3 className="text-lg font-semibold flex items-center mb-4"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                   <DetailItem icon={Mail} label="NIS Email" value={employee.email} />
                    <DetailItem icon={User} label="Title" value={employee.title} />
-                   <DetailItem icon={UserCircle} label="Gender" value={employee.gender} />
                    <DetailItem icon={Briefcase} label="Department" value={employee.department} />
                    <DetailItem icon={Hash} label="Employee ID" value={employee.employeeId} />
-                   <DetailItem icon={Mail} label="Email" value={employee.email} />
-                   <DetailItem icon={Phone} label="Contact Number" value={employee.phone} />
-                   <DetailItem icon={FileText} label="National ID" value={employee.nationalId} />
-                   <DetailItem icon={Cake} label="Birthday" value={employee.dateOfBirth ? format(employee.dateOfBirth.toDate(), 'PPP') : undefined} />
-                   <DetailItem icon={CalendarDays} label="Joining Date" value={employee.joiningDate ? format(employee.joiningDate.toDate(), 'PPP') : undefined} />
+                   <DetailItem icon={Star} label="Role" value={employee.role} />
                    <DetailItem icon={Users} label="Stage" value={employee.stage} />
                    <DetailItem icon={Code} label="System" value={employee.system} />
                    <DetailItem icon={MapPin} label="Campus" value={employee.campus} />
-                   <DetailItem icon={Star} label="Religion" value={employee.religion} />
+                   <DetailItem icon={CalendarDays} label="Joining Date" value={employee.joiningDate ? format(employee.joiningDate.toDate(), 'PPP') : undefined} />
                    <DetailItem icon={Stethoscope} label="Subject" value={employee.subject} />
+                   <DetailItem icon={UserCircle2} label="Reports to (Line 1)" value={employee.reportLine1} />
+                   <DetailItem icon={UserCircle2} label="Reports to (Line 2)" value={employee.reportLine2} />
                 </div>
+                
+                <Separator className="my-6" />
+
+                {/* Personal Information */}
+                <h3 className="text-lg font-semibold flex items-center mb-4"><UserCircle className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                   <DetailItem icon={MailWarning} label="Personal Email" value={employee.personalEmail} />
+                   <DetailItem icon={Phone} label="Personal Phone" value={employee.phone} />
+                   <DetailItem icon={Cake} label="Birthday" value={employee.dateOfBirth ? format(employee.dateOfBirth.toDate(), 'PPP') : undefined} />
+                   <DetailItem icon={User} label="Gender" value={employee.gender} />
+                   <DetailItem icon={FileText} label="National ID" value={employee.nationalId} />
+                   <DetailItem icon={Star} label="Religion" value={employee.religion} />
+                </div>
+
+                <Separator className="my-6" />
+                
+                {/* Emergency Contact */}
+                <h3 className="text-lg font-semibold flex items-center mb-4"><PhoneCall className="mr-2 h-5 w-5 text-primary" />Emergency Contact</h3>
+                {employee.emergencyContact ? (
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-4">
+                     <DetailItem icon={User} label="Name" value={employee.emergencyContact.name} />
+                     <DetailItem icon={Users} label="Relationship" value={employee.emergencyContact.relationship} />
+                     <DetailItem icon={Phone} label="Number" value={employee.emergencyContact.number} />
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No emergency contact information provided.</p>
+                )}
+
               </CardContent>
             </Card>
 
@@ -360,5 +399,3 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
-
-    
