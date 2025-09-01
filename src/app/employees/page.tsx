@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -859,9 +859,9 @@ function EmployeeManagementContent() {
         }
       }
       
-      const isFiltered = campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All";
+      const isFiltered = campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All" || isPrincipal;
       
-      if (!isFiltered && !isPrincipal) {
+      if (!isFiltered) {
         queryConstraints.push(orderBy("name"));
       }
 
@@ -886,7 +886,7 @@ function EmployeeManagementContent() {
       const documentSnapshots = await getDocs(q);
       let employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
       
-      if (isFiltered || isPrincipal) {
+      if (isFiltered) {
         employeeData.sort((a, b) => a.name.localeCompare(b.name));
       }
       
@@ -1270,24 +1270,39 @@ function EmployeeManagementContent() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEditDialog(employee)}>
-                              <Edit3 className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openCreateLoginDialog(employee)} disabled={!!employee.userId}>
-                              <UserPlus className="mr-2 h-4 w-4" />
-                              Create Login
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openChangePasswordDialog(employee)} disabled={!employee.userId}>
-                              <KeyRound className="mr-2 h-4 w-4" />
-                              Change Password
-                            </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openDeleteLoginDialog(employee)} disabled={!employee.userId} className="text-destructive focus:text-destructive">
-                                <UserMinus className="mr-2 h-4 w-4" />
-                                Delete Login
+                           <DropdownMenuItem onSelect={() => router.push(`/employees/${employee.id}`)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Full Profile
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => openDeleteConfirmDialog(employee)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger disabled={!canManageEmployees}>
+                                <UserPlus className="mr-2 h-4 w-4" />
+                                Login Management
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuPortal>
+                                <DropdownMenuSubContent>
+                                  <DropdownMenuItem onClick={() => openCreateLoginDialog(employee)} disabled={!!employee.userId}>
+                                    <UserPlus className="mr-2 h-4 w-4" />
+                                    Create Login
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => openChangePasswordDialog(employee)} disabled={!employee.userId}>
+                                    <KeyRound className="mr-2 h-4 w-4" />
+                                    Change Password
+                                  </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => openDeleteLoginDialog(employee)} disabled={!employee.userId} className="text-destructive focus:text-destructive">
+                                      <UserMinus className="mr-2 h-4 w-4" />
+                                      Delete Login
+                                  </DropdownMenuItem>
+                                </DropdownMenuSubContent>
+                              </DropdownMenuPortal>
+                            </DropdownMenuSub>
+                            <DropdownMenuItem onSelect={() => openEditDialog(employee)} disabled={!canManageEmployees}>
+                              <Edit3 className="mr-2 h-4 w-4" />
+                              Edit Employee
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onSelect={() => openDeleteConfirmDialog(employee)} disabled={!canManageEmployees} className="text-destructive focus:text-destructive focus:bg-destructive/10">
                               <Trash2 className="mr-2 h-4 w-4" />
                               Delete Employee
                             </DropdownMenuItem>
@@ -1308,7 +1323,7 @@ function EmployeeManagementContent() {
           </Table>
           )}
         </CardContent>
-        {(campusFilter === "All" && stageFilter === "All" && subjectFilter === "All") && (
+        {(!isFiltered && !isPrincipalView) && (
             <CardContent>
             <div className="flex items-center justify-end space-x-2 py-4">
                 <Button
@@ -1571,6 +1586,10 @@ function EmployeeManagementContent() {
 }
 
 export default function EmployeeManagementPage() {
+  const { profile } = useUserProfile();
+  const isFiltered = false; // Placeholder, adjust based on actual filter state
+  const isPrincipalView = profile?.role?.toLowerCase() === 'principal';
+
   return (
     <AppLayout>
       <EmployeeManagementContent />
