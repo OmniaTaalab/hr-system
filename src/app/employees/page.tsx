@@ -49,7 +49,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ImageUploader } from "@/components/image-uploader";
 import { useOrganizationLists, type ListItem } from "@/hooks/use-organization-lists";
@@ -155,24 +155,21 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [gender, setGender] = useState("");
   const [stage, setStage] = useState("");
 
-  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      setFilesToUpload(Array.from(event.target.files));
-    }
-  };
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [nationalIdFile, setNationalIdFile] = useState<File | null>(null);
+  const [otherFiles, setOtherFiles] = useState<File[]>([]);
 
   const handleFileUpload = async (employeeId: string) => {
-    if (filesToUpload.length === 0) return;
+    const allFiles = [cvFile, nationalIdFile, ...otherFiles].filter((file): file is File => file !== null);
+
+    if (allFiles.length === 0) return;
     
-    toast({ title: "Uploading files...", description: `Uploading ${filesToUpload.length} document(s).`});
+    toast({ title: "Uploading files...", description: `Uploading ${allFiles.length} document(s).`});
 
     const employeeDocRef = doc(db, "employee", employeeId);
     
     try {
-      const uploadPromises = filesToUpload.map(async (file) => {
+      const uploadPromises = allFiles.map(async (file) => {
         const filePath = `employee-documents/${employeeId}/${file.name}`;
         const fileRef = storageRef(storage, filePath);
         const snapshot = await uploadBytes(fileRef, file);
@@ -390,19 +387,22 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             <div className="space-y-4">
               <h3 className="text-lg font-semibold flex items-center"><File className="mr-2 h-5 w-5 text-primary" />Documents</h3>
               <p className="text-sm text-muted-foreground">Upload CV, National ID, and other relevant documents. Files will be uploaded after the employee is created.</p>
-              <Input
-                type="file"
-                multiple
-                ref={fileInputRef}
-                onChange={handleFileSelect}
-                className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                disabled={isPending}
-              />
-               {filesToUpload.length > 0 && (
-                <div className="text-sm text-muted-foreground">
-                  Selected {filesToUpload.length} file(s): {filesToUpload.map(f => f.name).join(', ')}
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="cv-upload">CV</Label>
+                    <Input id="cv-upload" type="file" onChange={(e) => setCvFile(e.target.files?.[0] || null)} className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" disabled={isPending} />
                 </div>
-              )}
+                <div className="space-y-2">
+                    <Label htmlFor="national-id-upload">National ID</Label>
+                    <Input id="national-id-upload" type="file" onChange={(e) => setNationalIdFile(e.target.files?.[0] || null)} className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" disabled={isPending} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="other-docs-upload">Other Documents</Label>
+                <Input id="other-docs-upload" type="file" multiple onChange={(e) => setOtherFiles(Array.from(e.target.files || []))} className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" disabled={isPending} />
+              </div>
+
             </div>
 
             {serverState?.errors?.form && (
