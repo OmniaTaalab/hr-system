@@ -379,7 +379,7 @@ function AllLeaveRequestsContent() {
   const [allRequests, setAllRequests] = useState<LeaveRequestEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { campuses, stage: stages, isLoading: isLoadingLists } = useOrganizationLists();
+  const { campuses, groupNames: stages, isLoading: isLoadingLists } = useOrganizationLists();
   
   const [selectedRequestToAction, setSelectedRequestToAction] = useState<LeaveRequestEntry | null>(null);
   const [actionTypeForStatusUpdate, setActionTypeForStatusUpdate] = useState<"Approved" | "Rejected" | null>(null);

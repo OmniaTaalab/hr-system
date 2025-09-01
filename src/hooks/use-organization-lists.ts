@@ -15,7 +15,6 @@ export interface ListItem {
 export interface OrganizationLists {
   roles: ListItem[];
   groupNames: ListItem[];
-  stage: ListItem[];
   systems: ListItem[];
   campuses: ListItem[];
   leaveTypes: ListItem[];
@@ -23,7 +22,7 @@ export interface OrganizationLists {
 }
 
 const listNames: (keyof Omit<OrganizationLists, 'isLoading'>)[] = [
-    'roles', 'groupNames', 'stage', 'systems', 'campuses', 'leaveTypes'
+    'roles', 'groupNames', 'systems', 'campuses', 'leaveTypes'
 ];
 
 export function useOrganizationLists(): OrganizationLists {
@@ -31,7 +30,6 @@ export function useOrganizationLists(): OrganizationLists {
   const [lists, setLists] = useState<Omit<OrganizationLists, 'isLoading'>>({
     roles: [],
     groupNames: [],
-    stage: [],
     systems: [],
     campuses: [],
     leaveTypes: [],

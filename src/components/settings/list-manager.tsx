@@ -7,11 +7,8 @@ import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { 
     manageListItemAction, type ManageListItemState, 
-    syncGroupNamesFromEmployeesAction, type SyncState,
-    syncRolesFromEmployeesAction,
-    syncCampusesFromEmployeesAction,
-    syncStagesFromEmployeesAction
-} from "@/app/actions/settings-actions";
+    syncGroupNamesFromEmployeesAction, type SyncState 
+} from "@/actions/settings-actions";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -30,7 +27,7 @@ interface ListItem {
 
 interface ListManagerProps {
   title: string;
-  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage";
+  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes";
 }
 
 const initialManageState: ManageListItemState = { success: false, message: null, errors: {} };
@@ -52,11 +49,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   const [editState, editAction, isEditPending] = useActionState(manageListItemAction, initialManageState);
   const [deleteState, deleteAction, isDeletePending] = useActionState(manageListItemAction, initialManageState);
   
-  const [syncGroupState, syncGroupAction, isSyncGroupPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
-  const [syncRoleState, syncRoleAction, isSyncRolePending] = useActionState(syncRolesFromEmployeesAction, initialSyncState);
-  const [syncCampusState, syncCampusAction, isSyncCampusPending] = useActionState(syncCampusesFromEmployeesAction, initialSyncState);
-  const [syncStageState, syncStageAction, isSyncStagePending] = useActionState(syncStagesFromEmployeesAction, initialSyncState);
-
+  const [syncState, syncAction, isSyncPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
 
   const addFormRef = useRef<HTMLFormElement>(null);
   const editFormRef = useRef<HTMLFormElement>(null);
@@ -106,44 +99,14 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   }, [deleteState, toast]);
 
   useEffect(() => {
-    if (syncGroupState?.message) {
+    if (syncState?.message) {
         toast({
-            title: syncGroupState.success ? "Sync Complete" : "Sync Failed",
-            description: syncGroupState.message,
-            variant: syncGroupState.success ? "default" : "destructive"
+            title: syncState.success ? "Sync Complete" : "Sync Failed",
+            description: syncState.message,
+            variant: syncState.success ? "default" : "destructive"
         });
     }
-  }, [syncGroupState, toast]);
-
-   useEffect(() => {
-    if (syncRoleState?.message) {
-        toast({
-            title: syncRoleState.success ? "Sync Complete" : "Sync Failed",
-            description: syncRoleState.message,
-            variant: syncRoleState.success ? "default" : "destructive"
-        });
-    }
-  }, [syncRoleState, toast]);
-
-  useEffect(() => {
-    if (syncCampusState?.message) {
-        toast({
-            title: syncCampusState.success ? "Sync Complete" : "Sync Failed",
-            description: syncCampusState.message,
-            variant: syncCampusState.success ? "default" : "destructive"
-        });
-    }
-  }, [syncCampusState, toast]);
-  
-  useEffect(() => {
-    if (syncStageState?.message) {
-        toast({
-            title: syncStageState.success ? "Sync Complete" : "Sync Failed",
-            description: syncStageState.message,
-            variant: syncStageState.success ? "default" : "destructive"
-        });
-    }
-  }, [syncStageState, toast]);
+  }, [syncState, toast]);
 
   const filteredItems = useMemo(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
@@ -161,27 +124,10 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
         <CardTitle className="flex justify-between items-center text-lg">
           {title}
           <div className="flex items-center gap-2">
-         
             {collectionName === 'groupNames' && (
-              <form action={syncGroupAction}>
-                  <Button size="sm" variant="secondary" disabled={isSyncGroupPending}>
-                      {isSyncGroupPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync from Employees
-                  </Button>
-              </form>
-            )}
-            {collectionName === 'campuses' && (
-              <form action={syncCampusAction}>
-                  <Button size="sm" variant="secondary" disabled={isSyncCampusPending}>
-                      {isSyncCampusPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync from Employees
-                  </Button>
-              </form>
-            )}
-             {collectionName === 'stage' && (
-              <form action={syncStageAction}>
-                  <Button size="sm" variant="secondary" disabled={isSyncStagePending}>
-                      {isSyncStagePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+              <form action={syncAction}>
+                  <Button size="sm" variant="secondary" disabled={isSyncPending}>
+                      {isSyncPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
                       Sync from Employees
                   </Button>
               </form>
