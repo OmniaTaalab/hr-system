@@ -375,10 +375,11 @@ function AllLeaveRequestsContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Approved" | "Rejected">("All");
   const [campusFilter, setCampusFilter] = useState<string>("All");
+  const [stageFilter, setStageFilter] = useState<string>("All");
   const [allRequests, setAllRequests] = useState<LeaveRequestEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { campuses, isLoading: isLoadingCampuses } = useOrganizationLists();
+  const { campuses, stage: stages, isLoading: isLoadingLists } = useOrganizationLists();
   
   const [selectedRequestToAction, setSelectedRequestToAction] = useState<LeaveRequestEntry | null>(null);
   const [actionTypeForStatusUpdate, setActionTypeForStatusUpdate] = useState<"Approved" | "Rejected" | null>(null);
@@ -406,15 +407,12 @@ function AllLeaveRequestsContent() {
         const userRole = profile.role?.toLowerCase();
         
         let employeeQuery;
-        // Admins and HR see all employees.
         if (userRole === 'admin' || userRole === 'hr') {
             employeeQuery = query(collection(db, "employee"));
         } 
-        // Principals see employees in the same stage.
         else if (userRole === 'principal' && profile.stage) {
             employeeQuery = query(collection(db, "employee"), where("stage", "==", profile.stage));
         } 
-        // Regular employees shouldn't be on this page, but as a fallback, see no one.
         else {
             setAllRequests([]);
             setIsLoading(false);
@@ -436,24 +434,19 @@ function AllLeaveRequestsContent() {
                 return;
             }
 
-            // Fetch leave requests for the retrieved employees
-            // Firestore 'in' query supports up to 30 elements. Chunk if needed.
             const idChunks: string[][] = [];
             for (let i = 0; i < employeeIds.length; i += 30) {
                 idChunks.push(employeeIds.slice(i, i + 30));
             }
 
-            const unsubscribes: (() => void)[] = [];
             let allLeaveRequests: LeaveRequestEntry[] = [];
+            const unsubscribes: (() => void)[] = [];
 
-            const processSnapshot = (snapshot: any) => {
-                const newRequests = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
-                // Merge new requests with existing ones, replacing duplicates
+            const processSnapshot = (newRequests: LeaveRequestEntry[]) => {
                 const requestMap = new Map(allLeaveRequests.map(r => [r.id, r]));
                 newRequests.forEach(r => requestMap.set(r.id, r));
                 
                 let combinedRequests = Array.from(requestMap.values());
-                
                 combinedRequests.sort((a, b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
                 
                 const requestsWithDetails = combinedRequests.map(req => {
@@ -465,13 +458,17 @@ function AllLeaveRequestsContent() {
                     };
                 });
                 
+                allLeaveRequests = requestsWithDetails;
                 setAllRequests(requestsWithDetails);
                 setIsLoading(false);
             };
 
             for (const chunk of idChunks) {
                 const leaveQuery = query(collection(db, "leaveRequests"), where("requestingEmployeeDocId", "in", chunk));
-                const unsubscribe = onSnapshot(leaveQuery, processSnapshot, (error) => {
+                const unsubscribe = onSnapshot(leaveQuery, (snapshot) => {
+                    const newRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+                    processSnapshot(newRequests);
+                }, (error) => {
                     console.error("Error fetching leave requests: ", error);
                     toast({
                         variant: "destructive",
@@ -531,6 +528,10 @@ function AllLeaveRequestsContent() {
     if (campusFilter !== "All") {
       requests = requests.filter(item => item.employeeCampus === campusFilter);
     }
+
+    if (stageFilter !== "All") {
+      requests = requests.filter(item => item.employeeStage === stageFilter);
+    }
     
     if (searchTerm) {
       const lowercasedFilter = searchTerm.toLowerCase();
@@ -547,7 +548,7 @@ function AllLeaveRequestsContent() {
       });
     }
     return requests;
-  }, [allRequests, searchTerm, statusFilter, campusFilter]);
+  }, [allRequests, searchTerm, statusFilter, campusFilter, stageFilter]);
 
   const openStatusUpdateDialog = (request: LeaveRequestEntry, type: "Approved" | "Rejected") => {
     setSelectedRequestToAction(request);
@@ -647,10 +648,10 @@ function AllLeaveRequestsContent() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   />
               </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Filter className="h-4 w-4 text-muted-foreground"/>
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                <Filter className="h-4 w-4 text-muted-foreground hidden sm:block"/>
                 <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "All" | "Pending" | "Approved" | "Rejected")}>
-                    <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectTrigger className="w-full sm:w-[150px]">
                         <SelectValue placeholder="Filter by status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -660,13 +661,22 @@ function AllLeaveRequestsContent() {
                         <SelectItem value="Rejected">Rejected</SelectItem>
                     </SelectContent>
                 </Select>
-                 <Select value={campusFilter} onValueChange={(value) => setCampusFilter(value as string)} disabled={isLoadingCampuses}>
-                    <SelectTrigger className="w-full sm:w-[180px]">
+                 <Select value={campusFilter} onValueChange={(value) => setCampusFilter(value as string)} disabled={isLoadingLists}>
+                    <SelectTrigger className="w-full sm:w-[150px]">
                         <SelectValue placeholder="Filter by campus" />
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="All">All Campuses</SelectItem>
                         {campuses.map(campus => <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                 <Select value={stageFilter} onValueChange={(value) => setStageFilter(value as string)} disabled={isLoadingLists}>
+                    <SelectTrigger className="w-full sm:w-[150px]">
+                        <SelectValue placeholder="Filter by stage" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="All">All Stages</SelectItem>
+                        {stages.map(stage => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
               </div>
@@ -683,6 +693,7 @@ function AllLeaveRequestsContent() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee Name</TableHead>
+                  {canManageRequests && <TableHead>Stage</TableHead>}
                   {canManageRequests && <TableHead>Campus</TableHead>}
                   <TableHead>Leave Type</TableHead>
                   <TableHead>Start Date</TableHead>
@@ -701,6 +712,7 @@ function AllLeaveRequestsContent() {
                     return (
                       <TableRow key={request.id}>
                         <TableCell className="font-medium">{request.employeeName}</TableCell>
+                        {canManageRequests && <TableCell>{request.employeeStage}</TableCell>}
                         {canManageRequests && <TableCell>{request.employeeCampus}</TableCell>}
                         <TableCell>{request.leaveType}</TableCell>
                         <TableCell>{format(startDate, "PPP")}</TableCell>
@@ -752,8 +764,8 @@ function AllLeaveRequestsContent() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={canManageRequests ? 8 : 7} className="h-24 text-center">
-                      {searchTerm || statusFilter !== "All" || campusFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
+                    <TableCell colSpan={canManageRequests ? 9 : 7} className="h-24 text-center">
+                      {searchTerm || statusFilter !== "All" || campusFilter !== "All" || stageFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
                     </TableCell>
                   </TableRow>
                 )}

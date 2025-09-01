@@ -71,5 +71,5 @@ export function useOrganizationLists(): OrganizationLists {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast]); // We only want this to run once on mount
 
-  return { ...lists, stage: lists.groupNames, isLoading };
+  return { ...lists, isLoading };
 }
