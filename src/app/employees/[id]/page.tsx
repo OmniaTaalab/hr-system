@@ -61,7 +61,7 @@ interface Employee {
 
 interface AttendanceLog {
   id: string;
-  employee_id: string;
+  email: string;
   name: string;
   check_time: string;
   type: string;
@@ -145,13 +145,14 @@ function EmployeeProfileContent() {
       const fetchAttendanceLogs = async (employeeEmail: string) => {
         setLoadingLogs(true);
         try {
+          // Query all attendance logs for the employee's email, ordered by time
           const logsQuery = query(
             collection(db, 'attendance_log'),
-            where('email', '==', employeeEmail)
+            where('email', '==', employeeEmail),
+            orderBy('check_time', 'desc') 
           );
           const querySnapshot = await getDocs(logsQuery);
           const logs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
-          logs.sort((a, b) => b.check_time.localeCompare(a.check_time));
           setAttendanceLogs(logs);
         } catch (e) {
           console.error("Error fetching attendance logs:", e);
