@@ -129,7 +129,7 @@ function EmployeeProfileContent() {
             const employeeData = { id: docSnap.id, ...docSnap.data() } as Employee;
             setEmployee(employeeData);
             // After fetching employee, fetch their logs and leaves
-            fetchAttendanceLogs(employeeData.employeeId);
+            fetchAttendanceLogs(employeeData.email);
             fetchLeaveRequests(employeeData.id);
           } else {
             setError('Employee not found.');
@@ -142,12 +142,12 @@ function EmployeeProfileContent() {
         }
       };
 
-      const fetchAttendanceLogs = async (employeeId: string) => {
+      const fetchAttendanceLogs = async (employeeEmail: string) => {
         setLoadingLogs(true);
         try {
           const logsQuery = query(
             collection(db, 'attendance_log'),
-            where('employee_id', '==', employeeId)
+            where('email', '==', employeeEmail)
           );
           const querySnapshot = await getDocs(logsQuery);
           const logs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
