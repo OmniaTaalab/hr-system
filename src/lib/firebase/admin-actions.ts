@@ -64,6 +64,7 @@ const CreateEmployeeFormSchema = z.object({
   
   // Work Info
   nisEmail: z.string().email({ message: 'A valid NIS email is required.' }),
+  joiningDate: z.coerce.date().optional(),
   title: z.string().min(1, "Title is required."),
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
@@ -88,6 +89,7 @@ export type CreateEmployeeState = {
     nationalId?: string[];
     religion?: string[];
     nisEmail?: string[];
+    joiningDate?: string[];
     title?: string[];
     department?: string[];
     role?: string[];
@@ -122,6 +124,7 @@ export async function createEmployeeAction(
 
     // Work
     nisEmail: formData.get('nisEmail'),
+    joiningDate: formData.get('joiningDate') || undefined,
     title: formData.get('title'),
     department: formData.get('department'),
     role: formData.get('role'),
@@ -143,7 +146,7 @@ export async function createEmployeeAction(
   const { 
     name, personalEmail, personalPhone, emergencyContactName,
     emergencyContactRelationship, emergencyContactNumber, dateOfBirth, gender,
-    nationalId, religion, nisEmail, title, department, role, stage, campus,
+    nationalId, religion, nisEmail, joiningDate, title, department, role, stage, campus,
     reportLine1, reportLine2, subject
   } = validatedFields.data;
   
@@ -181,6 +184,7 @@ export async function createEmployeeAction(
       religion: religion || "",
       
       email: nisEmail, // Storing nisEmail in 'email' field
+      joiningDate: joiningDate ? Timestamp.fromDate(joiningDate) : serverTimestamp(),
       title,
       department,
       role,
@@ -193,7 +197,6 @@ export async function createEmployeeAction(
       employeeId,
       status: "Active",
       hourlyRate: 0,
-      joiningDate: serverTimestamp(),
       leavingDate: null,
       leaveBalances: {},
       documents: [],

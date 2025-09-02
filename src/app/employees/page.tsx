@@ -150,6 +150,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { roles, stage: stages, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
   
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
+  const [joiningDate, setJoiningDate] = useState<Date | undefined>();
   const [role, setRole] = useState("");
   const [campus, setCampus] = useState("");
   const [gender, setGender] = useState("");
@@ -271,6 +272,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       </DialogHeader>
       <form id="add-employee-form" action={formAction} className="flex flex-col overflow-hidden">
         <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
+        <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
         <input type="hidden" name="role" value={role} />
         <input type="hidden" name="campus" value={campus} />
         <input type="hidden" name="gender" value={gender} />
@@ -372,6 +374,21 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                   <Label htmlFor="add-nisEmail">NIS Email</Label>
                   <Input id="add-nisEmail" name="nisEmail" type="email" required />
                   {serverState?.errors?.nisEmail && <p className="text-sm text-destructive">{serverState.errors.nisEmail.join(', ')}</p>}
+                </div>
+                 <div className="space-y-2">
+                    <Label>Date of Entry</Label>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !joiningDate && "text-muted-foreground")}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {joiningDate ? format(joiningDate, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} captionLayout="dropdown-buttons" fromYear={new Date().getFullYear() - 20} toYear={new Date().getFullYear()} initialFocus />
+                        </PopoverContent>
+                    </Popover>
+                    {serverState?.errors?.joiningDate && <p className="text-sm text-destructive">{serverState.errors.joiningDate.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="add-title">Title</Label>
