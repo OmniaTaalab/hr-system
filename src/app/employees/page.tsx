@@ -60,6 +60,7 @@ import { Separator } from "@/components/ui/separator";
 import { EmployeeFileManager } from "@/components/employee-file-manager";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 
 export interface EmployeeFile {
@@ -196,7 +197,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: "Could not load the list of principals or directors.",
+                description: "Could not load the list of principals or campus directors.",
             });
         } finally {
             setIsLoadingPrincipals(false);
@@ -263,14 +264,38 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       }
     }
   }, [serverState, toast, onSuccess]);
+  
+  const handleDownloadTemplate = () => {
+    const headers = [
+      "name", "personalEmail", "personalPhone", "emergencyContactName", 
+      "emergencyContactRelationship", "emergencyContactNumber", "dateOfBirth (YYYY-MM-DD)",
+      "gender", "nationalId", "religion", "nisEmail", "joiningDate (YYYY-MM-DD)",
+      "title", "department", "role", "stage", "campus", "reportLine1",
+      "reportLine2", "subject"
+    ];
+    const worksheet = XLSX.utils.aoa_to_sheet([headers]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Employee Template");
+    XLSX.writeFile(workbook, "New_Employee_Template.xlsx");
+    toast({ title: "Template Downloaded", description: "The Excel template has been downloaded." });
+  };
+
 
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Add New Employee</DialogTitle>
-        <DialogDescription>
-          Enter the new employee's details. An employee ID will be generated automatically.
-        </DialogDescription>
+        <div className="flex justify-between items-center">
+            <div>
+                <DialogTitle>Add New Employee</DialogTitle>
+                <DialogDescription>
+                  Enter the new employee's details. An employee ID will be generated automatically.
+                </DialogDescription>
+            </div>
+             <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
+                <Download className="mr-2 h-4 w-4" />
+                Download Template
+            </Button>
+        </div>
       </DialogHeader>
       <form id="add-employee-form" action={formAction} className="flex flex-col overflow-hidden">
         <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
