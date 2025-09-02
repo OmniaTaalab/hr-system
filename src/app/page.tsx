@@ -4,7 +4,7 @@
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Loader2, CalendarCheck2, Briefcase } from "lucide-react";
+import { ArrowRight, Loader2, CalendarCheck2, Briefcase, Clock } from "lucide-react";
 import Link from "next/link";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useMemo } from "react";
@@ -117,6 +117,7 @@ function DashboardPageContent() {
   const [rejectedLeaveRequests, setRejectedLeaveRequests] = useState<number | null>(null);
   const [campusData, setCampusData] = useState<CampusData[]>([]);
   const [upcomingHolidays, setUpcomingHolidays] = useState<Holiday[]>([]);
+  const [lateAttendance, setLateAttendance] = useState<number | null>(null);
 
 
   const [isLoadingTotalEmp, setIsLoadingTotalEmp] = useState(true);
@@ -126,6 +127,7 @@ function DashboardPageContent() {
   const [isLoadingRejectedLeaves, setIsLoadingRejectedLeaves] = useState(true);
   const [isLoadingCampusData, setIsLoadingCampusData] = useState(true);
   const [isLoadingHolidays, setIsLoadingHolidays] = useState(true);
+  const [isLoadingLateAttendance, setIsLoadingLateAttendance] = useState(true);
 
   
   const { profile, loading: isLoadingProfile } = useUserProfile();
@@ -213,30 +215,45 @@ function DashboardPageContent() {
 
     const fetchLastDayAttendance = async () => {
       setIsLoadingTodaysAttendance(true);
+      setIsLoadingLateAttendance(true);
       try {
         const lastLogQuery = query(collection(db, "attendance_log"), orderBy("date", "desc"), limit(1));
         const lastLogSnapshot = await getDocs(lastLogQuery);
 
         if (!lastLogSnapshot.empty) {
           const lastAttendanceDateString = lastLogSnapshot.docs[0].data().date as string;
-          // The date is a string like "YYYY-MM-DD", parse it to a Date object for formatting.
           const dateObject = parseISO(lastAttendanceDateString);
           setLastAttendanceDate(format(dateObject, 'PPP'));
           
           const attendanceOnDateQuery = query(collection(db, "attendance_log"), where("date", "==", lastAttendanceDateString));
           const attendanceSnapshot = await getDocs(attendanceOnDateQuery);
           
-          const uniqueUserIds = new Set(attendanceSnapshot.docs.map(doc => doc.data().userId));
+          const uniqueUserIds = new Set<number>();
+          const lateUserIds = new Set<number>();
+
+          attendanceSnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            uniqueUserIds.add(data.userId);
+            if (data.check_in && data.check_in > "07:30") {
+                lateUserIds.add(data.userId);
+            }
+          });
+          
           setTodaysAttendance(uniqueUserIds.size);
+          setLateAttendance(lateUserIds.size);
+
         } else {
           setTodaysAttendance(0);
+          setLateAttendance(0);
           setLastAttendanceDate(null);
         }
       } catch (error) {
         console.error("Error fetching today's attendance:", error);
         setTodaysAttendance(0);
+        setLateAttendance(0);
       } finally {
         setIsLoadingTodaysAttendance(false);
+        setIsLoadingLateAttendance(false);
       }
     };
     
@@ -305,6 +322,15 @@ function DashboardPageContent() {
       statistic: todaysAttendance ?? 0,
       statisticLabel: lastAttendanceDate ? `As of ${lastAttendanceDate}` : 'No attendance data',
       isLoadingStatistic: isLoadingTodaysAttendance,
+      href: "/attendance-logs",
+      linkText: "View Attendance Logs",
+    },
+     {
+      title: "Late Arrivals",
+      iconName: "Clock",
+      statistic: lateAttendance ?? 0,
+      statisticLabel: lastAttendanceDate ? `Late check-ins after 7:30 AM` : 'No attendance data',
+      isLoadingStatistic: isLoadingLateAttendance,
       href: "/attendance-logs",
       linkText: "View Attendance Logs",
     },
@@ -404,7 +430,7 @@ function DashboardPageContent() {
         <h2 id="statistics-title" className="text-2xl font-semibold font-headline mb-4">
           Key Statistics
         </h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
           {statisticCards.map((card) => (
             <DashboardCard key={card.title} {...card} />
           ))}
