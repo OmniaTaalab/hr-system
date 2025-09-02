@@ -350,7 +350,7 @@ async function syncListFromSource(
         );
 
         if (newValues.length === 0) {
-            return { success: true, message: `${targetCollection} are already up-to-date.` };
+            return { success: true, message: `"${targetCollection}" list is already up-to-date.` };
         }
 
         // 4. Add the new values to the target collection
@@ -387,8 +387,11 @@ export async function syncCampusesFromEmployeesAction(): Promise<SyncState> {
 }
 
 export async function syncStagesFromEmployeesAction(): Promise<SyncState> {
-    // Assuming stage data is in the 'groupName' field of employees and syncs to 'stage' collection
-    return syncListFromSource("employee", "groupName", "stage");
+    return syncListFromSource("employee", "stage", "stage");
+}
+
+export async function syncSubjectsFromEmployeesAction(): Promise<SyncState> {
+    return syncListFromSource("employee", "subject", "subjects");
 }
 
 // New action to sync machine names from attendance logs

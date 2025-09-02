@@ -12,6 +12,7 @@ import {
   syncCampusesFromEmployeesAction,
   syncStagesFromEmployeesAction,
   syncMachineNamesFromAttendanceLogsAction,
+  syncSubjectsFromEmployeesAction,
   type SyncState
 } from "@/actions/settings-actions";
 import { useToast } from "@/hooks/use-toast";
@@ -61,6 +62,8 @@ export default function SyncDataPage() {
   const [syncCampusState, syncCampusAction, isSyncCampusPending] = useActionState(syncCampusesFromEmployeesAction, initialSyncState);
   const [syncStageState, syncStageAction, isSyncStagePending] = useActionState(syncStagesFromEmployeesAction, initialSyncState);
   const [syncMachineState, syncMachineAction, isSyncMachinePending] = useActionState(syncMachineNamesFromAttendanceLogsAction, initialSyncState);
+  const [syncSubjectState, syncSubjectAction, isSyncSubjectPending] = useActionState(syncSubjectsFromEmployeesAction, initialSyncState);
+
 
   return (
     <div className="space-y-8">
@@ -105,6 +108,12 @@ export default function SyncDataPage() {
                     action={syncStageAction}
                     isPending={isSyncStagePending}
                     state={syncStageState}
+                />
+                 <SyncButton 
+                    label="Sync Subjects from Employees"
+                    action={syncSubjectAction}
+                    isPending={isSyncSubjectPending}
+                    state={syncSubjectState}
                 />
                  <SyncButton 
                     label="Sync Group Names from Employees"
