@@ -1,18 +1,22 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AppLayout, useUserProfile } from '@/components/layout/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
-import { collection, query, orderBy, limit, getDocs, startAfter, endBefore, limitToLast, DocumentSnapshot, where } from 'firebase/firestore';
-import { Loader2, BookOpenCheck, Search, AlertTriangle, ArrowRight, ArrowLeft, Filter } from 'lucide-react';
+import { collection, query, orderBy, limit, getDocs, startAfter, endBefore, limitToLast, DocumentSnapshot, where, QueryConstraint } from 'firebase/firestore';
+import { Loader2, BookOpenCheck, Search, AlertTriangle, ArrowRight, ArrowLeft, Filter, Calendar as CalendarIcon, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { format, startOfDay, endOfDay } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 
 
 interface AttendanceLog {
@@ -48,6 +52,8 @@ function AttendanceLogsContent() {
   const [machineFilter, setMachineFilter] = useState("All");
   const [machines, setMachines] = useState<Machine[]>([]);
   const [isLoadingMachines, setIsLoadingMachines] = useState(true);
+  
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
 
@@ -73,48 +79,63 @@ function AttendanceLogsContent() {
   }, [canViewPage, toast]);
 
 
-  const fetchLogs = async (page: 'first' | 'next' | 'prev' = 'first') => {
+  const fetchLogs = useCallback(async (page: 'first' | 'next' | 'prev' = 'first') => {
     setIsLoading(true);
     try {
       const logsCollection = collection(db, "attendance_log");
+      let queryConstraints: QueryConstraint[] = [];
       
-      let q = query(logsCollection, orderBy("date", "desc"));
-      
+      // Date filter takes precedence
+      if (selectedDate) {
+        const dateString = format(selectedDate, 'yyyy-MM-dd');
+        queryConstraints.push(where("date", "==", dateString));
+      }
+
       if (machineFilter !== "All") {
-        q = query(q, where("machine", "==", machineFilter));
+        queryConstraints.push(where("machine", "==", machineFilter));
       }
-
-      if (page === 'first') {
-        q = query(q, limit(PAGE_SIZE));
-      } else if (page === 'next' && lastVisible) {
-        q = query(q, startAfter(lastVisible), limit(PAGE_SIZE));
-      } else if (page === 'prev' && firstVisible) {
-        q = query(q, endBefore(firstVisible), limitToLast(PAGE_SIZE));
+      
+      // Pagination logic should only apply if no date is selected
+      if (!selectedDate) {
+        queryConstraints.push(orderBy("date", "desc"));
+        if (page === 'first') {
+            queryConstraints.push(limit(PAGE_SIZE));
+        } else if (page === 'next' && lastVisible) {
+            queryConstraints.push(startAfter(lastVisible), limit(PAGE_SIZE));
+        } else if (page === 'prev' && firstVisible) {
+            queryConstraints.push(endBefore(firstVisible), limitToLast(PAGE_SIZE));
+        }
       } else {
-        setIsLoading(false);
-        return;
+        // If filtering by date, you might want to order by check-in time
+        queryConstraints.push(orderBy("check_in", "asc"));
       }
 
-      const documentSnapshots = await getDocs(q);
+
+      const finalQuery = query(logsCollection, ...queryConstraints);
+      const documentSnapshots = await getDocs(finalQuery);
       const logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
 
       if (!documentSnapshots.empty) {
         setAllLogs(logsData);
-        setFirstVisible(documentSnapshots.docs[0]);
-        setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
         
-        // Check if this is the last page by attempting to fetch one more item
-        const nextQuery = query(logsCollection, orderBy("date", "desc"), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1));
-        const nextSnapshot = await getDocs(nextQuery);
-        setIsLastPage(nextSnapshot.empty);
+        if (!selectedDate) {
+            setFirstVisible(documentSnapshots.docs[0]);
+            setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
+            
+            const nextQueryConstraints = [orderBy("date", "desc"), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
+            if (machineFilter !== "All") {
+              nextQueryConstraints.push(where("machine", "==", machineFilter));
+            }
+            const nextQuery = query(logsCollection, ...nextQueryConstraints);
+            const nextSnapshot = await getDocs(nextQuery);
+            setIsLastPage(nextSnapshot.empty);
+        }
       } else {
-         if (page === 'next') {
-            setIsLastPage(true);
-         } else if (page === 'first' || page === 'prev') {
-            setAllLogs([]);
+         setAllLogs([]);
+         if (!selectedDate) {
             setFirstVisible(null);
             setLastVisible(null);
-            setIsLastPage(true);
+            setIsLastPage(page === 'first' ? true : isLastPage);
          }
       }
     } catch (error: any) {
@@ -127,18 +148,17 @@ function AttendanceLogsContent() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedDate, machineFilter, toast, lastVisible, firstVisible, isLastPage]);
 
   useEffect(() => {
     if (!canViewPage) {
         if(!isLoadingProfile) router.replace('/');
         return;
     }
-    // Reset to page 1 and fetch logs whenever the filter changes
+    // Reset to page 1 and fetch logs whenever a filter changes
     setCurrentPage(1);
     fetchLogs('first');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canViewPage, isLoadingProfile, router, machineFilter]);
+  }, [canViewPage, isLoadingProfile, router, machineFilter, selectedDate, fetchLogs]);
 
 
   const goToNextPage = () => {
@@ -150,6 +170,11 @@ function AttendanceLogsContent() {
     setCurrentPage(prev => Math.max(1, prev - 1));
     fetchLogs('prev');
   };
+  
+  const clearDateFilter = () => {
+    setSelectedDate(null);
+  };
+
 
   const displayedRecords = useMemo(() => {
     let records = allLogs;
@@ -164,8 +189,8 @@ function AttendanceLogsContent() {
       );
     }
     
-    // When "All Machines" is selected, group by user for display
-    if (machineFilter === "All") {
+    // When "All Machines" is selected AND no date is filtered, group by user for display
+    if (machineFilter === "All" && !selectedDate) {
       const latestLogsMap = new Map<number, AttendanceLog>();
       records.forEach(log => {
         if (!latestLogsMap.has(log.userId)) {
@@ -176,7 +201,7 @@ function AttendanceLogsContent() {
     }
 
     return records;
-  }, [allLogs, machineFilter, searchTerm]);
+  }, [allLogs, machineFilter, searchTerm, selectedDate]);
 
   if (isLoadingProfile) {
     return (
@@ -204,9 +229,11 @@ function AttendanceLogsContent() {
           Attendance Logs
         </h1>
         <p className="text-muted-foreground">
-          {machineFilter === 'All' 
-            ? 'Showing the most recent log for each employee. Click a row for full history.' 
-            : `Showing all logs for machine: ${machineFilter}.`}
+          {selectedDate
+            ? `Showing all logs for ${format(selectedDate, 'PPP')}.`
+            : machineFilter === 'All' 
+              ? 'Showing the most recent log for each employee. Click a row for full history.' 
+              : `Showing all logs for machine: ${machineFilter}.`}
         </p>
       </header>
 
@@ -214,16 +241,18 @@ function AttendanceLogsContent() {
           <CardHeader>
               <CardTitle>Employee Logs</CardTitle>
               <CardDescription>
-                  {machineFilter === 'All' 
-                    ? 'A summary of the latest check-in/out activity for every employee.' 
-                    : `A detailed list of all check-in/out events for the selected machine.`}
+                  {selectedDate
+                    ? 'A detailed list of all check-in/out events for the selected day.'
+                    : machineFilter === 'All' 
+                      ? 'A summary of the latest check-in/out activity for every employee.' 
+                      : `A detailed list of all check-in/out events for the selected machine.`}
               </CardDescription>
                <div className="flex flex-col sm:flex-row gap-4 pt-2">
                   <div className="relative flex-grow">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                           type="search"
-                          placeholder="Search by name, ID, or date..."
+                          placeholder="Search by name, ID..."
                           className="w-full pl-8"
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
@@ -231,6 +260,18 @@ function AttendanceLogsContent() {
                   </div>
                   <div className="flex items-center gap-2">
                       <Filter className="h-4 w-4 text-muted-foreground"/>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-full sm:w-[240px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {selectedDate ? format(selectedDate, 'PPP') : <span>Filter by date...</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <Calendar mode="single" selected={selectedDate || undefined} onSelect={(date) => setSelectedDate(date || null)} initialFocus />
+                        </PopoverContent>
+                      </Popover>
+                      {selectedDate && <Button variant="ghost" size="icon" onClick={clearDateFilter}><X className="h-4 w-4" /></Button>}
                       <Select value={machineFilter} onValueChange={setMachineFilter} disabled={isLoadingMachines}>
                           <SelectTrigger className="w-full sm:w-[200px]">
                               <SelectValue placeholder="Filter by machine" />
@@ -254,7 +295,7 @@ function AttendanceLogsContent() {
                ) : displayedRecords.length === 0 ? (
                   <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
                       <h3 className="text-xl font-semibold">No Attendance Logs Found</h3>
-                      <p className="mt-2">{searchTerm || machineFilter !== 'All' ? `No records match your search/filter.` : "There are currently no logs in the `attendance_log` collection."}</p>
+                      <p className="mt-2">{searchTerm || machineFilter !== 'All' || selectedDate ? `No records match your search/filter.` : "There are currently no logs in the `attendance_log` collection."}</p>
                   </div>
                ) : (
                   <Table>
@@ -262,11 +303,11 @@ function AttendanceLogsContent() {
                           <TableRow>
                               <TableHead>Employee ID</TableHead>
                               <TableHead>Employee Name</TableHead>
-                              <TableHead>Last Activity Date</TableHead>
+                              <TableHead>Activity Date</TableHead>
                               <TableHead>Check In</TableHead>
                               <TableHead>Check Out</TableHead>
                               <TableHead>Machine Name</TableHead>
-                              <TableHead className="text-right">History</TableHead>
+                              {!selectedDate && <TableHead className="text-right">History</TableHead>}
                           </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -282,41 +323,45 @@ function AttendanceLogsContent() {
                                   <TableCell>{record.check_in || '-'}</TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
                                   <TableCell>{record.machine || '-'}</TableCell>
-                                  <TableCell className="text-right">
-                                    <Button variant="ghost" size="sm">
-                                      View All
-                                      <ArrowRight className="ml-2 h-4 w-4" />
-                                    </Button>
-                                  </TableCell>
+                                  {!selectedDate && (
+                                    <TableCell className="text-right">
+                                      <Button variant="ghost" size="sm">
+                                        View All
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                      </Button>
+                                    </TableCell>
+                                  )}
                               </TableRow>
                           ))}
                       </TableBody>
                   </Table>
                )}
           </CardContent>
-           <CardContent>
-            <div className="flex items-center justify-end space-x-2 py-4">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={goToPrevPage}
-                    disabled={currentPage <= 1 || isLoading}
-                >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Previous
-                </Button>
-                <span className="text-sm font-medium">Page {currentPage}</span>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={goToNextPage}
-                    disabled={isLastPage || isLoading}
-                >
-                    Next
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-            </div>
-        </CardContent>
+           {!selectedDate && (
+            <CardContent>
+              <div className="flex items-center justify-end space-x-2 py-4">
+                  <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={goToPrevPage}
+                      disabled={currentPage <= 1 || isLoading}
+                  >
+                      <ArrowLeft className="mr-2 h-4 w-4" />
+                      Previous
+                  </Button>
+                  <span className="text-sm font-medium">Page {currentPage}</span>
+                  <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={goToNextPage}
+                      disabled={isLastPage || isLoading}
+                  >
+                      Next
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+              </div>
+          </CardContent>
+           )}
       </Card>
     </div>
   );
