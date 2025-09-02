@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -58,6 +58,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { EmployeeFileManager } from "@/components/employee-file-manager";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 
 export interface EmployeeFile {
@@ -1173,6 +1175,43 @@ function EmployeeManagementContent() {
     if (!name) return "U";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
+
+  const handleExportPDF = () => {
+    if (filteredEmployees.length === 0) {
+      toast({
+        title: "No Data",
+        description: "There are no employees to export in the current view.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text("Employee List", 14, 22);
+
+    const tableColumns = ["Name", "Role", "Subject", "Stage", "Campus"];
+    const tableRows = filteredEmployees.map(emp => [
+      emp.name || "-",
+      emp.role || "-",
+      emp.subject || "-",
+      emp.stage || "-",
+      emp.campus || "-",
+    ]);
+
+    autoTable(doc, {
+      head: [tableColumns],
+      body: tableRows,
+      startY: 30,
+    });
+    
+    doc.save("employee_list.pdf");
+
+    toast({
+      title: "Export Successful",
+      description: "Employee list has been exported to PDF.",
+    });
+  };
   
   return (
     <div className="space-y-8">
@@ -1212,21 +1251,27 @@ function EmployeeManagementContent() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              {isLoadingProfile ? (
-                  <Skeleton className="h-10 w-[190px]" />
-              ) : canManageEmployees && (
-                  <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button className="w-full sm:w-auto">
-                          <PlusCircle className="mr-2 h-4 w-4" />
-                          Add New Employee
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-3xl">
-                      <AddEmployeeFormContent onSuccess={() => setIsAddDialogOpen(false)} />
-                    </DialogContent>
-                  </Dialog>
-              )}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Button onClick={handleExportPDF} variant="outline" className="w-full">
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Export PDF
+                </Button>
+                {isLoadingProfile ? (
+                    <Skeleton className="h-10 w-[190px]" />
+                ) : canManageEmployees && (
+                    <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button className="w-full sm:w-auto">
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Add New Employee
+                          </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-3xl">
+                        <AddEmployeeFormContent onSuccess={() => setIsAddDialogOpen(false)} />
+                      </DialogContent>
+                    </Dialog>
+                )}
+              </div>
             </div>
              <div className="flex flex-col sm:flex-row items-center gap-2">
                   <Filter className="h-4 w-4 text-muted-foreground hidden sm:block"/>
