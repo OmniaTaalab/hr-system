@@ -1201,7 +1201,7 @@ function EmployeeManagementContent() {
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
 
-  const handleExportPDF = () => {
+  const handleExportExcel = () => {
     if (filteredEmployees.length === 0) {
       toast({
         title: "No Data",
@@ -1211,30 +1211,52 @@ function EmployeeManagementContent() {
       return;
     }
 
-    const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.text("Employee List", 14, 22);
-
-    const tableColumns = ["Name", "Role", "Subject", "Stage", "Campus"];
-    const tableRows = filteredEmployees.map(emp => [
-      emp.name || "-",
-      emp.role || "-",
-      emp.subject || "-",
-      emp.stage || "-",
-      emp.campus || "-",
-    ]);
-
-    autoTable(doc, {
-      head: [tableColumns],
-      body: tableRows,
-      startY: 30,
-    });
+    const headers = [
+      "name", "personalEmail", "phone", "emergencyContactName", 
+      "emergencyContactRelationship", "emergencyContactNumber", "dateOfBirth",
+      "gender", "nationalId", "religion", "email", "joiningDate",
+      "title", "department", "role", "stage", "campus", "reportLine1",
+      "reportLine2", "subject"
+    ];
     
-    doc.save("employee_list.pdf");
+    const data = filteredEmployees.map(emp => ({
+      name: emp.name || "-",
+      personalEmail: emp.personalEmail || "-",
+      phone: emp.phone || "-",
+      emergencyContactName: emp.emergencyContact?.name || "-",
+      emergencyContactRelationship: emp.emergencyContact?.relationship || "-",
+      emergencyContactNumber: emp.emergencyContact?.number || "-",
+      dateOfBirth: emp.dateOfBirth ? format(emp.dateOfBirth.toDate(), 'yyyy-MM-dd') : "-",
+      gender: emp.gender || "-",
+      nationalId: emp.nationalId || "-",
+      religion: emp.religion || "-",
+      email: emp.email || "-",
+      joiningDate: emp.joiningDate ? format(emp.joiningDate.toDate(), 'yyyy-MM-dd') : "-",
+      title: emp.title || "-",
+      department: emp.department || "-",
+      role: emp.role || "-",
+      stage: emp.stage || "-",
+      campus: emp.campus || "-",
+      reportLine1: emp.reportLine1 || "-",
+      reportLine2: emp.reportLine2 || "-",
+      subject: emp.subject || "-"
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data, { header: headers });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Employees");
+
+    // Adjust column widths
+    const columnWidths = headers.map(header => ({
+        wch: Math.max(header.length, ...data.map(row => String(row[header as keyof typeof row] ?? '').length)) + 2
+    }));
+    worksheet['!cols'] = columnWidths;
+
+    XLSX.writeFile(workbook, "Employee_List.xlsx");
 
     toast({
       title: "Export Successful",
-      description: "Employee list has been exported to PDF.",
+      description: "Employee list has been exported to Excel.",
     });
   };
   
@@ -1277,9 +1299,9 @@ function EmployeeManagementContent() {
                 />
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Button onClick={handleExportPDF} variant="outline" className="w-full">
+                <Button onClick={handleExportExcel} variant="outline" className="w-full">
                   <FileDown className="mr-2 h-4 w-4" />
-                  Export PDF
+                  Export Excel
                 </Button>
                 {isLoadingProfile ? (
                     <Skeleton className="h-10 w-[190px]" />
