@@ -16,6 +16,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { useToast } from "@/hooks/use-toast";
 
 interface EmergencyContact {
   name: string;
@@ -105,6 +108,7 @@ function EmployeeProfileContent() {
   const router = useRouter();
   const id = params.id as string;
   const { profile, loading: profileLoading } = useUserProfile();
+  const { toast } = useToast();
 
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
@@ -128,7 +132,6 @@ function EmployeeProfileContent() {
           if (docSnap.exists()) {
             const employeeData = { id: docSnap.id, ...docSnap.data() } as Employee;
             setEmployee(employeeData);
-            // After fetching employee, fetch their logs and leaves
             fetchAttendanceLogs(employeeData.email);
             fetchLeaveRequests(employeeData.id);
           } else {
@@ -145,7 +148,6 @@ function EmployeeProfileContent() {
       const fetchAttendanceLogs = async (employeeEmail: string) => {
         setLoadingLogs(true);
         try {
-          // Query all attendance logs for the employee's email, ordered by time
           const logsQuery = query(
             collection(db, 'attendance_log'),
             where('email', '==', employeeEmail),
@@ -164,7 +166,6 @@ function EmployeeProfileContent() {
       const fetchLeaveRequests = async (employeeDocId: string) => {
         setLoadingLeaves(true);
         try {
-          // Remove the orderBy clause to avoid needing a composite index
           const leavesQuery = query(
             collection(db, 'leaveRequests'),
             where('requestingEmployeeDocId', '==', employeeDocId)
@@ -172,7 +173,6 @@ function EmployeeProfileContent() {
           const querySnapshot = await getDocs(leavesQuery);
           const leaves = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequest));
           
-          // Sort the results in the client
           leaves.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
 
           setLeaveRequests(leaves);
@@ -186,13 +186,78 @@ function EmployeeProfileContent() {
       fetchEmployeeData();
     }
   }, [id]);
-
+  
   const getInitials = (name?: string | null) => {
     if (!name) return "U";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
   
   const canView = !profileLoading && profile;
+
+  const handleExportPDF = async () => {
+    if (!employee) return;
+    toast({ title: 'Generating PDF...', description: 'Please wait while the PDF is being created.' });
+
+    const doc = new jsPDF();
+    
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Employee Profile`, 105, 20, { align: "center" });
+
+    // Add Image
+    if (employee.photoURL) {
+      try {
+        const response = await fetch(employee.photoURL);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        await new Promise<void>((resolve, reject) => {
+          reader.onload = () => {
+            doc.addImage(reader.result as string, 'JPEG', 15, 30, 40, 40);
+            resolve();
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) {
+        console.error("Error adding image to PDF:", e);
+      }
+    }
+
+    doc.setFontSize(18);
+    doc.text(employee.name, 65, 40);
+    doc.setFontSize(12);
+    doc.setTextColor(100);
+    doc.text(employee.role, 65, 48);
+
+    const tableData = [
+      ['Employee ID', employee.employeeId],
+      ['Work Email', employee.email],
+      ['Personal Email', employee.personalEmail || '-'],
+      ['Phone', employee.phone],
+      ['Department', employee.department],
+      ['Campus', employee.campus],
+      ['Stage', employee.stage || '-'],
+      ['Subject', employee.subject || '-'],
+      ['Joining Date', employee.joiningDate ? format(employee.joiningDate.toDate(), 'PPP') : '-'],
+      ['Date of Birth', employee.dateOfBirth ? format(employee.dateOfBirth.toDate(), 'PPP') : '-'],
+      ['Gender', employee.gender || '-'],
+      ['National ID', employee.nationalId || '-'],
+      ['Religion', employee.religion || '-'],
+      ['Emergency Contact', employee.emergencyContact ? `${employee.emergencyContact.name} (${employee.emergencyContact.relationship})` : '-'],
+      ['Emergency Number', employee.emergencyContact?.number || '-'],
+    ];
+
+    autoTable(doc, {
+      startY: 80,
+      head: [['Attribute', 'Information']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [44, 58, 71] },
+    });
+    
+    doc.save(`Profile_${employee.name.replace(/\s/g, '_')}.pdf`);
+  };
+
 
   if (loading || profileLoading) {
     return (
@@ -253,7 +318,6 @@ function EmployeeProfileContent() {
                   </div>
               </CardHeader>
               <CardContent className="p-6">
-                {/* Work Information */}
                 <h3 className="text-lg font-semibold flex items-center mb-4"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                    <DetailItem icon={Mail} label="NIS Email" value={employee.email} />
@@ -272,7 +336,6 @@ function EmployeeProfileContent() {
                 
                 <Separator className="my-6" />
 
-                {/* Personal Information */}
                 <h3 className="text-lg font-semibold flex items-center mb-4"><UserCircle className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                    <DetailItem icon={MailWarning} label="Personal Email" value={employee.personalEmail} />
@@ -285,7 +348,6 @@ function EmployeeProfileContent() {
 
                 <Separator className="my-6" />
                 
-                {/* Emergency Contact */}
                 <h3 className="text-lg font-semibold flex items-center mb-4"><PhoneCall className="mr-2 h-5 w-5 text-primary" />Emergency Contact</h3>
                 {employee.emergencyContact ? (
                    <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-4">
@@ -298,6 +360,18 @@ function EmployeeProfileContent() {
                 )}
 
               </CardContent>
+            </Card>
+
+            <Card className="shadow-lg">
+                <CardHeader>
+                    <CardTitle>Actions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Button onClick={handleExportPDF}>
+                        <FileDown className="mr-2 h-4 w-4" />
+                        Export Profile to PDF
+                    </Button>
+                </CardContent>
             </Card>
 
             {(employee.documents && employee.documents.length > 0) && (
