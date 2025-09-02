@@ -29,7 +29,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown } from "lucide-react";
-import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
   updateEmployeeAction, type UpdateEmployeeState, 
@@ -845,7 +845,8 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
 function EmployeeManagementContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const [searchTerm, setSearchTerm] = useState("");
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]); // New state for holding all employees for search
+  const [paginatedEmployees, setPaginatedEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const { toast } = useToast();
@@ -901,10 +902,11 @@ function EmployeeManagementContent() {
   const isPrincipalView = useMemo(() => profile?.role?.toLowerCase() === 'principal', [profile]);
   const isFiltered = useMemo(() => campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All" || genderFilter !== "All", [campusFilter, stageFilter, subjectFilter, genderFilter]);
 
-  const fetchEmployees = async (page: 'first' | 'next' | 'prev' = 'first') => {
+  const fetchEmployees = useCallback(async (page: 'first' | 'next' | 'prev' = 'first', forSearch = false) => {
     if (!hasFullView) {
       setIsLoading(false);
-      setEmployees([]);
+      setPaginatedEmployees([]);
+      setAllEmployees([]);
       setTotalEmployees(0);
       return;
     }
@@ -919,18 +921,10 @@ function EmployeeManagementContent() {
       if (isPrincipal && profile?.stage) {
         queryConstraints.push(where("stage", "==", profile.stage));
       } else {
-        if (campusFilter !== "All") {
-          queryConstraints.push(where("campus", "==", campusFilter));
-        }
-        if (stageFilter !== "All") {
-          queryConstraints.push(where("stage", "==", stageFilter));
-        }
-        if (subjectFilter !== "All") {
-          queryConstraints.push(where("subject", "==", subjectFilter));
-        }
-        if (genderFilter !== "All") {
-          queryConstraints.push(where("gender", "==", genderFilter));
-        }
+        if (campusFilter !== "All") queryConstraints.push(where("campus", "==", campusFilter));
+        if (stageFilter !== "All") queryConstraints.push(where("stage", "==", stageFilter));
+        if (subjectFilter !== "All") queryConstraints.push(where("subject", "==", subjectFilter));
+        if (genderFilter !== "All") queryConstraints.push(where("gender", "==", genderFilter));
       }
       
       const isFilteredOrPrincipalView = isFiltered || isPrincipal;
@@ -940,7 +934,7 @@ function EmployeeManagementContent() {
       }
 
       let q;
-      const isPaginated = !isFilteredOrPrincipalView;
+      const isPaginated = !isFilteredOrPrincipalView && !forSearch;
 
       if (isPaginated) {
         if (page === 'first') {
@@ -954,19 +948,24 @@ function EmployeeManagementContent() {
           return;
         }
       } else {
+        // If searching or filtering, fetch all matching documents without pagination
         q = query(employeeCollection, ...queryConstraints);
       }
 
       const documentSnapshots = await getDocs(q);
       let employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
       
-      if (isFilteredOrPrincipalView) {
+      if (isFilteredOrPrincipalView && !forSearch) {
         employeeData.sort((a, b) => a.name.localeCompare(b.name));
       }
       
+      if (forSearch) {
+        setAllEmployees(employeeData); // Store all employees for client-side search
+      } else {
+        setPaginatedEmployees(employeeData);
+      }
+      
       if (!documentSnapshots.empty) {
-        setEmployees(employeeData);
-
         if (isPaginated) {
             setFirstVisible(documentSnapshots.docs[0]);
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
@@ -976,18 +975,17 @@ function EmployeeManagementContent() {
             const nextSnapshot = await getDocs(nextQuery);
             setIsLastPage(nextSnapshot.empty);
         }
-
       } else {
          if (isPaginated && page === 'next') {
             setIsLastPage(true);
          } else if (page === 'first' || page === 'prev') {
-            setEmployees([]);
+            setPaginatedEmployees([]);
             setFirstVisible(null);
             setLastVisible(null);
             setIsLastPage(true);
          }
-         if (isFilteredOrPrincipalView) {
-            setEmployees([]);
+         if (isFilteredOrPrincipalView || forSearch) {
+            setPaginatedEmployees([]);
          }
       }
     } catch (error) {
@@ -1000,7 +998,7 @@ function EmployeeManagementContent() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [hasFullView, profile, campusFilter, stageFilter, subjectFilter, genderFilter, isFiltered, firstVisible, lastVisible, toast]);
   
   useEffect(() => {
     if(isLoadingProfile) return;
@@ -1010,7 +1008,14 @@ function EmployeeManagementContent() {
         setFirstVisible(null);
         setLastVisible(null);
         
-        fetchEmployees('first');
+        // Decide whether to fetch for search or for paginated view
+        if (searchTerm.trim()) {
+            fetchEmployees('first', true); // Fetch all for searching
+            setPaginatedEmployees([]); // Clear paginated view
+        } else {
+            fetchEmployees('first', false); // Fetch first page
+            setAllEmployees([]); // Clear search list
+        }
 
         const employeeCollection = collection(db, "employee");
         let countQuery;
@@ -1032,7 +1037,7 @@ function EmployeeManagementContent() {
         }).catch(() => setTotalEmployees(0));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter, subjectFilter, genderFilter]);
+  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter, subjectFilter, genderFilter, searchTerm]);
   
   const goToNextPage = () => {
     if (isLastPage) return;
@@ -1119,14 +1124,14 @@ function EmployeeManagementContent() {
   }, [changePasswordServerState, toast]);
   
   const filteredEmployees = useMemo(() => {
-    let employeesToList = employees;
+    const listToFilter = searchTerm.trim() ? allEmployees : paginatedEmployees;
     
-    // Client-side Search term filter
     const lowercasedFilter = searchTerm.toLowerCase();
     if (!searchTerm.trim()) {
-      return employeesToList;
+      return listToFilter; // Return paginated or all (if no search)
     }
-    return employeesToList.filter(employee => {
+    
+    return listToFilter.filter(employee => {
         const searchableFields = [
             employee.name,
             employee.department,
@@ -1141,7 +1146,7 @@ function EmployeeManagementContent() {
             typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
         );
     });
-  }, [employees, searchTerm]);
+  }, [allEmployees, paginatedEmployees, searchTerm]);
 
 
   const openEditDialog = (employee: Employee) => {
@@ -1202,13 +1207,15 @@ function EmployeeManagementContent() {
   };
 
   const handleExportExcel = () => {
-    if (filteredEmployees.length === 0) {
-      toast({
-        title: "No Data",
-        description: "There are no employees to export in the current view.",
-        variant: "destructive",
-      });
-      return;
+    const dataToExport = searchTerm ? filteredEmployees : allEmployees.length > 0 ? allEmployees : paginatedEmployees;
+
+    if (dataToExport.length === 0) {
+        toast({
+            title: "No Data",
+            description: "There are no employees to export in the current view. Clear search/filters or wait for data to load.",
+            variant: "destructive",
+        });
+        return;
     }
 
     const headers = [
@@ -1219,7 +1226,7 @@ function EmployeeManagementContent() {
       "reportLine2", "subject"
     ];
     
-    const data = filteredEmployees.map(emp => ({
+    const data = dataToExport.map(emp => ({
       name: emp.name || "-",
       personalEmail: emp.personalEmail || "-",
       phone: emp.phone || "-",
@@ -1465,7 +1472,7 @@ function EmployeeManagementContent() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={canManageEmployees ? 7 : 6} className="h-24 text-center">
-                    {searchTerm ? "No employees found matching your search." : (campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All" || genderFilter !== "All") ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
+                    {searchTerm ? "No employees found matching your search." : (isFiltered) ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
                   </TableCell>
                 </TableRow>
               )}
@@ -1473,7 +1480,7 @@ function EmployeeManagementContent() {
           </Table>
           )}
         </CardContent>
-        {(!isFiltered && !isPrincipalView) && (
+        {(!isFiltered && !isPrincipalView && !searchTerm.trim()) && (
             <CardContent>
             <div className="flex items-center justify-end space-x-2 py-4">
                 <Button
