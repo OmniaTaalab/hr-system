@@ -19,7 +19,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 interface Employee {
   id: string;
@@ -218,10 +218,12 @@ function DashboardPageContent() {
         const lastLogSnapshot = await getDocs(lastLogQuery);
 
         if (!lastLogSnapshot.empty) {
-          const lastAttendanceDate = lastLogSnapshot.docs[0].data().date;
-          setLastAttendanceDate(format(lastAttendanceDate.toDate(), 'PPP'));
+          const lastAttendanceDateString = lastLogSnapshot.docs[0].data().date as string;
+          // The date is a string like "YYYY-MM-DD", parse it to a Date object for formatting.
+          const dateObject = parseISO(lastAttendanceDateString);
+          setLastAttendanceDate(format(dateObject, 'PPP'));
           
-          const attendanceOnDateQuery = query(collection(db, "attendance_log"), where("date", "==", lastAttendanceDate));
+          const attendanceOnDateQuery = query(collection(db, "attendance_log"), where("date", "==", lastAttendanceDateString));
           const attendanceSnapshot = await getDocs(attendanceOnDateQuery);
           
           const uniqueUserIds = new Set(attendanceSnapshot.docs.map(doc => doc.data().userId));
