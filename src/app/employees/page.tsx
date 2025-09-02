@@ -809,6 +809,7 @@ function EmployeeManagementContent() {
   const [campusFilter, setCampusFilter] = useState("All");
   const [stageFilter, setStageFilter] = useState("All");
   const [subjectFilter, setSubjectFilter] = useState("All");
+  const [genderFilter, setGenderFilter] = useState("All");
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -854,7 +855,7 @@ function EmployeeManagementContent() {
   }, [profile]);
 
   const isPrincipalView = useMemo(() => profile?.role?.toLowerCase() === 'principal', [profile]);
-  const isFiltered = useMemo(() => campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All", [campusFilter, stageFilter, subjectFilter]);
+  const isFiltered = useMemo(() => campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All" || genderFilter !== "All", [campusFilter, stageFilter, subjectFilter, genderFilter]);
 
   const fetchEmployees = async (page: 'first' | 'next' | 'prev' = 'first') => {
     if (!hasFullView) {
@@ -882,6 +883,9 @@ function EmployeeManagementContent() {
         }
         if (subjectFilter !== "All") {
           queryConstraints.push(where("subject", "==", subjectFilter));
+        }
+        if (genderFilter !== "All") {
+          queryConstraints.push(where("gender", "==", genderFilter));
         }
       }
       
@@ -974,6 +978,7 @@ function EmployeeManagementContent() {
              if (campusFilter !== 'All') countFilters.push(where("campus", "==", campusFilter));
              if (stageFilter !== 'All') countFilters.push(where("stage", "==", stageFilter));
              if (subjectFilter !== 'All') countFilters.push(where("subject", "==", subjectFilter));
+             if (genderFilter !== 'All') countFilters.push(where("gender", "==", genderFilter));
         }
         
         countQuery = query(employeeCollection, ...countFilters);
@@ -983,7 +988,7 @@ function EmployeeManagementContent() {
         }).catch(() => setTotalEmployees(0));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter, subjectFilter]);
+  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter, subjectFilter, genderFilter]);
   
   const goToNextPage = () => {
     if (isLastPage) return;
@@ -1219,6 +1224,16 @@ function EmployeeManagementContent() {
                             {subjects.map(subject => <SelectItem key={subject.id} value={subject.name}>{subject.name}</SelectItem>)}
                         </SelectContent>
                     </Select>
+                     <Select value={genderFilter} onValueChange={setGenderFilter}>
+                        <SelectTrigger className="w-full sm:w-[150px]">
+                            <SelectValue placeholder="Filter by gender..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="All">All Genders</SelectItem>
+                            <SelectItem value="Male">Male</SelectItem>
+                            <SelectItem value="Female">Female</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
             {isLoadingProfile ? (
@@ -1341,7 +1356,7 @@ function EmployeeManagementContent() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={canManageEmployees ? 7 : 6} className="h-24 text-center">
-                    {searchTerm ? "No employees found matching your search." : (campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All") ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
+                    {searchTerm ? "No employees found matching your search." : (campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All" || genderFilter !== "All") ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
                   </TableCell>
                 </TableRow>
               )}
