@@ -4,12 +4,12 @@
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Loader2, CalendarCheck2 } from "lucide-react";
+import { ArrowRight, Loader2, CalendarCheck2, Briefcase } from "lucide-react";
 import Link from "next/link";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useMemo } from "react";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, query, where, getCountFromServer, Timestamp, orderBy, QueryConstraint } from 'firebase/firestore';
+import { collection, getDocs, query, where, getCountFromServer, Timestamp, orderBy, QueryConstraint, limit } from 'firebase/firestore';
 import type { Timestamp as FirebaseTimestamp } from 'firebase/firestore';
 import {
   ChartContainer,
@@ -110,7 +110,8 @@ const chartConfig = {
 
 function DashboardPageContent() {
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
-  const [activeEmployees, setActiveEmployees] = useState<number | null>(null);
+  const [todaysAttendance, setTodaysAttendance] = useState<number | null>(null);
+  const [lastAttendanceDate, setLastAttendanceDate] = useState<string | null>(null);
   const [pendingLeaveRequests, setPendingLeaveRequests] = useState<number | null>(null);
   const [approvedLeaveRequests, setApprovedLeaveRequests] = useState<number | null>(null);
   const [rejectedLeaveRequests, setRejectedLeaveRequests] = useState<number | null>(null);
@@ -119,7 +120,7 @@ function DashboardPageContent() {
 
 
   const [isLoadingTotalEmp, setIsLoadingTotalEmp] = useState(true);
-  const [isLoadingActiveEmp, setIsLoadingActiveEmp] = useState(true);
+  const [isLoadingTodaysAttendance, setIsLoadingTodaysAttendance] = useState(true);
   const [isLoadingPendingLeaves, setIsLoadingPendingLeaves] = useState(true);
   const [isLoadingApprovedLeaves, setIsLoadingApprovedLeaves] = useState(true);
   const [isLoadingRejectedLeaves, setIsLoadingRejectedLeaves] = useState(true);
@@ -135,7 +136,6 @@ function DashboardPageContent() {
     const fetchCounts = async () => {
       const userRole = profile?.role?.toLowerCase();
       
-      // Total Employees based on role
       setIsLoadingTotalEmp(true);
       try {
         let empQuery;
@@ -153,7 +153,7 @@ function DashboardPageContent() {
             const empSnapshot = await getCountFromServer(empQuery);
             setTotalEmployees(empSnapshot.data().count);
         } else {
-          setTotalEmployees(0); // Regular user sees 0 employees on management page
+          setTotalEmployees(0);
         }
       } catch (error) {
         console.error("Error fetching total employees count:", error);
@@ -162,19 +162,6 @@ function DashboardPageContent() {
         setIsLoadingTotalEmp(false);
       }
 
-      // Active Employees (Global for now, can be role-based if needed)
-      try {
-        const activeEmpQuery = query(collection(db, "employee"), where("status", "==", "Active"));
-        const activeEmpSnapshot = await getCountFromServer(activeEmpQuery);
-        setActiveEmployees(activeEmpSnapshot.data().count);
-      } catch (error) {
-        console.error("Error fetching active employees count:", error);
-        setActiveEmployees(0);
-      } finally {
-        setIsLoadingActiveEmp(false);
-      }
-
-      // Role-based Leave Request Counts
       setIsLoadingPendingLeaves(true);
       setIsLoadingApprovedLeaves(true);
       setIsLoadingRejectedLeaves(true);
@@ -190,17 +177,14 @@ function DashboardPageContent() {
           if (employeeIdsInStage.length > 0) {
             baseLeaveQueryConstraints.push(where("requestingEmployeeDocId", "in", employeeIdsInStage));
           } else {
-            // Principal with no employees in stage, set counts to 0 and return
             setPendingLeaveRequests(0);
             setApprovedLeaveRequests(0);
             setRejectedLeaveRequests(0);
             return;
           }
         } else if (userRole !== 'admin' && userRole !== 'hr' && profile?.id) {
-          // Regular user
           baseLeaveQueryConstraints.push(where("requestingEmployeeDocId", "==", profile.id));
         }
-        // Admins/HR have no constraints, see all
 
         const pendingQuery = query(leaveRequestsCollection, ...baseLeaveQueryConstraints, where("status", "==", "Pending"));
         const approvedQuery = query(leaveRequestsCollection, ...baseLeaveQueryConstraints, where("status", "==", "Approved"));
@@ -227,7 +211,35 @@ function DashboardPageContent() {
       }
     };
 
+    const fetchLastDayAttendance = async () => {
+      setIsLoadingTodaysAttendance(true);
+      try {
+        const lastLogQuery = query(collection(db, "attendance_log"), orderBy("date", "desc"), limit(1));
+        const lastLogSnapshot = await getDocs(lastLogQuery);
+
+        if (!lastLogSnapshot.empty) {
+          const lastAttendanceDate = lastLogSnapshot.docs[0].data().date;
+          setLastAttendanceDate(format(lastAttendanceDate.toDate(), 'PPP'));
+          
+          const attendanceOnDateQuery = query(collection(db, "attendance_log"), where("date", "==", lastAttendanceDate));
+          const attendanceSnapshot = await getDocs(attendanceOnDateQuery);
+          
+          const uniqueUserIds = new Set(attendanceSnapshot.docs.map(doc => doc.data().userId));
+          setTodaysAttendance(uniqueUserIds.size);
+        } else {
+          setTodaysAttendance(0);
+          setLastAttendanceDate(null);
+        }
+      } catch (error) {
+        console.error("Error fetching today's attendance:", error);
+        setTodaysAttendance(0);
+      } finally {
+        setIsLoadingTodaysAttendance(false);
+      }
+    };
+    
     const fetchCampusData = async () => {
+        setIsLoadingCampusData(true);
       try {
         const empCol = collection(db, "employee");
         const empDocsSnapshot = await getDocs(empCol);
@@ -249,9 +261,10 @@ function DashboardPageContent() {
     };
 
     const fetchHolidays = async () => {
+        setIsLoadingHolidays(true);
       try {
         const today = new Date();
-        today.setHours(0, 0, 0, 0); // Start of today for comparison
+        today.setHours(0, 0, 0, 0); 
         const holidaysQuery = query(
           collection(db, "holidays"),
           where("date", ">=", Timestamp.fromDate(today)),
@@ -270,6 +283,7 @@ function DashboardPageContent() {
 
 
     fetchCounts();
+    fetchLastDayAttendance();
     fetchCampusData();
     fetchHolidays();
   }, [profile, isLoadingProfile]);
@@ -284,12 +298,13 @@ function DashboardPageContent() {
       linkText: "Manage Employees",
     },
     {
-      title: "Active Employees",
-      iconName: "UserCheck",
-      statistic: activeEmployees ?? 0,
-      isLoadingStatistic: isLoadingActiveEmp,
-      href: "/employees",
-      linkText: "View Active",
+      title: "Today's Attendance",
+      iconName: "Briefcase",
+      statistic: todaysAttendance ?? 0,
+      statisticLabel: lastAttendanceDate ? `As of ${lastAttendanceDate}` : 'No attendance data',
+      isLoadingStatistic: isLoadingTodaysAttendance,
+      href: "/attendance-logs",
+      linkText: "View Attendance Logs",
     },
     {
       title: "Pending Leaves",
