@@ -105,9 +105,6 @@ function AttendanceLogsContent() {
         } else if (page === 'prev' && firstVisible) {
             queryConstraints.push(endBefore(firstVisible), limitToLast(PAGE_SIZE));
         }
-      } else {
-        // If filtering by date, you might want to order by check-in time
-        queryConstraints.push(orderBy("check_in", "asc"));
       }
 
 
@@ -116,6 +113,11 @@ function AttendanceLogsContent() {
       const logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
 
       if (!documentSnapshots.empty) {
+        // If filtering by date, sort client-side as we removed the orderBy("check_in") from the query
+        if (selectedDate) {
+            logsData.sort((a, b) => (a.check_in || "23:59").localeCompare(b.check_in || "23:59"));
+        }
+        
         setAllLogs(logsData);
         
         if (!selectedDate) {
