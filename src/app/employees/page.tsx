@@ -845,7 +845,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
 function EmployeeManagementContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const [searchTerm, setSearchTerm] = useState("");
-  const [allEmployees, setAllEmployees] = useState<Employee[]>([]); // New state for holding all employees for search
   const [paginatedEmployees, setPaginatedEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
@@ -902,11 +901,10 @@ function EmployeeManagementContent() {
   const isPrincipalView = useMemo(() => profile?.role?.toLowerCase() === 'principal', [profile]);
   const isFiltered = useMemo(() => campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All" || genderFilter !== "All", [campusFilter, stageFilter, subjectFilter, genderFilter]);
 
-  const fetchEmployees = useCallback(async (page: 'first' | 'next' | 'prev' = 'first', forSearch = false) => {
+  const fetchEmployees = useCallback(async (page: 'first' | 'next' | 'prev' = 'first') => {
     if (!hasFullView) {
       setIsLoading(false);
       setPaginatedEmployees([]);
-      setAllEmployees([]);
       setTotalEmployees(0);
       return;
     }
@@ -934,7 +932,7 @@ function EmployeeManagementContent() {
       }
 
       let q;
-      const isPaginated = !isFilteredOrPrincipalView && !forSearch;
+      const isPaginated = !isFilteredOrPrincipalView;
 
       if (isPaginated) {
         if (page === 'first') {
@@ -948,22 +946,17 @@ function EmployeeManagementContent() {
           return;
         }
       } else {
-        // If searching or filtering, fetch all matching documents without pagination
         q = query(employeeCollection, ...queryConstraints);
       }
 
       const documentSnapshots = await getDocs(q);
       let employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
       
-      if (isFilteredOrPrincipalView && !forSearch) {
+      if (isFilteredOrPrincipalView) {
         employeeData.sort((a, b) => a.name.localeCompare(b.name));
       }
       
-      if (forSearch) {
-        setAllEmployees(employeeData); // Store all employees for client-side search
-      } else {
-        setPaginatedEmployees(employeeData);
-      }
+      setPaginatedEmployees(employeeData);
       
       if (!documentSnapshots.empty) {
         if (isPaginated) {
@@ -984,7 +977,7 @@ function EmployeeManagementContent() {
             setLastVisible(null);
             setIsLastPage(true);
          }
-         if (isFilteredOrPrincipalView || forSearch) {
+         if (isFilteredOrPrincipalView) {
             setPaginatedEmployees([]);
          }
       }
@@ -1008,14 +1001,7 @@ function EmployeeManagementContent() {
         setFirstVisible(null);
         setLastVisible(null);
         
-        // Decide whether to fetch for search or for paginated view
-        if (searchTerm.trim()) {
-            fetchEmployees('first', true); // Fetch all for searching
-            setPaginatedEmployees([]); // Clear paginated view
-        } else {
-            fetchEmployees('first', false); // Fetch first page
-            setAllEmployees([]); // Clear search list
-        }
+        fetchEmployees('first');
 
         const employeeCollection = collection(db, "employee");
         let countQuery;
@@ -1037,7 +1023,7 @@ function EmployeeManagementContent() {
         }).catch(() => setTotalEmployees(0));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter, subjectFilter, genderFilter, searchTerm]);
+  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter, subjectFilter, genderFilter]);
   
   const goToNextPage = () => {
     if (isLastPage) return;
@@ -1124,11 +1110,11 @@ function EmployeeManagementContent() {
   }, [changePasswordServerState, toast]);
   
   const filteredEmployees = useMemo(() => {
-    const listToFilter = searchTerm.trim() ? allEmployees : paginatedEmployees;
+    const listToFilter = paginatedEmployees;
     
     const lowercasedFilter = searchTerm.toLowerCase();
     if (!searchTerm.trim()) {
-      return listToFilter; // Return paginated or all (if no search)
+      return listToFilter;
     }
     
     return listToFilter.filter(employee => {
@@ -1146,7 +1132,7 @@ function EmployeeManagementContent() {
             typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
         );
     });
-  }, [allEmployees, paginatedEmployees, searchTerm]);
+  }, [paginatedEmployees, searchTerm]);
 
 
   const openEditDialog = (employee: Employee) => {
@@ -1207,7 +1193,7 @@ function EmployeeManagementContent() {
   };
 
   const handleExportExcel = () => {
-    const dataToExport = searchTerm ? filteredEmployees : allEmployees.length > 0 ? allEmployees : paginatedEmployees;
+    const dataToExport = filteredEmployees;
 
     if (dataToExport.length === 0) {
         toast({
@@ -1480,7 +1466,7 @@ function EmployeeManagementContent() {
           </Table>
           )}
         </CardContent>
-        {(!isFiltered && !isPrincipalView && !searchTerm.trim()) && (
+        {(!isFiltered && !isPrincipalView) && (
             <CardContent>
             <div className="flex items-center justify-end space-x-2 py-4">
                 <Button
