@@ -148,16 +148,25 @@ function EmployeeProfileContent() {
       const fetchAttendanceLogs = async (employeeEmail: string) => {
         setLoadingLogs(true);
         try {
+          // Remove orderBy from the query to avoid needing a composite index
           const logsQuery = query(
             collection(db, 'attendance_log'),
-            where('email', '==', employeeEmail),
-            orderBy('check_time', 'desc') 
+            where('email', '==', employeeEmail)
           );
           const querySnapshot = await getDocs(logsQuery);
-          const logs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
+          let logs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
+          
+          // Sort logs on the client-side
+          logs.sort((a, b) => b.check_time.localeCompare(a.check_time));
+
           setAttendanceLogs(logs);
         } catch (e) {
           console.error("Error fetching attendance logs:", e);
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not load attendance history.",
+          });
         } finally {
           setLoadingLogs(false);
         }
@@ -185,7 +194,7 @@ function EmployeeProfileContent() {
 
       fetchEmployeeData();
     }
-  }, [id]);
+  }, [id, toast]);
   
   const getInitials = (name?: string | null) => {
     if (!name) return "U";
