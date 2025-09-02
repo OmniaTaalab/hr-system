@@ -1200,74 +1200,74 @@ function EmployeeManagementContent() {
 
       <Card className="shadow-lg">
         <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex-1 flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-grow">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+               <div className="relative flex-grow w-full">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Search employees..."
+                  placeholder="Search employees by name, role, department, etc..."
                   className="w-full pl-10"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-               <div className="flex flex-col sm:flex-row items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground hidden sm:block"/>
-                    <Select value={campusFilter} onValueChange={setCampusFilter} disabled={isLoadingLists}>
-                        <SelectTrigger className="w-full sm:w-[150px]">
-                            <SelectValue placeholder="Filter by campus..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="All">All Campuses</SelectItem>
-                            {campuses.map(campus => <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                     <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists}>
-                        <SelectTrigger className="w-full sm:w-[150px]">
-                            <SelectValue placeholder="Filter by stage..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="All">All Stages</SelectItem>
-                            {stages.map(stage => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                    <Select value={subjectFilter} onValueChange={setSubjectFilter} disabled={isLoadingLists}>
-                        <SelectTrigger className="w-full sm:w-[150px]">
-                            <SelectValue placeholder="Filter by subject..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="All">All Subjects</SelectItem>
-                            {subjects.map(subject => <SelectItem key={subject.id} value={subject.name}>{subject.name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                     <Select value={genderFilter} onValueChange={setGenderFilter}>
-                        <SelectTrigger className="w-full sm:w-[150px]">
-                            <SelectValue placeholder="Filter by gender..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="All">All Genders</SelectItem>
-                            <SelectItem value="Male">Male</SelectItem>
-                            <SelectItem value="Female">Female</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
+              {isLoadingProfile ? (
+                  <Skeleton className="h-10 w-[190px]" />
+              ) : canManageEmployees && (
+                  <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="w-full sm:w-auto">
+                          <PlusCircle className="mr-2 h-4 w-4" />
+                          Add New Employee
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-3xl">
+                      <AddEmployeeFormContent onSuccess={() => setIsAddDialogOpen(false)} />
+                    </DialogContent>
+                  </Dialog>
+              )}
             </div>
-            {isLoadingProfile ? (
-              <Skeleton className="h-10 w-[190px]" />
-            ) : canManageEmployees && (
-                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                  <DialogTrigger asChild>
-                     <Button>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Add New Employee
-                      </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-3xl">
-                    <AddEmployeeFormContent onSuccess={() => setIsAddDialogOpen(false)} />
-                  </DialogContent>
-                </Dialog>
-            )}
+             <div className="flex flex-col sm:flex-row items-center gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground hidden sm:block"/>
+                  <Select value={campusFilter} onValueChange={setCampusFilter} disabled={isLoadingLists}>
+                      <SelectTrigger className="w-full sm:w-auto flex-1">
+                          <SelectValue placeholder="Filter by campus..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="All">All Campuses</SelectItem>
+                          {campuses.map(campus => <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>)}
+                      </SelectContent>
+                  </Select>
+                    <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists}>
+                      <SelectTrigger className="w-full sm:w-auto flex-1">
+                          <SelectValue placeholder="Filter by stage..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="All">All Stages</SelectItem>
+                          {stages.map(stage => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}
+                      </SelectContent>
+                  </Select>
+                  <Select value={subjectFilter} onValueChange={setSubjectFilter} disabled={isLoadingLists}>
+                      <SelectTrigger className="w-full sm:w-auto flex-1">
+                          <SelectValue placeholder="Filter by subject..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="All">All Subjects</SelectItem>
+                          {subjects.map(subject => <SelectItem key={subject.id} value={subject.name}>{subject.name}</SelectItem>)}
+                      </SelectContent>
+                  </Select>
+                    <Select value={genderFilter} onValueChange={setGenderFilter}>
+                      <SelectTrigger className="w-full sm:w-auto flex-1">
+                          <SelectValue placeholder="Filter by gender..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="All">All Genders</SelectItem>
+                          <SelectItem value="Male">Male</SelectItem>
+                          <SelectItem value="Female">Female</SelectItem>
+                      </SelectContent>
+                  </Select>
+              </div>
           </div>
         </CardHeader>
         <CardContent>
