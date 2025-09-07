@@ -617,28 +617,7 @@ export type BatchCreateEmployeesState = {
     };
 };
 
-const BatchEmployeeRecordSchema = z.object({
-  name: z.any().optional().nullable(),
-  personalEmail: z.any().optional().nullable(),
-  personalPhone: z.any().optional().nullable(),
-  emergencyContactName: z.any().optional().nullable(),
-  emergencyContactRelationship: z.any().optional().nullable(),
-  emergencyContactNumber: z.any().optional().nullable(),
-  dateOfBirth: z.any().optional().nullable(),
-  gender: z.any().optional().nullable(),
-  nationalId: z.any().optional().nullable(),
-  religion: z.any().optional().nullable(),
-  nisEmail: z.any().optional().nullable(),
-  joiningDate: z.any().optional().nullable(),
-  title: z.any().optional().nullable(),
-  department: z.any().optional().nullable(),
-  role: z.any().optional().nullable(),
-  stage: z.any().optional().nullable(),
-  campus: z.any().optional().nullable(),
-  reportLine1: z.any().optional().nullable(),
-  reportLine2: z.any().optional().nullable(),
-  subject: z.any().optional().nullable(),
-});
+const BatchEmployeeRecordSchema = z.record(z.any());
 
 
 export async function batchCreateEmployeesAction(
@@ -679,25 +658,24 @@ export async function batchCreateEmployeesAction(
     const existingEmails = new Set(allExistingEmailsQuery.docs.map(doc => doc.data().email));
 
     for (const record of recordsToProcess) {
-       // Coerce and validate required fields
-      const nisEmail = z.string().email().safeParse(record.nisEmail);
-      const name = z.string().min(1).safeParse(record.name);
+      const nisEmail = String(record.nisEmail || '').trim();
+      const name = String(record.name || '').trim();
 
-      if (!nisEmail.success || !name.success) {
+      if (!nisEmail || !z.string().email().safeParse(nisEmail).success || !name) {
         results.failed++;
-        results.failedEmails.push(String(record.nisEmail || 'N/A'));
+        results.failedEmails.push(nisEmail || 'N/A');
         continue;
       }
 
-      if (existingEmails.has(nisEmail.data)) {
+      if (existingEmails.has(nisEmail)) {
         results.failed++;
-        results.failedEmails.push(nisEmail.data);
+        results.failedEmails.push(nisEmail);
         continue; // Skip this record
       }
 
       currentEmployeeCount++;
       const newEmployeeRef = doc(employeeCollectionRef);
-      const nameParts = name.data.trim().split(/\s+/);
+      const nameParts = name.trim().split(/\s+/);
       
       let dob = null;
       if (record.dateOfBirth) {
@@ -711,7 +689,7 @@ export async function batchCreateEmployeesAction(
       }
 
       const newEmployeeData = {
-        name: name.data,
+        name: name,
         firstName: nameParts[0] || "",
         lastName: nameParts.slice(1).join(' ') || "",
         personalEmail: String(record.personalEmail || ""),
@@ -725,7 +703,7 @@ export async function batchCreateEmployeesAction(
         gender: String(record.gender || ""),
         nationalId: String(record.nationalId || ""),
         religion: String(record.religion || ""),
-        email: nisEmail.data,
+        email: nisEmail,
         joiningDate: jd || serverTimestamp(),
         title: String(record.title || ""),
         department: String(record.department || ""),
@@ -748,7 +726,7 @@ export async function batchCreateEmployeesAction(
       };
 
       batch.set(newEmployeeRef, newEmployeeData);
-      existingEmails.add(nisEmail.data); // Add to set to prevent duplicates within the same batch
+      existingEmails.add(nisEmail); // Add to set to prevent duplicates within the same batch
       results.created++;
     }
 
