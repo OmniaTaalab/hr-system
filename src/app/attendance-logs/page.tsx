@@ -56,10 +56,9 @@ function AttendanceLogsContent() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
-
-  // Moved variable definitions here to be in the component's scope
-  const isMachineFiltered = machineFilter !== "All";
+  
   const isDateFiltered = !!selectedDate;
+  const isMachineFiltered = machineFilter !== "All";
 
   // Fetch unique machines from the new 'machineNames' collection
   useEffect(() => {
@@ -89,24 +88,20 @@ function AttendanceLogsContent() {
       const logsCollection = collection(db, "attendance_log");
       let queryConstraints: QueryConstraint[] = [];
       
-      // Firestore limitation: Cannot have inequality filters on multiple fields.
-      // Prioritize date filter if both are selected.
+      // Always order by date descending.
+      queryConstraints.push(orderBy("date", "desc"));
+
+      // Add filters if they are selected
       if (isDateFiltered) {
         const dateString = format(selectedDate, 'yyyy-MM-dd');
         queryConstraints.push(where("date", "==", dateString));
-        // When filtering by date, we won't filter by machine in the query to avoid needing a composite index.
-        // The machine filter can be applied client-side if needed, or we accept the limitation.
-      } else if (isMachineFiltered) {
+      }
+      if (isMachineFiltered) {
         queryConstraints.push(where("machine", "==", machineFilter));
       }
       
-      // Pagination should only apply when no filters are active to avoid complex queries.
+      // Pagination should only apply when NO filters are active.
       const shouldPaginate = !isMachineFiltered && !isDateFiltered;
-
-      // Order by date when not filtering to use the default index.
-      if (!isMachineFiltered) {
-         queryConstraints.push(orderBy("date", "desc"));
-      }
 
       if (shouldPaginate) {
         if (page === 'first') {
@@ -114,7 +109,9 @@ function AttendanceLogsContent() {
         } else if (page === 'next' && lastVisible) {
             queryConstraints.push(startAfter(lastVisible), limit(PAGE_SIZE));
         } else if (page === 'prev' && firstVisible) {
-            queryConstraints.push(endBefore(firstVisible), limitToLast(PAGE_SIZE));
+            // Firestore does not support endBefore with desc order easily. We will refetch from start for simplicity.
+            // For a real-world app, you might implement more complex cursor logic.
+             queryConstraints = [orderBy("date", "desc"), endBefore(firstVisible), limitToLast(PAGE_SIZE)];
         } else {
              queryConstraints.push(limit(PAGE_SIZE));
         }
@@ -123,36 +120,33 @@ function AttendanceLogsContent() {
       const finalQuery = query(logsCollection, ...queryConstraints);
       const documentSnapshots = await getDocs(finalQuery);
       let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
-
-      // Client-side sort if a machine filter is on, since we can't combine where and orderBy without an index.
-      if (isMachineFiltered && !isDateFiltered) {
-        logsData.sort((a, b) => {
-            const dateCompare = b.date.localeCompare(a.date);
-            if(dateCompare !== 0) return dateCompare;
-            return (b.check_in || "23:59").localeCompare(a.check_in || "23:59");
-        });
+      
+      // For descending queries with limitToLast, Firestore returns in ascending. We need to reverse.
+      if (page === 'prev' && shouldPaginate) {
+          logsData.reverse();
       }
-
 
       if (!documentSnapshots.empty) {
         setAllLogs(logsData);
-        
         if (shouldPaginate) {
             setFirstVisible(documentSnapshots.docs[0]);
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
             
-            const nextPageCheckConstraints = [...queryConstraints.filter(c => c.type !== 'limit' && c.type !== 'limitToLast' && c.type !== 'startAfter' && c.type !== 'endBefore'), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
+            // Check if there's a next page
+            const nextPageCheckConstraints = [orderBy("date", "desc"), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
             const nextQuery = query(logsCollection, ...nextPageCheckConstraints);
-
             const nextSnapshot = await getDocs(nextQuery);
             setIsLastPage(nextSnapshot.empty);
+        } else {
+            // Not paginating, so there is only one page
+            setIsLastPage(true);
         }
       } else {
          setAllLogs([]);
          if (shouldPaginate) {
             setFirstVisible(null);
             setLastVisible(null);
-            setIsLastPage(page === 'first' ? true : isLastPage);
+            setIsLastPage(true);
          }
       }
     } catch (error: any) {
@@ -160,8 +154,9 @@ function AttendanceLogsContent() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Could not load attendance logs. An index might be required in Firestore for the query.",
+        description: "Could not load attendance logs. A composite index might be required in Firestore for this filter combination.",
       });
+      setAllLogs([]);
     } finally {
       setIsLoading(false);
     }
@@ -174,18 +169,22 @@ function AttendanceLogsContent() {
     }
     // Reset to page 1 and fetch logs whenever a filter changes
     setCurrentPage(1);
+    setFirstVisible(null);
+    setLastVisible(null);
     fetchLogs('first');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canViewPage, isLoadingProfile, router, machineFilter, selectedDate]);
 
 
   const goToNextPage = () => {
+    if (isLastPage) return;
     setCurrentPage(prev => prev + 1);
     fetchLogs('next');
   };
 
   const goToPrevPage = () => {
-    setCurrentPage(prev => Math.max(1, prev - 1));
+    if (currentPage <= 1) return;
+    setCurrentPage(prev => prev - 1);
     fetchLogs('prev');
   };
   
