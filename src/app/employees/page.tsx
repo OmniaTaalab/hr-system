@@ -875,19 +875,8 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <form action={deactivateAction}>
-                    {/* Pass all required fields for schema validation, even if not changed */}
                     <input type="hidden" name="employeeDocId" value={employee.id} />
-                    <input type="hidden" name="firstName" value={employee.firstName || employee.name?.split(' ')[0] || ''} />
-                    <input type="hidden" name="lastName" value={employee.lastName || employee.name?.split(' ').slice(1).join(' ') || ''} />
-                    <input type="hidden" name="department" value={employee.department || ''} />
-                    <input type="hidden" name="role" value={employee.role || ''} />
-                    <input type="hidden" name="system" value={employee.system || ''} />
-                    <input type="hidden" name="campus" value={employee.campus || ''} />
-                    <input type="hidden" name="email" value={employee.email || ''} />
-                    <input type="hidden" name="phone" value={employee.phone || ''} />
-                    <input type="hidden" name="dateOfBirth" value={employee.dateOfBirth?.toDate().toISOString() || ''} />
-                    <input type="hidden" name="joiningDate" value={employee.joiningDate?.toDate().toISOString() || ''} />
-                    <input type="hidden" name="deactivate" value="true" /> {/* Signal to the action */}
+                    <input type="hidden" name="deactivate" value="true" />
                     
                     <DialogHeader>
                         <DialogTitle>Deactivate Employee: {employee.name}</DialogTitle>

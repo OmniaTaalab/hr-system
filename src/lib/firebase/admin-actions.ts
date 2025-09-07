@@ -221,14 +221,14 @@ const LeaveBalancesSchema = z.record(z.string(), z.coerce.number().nonnegative("
 // Schema for validating form data for updating an employee
 const UpdateEmployeeFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee document ID is required."), // Firestore document ID
-  firstName: z.string().min(1, "First name is required."),
-  lastName: z.string().min(1, "Last name is required."),
-  department: z.string().min(1, "Department is required."),
-  role: z.string().min(1, "Role is required."),
-  system: z.string().min(1, "System is required."),
-  campus: z.string().min(1, "Campus is required."),
-  email: z.string().email({ message: 'Invalid email address.' }),
-  phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
+  firstName: z.string().min(1, "First name is required.").optional(),
+  lastName: z.string().min(1, "Last name is required.").optional(),
+  department: z.string().min(1, "Department is required.").optional(),
+  role: z.string().min(1, "Role is required.").optional(),
+  system: z.string().min(1, "System is required.").optional(),
+  campus: z.string().min(1, "Campus is required.").optional(),
+  email: z.string().email({ message: 'Invalid email address.' }).optional(),
+  phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers.").optional(),
   hourlyRate: z.preprocess(
     (val) => {
       if (val === '' || val === null || val === undefined) return undefined;
@@ -236,8 +236,8 @@ const UpdateEmployeeFormSchema = z.object({
     },
     z.number().positive({ message: "Hourly rate must be a positive number." }).optional()
   ),
-  dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
-  joiningDate: z.coerce.date({ required_error: "Joining date is required." }),
+  dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }).optional(),
+  joiningDate: z.coerce.date({ required_error: "Joining date is required." }).optional(),
   leavingDate: z.string().optional().nullable(),
   leaveBalancesJson: z.string().optional(), // Receive balances as a JSON string
   gender: z.string().optional(),
@@ -248,8 +248,18 @@ const UpdateEmployeeFormSchema = z.object({
   title: z.string().optional(),
   // For deactivation
   deactivate: z.string().optional(),
-  reasonForLeaving: z.string().min(1, "Reason for leaving is required.").optional(),
+  reasonForLeaving: z.string().optional(),
+}).refine(data => {
+    // If deactivating, reason for leaving must be present.
+    if (data.deactivate === 'true') {
+        return !!data.reasonForLeaving && data.reasonForLeaving.length > 0;
+    }
+    return true;
+}, {
+    message: "Reason for leaving is required for deactivation.",
+    path: ["reasonForLeaving"],
 });
+
 
 export type UpdateEmployeeState = {
   errors?: {
@@ -285,17 +295,17 @@ export async function updateEmployeeAction(
 ): Promise<UpdateEmployeeState> {
   const validatedFields = UpdateEmployeeFormSchema.safeParse({
     employeeDocId: formData.get('employeeDocId'),
-    firstName: formData.get('firstName'),
-    lastName: formData.get('lastName'),
-    department: formData.get('department'),
-    role: formData.get('role'),
-    system: formData.get('system'),
-    campus: formData.get('campus'),
-    email: formData.get('email'),
-    phone: formData.get('phone'),
+    firstName: formData.get('firstName') || undefined,
+    lastName: formData.get('lastName') || undefined,
+    department: formData.get('department') || undefined,
+    role: formData.get('role') || undefined,
+    system: formData.get('system') || undefined,
+    campus: formData.get('campus') || undefined,
+    email: formData.get('email') || undefined,
+    phone: formData.get('phone') || undefined,
     hourlyRate: formData.get('hourlyRate') || undefined,
-    dateOfBirth: formData.get('dateOfBirth'),
-    joiningDate: formData.get('joiningDate'),
+    dateOfBirth: formData.get('dateOfBirth') || undefined,
+    joiningDate: formData.get('joiningDate') || undefined,
     leavingDate: formData.get('leavingDate') || null,
     leaveBalancesJson: formData.get('leaveBalancesJson'),
     gender: formData.get('gender'),
@@ -316,93 +326,64 @@ export async function updateEmployeeAction(
   }
   
   const { 
-    employeeDocId, firstName, lastName, department, role, system, campus, email, phone, hourlyRate,
-    dateOfBirth, joiningDate, leavingDate: leavingDateString, leaveBalancesJson,
-    gender, nationalId, religion, stage, subject, title, deactivate, reasonForLeaving
+    employeeDocId, ...updateData
   } = validatedFields.data;
-
-  // Extra validation if this is a deactivation
-  if (deactivate === 'true') {
-      if (!leavingDateString) {
-          return { errors: { leavingDate: ["Leaving date is required for deactivation."] } };
-      }
-      if (!reasonForLeaving) {
-          return { errors: { reasonForLeaving: ["Reason for leaving is required for deactivation."] } };
-      }
-  }
-
-  const name = `${firstName} ${lastName}`;
-  
-  let leaveBalances = {};
-  if (leaveBalancesJson) {
-      try {
-          const parsedBalances = JSON.parse(leaveBalancesJson);
-          const validatedBalances = LeaveBalancesSchema.safeParse(parsedBalances);
-          if (validatedBalances.success) {
-              leaveBalances = validatedBalances.data;
-          } else {
-              return {
-                  errors: { leaveBalances: ["Invalid leave balance data provided."] },
-                  message: 'Validation failed on leave balances.',
-              };
-          }
-      } catch (e) {
-          return {
-              errors: { leaveBalances: ["Failed to parse leave balance data."] },
-              message: 'Validation failed on leave balances.',
-          };
-      }
-  }
 
 
   try {
     const employeeRef = doc(db, "employee", employeeDocId);
 
-    let finalLeavingDate: Timestamp | null = null;
+    const dataToUpdate: { [key: string]: any } = {};
 
-    if (leavingDateString) {
-      const parsedLeavingDate = new Date(leavingDateString);
-      if (isValid(parsedLeavingDate)) {
-        finalLeavingDate = Timestamp.fromDate(parsedLeavingDate);
-      }
+    // Filter out undefined values so we only update fields that were passed
+    Object.entries(updateData).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+            dataToUpdate[key] = value;
+        }
+    });
+
+    if (updateData.firstName && updateData.lastName) {
+      dataToUpdate.name = `${updateData.firstName} ${updateData.lastName}`;
     }
 
-    const updateData: { [key: string]: any } = {
-      name,
-      firstName,
-      lastName,
-      department,
-      role,
-      stage,
-      system,
-      campus,
-      email,
-      phone,
-      hourlyRate: hourlyRate ?? 0,
-      dateOfBirth: Timestamp.fromDate(dateOfBirth),
-      joiningDate: Timestamp.fromDate(joiningDate),
-      leaveBalances,
-      gender: gender || "",
-      nationalId: nationalId || "",
-      religion: religion || "",
-      subject: subject || "",
-      title: title || "",
-    };
+    if (updateData.dateOfBirth) {
+        dataToUpdate.dateOfBirth = Timestamp.fromDate(updateData.dateOfBirth);
+    }
+     if (updateData.joiningDate) {
+        dataToUpdate.joiningDate = Timestamp.fromDate(updateData.joiningDate);
+    }
 
-    if (deactivate === 'true') {
-        updateData.status = 'Terminated';
-        updateData.leavingDate = finalLeavingDate;
-        updateData.reasonForLeaving = reasonForLeaving;
-    } else {
-        // Ensure leavingDate is only set if not deactivating but provided
-        updateData.leavingDate = finalLeavingDate;
+    if (updateData.leavingDate) {
+        const parsedLeavingDate = new Date(updateData.leavingDate);
+        if (isValid(parsedLeavingDate)) {
+            dataToUpdate.leavingDate = Timestamp.fromDate(parsedLeavingDate);
+        } else {
+            delete dataToUpdate.leavingDate;
+        }
+    }
+
+    if (updateData.leaveBalancesJson) {
+        try {
+            const parsedBalances = JSON.parse(updateData.leaveBalancesJson);
+            const validatedBalances = LeaveBalancesSchema.safeParse(parsedBalances);
+            if (validatedBalances.success) {
+                dataToUpdate.leaveBalances = validatedBalances.data;
+            }
+        } catch (e) { /* ignore parse error */ }
+        delete dataToUpdate.leaveBalancesJson;
     }
     
-    await updateDoc(employeeRef, updateData);
+    if (updateData.deactivate === 'true') {
+        dataToUpdate.status = 'Terminated';
+        // The leavingDate and reasonForLeaving will be in dataToUpdate if they were valid
+    }
+    delete dataToUpdate.deactivate;
     
-    const successMessage = deactivate === 'true' 
-        ? `Employee "${name}" has been deactivated.`
-        : `Employee "${name}" updated successfully.`;
+    await updateDoc(employeeRef, dataToUpdate);
+    
+    const successMessage = updateData.deactivate === 'true' 
+        ? `Employee has been deactivated.`
+        : `Employee details updated successfully.`;
 
     return { message: successMessage };
   } catch (error: any) {
