@@ -96,6 +96,7 @@ function AttendanceLogsContent() {
       }
       
       // Pagination logic should only apply if no date is selected
+      // Sorting is also only applied for pagination purposes.
       if (!selectedDate) {
         queryConstraints.push(orderBy("date", "desc"));
         if (page === 'first') {
@@ -113,7 +114,7 @@ function AttendanceLogsContent() {
       const logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
 
       if (!documentSnapshots.empty) {
-        // If filtering by date, sort client-side as we removed the orderBy("check_in") from the query
+        // If filtering by date, sort client-side as we may not have an orderBy("check_in") from the query
         if (selectedDate) {
             logsData.sort((a, b) => (a.check_in || "23:59").localeCompare(b.check_in || "23:59"));
         }
@@ -124,11 +125,10 @@ function AttendanceLogsContent() {
             setFirstVisible(documentSnapshots.docs[0]);
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
             
-            const nextQueryConstraints = [orderBy("date", "desc"), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
-            if (machineFilter !== "All") {
-              nextQueryConstraints.push(where("machine", "==", machineFilter));
-            }
-            const nextQuery = query(logsCollection, ...nextQueryConstraints);
+            // Re-use query constraints for next page check, but modify the limit and startAfter
+            const nextPageCheckConstraints = [...queryConstraints.filter(c => c.type !== 'limit'), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
+            const nextQuery = query(logsCollection, ...nextPageCheckConstraints);
+
             const nextSnapshot = await getDocs(nextQuery);
             setIsLastPage(nextSnapshot.empty);
         }
