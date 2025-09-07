@@ -160,7 +160,8 @@ function AttendanceLogsContent() {
     // Reset to page 1 and fetch logs whenever a filter changes
     setCurrentPage(1);
     fetchLogs('first');
-  }, [canViewPage, isLoadingProfile, router, machineFilter, selectedDate, fetchLogs]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canViewPage, isLoadingProfile, router, machineFilter, selectedDate]);
 
 
   const goToNextPage = () => {
@@ -376,3 +377,5 @@ export default function AttendanceLogsPage() {
         </AppLayout>
     )
 }
+
+    
