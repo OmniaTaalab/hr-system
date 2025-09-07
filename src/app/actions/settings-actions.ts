@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, doc, Timestamp, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, doc, Timestamp, setDoc, getDoc, updateDoc, writeBatch, limit, startAfter } from 'firebase/firestore';
 
 // --- HOLIDAY SETTINGS ---
 
@@ -227,7 +227,7 @@ export async function getWorkdaySettings(): Promise<{ standardHours: number }> {
 
 // --- ORGANIZATION LISTS (DEPARTMENTS, ROLES, ETC.) ---
 
-const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes", "stage", "subjects"]);
+const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes", "stage", "subjects", "machineNames"]);
 
 const ManageItemSchema = z.object({
   collectionName: collectionNames,
@@ -329,14 +329,33 @@ async function syncListFromSource(
     sourceField: string,
     targetCollection: string
 ): Promise<SyncState> {
+    const BATCH_SIZE = 5000;
     try {
-        // 1. Get all unique values from the source collection
-        const sourceSnapshot = await getDocs(collection(db, sourceCollection));
-        const sourceValues = new Set(
-            sourceSnapshot.docs
-                .map(doc => doc.data()[sourceField])
-                .filter(Boolean) // Filter out any falsy values (null, undefined, '')
-        );
+        const allSourceValues = new Set<string>();
+        let lastVisible = null;
+        let hasMore = true;
+
+        // 1. Get all unique values from the source collection in batches
+        while (hasMore) {
+            let q = query(collection(db, sourceCollection), limit(BATCH_SIZE));
+            if (lastVisible) {
+                q = query(collection(db, sourceCollection), startAfter(lastVisible), limit(BATCH_SIZE));
+            }
+            
+            const sourceSnapshot = await getDocs(q);
+
+            if (sourceSnapshot.empty) {
+                hasMore = false;
+            } else {
+                sourceSnapshot.docs.forEach(doc => {
+                    const value = doc.data()[sourceField];
+                    if (value) {
+                        allSourceValues.add(value);
+                    }
+                });
+                lastVisible = sourceSnapshot.docs[sourceSnapshot.docs.length - 1];
+            }
+        }
 
         // 2. Get all existing names from the target collection
         const targetSnapshot = await getDocs(collection(db, targetCollection));
@@ -345,24 +364,30 @@ async function syncListFromSource(
         );
 
         // 3. Determine which values are new
-        const newValues = [...sourceValues].filter(
+        const newValues = [...allSourceValues].filter(
             name => !existingTargetNames.has(name)
         );
 
         if (newValues.length === 0) {
-            return { success: true, message: `"${targetCollection}" list is already up-to-date.` };
+            return { success: true, message: `The "${targetCollection}" list is already up-to-date.` };
         }
 
-        // 4. Add the new values to the target collection
-        const batch = [];
-        for (const name of newValues) {
-            batch.push(addDoc(collection(db, targetCollection), { name }));
+        // 4. Add the new values to the target collection using batches
+        const batchCommits = [];
+        for (let i = 0; i < newValues.length; i += 500) {
+            const batch = writeBatch(db);
+            const chunk = newValues.slice(i, i + 500);
+            for (const name of chunk) {
+                const newDocRef = doc(collection(db, targetCollection));
+                batch.set(newDocRef, { name });
+            }
+            batchCommits.push(batch.commit());
         }
-        await Promise.all(batch);
+        await Promise.all(batchCommits);
 
         return {
             success: true,
-            message: `Successfully added ${newValues.length} new item(s) to ${targetCollection}.`
+            message: `Successfully added ${newValues.length} new item(s) to the "${targetCollection}" list.`
         };
     } catch (error: any) {
         console.error(`Error syncing to ${targetCollection}:`, error);
