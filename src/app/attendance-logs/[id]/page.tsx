@@ -82,7 +82,7 @@ function UserAttendanceLogContent() {
           return {
               date: date,
               check_in: check_ins[0] || null, // Earliest check-in
-              check_out: check_outs[check_outs.length - 1] || null // Latest check-out
+              check_out: check_outs.length > 0 ? check_outs[check_outs.length - 1] : null, // Latest check-out
           };
       });
       
