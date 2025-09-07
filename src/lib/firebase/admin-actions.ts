@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { adminAuth, adminStorage } from '@/lib/firebase/admin-config';
-import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc, getDoc, writeBatch } from 'firebase/firestore';
 import { isValid } from 'date-fns';
 
 export async function getAllAuthUsers() {
@@ -601,5 +601,146 @@ export async function createEmployeeProfileAction(
       success: false,
       errors: { form: [`Failed to create profile: ${error.message}`] },
     };
+  }
+}
+
+// --- NEW BATCH IMPORT ACTION ---
+
+export type BatchCreateEmployeesState = {
+    success?: boolean;
+    message?: string;
+    errors?: { form?: string[] };
+    results?: {
+        created: number;
+        failed: number;
+        failedEmails: string[];
+    };
+};
+
+const BatchEmployeeRecordSchema = z.object({
+  name: z.string().min(1),
+  personalEmail: z.string().email(),
+  personalPhone: z.string(),
+  emergencyContactName: z.string().optional(),
+  emergencyContactRelationship: z.string().optional(),
+  emergencyContactNumber: z.string().optional(),
+  dateOfBirth: z.coerce.date().optional(),
+  gender: z.string().optional(),
+  nationalId: z.string().optional(),
+  religion: z.string().optional(),
+  nisEmail: z.string().email(),
+  joiningDate: z.coerce.date().optional(),
+  title: z.string().optional(),
+  department: z.string().optional(),
+  role: z.string().optional(),
+  stage: z.string().optional(),
+  campus: z.string().optional(),
+  reportLine1: z.string().optional(),
+  reportLine2: z.string().optional(),
+  subject: z.string().optional(),
+});
+
+
+export async function batchCreateEmployeesAction(
+  prevState: BatchCreateEmployeesState,
+  formData: FormData
+): Promise<BatchCreateEmployeesState> {
+  const recordsJson = formData.get('recordsJson') as string;
+
+  if (!recordsJson) {
+    return { success: false, errors: { form: ["No employee data provided."] } };
+  }
+
+  let parsedRecords;
+  try {
+    parsedRecords = JSON.parse(recordsJson);
+  } catch (e) {
+    return { success: false, errors: { form: ["Invalid data format. Failed to parse JSON."] } };
+  }
+
+  const validationResult = z.array(BatchEmployeeRecordSchema).safeParse(parsedRecords);
+
+  if (!validationResult.success) {
+    console.error(validationResult.error);
+    return { success: false, errors: { form: ["The data in the file is invalid. Please check column names and data types."] } };
+  }
+  
+  const recordsToProcess = validationResult.data;
+  const batch = writeBatch(db);
+  const employeeCollectionRef = collection(db, "employee");
+  
+  const results = { created: 0, failed: 0, failedEmails: [] as string[] };
+  
+  try {
+    const countSnapshot = await getCountFromServer(employeeCollectionRef);
+    let currentEmployeeCount = countSnapshot.data().count;
+
+    const allExistingEmailsQuery = await getDocs(query(employeeCollectionRef, where('email', '!=', null)));
+    const existingEmails = new Set(allExistingEmailsQuery.docs.map(doc => doc.data().email));
+
+    for (const record of recordsToProcess) {
+      if (existingEmails.has(record.nisEmail)) {
+        results.failed++;
+        results.failedEmails.push(record.nisEmail);
+        continue; // Skip this record
+      }
+
+      currentEmployeeCount++;
+      const newEmployeeRef = doc(employeeCollectionRef);
+      const nameParts = record.name.trim().split(/\s+/);
+      
+      const newEmployeeData = {
+        name: record.name,
+        firstName: nameParts[0],
+        lastName: nameParts.slice(1).join(' '),
+        personalEmail: record.personalEmail,
+        phone: String(record.personalPhone),
+        emergencyContact: {
+          name: record.emergencyContactName || "",
+          relationship: record.emergencyContactRelationship || "",
+          number: String(record.emergencyContactNumber || ""),
+        },
+        dateOfBirth: record.dateOfBirth ? Timestamp.fromDate(record.dateOfBirth) : null,
+        gender: record.gender || "",
+        nationalId: String(record.nationalId || ""),
+        religion: record.religion || "",
+        email: record.nisEmail,
+        joiningDate: record.joiningDate ? Timestamp.fromDate(record.joiningDate) : serverTimestamp(),
+        title: record.title || "",
+        department: record.department || "",
+        role: record.role || "",
+        stage: record.stage || "",
+        campus: record.campus || "",
+        reportLine1: record.reportLine1 || "",
+        reportLine2: record.reportLine2 || "",
+        subject: record.subject || "",
+        system: "Unassigned",
+        employeeId: (1001 + currentEmployeeCount).toString(),
+        status: "Active",
+        hourlyRate: 0,
+        leavingDate: null,
+        leaveBalances: {},
+        documents: [],
+        photoURL: null,
+        createdAt: serverTimestamp(),
+        userId: null,
+      };
+
+      batch.set(newEmployeeRef, newEmployeeData);
+      existingEmails.add(record.nisEmail); // Add to set to prevent duplicates within the same batch
+      results.created++;
+    }
+
+    await batch.commit();
+
+    let message = `Successfully created ${results.created} employee(s).`;
+    if (results.failed > 0) {
+      message += ` Failed to create ${results.failed} employee(s) due to duplicate emails: ${results.failedEmails.slice(0, 5).join(", ")}${results.failed > 5 ? '...' : ''}`;
+    }
+
+    return { success: true, message, results };
+  } catch (error: any) {
+    console.error("Batch employee creation error:", error);
+    return { success: false, errors: { form: [`An unexpected error occurred during batch creation: ${error.message}`] } };
   }
 }

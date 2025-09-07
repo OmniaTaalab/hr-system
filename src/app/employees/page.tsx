@@ -29,13 +29,14 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown } from "lucide-react";
-import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback, useTransition } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
   updateEmployeeAction, type UpdateEmployeeState, 
   deleteEmployeeAction, type DeleteEmployeeState,
   createEmployeeAction, type CreateEmployeeState,
-  deactivateEmployeeAction, type DeactivateEmployeeState
+  deactivateEmployeeAction, type DeactivateEmployeeState,
+  batchCreateEmployeesAction, type BatchCreateEmployeesState,
 } from "@/lib/firebase/admin-actions";
 import { 
   createAuthUserForEmployeeAction, type CreateAuthUserState,
@@ -152,6 +153,13 @@ const initialDeactivateState: DeactivateEmployeeState = {
     errors: {},
     success: false,
 };
+
+const initialBatchCreateState: BatchCreateEmployeesState = {
+    message: null,
+    errors: {},
+    success: false,
+};
+
 
 const PAGE_SIZE = 15;
 
@@ -929,6 +937,111 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
     );
 }
 
+// New Component for Importing Employees from Excel
+function ImportEmployeesDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void; }) {
+    const { toast } = useToast();
+    const [file, setFile] = useState<File | null>(null);
+    const [fileError, setFileError] = useState<string | null>(null);
+    const [batchState, batchAction, isBatchPending] = useActionState(batchCreateEmployeesAction, initialBatchCreateState);
+    const [_isTransitionPending, startTransition] = useTransition();
+
+    useEffect(() => {
+        if (batchState.message) {
+            toast({
+                title: batchState.success ? "Import Complete" : "Import Failed",
+                description: batchState.message,
+                variant: batchState.success ? "default" : "destructive",
+                duration: batchState.success ? 8000 : 5000,
+            });
+            if (batchState.success) {
+                onOpenChange(false);
+            }
+        }
+    }, [batchState, toast, onOpenChange]);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = e.target.files?.[0];
+        setFileError(null);
+        if (!selectedFile) {
+            setFile(null);
+            return;
+        }
+        const validTypes = ["application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xls", ".xlsx"];
+        if (!validTypes.some(type => selectedFile.name.endsWith(type) || selectedFile.type === type)) {
+            setFileError("Invalid file type. Please upload an Excel file (.xlsx, .xls).");
+            setFile(null);
+            e.target.value = "";
+            return;
+        }
+        setFile(selectedFile);
+    };
+
+    const handleImportSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!file) {
+            setFileError("Please select a file to import.");
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const data = new Uint8Array(e.target?.result as ArrayBuffer);
+            const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet);
+
+            const formData = new FormData();
+            formData.append('recordsJson', JSON.stringify(json));
+            
+            startTransition(() => {
+                batchAction(formData);
+            });
+        };
+        reader.onerror = () => {
+            toast({ title: "Error reading file", description: "Could not read the selected file.", variant: "destructive" });
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <form onSubmit={handleImportSubmit}>
+                    <DialogHeader>
+                        <DialogTitle>Import Employees from Excel</DialogTitle>
+                        <DialogDescription>
+                            Upload an Excel file with new employee data. The data will be added to the system.
+                            Please use the same headers as the downloaded template.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="import-file">Excel File</Label>
+                            <Input id="import-file" type="file" accept=".xlsx, .xls" onChange={handleFileChange} />
+                            {fileError && <p className="text-sm text-destructive">{fileError}</p>}
+                            {batchState?.errors?.form && <p className="text-sm text-destructive">{batchState.errors.form.join(', ')}</p>}
+                        </div>
+                        {batchState.results && (
+                             <p className="text-sm text-muted-foreground">
+                                {`Created: ${batchState.results.created}, Failed: ${batchState.results.failed}`}
+                            </p>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isBatchPending || !file}>
+                            {isBatchPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Importing...</> : "Import"}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+
+
 function EmployeeManagementContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const [searchTerm, setSearchTerm] = useState("");
@@ -944,6 +1057,7 @@ function EmployeeManagementContent() {
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   
@@ -1394,17 +1508,23 @@ function EmployeeManagementContent() {
                 {isLoadingProfile ? (
                     <Skeleton className="h-10 w-[190px]" />
                 ) : canManageEmployees && (
-                    <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button className="w-full sm:w-auto">
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Add New Employee
-                          </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-3xl">
-                        <AddEmployeeFormContent onSuccess={() => setIsAddDialogOpen(false)} />
-                      </DialogContent>
-                    </Dialog>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} className="w-full">
+                            <UploadCloud className="mr-2 h-4 w-4" />
+                            Import Excel
+                        </Button>
+                        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                          <DialogTrigger asChild>
+                            <Button className="w-full sm:w-auto">
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Add New Employee
+                              </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-3xl">
+                            <AddEmployeeFormContent onSuccess={() => setIsAddDialogOpen(false)} />
+                          </DialogContent>
+                        </Dialog>
+                    </div>
                 )}
               </div>
             </div>
@@ -1600,6 +1720,11 @@ function EmployeeManagementContent() {
         employee={employeeToDeactivate}
         open={isDeactivateDialogOpen}
         onOpenChange={setIsDeactivateDialogOpen}
+      />
+      
+      <ImportEmployeesDialog 
+        open={isImportDialogOpen} 
+        onOpenChange={setIsImportDialogOpen} 
       />
 
       {isDeleteDialogOpen && employeeToDelete && (
