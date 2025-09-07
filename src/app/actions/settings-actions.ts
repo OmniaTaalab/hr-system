@@ -398,5 +398,3 @@ export async function syncSubjectsFromEmployeesAction(): Promise<SyncState> {
 export async function syncMachineNamesFromAttendanceLogsAction(): Promise<SyncState> {
     return syncListFromSource("attendance_log", "machine", "machineNames");
 }
-
-      
