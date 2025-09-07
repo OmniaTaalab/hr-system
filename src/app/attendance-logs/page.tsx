@@ -57,6 +57,10 @@ function AttendanceLogsContent() {
 
   const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
 
+  // Moved variable definitions here to be in the component's scope
+  const isMachineFiltered = machineFilter !== "All";
+  const isDateFiltered = !!selectedDate;
+
   // Fetch unique machines from the new 'machineNames' collection
   useEffect(() => {
     if (!canViewPage) return;
@@ -85,9 +89,6 @@ function AttendanceLogsContent() {
       const logsCollection = collection(db, "attendance_log");
       let queryConstraints: QueryConstraint[] = [];
       
-      const isMachineFiltered = machineFilter !== "All";
-      const isDateFiltered = !!selectedDate;
-
       // Firestore limitation: Cannot have inequality filters on multiple fields.
       // Prioritize date filter if both are selected.
       if (isDateFiltered) {
@@ -164,7 +165,7 @@ function AttendanceLogsContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDate, machineFilter, toast, lastVisible, firstVisible]);
+  }, [selectedDate, machineFilter, toast, lastVisible, firstVisible, isDateFiltered, isMachineFiltered]);
 
   useEffect(() => {
     if (!canViewPage) {
