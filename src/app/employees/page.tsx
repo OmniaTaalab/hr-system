@@ -36,10 +36,8 @@ import {
   deleteEmployeeAction, type DeleteEmployeeState,
   createEmployeeAction, type CreateEmployeeState,
   batchCreateEmployeesAction, type BatchCreateEmployeesState,
+  deactivateEmployeeAction, type DeactivateEmployeeState
 } from "@/lib/firebase/admin-actions";
-import {
-    deactivateEmployeeAction, type DeactivateEmployeeState
-} from "@/app/actions/employee-actions";
 import { 
   createAuthUserForEmployeeAction, type CreateAuthUserState,
   deleteAuthUserAction, type DeleteAuthUserState,
