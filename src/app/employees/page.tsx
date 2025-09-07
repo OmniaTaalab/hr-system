@@ -570,13 +570,12 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   const [leaveBalances, setLeaveBalances] = useState<{ [key: string]: number }>(employee.leaveBalances || {});
 
   const handleBalanceChange = (leaveTypeName: string, value: string) => {
-    const numericValue = value === '' ? 0 : parseInt(value, 10);
-    if (!isNaN(numericValue)) {
-      setLeaveBalances(prev => ({
-        ...prev,
-        [leaveTypeName]: numericValue >= 0 ? numericValue : 0,
-      }));
-    }
+    const numericValue = parseInt(value, 10);
+    setLeaveBalances(prev => ({
+      ...prev,
+      // If parsing fails (e.g., empty string), store 0 to avoid NaN.
+      [leaveTypeName]: isNaN(numericValue) ? 0 : numericValue,
+    }));
   };
 
   useEffect(() => {
