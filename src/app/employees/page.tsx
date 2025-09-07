@@ -716,7 +716,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="edit-hourlyRate">Hourly Rate (Optional)</Label>
-                    <Input id="edit-hourlyRate" name="hourlyRate" type="number" step="0.01" defaultValue={employee.hourlyRate ?? ''} placeholder="e.g., 25.50" />
+                    <Input id="edit-hourlyRate" name="hourlyRate" type="number" step="0.01" defaultValue={employee.hourlyRate ?? 0} placeholder="e.g., 25.50" />
                     {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
@@ -818,7 +818,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                         name={`leaveBalances[${leaveType.name}]`}
                         type="number"
                         placeholder="Days"
-                        value={leaveBalances[leaveType.name] ?? ""}
+                        value={leaveBalances[leaveType.name] ?? ''}
                         onChange={(e) => handleBalanceChange(leaveType.name, e.target.value)}
                       />
                     </div>
