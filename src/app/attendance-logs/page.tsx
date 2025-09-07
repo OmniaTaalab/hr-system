@@ -85,20 +85,24 @@ function AttendanceLogsContent() {
       const logsCollection = collection(db, "attendance_log");
       let queryConstraints: QueryConstraint[] = [];
       
-      // Date filter takes precedence
+      const isMachineFiltered = machineFilter !== "All";
+
       if (selectedDate) {
         const dateString = format(selectedDate, 'yyyy-MM-dd');
         queryConstraints.push(where("date", "==", dateString));
       }
 
-      if (machineFilter !== "All") {
+      if (isMachineFiltered) {
         queryConstraints.push(where("machine", "==", machineFilter));
       }
       
-      // Pagination logic should only apply if no date is selected
-      // Sorting is also only applied for pagination purposes.
-      if (!selectedDate) {
-        queryConstraints.push(orderBy("date", "desc"));
+      // Pagination and sorting logic
+      // Only sort by date when not filtering by machine to avoid composite index requirement
+      if (!isMachineFiltered) {
+         queryConstraints.push(orderBy("date", "desc"));
+      }
+
+      if (!selectedDate) { // Apply pagination only if not filtering by a specific date
         if (page === 'first') {
             queryConstraints.push(limit(PAGE_SIZE));
         } else if (page === 'next' && lastVisible) {
@@ -108,13 +112,17 @@ function AttendanceLogsContent() {
         }
       }
 
-
       const finalQuery = query(logsCollection, ...queryConstraints);
       const documentSnapshots = await getDocs(finalQuery);
-      const logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
+      let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
+
+      // Client-side sort if machine filter is on (as we can't orderBy in query)
+      if (isMachineFiltered) {
+        logsData.sort((a, b) => b.date.localeCompare(a.date) || (b.check_in || "23:59").localeCompare(a.check_in || "23:59"));
+      }
+
 
       if (!documentSnapshots.empty) {
-        // If filtering by date, sort client-side as we may not have an orderBy("check_in") from the query
         if (selectedDate) {
             logsData.sort((a, b) => (a.check_in || "23:59").localeCompare(b.check_in || "23:59"));
         }
@@ -125,7 +133,6 @@ function AttendanceLogsContent() {
             setFirstVisible(documentSnapshots.docs[0]);
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
             
-            // Re-use query constraints for next page check, but modify the limit and startAfter
             const nextPageCheckConstraints = [...queryConstraints.filter(c => c.type !== 'limit'), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
             const nextQuery = query(logsCollection, ...nextPageCheckConstraints);
 
@@ -377,5 +384,3 @@ export default function AttendanceLogsPage() {
         </AppLayout>
     )
 }
-
-      
