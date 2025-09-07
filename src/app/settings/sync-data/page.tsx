@@ -11,7 +11,6 @@ import {
   syncRolesFromEmployeesAction,
   syncCampusesFromEmployeesAction,
   syncStagesFromEmployeesAction,
-  syncMachineNamesFromAttendanceLogsAction,
   syncSubjectsFromEmployeesAction,
   type SyncState
 } from "@/app/actions/settings-actions";
@@ -61,7 +60,6 @@ export default function SyncDataPage() {
   const [syncRoleState, syncRoleAction, isSyncRolePending] = useActionState(syncRolesFromEmployeesAction, initialSyncState);
   const [syncCampusState, syncCampusAction, isSyncCampusPending] = useActionState(syncCampusesFromEmployeesAction, initialSyncState);
   const [syncStageState, syncStageAction, isSyncStagePending] = useActionState(syncStagesFromEmployeesAction, initialSyncState);
-  const [syncMachineState, syncMachineAction, isSyncMachinePending] = useActionState(syncMachineNamesFromAttendanceLogsAction, initialSyncState);
   const [syncSubjectState, syncSubjectAction, isSyncSubjectPending] = useActionState(syncSubjectsFromEmployeesAction, initialSyncState);
 
 
@@ -85,12 +83,6 @@ export default function SyncDataPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <SyncButton 
-                    label="Sync Machine Names from Attendance"
-                    action={syncMachineAction}
-                    isPending={isSyncMachinePending}
-                    state={syncMachineState}
-                />
                 <SyncButton 
                     label="Sync Roles from Employees"
                     action={syncRoleAction}
@@ -128,4 +120,4 @@ export default function SyncDataPage() {
   );
 }
 
-      
+    
