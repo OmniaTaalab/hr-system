@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -41,7 +42,6 @@ interface Employee {
   id: string; // Firestore document ID
   name: string;
   employeeId: string; // Company's employee ID
-  status: string;
 }
 
 interface MonthlyPayrollRecord {
@@ -121,7 +121,7 @@ function AnnualPayrollReportContent() {
   // Fetch all active employees
   useEffect(() => {
     setIsLoadingEmployees(true);
-    const q = query(collection(db, "employee"), where("status", "==", "Active"));
+    const q = query(collection(db, "employee"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const employeesData = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Employee))

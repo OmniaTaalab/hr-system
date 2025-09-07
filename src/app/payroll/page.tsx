@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState, useCallback, useTransition } from "react";
@@ -23,7 +24,6 @@ interface Employee {
   name: string;
   employeeId: string;
   hourlyRate?: number;
-  status: string;
 }
 
 interface PayrollData {
@@ -79,7 +79,7 @@ export default function PayrollCalculationPage() {
   // Fetch employees
   useEffect(() => {
     setIsLoadingEmployees(true);
-    const q = query(collection(db, "employee"), where("status", "==", "Active"));
+    const q = query(collection(db, "employee"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const employeesData = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Employee))
