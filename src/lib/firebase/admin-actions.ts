@@ -223,12 +223,12 @@ const UpdateEmployeeFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee document ID is required."), // Firestore document ID
   firstName: z.string().min(1, "First name is required.").optional(),
   lastName: z.string().min(1, "Last name is required.").optional(),
-  department: z.string().min(1, "Department is required.").optional(),
-  role: z.string().min(1, "Role is required.").optional(),
-  system: z.string().min(1, "System is required.").optional(),
-  campus: z.string().min(1, "Campus is required.").optional(),
+  department: z.string().optional(),
+  role: z.string().optional(),
+  system: z.string().optional(),
+  campus: z.string().optional(),
   email: z.string().email({ message: 'Invalid email address.' }).optional(),
-  phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers.").optional(),
+  phone: z.string().regex(/^\d+$/, "Phone number must contain only numbers.").optional(),
   hourlyRate: z.preprocess(
     (val) => {
       if (val === '' || val === null || val === undefined) return undefined;
@@ -293,30 +293,16 @@ export async function updateEmployeeAction(
   prevState: UpdateEmployeeState,
   formData: FormData
 ): Promise<UpdateEmployeeState> {
-  const validatedFields = UpdateEmployeeFormSchema.safeParse({
-    employeeDocId: formData.get('employeeDocId'),
-    firstName: formData.get('firstName') || undefined,
-    lastName: formData.get('lastName') || undefined,
-    department: formData.get('department') || undefined,
-    role: formData.get('role') || undefined,
-    system: formData.get('system') || undefined,
-    campus: formData.get('campus') || undefined,
-    email: formData.get('email') || undefined,
-    phone: formData.get('phone') || undefined,
-    hourlyRate: formData.get('hourlyRate') || undefined,
-    dateOfBirth: formData.get('dateOfBirth') || undefined,
-    joiningDate: formData.get('joiningDate') || undefined,
-    leavingDate: formData.get('leavingDate') || null,
-    leaveBalancesJson: formData.get('leaveBalancesJson'),
-    gender: formData.get('gender') || undefined,
-    nationalId: formData.get('nationalId') || undefined,
-    religion: formData.get('religion') || undefined,
-    stage: formData.get('stage') || undefined,
-    subject: formData.get('subject') || undefined,
-    title: formData.get('title') || undefined,
-    deactivate: formData.get('deactivate') || undefined,
-    reasonForLeaving: formData.get('reasonForLeaving') || undefined,
-  });
+  const rawData: Record<string, any> = {};
+    for (const [key, value] of formData.entries()) {
+        rawData[key] = value === null ? "" : value;
+    }
+
+    const validatedFields = UpdateEmployeeFormSchema.safeParse({
+        ...rawData,
+        leavingDate: formData.get('leavingDate') || null,
+    });
+
 
   if (!validatedFields.success) {
     return {
