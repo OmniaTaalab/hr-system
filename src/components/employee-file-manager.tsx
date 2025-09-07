@@ -24,7 +24,7 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
 
   useEffect(() => {
     // Prevent setting up listener if employee ID is not available
-    if (!employee || !employee.id) {
+    if (!employee.id) {
         setFiles([]); // Clear files if there's no valid employee
         return;
     }
@@ -34,7 +34,7 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
         setFiles(data?.documents || []);
     });
     return () => unsub();
-  }, [employee]);
+  }, [employee.id]); // Change dependency to employee.id for more precise effect trigger
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -111,12 +111,25 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
 
           toast({ title: "File Removed", description: `File "${fileName}" has been removed.` });
       } catch (error: any) {
-          console.error("Error removing file:", error);
-          toast({
-              variant: "destructive",
-              title: "Removal Failed",
-              description: error.message || "Could not remove the file.",
-          });
+          if (error.code === 'storage/object-not-found') {
+            // If the file doesn't exist in storage, just clear it from the DB
+            const fileToDelete = files.find(f => f.name === fileName);
+            if(fileToDelete) {
+                await updateDoc(employeeDocRef, { documents: arrayRemove(fileToDelete) });
+            }
+            setFiles(files.filter(f => f.name !== fileName));
+            toast({
+                title: "File Removed",
+                description: "Employee file was not in storage, but removed from profile.",
+            });
+        } else {
+            console.error("Error removing file:", error);
+            toast({
+                variant: "destructive",
+                title: "Removal Failed",
+                description: error.message || "Could not remove the file.",
+            });
+        }
       } finally {
           setIsDeleting(null);
       }
