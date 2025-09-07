@@ -86,8 +86,9 @@ function AttendanceLogsContent() {
       let queryConstraints: QueryConstraint[] = [];
       
       const isMachineFiltered = machineFilter !== "All";
+      const isDateFiltered = !!selectedDate;
 
-      if (selectedDate) {
+      if (isDateFiltered) {
         const dateString = format(selectedDate, 'yyyy-MM-dd');
         queryConstraints.push(where("date", "==", dateString));
       }
@@ -96,13 +97,14 @@ function AttendanceLogsContent() {
         queryConstraints.push(where("machine", "==", machineFilter));
       }
       
-      // Pagination and sorting logic
+      const shouldPaginate = !isMachineFiltered && !isDateFiltered;
+
       // Only sort by date when not filtering by machine to avoid composite index requirement
       if (!isMachineFiltered) {
          queryConstraints.push(orderBy("date", "desc"));
       }
 
-      if (!selectedDate) { // Apply pagination only if not filtering by a specific date
+      if (shouldPaginate) {
         if (page === 'first') {
             queryConstraints.push(limit(PAGE_SIZE));
         } else if (page === 'next' && lastVisible) {
@@ -118,20 +120,20 @@ function AttendanceLogsContent() {
       const documentSnapshots = await getDocs(finalQuery);
       let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
 
-      // Client-side sort if machine filter is on (as we can't orderBy in query)
-      if (isMachineFiltered) {
-        logsData.sort((a, b) => b.date.localeCompare(a.date) || (b.check_in || "23:59").localeCompare(a.check_in || "23:59"));
+      // Client-side sort if a filter is on, since we can't combine where and orderBy without an index.
+      if (isMachineFiltered || isDateFiltered) {
+        logsData.sort((a, b) => {
+            const dateCompare = b.date.localeCompare(a.date);
+            if(dateCompare !== 0) return dateCompare;
+            return (b.check_in || "23:59").localeCompare(a.check_in || "23:59");
+        });
       }
 
 
       if (!documentSnapshots.empty) {
-        if (selectedDate) {
-            logsData.sort((a, b) => (a.check_in || "23:59").localeCompare(b.check_in || "23:59"));
-        }
-        
         setAllLogs(logsData);
         
-        if (!selectedDate) {
+        if (shouldPaginate) {
             setFirstVisible(documentSnapshots.docs[0]);
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
             
@@ -143,7 +145,7 @@ function AttendanceLogsContent() {
         }
       } else {
          setAllLogs([]);
-         if (!selectedDate) {
+         if (shouldPaginate) {
             setFirstVisible(null);
             setLastVisible(null);
             setIsLastPage(page === 'first' ? true : isLastPage);
@@ -336,7 +338,7 @@ function AttendanceLogsContent() {
                   </Table>
                )}
           </CardContent>
-           {!selectedDate && (
+           {machineFilter === 'All' && !selectedDate && (
             <CardContent>
               <div className="flex items-center justify-end space-x-2 py-4">
                   <Button
