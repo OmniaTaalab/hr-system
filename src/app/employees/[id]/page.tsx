@@ -60,6 +60,9 @@ interface Employee {
   subject?: string;
   title?: string;
   documents?: EmployeeFile[];
+  status?: "Active" | "Terminated";
+  leavingDate?: Timestamp | null;
+  reasonForLeaving?: string;
 }
 
 interface AttendanceLog {
@@ -324,9 +327,22 @@ function EmployeeProfileContent() {
                   <div className="text-center md:text-left">
                       <CardTitle className="font-headline text-3xl">{employee.name}</CardTitle>
                       <CardDescription className="text-lg text-primary">{employee.role}</CardDescription>
+                       {employee.status === 'Terminated' && (
+                          <Badge variant="destructive" className="mt-2">
+                              Terminated on {employee.leavingDate ? format(employee.leavingDate.toDate(), 'PPP') : 'N/A'}
+                          </Badge>
+                      )}
                   </div>
               </CardHeader>
               <CardContent className="p-6">
+                {employee.status === 'Terminated' && employee.reasonForLeaving && (
+                    <div className="mb-6 p-4 bg-destructive/10 rounded-lg border border-destructive/20">
+                         <h3 className="text-lg font-semibold flex items-center mb-2 text-destructive"><UserMinus className="mr-2 h-5 w-5" />Deactivation Information</h3>
+                         <DetailItem icon={CalendarDays} label="Leaving Date" value={employee.leavingDate ? format(employee.leavingDate.toDate(), 'PPP') : undefined} />
+                         <DetailItem icon={FileText} label="Reason" value={employee.reasonForLeaving} />
+                    </div>
+                )}
+
                 <h3 className="text-lg font-semibold flex items-center mb-4"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                    <DetailItem icon={Mail} label="NIS Email" value={employee.email} />

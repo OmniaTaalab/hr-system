@@ -61,6 +61,7 @@ import { EmployeeFileManager } from "@/components/employee-file-manager";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { Textarea } from "../ui/textarea";
 
 
 export interface EmployeeFile {
@@ -106,6 +107,8 @@ export interface Employee {
   religion?: string;
   subject?: string;
   title?: string;
+  status?: "Active" | "Terminated";
+  reasonForLeaving?: string;
 }
 
 
@@ -842,6 +845,93 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   );
 }
 
+// New Component for Deactivating an Employee
+function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: Employee | null; open: boolean; onOpenChange: (open: boolean) => void; }) {
+    const { toast } = useToast();
+    const [deactivateState, deactivateAction, isDeactivatePending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
+    const [leavingDate, setLeavingDate] = useState<Date | undefined>(new Date());
+
+    useEffect(() => {
+        if (!open) {
+            setLeavingDate(new Date()); // Reset date when dialog closes
+        }
+    }, [open]);
+    
+    useEffect(() => {
+        if (deactivateState?.message) {
+            if (!deactivateState.errors) {
+                toast({ title: "Success", description: "Employee deactivated successfully." });
+                onOpenChange(false);
+            } else {
+                const errorMessage = Object.values(deactivateState.errors).flat().join(' ');
+                toast({ variant: "destructive", title: "Error", description: errorMessage || "Failed to deactivate employee." });
+            }
+        }
+    }, [deactivateState, toast, onOpenChange]);
+
+    if (!employee) return null;
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <form action={deactivateAction}>
+                    {/* Pass all required fields for schema validation, even if not changed */}
+                    <input type="hidden" name="employeeDocId" value={employee.id} />
+                    <input type="hidden" name="firstName" value={employee.firstName || employee.name.split(' ')[0]} />
+                    <input type="hidden" name="lastName" value={employee.lastName || employee.name.split(' ').slice(1).join(' ')} />
+                    <input type="hidden" name="department" value={employee.department} />
+                    <input type="hidden" name="role" value={employee.role} />
+                    <input type="hidden" name="system" value={employee.system} />
+                    <input type="hidden" name="campus" value={employee.campus} />
+                    <input type="hidden" name="email" value={employee.email} />
+                    <input type="hidden" name="phone" value={employee.phone} />
+                    <input type="hidden" name="dateOfBirth" value={employee.dateOfBirth?.toDate().toISOString()} />
+                    <input type="hidden" name="joiningDate" value={employee.joiningDate?.toDate().toISOString()} />
+                    <input type="hidden" name="deactivate" value="true" /> {/* Signal to the action */}
+                    
+                    <DialogHeader>
+                        <DialogTitle>Deactivate Employee: {employee.name}</DialogTitle>
+                        <DialogDescription>
+                            Set the leaving date and reason for deactivating this employee. This will set their status to "Terminated".
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="leavingDate">Leaving Date</Label>
+                             <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !leavingDate && "text-muted-foreground")}>
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {leavingDate ? format(leavingDate, "PPP") : <span>Pick a date</span>}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar mode="single" selected={leavingDate} onSelect={setLeavingDate} initialFocus />
+                                </PopoverContent>
+                            </Popover>
+                            <input type="hidden" name="leavingDate" value={leavingDate?.toISOString() ?? ''} />
+                            {deactivateState?.errors?.leavingDate && <p className="text-sm text-destructive">{deactivateState.errors.leavingDate.join(', ')}</p>}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="reasonForLeaving">Reason for Leaving</Label>
+                            <Textarea id="reasonForLeaving" name="reasonForLeaving" placeholder="Enter reason..." required />
+                             {deactivateState?.errors?.reasonForLeaving && <p className="text-sm text-destructive">{deactivateState.errors.reasonForLeaving.join(', ')}</p>}
+                        </div>
+                    </div>
+                     {deactivateState?.errors?.form && <p className="text-sm text-destructive text-center mb-2">{deactivateState.errors.form.join(', ')}</p>}
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit" variant="destructive" disabled={isDeactivatePending}>
+                             {isDeactivatePending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                            Deactivate
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function EmployeeManagementContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const [searchTerm, setSearchTerm] = useState("");
@@ -879,6 +969,9 @@ function EmployeeManagementContent() {
   const [changePasswordServerState, changePasswordFormAction, isChangePasswordPending] = useActionState(updateAuthUserPasswordAction, initialUpdatePasswordState);
 
   const [showPassword, setShowPassword] = useState(false);
+  
+  const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null);
+  const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false);
   
   // Pagination State
   const [firstVisible, setFirstVisible] = useState<DocumentSnapshot | null>(null);
@@ -1187,6 +1280,11 @@ function EmployeeManagementContent() {
     setShowPassword(false);
   };
   
+  const openDeactivateDialog = (employee: Employee) => {
+    setEmployeeToDeactivate(employee);
+    setIsDeactivateDialogOpen(true);
+  };
+  
   const getInitials = (name?: string | null) => {
     if (!name) return "U";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
@@ -1370,6 +1468,7 @@ function EmployeeManagementContent() {
                 <TableHead>Subject</TableHead>
                 <TableHead>Stage</TableHead>
                 <TableHead>Campus</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Account</TableHead>
                 {canManageEmployees && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
@@ -1391,6 +1490,11 @@ function EmployeeManagementContent() {
                     <TableCell>{employee.subject || '-'}</TableCell>
                     <TableCell>{employee.stage || '-'}</TableCell>
                     <TableCell>{employee.campus || '-'}</TableCell>
+                    <TableCell>
+                      <Badge variant={employee.status === "Active" ? "secondary" : "destructive"}>
+                        {employee.status || "Active"}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       <TooltipProvider>
                           <Tooltip>
@@ -1444,6 +1548,10 @@ function EmployeeManagementContent() {
                               <Edit3 className="mr-2 h-4 w-4" />
                               Edit Employee
                             </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => openDeactivateDialog(employee)} disabled={!canManageEmployees || employee.status === 'Terminated'}>
+                               <UserMinus className="mr-2 h-4 w-4" />
+                               Deactivate Employee
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onSelect={() => openDeleteConfirmDialog(employee)} disabled={!canManageEmployees} className="text-destructive focus:text-destructive focus:bg-destructive/10">
                               <Trash2 className="mr-2 h-4 w-4" />
@@ -1457,7 +1565,7 @@ function EmployeeManagementContent() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={canManageEmployees ? 7 : 6} className="h-24 text-center">
+                  <TableCell colSpan={canManageEmployees ? 8 : 7} className="h-24 text-center">
                     {searchTerm ? "No employees found matching your search." : (isFiltered) ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
                   </TableCell>
                 </TableRow>
@@ -1500,6 +1608,12 @@ function EmployeeManagementContent() {
           </AlertDialogContent>
         </AlertDialog>
       )}
+      
+      <DeactivateEmployeeDialog 
+        employee={employeeToDeactivate}
+        open={isDeactivateDialogOpen}
+        onOpenChange={setIsDeactivateDialogOpen}
+      />
 
       {isDeleteDialogOpen && employeeToDelete && (
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => { if(!open) closeDeleteConfirmDialog(); else setIsDeleteDialogOpen(true); }}>

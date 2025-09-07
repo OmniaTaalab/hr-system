@@ -246,6 +246,9 @@ const UpdateEmployeeFormSchema = z.object({
   stage: z.string().optional(),
   subject: z.string().optional(),
   title: z.string().optional(),
+  // For deactivation
+  deactivate: z.string().optional(),
+  reasonForLeaving: z.string().min(1, "Reason for leaving is required.").optional(),
 });
 
 export type UpdateEmployeeState = {
@@ -270,6 +273,7 @@ export type UpdateEmployeeState = {
     stage?: string[];
     subject?: string[];
     title?: string[];
+    reasonForLeaving?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -300,6 +304,8 @@ export async function updateEmployeeAction(
     stage: formData.get('stage'),
     subject: formData.get('subject'),
     title: formData.get('title'),
+    deactivate: formData.get('deactivate'),
+    reasonForLeaving: formData.get('reasonForLeaving'),
   });
 
   if (!validatedFields.success) {
@@ -308,12 +314,22 @@ export async function updateEmployeeAction(
       message: 'Validation failed. Please check your input.',
     };
   }
-
+  
   const { 
     employeeDocId, firstName, lastName, department, role, system, campus, email, phone, hourlyRate,
     dateOfBirth, joiningDate, leavingDate: leavingDateString, leaveBalancesJson,
-    gender, nationalId, religion, stage, subject, title
+    gender, nationalId, religion, stage, subject, title, deactivate, reasonForLeaving
   } = validatedFields.data;
+
+  // Extra validation if this is a deactivation
+  if (deactivate === 'true') {
+      if (!leavingDateString) {
+          return { errors: { leavingDate: ["Leaving date is required for deactivation."] } };
+      }
+      if (!reasonForLeaving) {
+          return { errors: { reasonForLeaving: ["Reason for leaving is required for deactivation."] } };
+      }
+  }
 
   const name = `${firstName} ${lastName}`;
   
@@ -365,7 +381,6 @@ export async function updateEmployeeAction(
       hourlyRate: hourlyRate ?? 0,
       dateOfBirth: Timestamp.fromDate(dateOfBirth),
       joiningDate: Timestamp.fromDate(joiningDate),
-      leavingDate: finalLeavingDate,
       leaveBalances,
       gender: gender || "",
       nationalId: nationalId || "",
@@ -373,10 +388,23 @@ export async function updateEmployeeAction(
       subject: subject || "",
       title: title || "",
     };
+
+    if (deactivate === 'true') {
+        updateData.status = 'Terminated';
+        updateData.leavingDate = finalLeavingDate;
+        updateData.reasonForLeaving = reasonForLeaving;
+    } else {
+        // Ensure leavingDate is only set if not deactivating but provided
+        updateData.leavingDate = finalLeavingDate;
+    }
     
     await updateDoc(employeeRef, updateData);
     
-    return { message: `Employee "${name}" updated successfully.` };
+    const successMessage = deactivate === 'true' 
+        ? `Employee "${name}" has been deactivated.`
+        : `Employee "${name}" updated successfully.`;
+
+    return { message: successMessage };
   } catch (error: any) {
     console.error('Firestore Update Employee Error:', error);
     let specificErrorMessage = 'Failed to update employee in Firestore. An unexpected error occurred.';
