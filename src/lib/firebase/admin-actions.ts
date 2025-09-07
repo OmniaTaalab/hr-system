@@ -363,11 +363,9 @@ export async function updateEmployeeAction(
     
     // Ensure `null` or empty values from form don't overwrite existing good data unless intended
     // For example, if a field is optional and left blank, we might not want to update it
-    const existingData = docSnap.data();
+    // This current implementation will overwrite with empty strings.
     for (const key in dataToUpdate) {
-        // If the new value is an empty string and the existing value is not,
-        // you might want to reconsider updating it, or handle it explicitly.
-        // This current implementation will overwrite with empty strings.
+        // This is a placeholder for any more complex logic you might want to add
     }
 
 
@@ -381,74 +379,6 @@ export async function updateEmployeeAction(
       message: 'Failed to update employee.',
     };
   }
-}
-
-export type DeactivateEmployeeState = {
-    errors?: {
-        employeeDocId?: string[];
-        leavingDate?: string[];
-        reasonForLeaving?: string[];
-        form?: string[];
-    };
-    message?: string | null;
-    success?: boolean;
-};
-
-
-const DeactivationSchema = z.object({
-    employeeDocId: z.string().min(1, "Employee document ID is required."),
-    leavingDate: z.coerce.date({ required_error: "A valid leaving date is required." }),
-    reasonForLeaving: z.string().min(1, "Reason for leaving is required."),
-});
-
-
-export async function deactivateEmployeeAction(
-    prevState: DeactivateEmployeeState,
-    formData: FormData
-): Promise<DeactivateEmployeeState> {
-     const validatedDeactivation = DeactivationSchema.safeParse({
-        employeeDocId: formData.get('employeeDocId'),
-        leavingDate: formData.get('leavingDate'),
-        reasonForLeaving: formData.get('reasonForLeaving'),
-    });
-
-    if (!validatedDeactivation.success) {
-        return {
-            success: false,
-            errors: validatedDeactivation.error.flatten().fieldErrors,
-            message: 'Validation failed for deactivation.',
-        };
-    }
-    
-    const { employeeDocId, leavingDate, reasonForLeaving } = validatedDeactivation.data;
-    
-    try {
-        const employeeRef = doc(db, "employee", employeeDocId);
-        
-        // First, check if the document exists
-        const docSnap = await getDoc(employeeRef);
-        if (!docSnap.exists()) {
-            return {
-                success: false,
-                errors: { form: ["Employee not found. The record may have been deleted."] },
-            };
-        }
-
-        await updateDoc(employeeRef, {
-            status: 'Terminated',
-            leavingDate: Timestamp.fromDate(leavingDate),
-            reasonForLeaving,
-        });
-
-        return { success: true, message: "Employee has been deactivated successfully." };
-
-    } catch (error: any) {
-        console.error('Firestore Deactivate Employee Error:', error);
-        return {
-            success: false,
-            errors: { form: [`Failed to deactivate employee: ${error.message}`] },
-        };
-    }
 }
 
 export type DeleteEmployeeState = {
@@ -498,6 +428,66 @@ export async function deleteEmployeeAction(
     return { success: false, errors: {form: [`Failed to delete employee: ${error.message}`]} };
   }
 }
+
+// --- Deactivate Employee Action ---
+
+export type DeactivateEmployeeState = {
+    errors?: {
+        employeeDocId?: string[];
+        leavingDate?: string[];
+        reasonForLeaving?: string[];
+        form?: string[];
+    };
+    message?: string | null;
+    success?: boolean;
+};
+
+const DeactivationSchema = z.object({
+    employeeDocId: z.string().min(1, "Employee document ID is required."),
+    leavingDate: z.coerce.date({ required_error: "A valid leaving date is required." }),
+    reasonForLeaving: z.string().min(5, "Reason must be at least 5 characters long.").max(500, "Reason must not exceed 500 characters."),
+});
+
+export async function deactivateEmployeeAction(
+    prevState: DeactivateEmployeeState,
+    formData: FormData
+): Promise<DeactivateEmployeeState> {
+     const validatedDeactivation = DeactivationSchema.safeParse({
+        employeeDocId: formData.get('employeeDocId'),
+        leavingDate: formData.get('leavingDate'),
+        reasonForLeaving: formData.get('reasonForLeaving'),
+    });
+
+    if (!validatedDeactivation.success) {
+        return {
+            success: false,
+            errors: validatedDeactivation.error.flatten().fieldErrors,
+            message: 'Validation failed.',
+        };
+    }
+    
+    const { employeeDocId, leavingDate, reasonForLeaving } = validatedDeactivation.data;
+    
+    try {
+        const employeeRef = doc(db, "employee", employeeDocId);
+        
+        await updateDoc(employeeRef, {
+            status: 'Terminated',
+            leavingDate: Timestamp.fromDate(leavingDate),
+            reasonForLeaving,
+        });
+
+        return { success: true, message: "Employee has been deactivated successfully." };
+
+    } catch (error: any) {
+        console.error('Firestore Deactivate Employee Error:', error);
+        return {
+            success: false,
+            errors: { form: [`Failed to deactivate employee: ${error.message}`] },
+        };
+    }
+}
+
 
 // --- NEW ACTION FOR USER-FACING PROFILE CREATION ---
 
