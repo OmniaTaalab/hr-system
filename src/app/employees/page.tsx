@@ -1469,7 +1469,6 @@ function EmployeeManagementContent() {
                 <TableHead>Stage</TableHead>
                 <TableHead>Campus</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Account</TableHead>
                 {canManageEmployees && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
@@ -1494,18 +1493,6 @@ function EmployeeManagementContent() {
                       <Badge variant={employee.status === "Active" ? "secondary" : "destructive"}>
                         {employee.status || "Active"}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <TooltipProvider>
-                          <Tooltip>
-                              <TooltipTrigger>
-                                  {employee.userId ? <UserCheck className="h-5 w-5 text-green-500" /> : <UserX className="h-5 w-5 text-muted-foreground" />}
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                  <p>{employee.userId ? `Linked to Auth UID: ${employee.userId}` : "No user account linked."}</p>
-                              </TooltipContent>
-                          </Tooltip>
-                      </TooltipProvider>
                     </TableCell>
                     {canManageEmployees && (
                       <TableCell className="text-right">
@@ -1565,7 +1552,7 @@ function EmployeeManagementContent() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={canManageEmployees ? 8 : 7} className="h-24 text-center">
+                  <TableCell colSpan={canManageEmployees ? 7 : 6} className="h-24 text-center">
                     {searchTerm ? "No employees found matching your search." : (isFiltered) ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
                   </TableCell>
                 </TableRow>
