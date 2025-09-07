@@ -618,26 +618,26 @@ export type BatchCreateEmployeesState = {
 };
 
 const BatchEmployeeRecordSchema = z.object({
-  name: z.string().min(1),
-  personalEmail: z.string().email(),
-  personalPhone: z.string(),
-  emergencyContactName: z.string().optional(),
-  emergencyContactRelationship: z.string().optional(),
-  emergencyContactNumber: z.string().optional(),
-  dateOfBirth: z.coerce.date().optional(),
-  gender: z.string().optional(),
-  nationalId: z.string().optional(),
-  religion: z.string().optional(),
-  nisEmail: z.string().email(),
-  joiningDate: z.coerce.date().optional(),
-  title: z.string().optional(),
-  department: z.string().optional(),
-  role: z.string().optional(),
-  stage: z.string().optional(),
-  campus: z.string().optional(),
-  reportLine1: z.string().optional(),
-  reportLine2: z.string().optional(),
-  subject: z.string().optional(),
+  name: z.any().optional().nullable(),
+  personalEmail: z.any().optional().nullable(),
+  personalPhone: z.any().optional().nullable(),
+  emergencyContactName: z.any().optional().nullable(),
+  emergencyContactRelationship: z.any().optional().nullable(),
+  emergencyContactNumber: z.any().optional().nullable(),
+  dateOfBirth: z.any().optional().nullable(),
+  gender: z.any().optional().nullable(),
+  nationalId: z.any().optional().nullable(),
+  religion: z.any().optional().nullable(),
+  nisEmail: z.any().optional().nullable(),
+  joiningDate: z.any().optional().nullable(),
+  title: z.any().optional().nullable(),
+  department: z.any().optional().nullable(),
+  role: z.any().optional().nullable(),
+  stage: z.any().optional().nullable(),
+  campus: z.any().optional().nullable(),
+  reportLine1: z.any().optional().nullable(),
+  reportLine2: z.any().optional().nullable(),
+  subject: z.any().optional().nullable(),
 });
 
 
@@ -679,41 +679,62 @@ export async function batchCreateEmployeesAction(
     const existingEmails = new Set(allExistingEmailsQuery.docs.map(doc => doc.data().email));
 
     for (const record of recordsToProcess) {
-      if (existingEmails.has(record.nisEmail)) {
+       // Coerce and validate required fields
+      const nisEmail = z.string().email().safeParse(record.nisEmail);
+      const name = z.string().min(1).safeParse(record.name);
+
+      if (!nisEmail.success || !name.success) {
         results.failed++;
-        results.failedEmails.push(record.nisEmail);
+        results.failedEmails.push(String(record.nisEmail || 'N/A'));
+        continue;
+      }
+
+      if (existingEmails.has(nisEmail.data)) {
+        results.failed++;
+        results.failedEmails.push(nisEmail.data);
         continue; // Skip this record
       }
 
       currentEmployeeCount++;
       const newEmployeeRef = doc(employeeCollectionRef);
-      const nameParts = record.name.trim().split(/\s+/);
+      const nameParts = name.data.trim().split(/\s+/);
       
+      let dob = null;
+      if (record.dateOfBirth) {
+          const parsedDate = new Date(record.dateOfBirth);
+          if (isValid(parsedDate)) dob = Timestamp.fromDate(parsedDate);
+      }
+      let jd = null;
+      if (record.joiningDate) {
+          const parsedDate = new Date(record.joiningDate);
+          if (isValid(parsedDate)) jd = Timestamp.fromDate(parsedDate);
+      }
+
       const newEmployeeData = {
-        name: record.name,
-        firstName: nameParts[0],
-        lastName: nameParts.slice(1).join(' '),
-        personalEmail: record.personalEmail,
-        phone: String(record.personalPhone),
+        name: name.data,
+        firstName: nameParts[0] || "",
+        lastName: nameParts.slice(1).join(' ') || "",
+        personalEmail: String(record.personalEmail || ""),
+        phone: String(record.personalPhone || ""),
         emergencyContact: {
-          name: record.emergencyContactName || "",
-          relationship: record.emergencyContactRelationship || "",
+          name: String(record.emergencyContactName || ""),
+          relationship: String(record.emergencyContactRelationship || ""),
           number: String(record.emergencyContactNumber || ""),
         },
-        dateOfBirth: record.dateOfBirth ? Timestamp.fromDate(record.dateOfBirth) : null,
-        gender: record.gender || "",
+        dateOfBirth: dob,
+        gender: String(record.gender || ""),
         nationalId: String(record.nationalId || ""),
-        religion: record.religion || "",
-        email: record.nisEmail,
-        joiningDate: record.joiningDate ? Timestamp.fromDate(record.joiningDate) : serverTimestamp(),
-        title: record.title || "",
-        department: record.department || "",
-        role: record.role || "",
-        stage: record.stage || "",
-        campus: record.campus || "",
-        reportLine1: record.reportLine1 || "",
-        reportLine2: record.reportLine2 || "",
-        subject: record.subject || "",
+        religion: String(record.religion || ""),
+        email: nisEmail.data,
+        joiningDate: jd || serverTimestamp(),
+        title: String(record.title || ""),
+        department: String(record.department || ""),
+        role: String(record.role || ""),
+        stage: String(record.stage || ""),
+        campus: String(record.campus || ""),
+        reportLine1: String(record.reportLine1 || ""),
+        reportLine2: String(record.reportLine2 || ""),
+        subject: String(record.subject || ""),
         system: "Unassigned",
         employeeId: (1001 + currentEmployeeCount).toString(),
         status: "Active",
@@ -727,7 +748,7 @@ export async function batchCreateEmployeesAction(
       };
 
       batch.set(newEmployeeRef, newEmployeeData);
-      existingEmails.add(record.nisEmail); // Add to set to prevent duplicates within the same batch
+      existingEmails.add(nisEmail.data); // Add to set to prevent duplicates within the same batch
       results.created++;
     }
 
@@ -735,7 +756,7 @@ export async function batchCreateEmployeesAction(
 
     let message = `Successfully created ${results.created} employee(s).`;
     if (results.failed > 0) {
-      message += ` Failed to create ${results.failed} employee(s) due to duplicate emails: ${results.failedEmails.slice(0, 5).join(", ")}${results.failed > 5 ? '...' : ''}`;
+      message += ` Failed to create ${results.failed} employee(s) due to duplicate or invalid emails/names: ${results.failedEmails.slice(0, 5).join(", ")}${results.failed > 5 ? '...' : ''}`;
     }
 
     return { success: true, message, results };
