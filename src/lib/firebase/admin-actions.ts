@@ -232,13 +232,14 @@ const UpdateEmployeeFormSchema = z.object({
   hourlyRate: z.preprocess(
     (val) => {
       if (val === '' || val === null || val === undefined) return undefined;
-      return parseFloat(z.string().parse(val));
+      const parsed = parseFloat(z.string().parse(val));
+      return isNaN(parsed) ? undefined : parsed;
     },
     z.number().positive({ message: "Hourly rate must be a positive number." }).optional()
   ),
-  dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }).optional(),
-  joiningDate: z.coerce.date({ required_error: "Joining date is required." }).optional(),
-  leavingDate: z.string().optional().nullable(),
+  dateOfBirth: z.string().optional().transform((val) => val ? new Date(val) : undefined),
+  joiningDate: z.string().optional().transform((val) => val ? new Date(val) : undefined),
+  leavingDate: z.string().optional().nullable().transform((val) => val ? new Date(val) : null),
   leaveBalancesJson: z.string().optional(), // Receive balances as a JSON string
   gender: z.string().optional(),
   nationalId: z.string().optional(),
@@ -252,11 +253,11 @@ const UpdateEmployeeFormSchema = z.object({
 }).refine(data => {
     // If deactivating, reason for leaving must be present.
     if (data.deactivate === 'true') {
-        return !!data.reasonForLeaving && data.reasonForLeaving.length > 0;
+        return !!data.reasonForLeaving && data.reasonForLeaving.length > 0 && !!data.leavingDate && isValid(data.leavingDate);
     }
     return true;
 }, {
-    message: "Reason for leaving is required for deactivation.",
+    message: "Reason for leaving and a valid leaving date are required for deactivation.",
     path: ["reasonForLeaving"],
 });
 
@@ -293,16 +294,47 @@ export async function updateEmployeeAction(
   prevState: UpdateEmployeeState,
   formData: FormData
 ): Promise<UpdateEmployeeState> {
-  const rawData: Record<string, any> = {};
-    for (const [key, value] of formData.entries()) {
-        rawData[key] = value === null ? "" : value;
+    const rawData: Record<string, any> = {};
+    formData.forEach((value, key) => {
+        rawData[key] = value;
+    });
+    
+    // Handle specific logic for deactivation
+    if (rawData.deactivate === 'true') {
+        const validatedDeactivation = UpdateEmployeeFormSchema.pick({
+            employeeDocId: true,
+            deactivate: true,
+            leavingDate: true,
+            reasonForLeaving: true,
+        }).safeParse(rawData);
+
+        if (!validatedDeactivation.success) {
+            return {
+                errors: validatedDeactivation.error.flatten().fieldErrors,
+                message: 'Validation failed for deactivation.',
+            };
+        }
+        
+        const { employeeDocId, leavingDate, reasonForLeaving } = validatedDeactivation.data;
+
+        try {
+            const employeeRef = doc(db, "employee", employeeDocId);
+            await updateDoc(employeeRef, {
+                status: 'Terminated',
+                leavingDate: Timestamp.fromDate(leavingDate!),
+                reasonForLeaving,
+            });
+            return { message: "Employee has been deactivated." };
+        } catch (error: any) {
+            return {
+                errors: { form: [`Failed to deactivate employee: ${error.message}`] },
+            };
+        }
     }
 
-    const validatedFields = UpdateEmployeeFormSchema.safeParse({
-        ...rawData,
-        leavingDate: formData.get('leavingDate') || null,
-    });
 
+    // --- Handle standard employee update ---
+    const validatedFields = UpdateEmployeeFormSchema.safeParse(rawData);
 
   if (!validatedFields.success) {
     return {
@@ -319,7 +351,6 @@ export async function updateEmployeeAction(
   try {
     const employeeRef = doc(db, "employee", employeeDocId);
     
-    // Check if the document exists before trying to update it
     const docSnap = await getDoc(employeeRef);
     if (!docSnap.exists()) {
         return {
@@ -328,39 +359,39 @@ export async function updateEmployeeAction(
         };
     }
 
-
     const dataToUpdate: { [key: string]: any } = {};
 
-    // Filter out undefined values so we only update fields that were passed
+    // Build the update object, excluding any undefined fields
     Object.entries(updateData).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
+        if (value !== undefined && value !== null) {
             dataToUpdate[key] = value;
         }
     });
 
-    if (updateData.firstName && updateData.lastName) {
-      dataToUpdate.name = `${updateData.firstName} ${updateData.lastName}`;
+    if (dataToUpdate.firstName && dataToUpdate.lastName) {
+      dataToUpdate.name = `${dataToUpdate.firstName} ${dataToUpdate.lastName}`;
     }
 
-    if (updateData.dateOfBirth) {
-        dataToUpdate.dateOfBirth = Timestamp.fromDate(updateData.dateOfBirth);
+    if (dataToUpdate.dateOfBirth && isValid(dataToUpdate.dateOfBirth)) {
+        dataToUpdate.dateOfBirth = Timestamp.fromDate(dataToUpdate.dateOfBirth);
+    } else {
+       delete dataToUpdate.dateOfBirth;
     }
-     if (updateData.joiningDate) {
-        dataToUpdate.joiningDate = Timestamp.fromDate(updateData.joiningDate);
-    }
-
-    if (updateData.leavingDate) {
-        const parsedLeavingDate = new Date(updateData.leavingDate);
-        if (isValid(parsedLeavingDate)) {
-            dataToUpdate.leavingDate = Timestamp.fromDate(parsedLeavingDate);
-        } else {
-            delete dataToUpdate.leavingDate;
-        }
+    if (dataToUpdate.joiningDate && isValid(dataToUpdate.joiningDate)) {
+        dataToUpdate.joiningDate = Timestamp.fromDate(dataToUpdate.joiningDate);
+    } else {
+      delete dataToUpdate.joiningDate;
     }
 
-    if (updateData.leaveBalancesJson) {
+    if (dataToUpdate.leavingDate && isValid(dataToUpdate.leavingDate)) {
+        dataToUpdate.leavingDate = Timestamp.fromDate(dataToUpdate.leavingDate);
+    } else {
+        dataToUpdate.leavingDate = null; // or delete it if preferred
+    }
+
+    if (dataToUpdate.leaveBalancesJson) {
         try {
-            const parsedBalances = JSON.parse(updateData.leaveBalancesJson);
+            const parsedBalances = JSON.parse(dataToUpdate.leaveBalancesJson);
             const validatedBalances = LeaveBalancesSchema.safeParse(parsedBalances);
             if (validatedBalances.success) {
                 dataToUpdate.leaveBalances = validatedBalances.data;
@@ -369,31 +400,15 @@ export async function updateEmployeeAction(
         delete dataToUpdate.leaveBalancesJson;
     }
     
-    if (updateData.deactivate === 'true') {
-        dataToUpdate.status = 'Terminated';
-        // The leavingDate and reasonForLeaving will be in dataToUpdate if they were valid
-    }
     delete dataToUpdate.deactivate;
     
     await updateDoc(employeeRef, dataToUpdate);
     
-    const successMessage = updateData.deactivate === 'true' 
-        ? `Employee has been deactivated.`
-        : `Employee details updated successfully.`;
-
-    return { message: successMessage };
+    return { message: "Employee details updated successfully." };
   } catch (error: any) {
     console.error('Firestore Update Employee Error:', error);
-    let specificErrorMessage = 'Failed to update employee in Firestore. An unexpected error occurred.';
-     if (error.code) {
-       if (error.message) {
-        specificErrorMessage = `Failed to update employee: ${error.message} (Code: ${error.code})`;
-      }
-    } else if (error.message) {
-         specificErrorMessage = `Failed to update employee: ${error.message}`;
-    }
     return {
-      errors: { form: [specificErrorMessage] },
+      errors: { form: [`Failed to update employee: ${error.message}`] },
       message: 'Failed to update employee.',
     };
   }
