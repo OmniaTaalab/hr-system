@@ -218,6 +218,12 @@ export async function createEmployeeAction(
 // Sub-schema for validating the parsed leave balances object
 const LeaveBalancesSchema = z.record(z.string(), z.coerce.number().nonnegative("Leave balance must be a non-negative number."));
 
+const DeactivationSchema = z.object({
+    employeeDocId: z.string().min(1, "Employee document ID is required."),
+    leavingDate: z.coerce.date({ required_error: "A valid leaving date is required." }),
+    reasonForLeaving: z.string().min(1, "Reason for leaving is required."),
+});
+
 // Schema for validating form data for updating an employee
 const UpdateEmployeeFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee document ID is required."), // Firestore document ID
@@ -247,18 +253,6 @@ const UpdateEmployeeFormSchema = z.object({
   stage: z.string().optional(),
   subject: z.string().optional(),
   title: z.string().optional(),
-  // For deactivation
-  deactivate: z.string().optional(),
-  reasonForLeaving: z.string().optional(),
-}).refine(data => {
-    // If deactivating, reason for leaving must be present.
-    if (data.deactivate === 'true') {
-        return !!data.reasonForLeaving && data.reasonForLeaving.length > 0 && !!data.leavingDate && isValid(data.leavingDate);
-    }
-    return true;
-}, {
-    message: "Reason for leaving and a valid leaving date are required for deactivation.",
-    path: ["reasonForLeaving"],
 });
 
 
@@ -301,12 +295,11 @@ export async function updateEmployeeAction(
     
     // Handle specific logic for deactivation
     if (rawData.deactivate === 'true') {
-        const validatedDeactivation = UpdateEmployeeFormSchema.pick({
-            employeeDocId: true,
-            deactivate: true,
-            leavingDate: true,
-            reasonForLeaving: true,
-        }).safeParse(rawData);
+        const validatedDeactivation = DeactivationSchema.safeParse({
+            employeeDocId: rawData.employeeDocId,
+            leavingDate: rawData.leavingDate,
+            reasonForLeaving: rawData.reasonForLeaving,
+        });
 
         if (!validatedDeactivation.success) {
             return {
@@ -399,8 +392,6 @@ export async function updateEmployeeAction(
         } catch (e) { /* ignore parse error */ }
         delete dataToUpdate.leaveBalancesJson;
     }
-    
-    delete dataToUpdate.deactivate;
     
     await updateDoc(employeeRef, dataToUpdate);
     
