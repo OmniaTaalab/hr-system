@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, doc, Timestamp, setDoc, getDoc, updateDoc, writeBatch, limit, startAfter } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, doc, Timestamp, setDoc, getDoc, updateDoc, writeBatch, limit, startAfter, orderBy } from 'firebase/firestore';
 
 // --- HOLIDAY SETTINGS ---
 
@@ -332,14 +332,16 @@ async function syncListFromSource(
     const BATCH_SIZE = 5000;
     try {
         const allSourceValues = new Set<string>();
-        let lastVisible = null;
+        let lastVisible: any = null;
         let hasMore = true;
 
         // 1. Get all unique values from the source collection in batches
         while (hasMore) {
-            let q = query(collection(db, sourceCollection), limit(BATCH_SIZE));
+            let q;
             if (lastVisible) {
-                q = query(collection(db, sourceCollection), startAfter(lastVisible), limit(BATCH_SIZE));
+                q = query(collection(db, sourceCollection), orderBy('__name__'), startAfter(lastVisible), limit(BATCH_SIZE));
+            } else {
+                q = query(collection(db, sourceCollection), orderBy('__name__'), limit(BATCH_SIZE));
             }
             
             const sourceSnapshot = await getDocs(q);
