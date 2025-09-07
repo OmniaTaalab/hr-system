@@ -308,14 +308,14 @@ export async function updateEmployeeAction(
     joiningDate: formData.get('joiningDate') || undefined,
     leavingDate: formData.get('leavingDate') || null,
     leaveBalancesJson: formData.get('leaveBalancesJson'),
-    gender: formData.get('gender'),
-    nationalId: formData.get('nationalId'),
-    religion: formData.get('religion'),
-    stage: formData.get('stage'),
-    subject: formData.get('subject'),
-    title: formData.get('title'),
-    deactivate: formData.get('deactivate'),
-    reasonForLeaving: formData.get('reasonForLeaving'),
+    gender: formData.get('gender') || undefined,
+    nationalId: formData.get('nationalId') || undefined,
+    religion: formData.get('religion') || undefined,
+    stage: formData.get('stage') || undefined,
+    subject: formData.get('subject') || undefined,
+    title: formData.get('title') || undefined,
+    deactivate: formData.get('deactivate') || undefined,
+    reasonForLeaving: formData.get('reasonForLeaving') || undefined,
   });
 
   if (!validatedFields.success) {
