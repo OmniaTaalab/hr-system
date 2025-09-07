@@ -34,14 +34,14 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   updateEmployeeAction, type UpdateEmployeeState, 
   deleteEmployeeAction, type DeleteEmployeeState,
-  createEmployeeAction, type CreateEmployeeState,
-  deactivateEmployeeAction, type DeactivateEmployeeState
+  createEmployeeAction, type CreateEmployeeState
 } from "@/lib/firebase/admin-actions";
 import { 
   createAuthUserForEmployeeAction, type CreateAuthUserState,
   deleteAuthUserAction, type DeleteAuthUserState,
   updateAuthUserPasswordAction, type UpdateAuthPasswordState
 } from "@/app/actions/auth-creation-actions";
+import { deactivateEmployeeAction, type DeactivateEmployeeState } from "@/app/actions/employee-actions";
 import { db, storage } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayUnion, arrayRemove, getCountFromServer, getDocs, orderBy, limit, startAfter, endBefore, limitToLast, DocumentData, DocumentSnapshot, QueryConstraint } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -1487,7 +1487,7 @@ function EmployeeManagementContent() {
                     <TableCell>{employee.stage || '-'}</TableCell>
                     <TableCell>{employee.campus || '-'}</TableCell>
                     <TableCell>
-                      <Badge variant={employee.status === "Active" ? "secondary" : "destructive"} 
+                      <Badge variant={employee.status === "Terminated" ? "destructive" : "secondary"}
                              className={cn({
                                 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100': employee.status === 'Active',
                               })}>
