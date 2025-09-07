@@ -23,12 +23,18 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
   const [files, setFiles] = useState<EmployeeFile[]>(employee.documents || []);
 
   useEffect(() => {
+    // Prevent setting up listener if employee ID is not available
+    if (!employee || !employee.id) {
+        setFiles([]); // Clear files if there's no valid employee
+        return;
+    }
+
     const unsub = onSnapshot(doc(db, "employee", employee.id), (doc) => {
         const data = doc.data();
         setFiles(data?.documents || []);
     });
     return () => unsub();
-  }, [employee.id]);
+  }, [employee]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -37,6 +43,11 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
   };
 
   const handleUpload = async (file: File) => {
+    if (!employee || !employee.id) {
+        toast({ variant: "destructive", title: "Error", description: "No employee selected."});
+        return;
+    }
+
     setIsUploading(true);
     const filePath = `employee-documents/${employee.id}/${file.name}`;
     const fileRef = ref(storage, filePath);
@@ -85,6 +96,7 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
   };
 
   const handleDelete = async (fileName: string) => {
+      if (!employee || !employee.id) return;
       setIsDeleting(fileName);
       const filePath = `employee-documents/${employee.id}/${fileName}`;
       const fileRef = ref(storage, filePath);
