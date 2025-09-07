@@ -34,7 +34,8 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   updateEmployeeAction, type UpdateEmployeeState, 
   deleteEmployeeAction, type DeleteEmployeeState,
-  createEmployeeAction, type CreateEmployeeState
+  createEmployeeAction, type CreateEmployeeState,
+  deactivateEmployeeAction, type DeactivateEmployeeState
 } from "@/lib/firebase/admin-actions";
 import { 
   createAuthUserForEmployeeAction, type CreateAuthUserState,
@@ -144,6 +145,12 @@ const initialUpdatePasswordState: UpdateAuthPasswordState = {
   message: null,
   errors: {},
   success: false,
+};
+
+const initialDeactivateState: DeactivateEmployeeState = {
+    message: null,
+    errors: {},
+    success: false,
 };
 
 const PAGE_SIZE = 15;
@@ -567,17 +574,20 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   useEffect(() => {
     if (!serverState) return;
     
-    if (serverState.message && !serverState.errors) {
+    if (serverState.success) {
       toast({
         title: "Employee Updated",
         description: serverState.message,
       });
       onSuccess();
-    } else if (serverState.errors?.form) {
-      setFormClientError(serverState.errors.form.join(', '));
-    } else if (serverState.errors && Object.keys(serverState.errors).length > 0) {
-      const fieldErrors = Object.values(serverState.errors).flat().filter(Boolean).join('; ');
-      setFormClientError(fieldErrors || "An error occurred while updating. Please check the details.");
+    } else if (serverState.errors) {
+       const errorMessage = Object.values(serverState.errors).flat().join(' ') || "An unexpected error occurred.";
+        toast({
+          variant: "destructive",
+          title: "Update Failed",
+          description: errorMessage,
+        });
+        setFormClientError(errorMessage);
     }
   }, [serverState, toast, onSuccess]);
   
@@ -848,7 +858,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
 // New Component for Deactivating an Employee
 function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: Employee | null; open: boolean; onOpenChange: (open: boolean) => void; }) {
     const { toast } = useToast();
-    const [deactivateState, deactivateAction, isDeactivatePending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
+    const [deactivateState, deactivateAction, isDeactivatePending] = useActionState(deactivateEmployeeAction, initialDeactivateState);
     const [leavingDate, setLeavingDate] = useState<Date | undefined>(new Date());
 
     useEffect(() => {
@@ -859,11 +869,11 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
     
     useEffect(() => {
         if (deactivateState?.message) {
-            if (!deactivateState.errors) {
-                toast({ title: "Success", description: "Employee deactivated successfully." });
+            if (deactivateState.success) {
+                toast({ title: "Success", description: deactivateState.message });
                 onOpenChange(false);
             } else {
-                const errorMessage = Object.values(deactivateState.errors).flat().join(' ');
+                const errorMessage = Object.values(deactivateState.errors || {}).flat().join(' ');
                 toast({ variant: "destructive", title: "Error", description: errorMessage || "Failed to deactivate employee." });
             }
         }
@@ -876,7 +886,6 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
             <DialogContent>
                 <form action={deactivateAction}>
                     <input type="hidden" name="employeeDocId" value={employee.id} />
-                    <input type="hidden" name="deactivate" value="true" />
                     <DialogHeader>
                         <DialogTitle>Deactivate Employee: {employee.name}</DialogTitle>
                         <DialogDescription>
