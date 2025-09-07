@@ -558,9 +558,9 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   const [formClientError, setFormClientError] = useState<string | null>(null);
 
   // State for controlled components
-  const [role, setRole] = useState(employee.role);
-  const [system, setSystem] = useState(employee.system);
-  const [campus, setCampus] = useState(employee.campus);
+  const [role, setRole] = useState(employee.role || '');
+  const [system, setSystem] = useState(employee.system || '');
+  const [campus, setCampus] = useState(employee.campus || '');
   const [gender, setGender] = useState(employee.gender || "");
   const [stage, setStage] = useState(employee.stage || "");
   const [subject, setSubject] = useState(employee.subject || "");
@@ -573,7 +573,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
     const numericValue = parseInt(value, 10);
     setLeaveBalances(prev => ({
       ...prev,
-      // If parsing fails (e.g., empty string), store 0 to avoid NaN.
       [leaveTypeName]: isNaN(numericValue) ? 0 : numericValue,
     }));
   };
