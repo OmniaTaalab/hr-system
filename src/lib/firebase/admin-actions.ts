@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { adminAuth, adminStorage } from '@/lib/firebase/admin-config';
-import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc, getDoc } from 'firebase/firestore';
 import { isValid } from 'date-fns';
 
 export async function getAllAuthUsers() {
@@ -318,6 +318,16 @@ export async function updateEmployeeAction(
 
   try {
     const employeeRef = doc(db, "employee", employeeDocId);
+    
+    // Check if the document exists before trying to update it
+    const docSnap = await getDoc(employeeRef);
+    if (!docSnap.exists()) {
+        return {
+            errors: { form: ["Employee not found. The record may have been deleted."] },
+            message: 'Failed to update employee.',
+        };
+    }
+
 
     const dataToUpdate: { [key: string]: any } = {};
 
