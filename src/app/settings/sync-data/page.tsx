@@ -12,6 +12,7 @@ import {
   syncCampusesFromEmployeesAction,
   syncStagesFromEmployeesAction,
   syncSubjectsFromEmployeesAction,
+  syncMachineNamesFromAttendanceLogsAction,
   type SyncState
 } from "@/app/actions/settings-actions";
 import { useToast } from "@/hooks/use-toast";
@@ -61,6 +62,7 @@ export default function SyncDataPage() {
   const [syncCampusState, syncCampusAction, isSyncCampusPending] = useActionState(syncCampusesFromEmployeesAction, initialSyncState);
   const [syncStageState, syncStageAction, isSyncStagePending] = useActionState(syncStagesFromEmployeesAction, initialSyncState);
   const [syncSubjectState, syncSubjectAction, isSyncSubjectPending] = useActionState(syncSubjectsFromEmployeesAction, initialSyncState);
+  const [syncMachineState, syncMachineAction, isSyncMachinePending] = useActionState(syncMachineNamesFromAttendanceLogsAction, initialSyncState);
 
 
   return (
@@ -113,11 +115,15 @@ export default function SyncDataPage() {
                     isPending={isSyncGroupPending}
                     state={syncGroupState}
                 />
+                 <SyncButton 
+                    label="Sync Machine Names from Attendance Logs"
+                    action={syncMachineAction}
+                    isPending={isSyncMachinePending}
+                    state={syncMachineState}
+                />
             </CardContent>
           </Card>
       </SettingsPageWrapper>
     </div>
   );
 }
-
-    

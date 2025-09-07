@@ -109,9 +109,7 @@ function AttendanceLogsContent() {
         } else if (page === 'next' && lastVisible) {
             queryConstraints.push(startAfter(lastVisible), limit(PAGE_SIZE));
         } else if (page === 'prev' && firstVisible) {
-            // Firestore does not support endBefore with desc order easily. We will refetch from start for simplicity.
-            // For a real-world app, you might implement more complex cursor logic.
-             queryConstraints = [orderBy("date", "desc"), endBefore(firstVisible), limitToLast(PAGE_SIZE)];
+            queryConstraints = [orderBy("date", "desc"), endBefore(firstVisible), limitToLast(PAGE_SIZE)];
         } else {
              queryConstraints.push(limit(PAGE_SIZE));
         }
@@ -121,7 +119,6 @@ function AttendanceLogsContent() {
       const documentSnapshots = await getDocs(finalQuery);
       let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
       
-      // For descending queries with limitToLast, Firestore returns in ascending. We need to reverse.
       if (page === 'prev' && shouldPaginate) {
           logsData.reverse();
       }
@@ -132,13 +129,14 @@ function AttendanceLogsContent() {
             setFirstVisible(documentSnapshots.docs[0]);
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
             
-            // Check if there's a next page
             const nextPageCheckConstraints = [orderBy("date", "desc"), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
+            if(isMachineFiltered) nextPageCheckConstraints.push(where("machine", "==", machineFilter));
+            if(isDateFiltered) nextPageCheckConstraints.push(where("date", "==", format(selectedDate, 'yyyy-MM-dd')));
+
             const nextQuery = query(logsCollection, ...nextPageCheckConstraints);
             const nextSnapshot = await getDocs(nextQuery);
             setIsLastPage(nextSnapshot.empty);
         } else {
-            // Not paginating, so there is only one page
             setIsLastPage(true);
         }
       } else {
@@ -146,8 +144,8 @@ function AttendanceLogsContent() {
          if (shouldPaginate) {
             setFirstVisible(null);
             setLastVisible(null);
-            setIsLastPage(true);
          }
+         setIsLastPage(true);
       }
     } catch (error: any) {
       console.error("Error fetching attendance logs:", error);
