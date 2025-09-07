@@ -24,7 +24,7 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
 
   useEffect(() => {
     // Prevent setting up listener if employee ID is not available
-    if (!employee.id) {
+    if (!employee?.id) {
         setFiles([]); // Clear files if there's no valid employee
         return;
     }
@@ -34,7 +34,7 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
         setFiles(data?.documents || []);
     });
     return () => unsub();
-  }, [employee.id]); // Change dependency to employee.id for more precise effect trigger
+  }, [employee.id]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -134,6 +134,10 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
           setIsDeleting(null);
       }
   };
+  
+  if (!employee?.id) {
+    return null; // Render nothing if there is no valid employee ID
+  }
 
   return (
     <div className="space-y-4 pt-4 border-t">
