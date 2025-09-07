@@ -61,7 +61,7 @@ import { EmployeeFileManager } from "@/components/employee-file-manager";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import { Textarea } from "../ui/textarea";
+import { Textarea } from "@/components/ui/textarea";
 
 
 export interface EmployeeFile {
