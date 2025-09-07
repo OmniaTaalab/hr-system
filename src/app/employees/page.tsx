@@ -877,7 +877,16 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
                 <form action={deactivateAction}>
                     <input type="hidden" name="employeeDocId" value={employee.id} />
                     <input type="hidden" name="deactivate" value="true" />
-                    
+                    <input type="hidden" name="firstName" value={employee.firstName || ''} />
+                    <input type="hidden" name="lastName" value={employee.lastName || ''} />
+                    <input type="hidden" name="department" value={employee.department || ''} />
+                    <input type="hidden" name="role" value={employee.role || ''} />
+                    <input type="hidden" name="system" value={employee.system || ''} />
+                    <input type="hidden" name="campus" value={employee.campus || ''} />
+                    <input type="hidden" name="email" value={employee.email || ''} />
+                    <input type="hidden" name="phone" value={employee.phone || ''} />
+                    <input type="hidden" name="dateOfBirth" value={employee.dateOfBirth?.toDate().toISOString() || ''} />
+
                     <DialogHeader>
                         <DialogTitle>Deactivate Employee: {employee.name}</DialogTitle>
                         <DialogDescription>
