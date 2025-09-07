@@ -109,6 +109,8 @@ function AttendanceLogsContent() {
             queryConstraints.push(startAfter(lastVisible), limit(PAGE_SIZE));
         } else if (page === 'prev' && firstVisible) {
             queryConstraints.push(endBefore(firstVisible), limitToLast(PAGE_SIZE));
+        } else {
+             queryConstraints.push(limit(PAGE_SIZE));
         }
       }
 
@@ -133,7 +135,7 @@ function AttendanceLogsContent() {
             setFirstVisible(documentSnapshots.docs[0]);
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
             
-            const nextPageCheckConstraints = [...queryConstraints.filter(c => c.type !== 'limit'), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
+            const nextPageCheckConstraints = [...queryConstraints.filter(c => c.type !== 'limit' && c.type !== 'limitToLast' && c.type !== 'startAfter' && c.type !== 'endBefore'), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
             const nextQuery = query(logsCollection, ...nextPageCheckConstraints);
 
             const nextSnapshot = await getDocs(nextQuery);
@@ -157,7 +159,7 @@ function AttendanceLogsContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDate, machineFilter, toast, lastVisible, firstVisible, isLastPage]);
+  }, [selectedDate, machineFilter, toast, lastVisible, firstVisible]);
 
   useEffect(() => {
     if (!canViewPage) {
@@ -199,19 +201,8 @@ function AttendanceLogsContent() {
       );
     }
     
-    // When "All Machines" is selected AND no date is filtered, group by user for display
-    if (machineFilter === "All" && !selectedDate) {
-      const latestLogsMap = new Map<number, AttendanceLog>();
-      records.forEach(log => {
-        if (!latestLogsMap.has(log.userId)) {
-          latestLogsMap.set(log.userId, log);
-        }
-      });
-      return Array.from(latestLogsMap.values());
-    }
-
     return records;
-  }, [allLogs, machineFilter, searchTerm, selectedDate]);
+  }, [allLogs, searchTerm]);
 
   if (isLoadingProfile) {
     return (
@@ -242,7 +233,7 @@ function AttendanceLogsContent() {
           {selectedDate
             ? `Showing all logs for ${format(selectedDate, 'PPP')}.`
             : machineFilter === 'All' 
-              ? 'Showing the most recent log for each employee. Click a row for full history.' 
+              ? 'Showing the most recent logs across all employees. Click a row for full history.' 
               : `Showing all logs for machine: ${machineFilter}.`}
         </p>
       </header>
@@ -254,7 +245,7 @@ function AttendanceLogsContent() {
                   {selectedDate
                     ? 'A detailed list of all check-in/out events for the selected day.'
                     : machineFilter === 'All' 
-                      ? 'A summary of the latest check-in/out activity for every employee.' 
+                      ? 'A detailed list of all check-in/out events across all employees.' 
                       : `A detailed list of all check-in/out events for the selected machine.`}
               </CardDescription>
                <div className="flex flex-col sm:flex-row gap-4 pt-2">
@@ -317,7 +308,7 @@ function AttendanceLogsContent() {
                               <TableHead>Check In</TableHead>
                               <TableHead>Check Out</TableHead>
                               <TableHead>Machine Name</TableHead>
-                              {!selectedDate && <TableHead className="text-right">History</TableHead>}
+                              <TableHead className="text-right">History</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -333,14 +324,12 @@ function AttendanceLogsContent() {
                                   <TableCell>{record.check_in || '-'}</TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
                                   <TableCell>{record.machine || '-'}</TableCell>
-                                  {!selectedDate && (
-                                    <TableCell className="text-right">
-                                      <Button variant="ghost" size="sm">
-                                        View All
-                                        <ArrowRight className="ml-2 h-4 w-4" />
-                                      </Button>
-                                    </TableCell>
-                                  )}
+                                  <TableCell className="text-right">
+                                    <Button variant="ghost" size="sm">
+                                      View All
+                                      <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                  </TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
