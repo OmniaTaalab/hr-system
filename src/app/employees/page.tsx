@@ -35,9 +35,11 @@ import {
   updateEmployeeAction, type UpdateEmployeeState, 
   deleteEmployeeAction, type DeleteEmployeeState,
   createEmployeeAction, type CreateEmployeeState,
-  deactivateEmployeeAction, type DeactivateEmployeeState,
   batchCreateEmployeesAction, type BatchCreateEmployeesState,
 } from "@/lib/firebase/admin-actions";
+import {
+    deactivateEmployeeAction, type DeactivateEmployeeState
+} from "@/app/actions/employee-actions";
 import { 
   createAuthUserForEmployeeAction, type CreateAuthUserState,
   deleteAuthUserAction, type DeleteAuthUserState,
@@ -1045,6 +1047,7 @@ function ImportEmployeesDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 function EmployeeManagementContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const [searchTerm, setSearchTerm] = useState("");
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [paginatedEmployees, setPaginatedEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
@@ -1104,10 +1107,13 @@ function EmployeeManagementContent() {
 
   const isPrincipalView = useMemo(() => profile?.role?.toLowerCase() === 'principal', [profile]);
   const isFiltered = useMemo(() => campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All" || genderFilter !== "All", [campusFilter, stageFilter, subjectFilter, genderFilter]);
+  
+  const isSearching = useMemo(() => searchTerm.trim() !== '', [searchTerm]);
 
   const fetchEmployees = useCallback(async (page: 'first' | 'next' | 'prev' = 'first') => {
     if (!hasFullView) {
       setIsLoading(false);
+      setAllEmployees([]);
       setPaginatedEmployees([]);
       setTotalEmployees(0);
       return;
@@ -1130,15 +1136,15 @@ function EmployeeManagementContent() {
       }
       
       const isFilteredOrPrincipalView = isFiltered || isPrincipal;
+      const shouldPaginate = !isFilteredOrPrincipalView && !isSearching;
       
       if (!isFilteredOrPrincipalView) {
         queryConstraints.push(orderBy("name"));
       }
 
       let q;
-      const isPaginated = !isFilteredOrPrincipalView;
 
-      if (isPaginated) {
+      if (shouldPaginate) {
         if (page === 'first') {
           q = query(employeeCollection, ...queryConstraints, limit(PAGE_SIZE));
         } else if (page === 'next' && lastVisible) {
@@ -1160,10 +1166,16 @@ function EmployeeManagementContent() {
         employeeData.sort((a, b) => a.name.localeCompare(b.name));
       }
       
-      setPaginatedEmployees(employeeData);
+      if (isSearching) {
+        setAllEmployees(employeeData); // For client-side search on full list
+        setPaginatedEmployees([]); // Clear paginated if searching
+      } else {
+        setPaginatedEmployees(employeeData);
+        setAllEmployees([]); // Clear all if not searching
+      }
       
       if (!documentSnapshots.empty) {
-        if (isPaginated) {
+        if (shouldPaginate) {
             setFirstVisible(documentSnapshots.docs[0]);
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
             
@@ -1173,7 +1185,7 @@ function EmployeeManagementContent() {
             setIsLastPage(nextSnapshot.empty);
         }
       } else {
-         if (isPaginated && page === 'next') {
+         if (shouldPaginate && page === 'next') {
             setIsLastPage(true);
          } else if (page === 'first' || page === 'prev') {
             setPaginatedEmployees([]);
@@ -1195,7 +1207,7 @@ function EmployeeManagementContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [hasFullView, profile, campusFilter, stageFilter, subjectFilter, genderFilter, isFiltered, firstVisible, lastVisible, toast]);
+  }, [hasFullView, profile, campusFilter, stageFilter, subjectFilter, genderFilter, isFiltered, firstVisible, lastVisible, toast, isSearching]);
   
   useEffect(() => {
     if(isLoadingProfile) return;
@@ -1227,7 +1239,7 @@ function EmployeeManagementContent() {
         }).catch(() => setTotalEmployees(0));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter, subjectFilter, genderFilter]);
+  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter, subjectFilter, genderFilter, isSearching]);
   
   const goToNextPage = () => {
     if (isLastPage) return;
@@ -1314,7 +1326,7 @@ function EmployeeManagementContent() {
   }, [changePasswordServerState, toast]);
   
   const filteredEmployees = useMemo(() => {
-    let listToFilter = paginatedEmployees;
+    let listToFilter = isSearching ? allEmployees : paginatedEmployees;
     
     const lowercasedFilter = searchTerm.toLowerCase();
     if (!searchTerm.trim()) {
@@ -1336,7 +1348,7 @@ function EmployeeManagementContent() {
             typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
         );
     });
-  }, [paginatedEmployees, searchTerm]);
+  }, [allEmployees, paginatedEmployees, searchTerm, isSearching]);
 
 
   const openEditDialog = (employee: Employee) => {
@@ -1681,7 +1693,7 @@ function EmployeeManagementContent() {
           </Table>
           )}
         </CardContent>
-        {(!isFiltered && !isPrincipalView) && (
+        {(!isFiltered && !isPrincipalView && !isSearching) && (
             <CardContent>
             <div className="flex items-center justify-end space-x-2 py-4">
                 <Button
