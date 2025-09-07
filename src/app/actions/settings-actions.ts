@@ -227,7 +227,7 @@ export async function getWorkdaySettings(): Promise<{ standardHours: number }> {
 
 // --- ORGANIZATION LISTS (DEPARTMENTS, ROLES, ETC.) ---
 
-const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes", "stage"]);
+const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes", "stage", "subjects"]);
 
 const ManageItemSchema = z.object({
   collectionName: collectionNames,
@@ -316,192 +316,87 @@ export async function manageListItemAction(
   }
 }
 
-// --- NEW ACTION: Sync Group Names from Employees ---
+// --- DATA SYNC ACTIONS ---
+
 export type SyncState = {
   message?: string | null;
   success?: boolean;
 };
 
+// Generic sync function to reduce repetition
+async function syncListFromSource(
+    sourceCollection: string,
+    sourceField: string,
+    targetCollection: string
+): Promise<SyncState> {
+    try {
+        // 1. Get all unique values from the source collection
+        const sourceSnapshot = await getDocs(collection(db, sourceCollection));
+        const sourceValues = new Set(
+            sourceSnapshot.docs
+                .map(doc => doc.data()[sourceField])
+                .filter(Boolean) // Filter out any falsy values (null, undefined, '')
+        );
+
+        // 2. Get all existing names from the target collection
+        const targetSnapshot = await getDocs(collection(db, targetCollection));
+        const existingTargetNames = new Set(
+            targetSnapshot.docs.map(doc => doc.data().name)
+        );
+
+        // 3. Determine which values are new
+        const newValues = [...sourceValues].filter(
+            name => !existingTargetNames.has(name)
+        );
+
+        if (newValues.length === 0) {
+            return { success: true, message: `"${targetCollection}" list is already up-to-date.` };
+        }
+
+        // 4. Add the new values to the target collection
+        const batch = [];
+        for (const name of newValues) {
+            batch.push(addDoc(collection(db, targetCollection), { name }));
+        }
+        await Promise.all(batch);
+
+        return {
+            success: true,
+            message: `Successfully added ${newValues.length} new item(s) to ${targetCollection}.`
+        };
+    } catch (error: any) {
+        console.error(`Error syncing to ${targetCollection}:`, error);
+        return {
+            success: false,
+            message: `Failed to sync ${targetCollection}. An unexpected error occurred: ${error.message}`
+        };
+    }
+}
+
+
 export async function syncGroupNamesFromEmployeesAction(): Promise<SyncState> {
-  try {
-    // 1. Get all unique group names from the 'employee' collection
-    const employeeSnapshot = await getDocs(collection(db, "employee"));
-    const employeeGroupNames = new Set(
-      employeeSnapshot.docs
-        .map(doc => doc.data().groupName)
-        .filter(Boolean) // Filter out any falsy values (null, undefined, '')
-    );
-
-    // 2. Get all existing group names from the 'groupNames' collection
-    const groupNamesSnapshot = await getDocs(collection(db, "groupNames"));
-    const existingGroupNames = new Set(
-      groupNamesSnapshot.docs.map(doc => doc.data().name)
-    );
-
-    // 3. Determine which group names are new
-    const newGroupNames = [...employeeGroupNames].filter(
-      name => !existingGroupNames.has(name)
-    );
-
-    if (newGroupNames.length === 0) {
-      return { success: true, message: "Group Names are already up-to-date." };
-    }
-
-    // 4. Add the new group names to the 'groupNames' collection
-    const batch = [];
-    for (const name of newGroupNames) {
-      batch.push(addDoc(collection(db, "groupNames"), { name }));
-    }
-    await Promise.all(batch);
-
-    return { 
-      success: true, 
-      message: `Successfully added ${newGroupNames.length} new group name(s).` 
-    };
-  } catch (error: any) {
-    console.error("Error syncing group names from employees:", error);
-    return {
-      success: false,
-      message: `Failed to sync group names. An unexpected error occurred: ${error.message}`
-    };
-  }
+    return syncListFromSource("employee", "groupName", "groupNames");
 }
 
-// --- NEW ACTION: Sync Roles from Employees ---
 export async function syncRolesFromEmployeesAction(): Promise<SyncState> {
-  try {
-    // 1. Get all unique roles from the 'employee' collection
-    const employeeSnapshot = await getDocs(collection(db, "employee"));
-    const employeeRoles = new Set(
-      employeeSnapshot.docs
-        .map(doc => doc.data().role)
-        .filter(Boolean) // Filter out any falsy values (null, undefined, '')
-    );
-
-    // 2. Get all existing roles from the 'roles' collection
-    const rolesSnapshot = await getDocs(collection(db, "roles"));
-    const existingRoles = new Set(
-      rolesSnapshot.docs.map(doc => doc.data().name)
-    );
-
-    // 3. Determine which roles are new
-    const newRoles = [...employeeRoles].filter(
-      name => !existingRoles.has(name)
-    );
-
-    if (newRoles.length === 0) {
-      return { success: true, message: "Roles are already up-to-date." };
-    }
-
-    // 4. Add the new roles to the 'roles' collection
-    const batch = [];
-    for (const name of newRoles) {
-      batch.push(addDoc(collection(db, "roles"), { name }));
-    }
-    await Promise.all(batch);
-
-    return { 
-      success: true, 
-      message: `Successfully added ${newRoles.length} new role(s).` 
-    };
-  } catch (error: any) {
-    console.error("Error syncing roles from employees:", error);
-    return {
-      success: false,
-      message: `Failed to sync roles. An unexpected error occurred: ${error.message}`
-    };
-  }
+    return syncListFromSource("employee", "role", "roles");
 }
 
-// --- NEW ACTION: Sync Campuses from Employees ---
 export async function syncCampusesFromEmployeesAction(): Promise<SyncState> {
-  try {
-    // 1. Get all unique campuses from the 'employee' collection
-    const employeeSnapshot = await getDocs(collection(db, "employee"));
-    const employeeCampuses = new Set(
-      employeeSnapshot.docs
-        .map(doc => doc.data().campus)
-        .filter(Boolean) // Filter out any falsy values (null, undefined, '')
-    );
-
-    // 2. Get all existing campuses from the 'campuses' collection
-    const campusesSnapshot = await getDocs(collection(db, "campuses"));
-    const existingCampuses = new Set(
-      campusesSnapshot.docs.map(doc => doc.data().name)
-    );
-
-    // 3. Determine which campuses are new
-    const newCampuses = [...employeeCampuses].filter(
-      name => !existingCampuses.has(name)
-    );
-
-    if (newCampuses.length === 0) {
-      return { success: true, message: "Campuses are already up-to-date." };
-    }
-
-    // 4. Add the new campuses to the 'campuses' collection
-    const batch = [];
-    for (const name of newCampuses) {
-      batch.push(addDoc(collection(db, "campuses"), { name }));
-    }
-    await Promise.all(batch);
-
-    return { 
-      success: true, 
-      message: `Successfully added ${newCampuses.length} new campus(es).` 
-    };
-  } catch (error: any) {
-    console.error("Error syncing campuses from employees:", error);
-    return {
-      success: false,
-      message: `Failed to sync campuses. An unexpected error occurred: ${error.message}`
-    };
-  }
+    return syncListFromSource("employee", "campus", "campuses");
 }
 
-
-// --- NEW ACTION: Sync Stages from Employees ---
 export async function syncStagesFromEmployeesAction(): Promise<SyncState> {
-  try {
-    // 1. Get all unique stages from the 'employee' collection
-    const employeeSnapshot = await getDocs(collection(db, "employee"));
-    const employeeStages = new Set(
-      employeeSnapshot.docs
-        .map(doc => doc.data().stage)
-        .filter(Boolean) // Filter out any falsy values (null, undefined, '')
-    );
-
-    // 2. Get all existing stages from the 'stage' collection
-    const stagesSnapshot = await getDocs(collection(db, "stages"));
-    const existingStages = new Set(
-      stagesSnapshot.docs.map(doc => doc.data().name)
-    );
-
-    // 3. Determine which stages are new
-    const newStages = [...employeeStages].filter(
-      name => !existingStages.has(name)
-    );
-
-    if (newStages.length === 0) {
-      return { success: true, message: "Stages are already up-to-date." };
-    }
-
-    // 4. Add the new stages to the 'stage' collection
-    const batch = [];
-    for (const name of newStages) {
-      batch.push(addDoc(collection(db, "stage"), { name }));
-    }
-    await Promise.all(batch);
-
-    return { 
-      success: true, 
-      message: `Successfully added ${newStages.length} new stage(s).` 
-    };
-  } catch (error: any) {
-    console.error("Error syncing stages from employees:", error);
-    return {
-      success: false,
-      message: `Failed to sync stages. An unexpected error occurred: ${error.message}`
-    };
-  }
+    return syncListFromSource("employee", "stage", "stage");
 }
+
+export async function syncSubjectsFromEmployeesAction(): Promise<SyncState> {
+    return syncListFromSource("employee", "subject", "subjects");
+}
+
+// New action to sync machine names from attendance logs
+export async function syncMachineNamesFromAttendanceLogsAction(): Promise<SyncState> {
+    return syncListFromSource("attendance_log", "machine", "machineNames");
+}
+
+      

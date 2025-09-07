@@ -14,7 +14,7 @@ import {
   syncMachineNamesFromAttendanceLogsAction,
   syncSubjectsFromEmployeesAction,
   type SyncState
-} from "@/actions/settings-actions";
+} from "@/app/actions/settings-actions";
 import { useToast } from "@/hooks/use-toast";
 
 const initialSyncState: SyncState = { success: false, message: null };
@@ -127,3 +127,5 @@ export default function SyncDataPage() {
     </div>
   );
 }
+
+      
