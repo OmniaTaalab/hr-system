@@ -88,11 +88,13 @@ function AttendanceLogsContent() {
       const logsCollection = collection(db, "attendance_log");
       let queryConstraints: QueryConstraint[] = [];
       
-      // Always order by date descending.
-      queryConstraints.push(orderBy("date", "desc"));
+      // Only order by date if NOT filtering by machine, to avoid composite index requirement.
+      if (!isMachineFiltered) {
+        queryConstraints.push(orderBy("date", "desc"));
+      }
 
       // Add filters if they are selected
-      if (isDateFiltered) {
+      if (isDateFiltered && selectedDate) {
         const dateString = format(selectedDate, 'yyyy-MM-dd');
         queryConstraints.push(where("date", "==", dateString));
       }
@@ -100,7 +102,6 @@ function AttendanceLogsContent() {
         queryConstraints.push(where("machine", "==", machineFilter));
       }
       
-      // Pagination should only apply when NO filters are active.
       const shouldPaginate = !isMachineFiltered && !isDateFiltered;
 
       if (shouldPaginate) {
@@ -109,7 +110,21 @@ function AttendanceLogsContent() {
         } else if (page === 'next' && lastVisible) {
             queryConstraints.push(startAfter(lastVisible), limit(PAGE_SIZE));
         } else if (page === 'prev' && firstVisible) {
-            queryConstraints = [orderBy("date", "desc"), endBefore(firstVisible), limitToLast(PAGE_SIZE)];
+            // To go to previous page, we need to reverse the order, get the last items, then reverse them back
+            const prevConstraints = [orderBy("date"), endBefore(firstVisible), limitToLast(PAGE_SIZE)];
+            if (machineFilter !== "All") prevConstraints.push(where("machine", "==", machineFilter));
+            if(selectedDate) prevConstraints.push(where("date", "==", format(selectedDate, 'yyyy-MM-dd')));
+            const prevQuery = query(logsCollection, ...prevConstraints);
+            const prevSnapshots = await getDocs(prevQuery);
+            const prevLogsData = prevSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog)).reverse();
+            setAllLogs(prevLogsData);
+            if (!prevSnapshots.empty) {
+                setFirstVisible(prevSnapshots.docs[0]);
+                setLastVisible(prevSnapshots.docs[prevSnapshots.docs.length - 1]);
+            }
+            setIsLastPage(false); // Can always go forward from a previous page
+            setIsLoading(false);
+            return;
         } else {
              queryConstraints.push(limit(PAGE_SIZE));
         }
@@ -119,8 +134,9 @@ function AttendanceLogsContent() {
       const documentSnapshots = await getDocs(finalQuery);
       let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
       
-      if (page === 'prev' && shouldPaginate) {
-          logsData.reverse();
+      // If we filtered by machine, we sort client-side.
+      if(isMachineFiltered) {
+        logsData.sort((a, b) => b.date.localeCompare(a.date));
       }
 
       if (!documentSnapshots.empty) {
@@ -131,7 +147,7 @@ function AttendanceLogsContent() {
             
             const nextPageCheckConstraints = [orderBy("date", "desc"), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
             if(isMachineFiltered) nextPageCheckConstraints.push(where("machine", "==", machineFilter));
-            if(isDateFiltered) nextPageCheckConstraints.push(where("date", "==", format(selectedDate, 'yyyy-MM-dd')));
+            if(isDateFiltered && selectedDate) nextPageCheckConstraints.push(where("date", "==", format(selectedDate, 'yyyy-MM-dd')));
 
             const nextQuery = query(logsCollection, ...nextPageCheckConstraints);
             const nextSnapshot = await getDocs(nextQuery);
@@ -152,7 +168,7 @@ function AttendanceLogsContent() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Could not load attendance logs. A composite index might be required in Firestore for this filter combination.",
+        description: "Could not load attendance logs. This filter combination might require a composite index in Firestore.",
       });
       setAllLogs([]);
     } finally {
@@ -376,3 +392,5 @@ export default function AttendanceLogsPage() {
         </AppLayout>
     )
 }
+
+    
