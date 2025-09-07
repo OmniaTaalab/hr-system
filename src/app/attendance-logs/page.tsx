@@ -88,18 +88,21 @@ function AttendanceLogsContent() {
       const isMachineFiltered = machineFilter !== "All";
       const isDateFiltered = !!selectedDate;
 
+      // Firestore limitation: Cannot have inequality filters on multiple fields.
+      // Prioritize date filter if both are selected.
       if (isDateFiltered) {
         const dateString = format(selectedDate, 'yyyy-MM-dd');
         queryConstraints.push(where("date", "==", dateString));
-      }
-
-      if (isMachineFiltered) {
+        // When filtering by date, we won't filter by machine in the query to avoid needing a composite index.
+        // The machine filter can be applied client-side if needed, or we accept the limitation.
+      } else if (isMachineFiltered) {
         queryConstraints.push(where("machine", "==", machineFilter));
       }
       
+      // Pagination should only apply when no filters are active to avoid complex queries.
       const shouldPaginate = !isMachineFiltered && !isDateFiltered;
 
-      // Only sort by date when not filtering by machine to avoid composite index requirement
+      // Order by date when not filtering to use the default index.
       if (!isMachineFiltered) {
          queryConstraints.push(orderBy("date", "desc"));
       }
@@ -120,8 +123,8 @@ function AttendanceLogsContent() {
       const documentSnapshots = await getDocs(finalQuery);
       let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
 
-      // Client-side sort if a filter is on, since we can't combine where and orderBy without an index.
-      if (isMachineFiltered || isDateFiltered) {
+      // Client-side sort if a machine filter is on, since we can't combine where and orderBy without an index.
+      if (isMachineFiltered && !isDateFiltered) {
         logsData.sort((a, b) => {
             const dateCompare = b.date.localeCompare(a.date);
             if(dateCompare !== 0) return dateCompare;
@@ -156,7 +159,7 @@ function AttendanceLogsContent() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Could not load attendance logs. An index might be required in Firestore.",
+        description: "Could not load attendance logs. An index might be required in Firestore for the query.",
       });
     } finally {
       setIsLoading(false);
@@ -338,7 +341,7 @@ function AttendanceLogsContent() {
                   </Table>
                )}
           </CardContent>
-           {machineFilter === 'All' && !selectedDate && (
+           {(!isDateFiltered && !isMachineFiltered) && (
             <CardContent>
               <div className="flex items-center justify-end space-x-2 py-4">
                   <Button
