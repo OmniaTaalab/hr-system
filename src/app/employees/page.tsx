@@ -818,7 +818,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                         name={`leaveBalances[${leaveType.name}]`}
                         type="number"
                         placeholder="Days"
-                        value={leaveBalances[leaveType.name] || ""}
+                        value={leaveBalances[leaveType.name] ?? ""}
                         onChange={(e) => handleBalanceChange(leaveType.name, e.target.value)}
                       />
                     </div>
