@@ -1,28 +1,44 @@
 
-
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Loader2, UploadCloud, Trash2, File as FileIcon } from 'lucide-react';
 import { db, storage } from '@/lib/firebase/config';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { doc, updateDoc, arrayUnion, arrayRemove, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, arrayRemove, Timestamp, onSnapshot } from 'firebase/firestore';
 import type { EmployeeFile } from '@/app/employees/page';
 import { Label } from './ui/label';
 
 interface EmployeeFileManagerProps {
-  employeeId: string;
-  initialFiles: EmployeeFile[];
-  onFilesChange: (files: EmployeeFile[]) => void;
+  employee: {
+    id: string;
+    documents?: EmployeeFile[];
+  };
 }
 
-export function EmployeeFileManager({ employeeId, initialFiles, onFilesChange }: EmployeeFileManagerProps) {
+export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [files, setFiles] = useState<EmployeeFile[]>(employee.documents || []);
+
+  useEffect(() => {
+    if (!employee?.id) {
+        setFiles([]);
+        return;
+    }
+
+    const unsub = onSnapshot(doc(db, "employee", employee.id), (doc) => {
+        const data = doc.data();
+        setFiles(data?.documents || []);
+    });
+
+    return () => unsub();
+  }, [employee.id]);
+
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -32,11 +48,11 @@ export function EmployeeFileManager({ employeeId, initialFiles, onFilesChange }:
 
   const handleUpload = async (file: File) => {
     setIsUploading(true);
-    const filePath = `employee-documents/${employeeId}/${file.name}`;
+    const filePath = `employee-documents/${employee.id}/${file.name}`;
     const fileRef = ref(storage, filePath);
 
     try {
-      if (initialFiles.some(f => f.name === file.name)) {
+      if (files.some(f => f.name === file.name)) {
         toast({
           variant: "destructive",
           title: "Duplicate File Name",
@@ -56,13 +72,11 @@ export function EmployeeFileManager({ employeeId, initialFiles, onFilesChange }:
         uploadedAt: Timestamp.now(),
       };
       
-      const employeeDocRef = doc(db, "employee", employeeId);
+      const employeeDocRef = doc(db, "employee", employee.id);
       await updateDoc(employeeDocRef, {
         documents: arrayUnion(newFile)
       });
       
-      onFilesChange([...initialFiles, newFile]);
-
       toast({
         title: "Success",
         description: `File "${file.name}" uploaded successfully.`,
@@ -82,26 +96,23 @@ export function EmployeeFileManager({ employeeId, initialFiles, onFilesChange }:
 
   const handleDelete = async (fileName: string) => {
       setIsDeleting(fileName);
-      const filePath = `employee-documents/${employeeId}/${fileName}`;
+      const filePath = `employee-documents/${employee.id}/${fileName}`;
       const fileRef = ref(storage, filePath);
-      const employeeDocRef = doc(db, "employee", employeeId);
+      const employeeDocRef = doc(db, "employee", employee.id);
 
       try {
-          const fileToDelete = initialFiles.find(f => f.name === fileName);
+          const fileToDelete = files.find(f => f.name === fileName);
           if (!fileToDelete) throw new Error("File not found in record.");
           
           await deleteObject(fileRef);
           await updateDoc(employeeDocRef, { documents: arrayRemove(fileToDelete) });
           
-          onFilesChange(initialFiles.filter(f => f.name !== fileName));
-
           toast({ title: "File Removed", description: `File "${fileName}" has been removed.` });
       } catch (error: any) {
         if (error.code === 'storage/object-not-found') {
-            const fileToDelete = initialFiles.find(f => f.name === fileName);
+            const fileToDelete = files.find(f => f.name === fileName);
             if(fileToDelete) {
                 await updateDoc(employeeDocRef, { documents: arrayRemove(fileToDelete) });
-                onFilesChange(initialFiles.filter(f => f.name !== fileName));
             }
             toast({
                 title: "File Removed",
@@ -120,7 +131,7 @@ export function EmployeeFileManager({ employeeId, initialFiles, onFilesChange }:
       }
   };
   
-  if (!employeeId) {
+  if (!employee?.id) {
     return null;
   }
 
@@ -142,9 +153,9 @@ export function EmployeeFileManager({ employeeId, initialFiles, onFilesChange }:
       </div>
        <p className="text-xs text-muted-foreground">Upload CV, National ID, and other relevant documents.</p>
       <div className="border rounded-md">
-        {initialFiles.length > 0 ? (
+        {files.length > 0 ? (
           <ul className="divide-y max-h-48 overflow-y-auto">
-            {initialFiles.map(file => (
+            {files.map(file => (
               <li key={file.name} className="p-2 flex justify-between items-center group">
                 <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline truncate flex items-center gap-2">
                   <FileIcon className="h-4 w-4 text-muted-foreground" />

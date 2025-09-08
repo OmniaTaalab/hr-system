@@ -568,7 +568,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   const [joiningDate, setJoiningDate] = useState<Date | undefined>(employee.joiningDate?.toDate());
   const [leavingDate, setLeavingDate] = useState<Date | undefined>(employee.leavingDate?.toDate());
   const [leaveBalances, setLeaveBalances] = useState<{ [key: string]: number }>(employee.leaveBalances || {});
-  const [documents, setDocuments] = useState<EmployeeFile[]>(employee.documents || []);
 
 
   const handleBalanceChange = (leaveTypeName: string, value: string) => {
@@ -616,11 +615,11 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         <input type="hidden" name="leaveBalancesJson" value={JSON.stringify(leaveBalances)} />
         {/* Hidden inputs for controlled Selects */}
         <input type="hidden" name="role" value={role} />
-        <input type="hidden" name="system" value={system} />
-        <input type="hidden" name="campus" value={campus} />
-        <input type="hidden" name="gender" value={gender} />
-        <input type="hidden" name="stage" value={stage} />
-        <input type="hidden" name="subject" value={subject} />
+        <input type="hidden" name="system" value={system || ''} />
+        <input type="hidden" name="campus" value={campus || ''} />
+        <input type="hidden" name="gender" value={gender || ''} />
+        <input type="hidden" name="stage" value={stage || ''} />
+        <input type="hidden" name="subject" value={subject || ''} />
         
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
@@ -837,11 +836,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
               )}
             </div>
 
-            <EmployeeFileManager 
-                employeeId={employee.id} 
-                initialFiles={documents}
-                onFilesChange={setDocuments}
-            />
+            <EmployeeFileManager employee={employee} />
             
             {(formClientError || serverState?.errors?.form) && (
               <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
