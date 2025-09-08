@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -9,7 +8,7 @@ import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserCircle2, MailWarning, PhoneCall, FileDown, Download, UserMinus } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserCircle2, MailWarning, PhoneCall, FileDown, Download, UserMinus, Activity } from 'lucide-react';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -95,13 +94,14 @@ function LeaveStatusBadge({ status }: { status: LeaveRequest["status"] }) {
   }
 }
 
-function DetailItem({ icon: Icon, label, value }: { icon: React.ElementType, label: string, value: string | undefined | null }) {
-  if (!value) return null;
+function DetailItem({ icon: Icon, label, value, children }: { icon: React.ElementType, label: string, value?: string | undefined | null, children?: React.ReactNode }) {
+  if (!value && !children) return null;
   return (
     <div className="flex items-center text-sm">
-      <Icon className="h-4 w-4 mr-3 text-muted-foreground" />
+      <Icon className="h-4 w-4 mr-3 text-muted-foreground flex-shrink-0" />
       <span className="font-medium text-muted-foreground mr-2">{label}:</span>
-      <span className="text-foreground">{value}</span>
+      {value && <span className="text-foreground">{value}</span>}
+      {children}
     </div>
   );
 }
@@ -357,6 +357,11 @@ function EmployeeProfileContent() {
                    <DetailItem icon={Stethoscope} label="Subject" value={employee.subject} />
                    <DetailItem icon={UserCircle2} label="Reports to (Line 1)" value={employee.reportLine1} />
                    <DetailItem icon={UserCircle2} label="Reports to (Line 2)" value={employee.reportLine2} />
+                   <DetailItem icon={Activity} label="Status">
+                     <Badge variant={employee.status === "Terminated" ? "destructive" : "secondary"} className={employee.status === 'Active' ? 'bg-green-100 text-green-800' : ''}>
+                       {employee.status || "Active"}
+                     </Badge>
+                   </DetailItem>
                 </div>
                 
                 <Separator className="my-6" />
@@ -536,3 +541,5 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
+    
