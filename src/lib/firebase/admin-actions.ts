@@ -198,7 +198,6 @@ export async function createEmployeeAction(
       status: "Active",
       hourlyRate: 0,
       leavingDate: null,
-      leaveBalances: {},
       documents: [],
       photoURL: null,
       createdAt: serverTimestamp(),
@@ -216,7 +215,6 @@ export async function createEmployeeAction(
 
 
 // Sub-schema for validating the parsed leave balances object
-const LeaveBalancesSchema = z.record(z.string(), z.coerce.number().nonnegative("Leave balance must be a non-negative number."));
 
 // Schema for validating form data for updating an employee
 const UpdateEmployeeFormSchema = z.object({
@@ -228,7 +226,7 @@ const UpdateEmployeeFormSchema = z.object({
   system: z.string().optional(),
   campus: z.string().optional(),
   email: z.string().email({ message: 'Invalid email address.' }).optional(),
-  phone: z.string().regex(/^\d+$/, "Phone number must contain only numbers.").optional(),
+  phone: z.string().regex(/^\d*$/, "Phone number must contain only numbers.").optional(),
   hourlyRate: z.preprocess(
     (val) => {
       if (val === '' || val === null || val === undefined) return undefined;
@@ -264,7 +262,6 @@ export type UpdateEmployeeState = {
     dateOfBirth?: string[];
     joiningDate?: string[];
     leavingDate?: string[];
-    leaveBalances?: string[];
     gender?: string[];
     nationalId?: string[];
     religion?: string[];
@@ -575,7 +572,6 @@ export async function createEmployeeProfileAction(
       hourlyRate: 0,
       joiningDate: serverTimestamp(),
       leavingDate: null,
-      leaveBalances: {},
       documents: [],
       createdAt: serverTimestamp(),
     };
@@ -706,7 +702,6 @@ export async function batchCreateEmployeesAction(
         status: "Active",
         hourlyRate: 0,
         leavingDate: null,
-        leaveBalances: {},
         documents: [],
         photoURL: null,
         createdAt: serverTimestamp(),
