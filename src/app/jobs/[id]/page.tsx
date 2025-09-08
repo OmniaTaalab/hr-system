@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { AppLayout } from '@/components/layout/app-layout';
+import { PublicLayout } from '@/components/layout/public-layout'; // Use PublicLayout
 import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -90,7 +90,7 @@ export default function JobDetailPage() {
 
 
   return (
-    <AppLayout>
+    <PublicLayout>
       <div className="max-w-4xl mx-auto">
         <Button variant="outline" size="sm" onClick={() => router.back()} className="mb-4">
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -147,6 +147,6 @@ export default function JobDetailPage() {
           </Card>
         )}
       </div>
-    </AppLayout>
+    </PublicLayout>
   );
 }

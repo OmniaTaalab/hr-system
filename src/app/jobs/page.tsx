@@ -2,10 +2,11 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState } from "react";
-import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
+import { PublicLayout } from "@/components/layout/public-layout"; // Use PublicLayout
+import { useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Briefcase, MapPin, DollarSign, ArrowRight, Loader2, PlusCircle, Search, Trash2 } from "lucide-react";
+import { Briefcase, MapPin, ArrowRight, Loader2, PlusCircle, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
@@ -202,8 +203,8 @@ function JobBoardContent() {
 
 export default function JobBoardPage() {
   return (
-    <AppLayout>
+    <PublicLayout>
       <JobBoardContent />
-    </AppLayout>
+    </PublicLayout>
   );
 }

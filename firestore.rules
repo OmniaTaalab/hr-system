@@ -3,19 +3,40 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Allow anyone to create a job application.
-    // They cannot read, update, or delete any applications.
-    match /jobApplications/{applicationId} {
-      allow read, update, delete: if false;
-      allow create: if true;
+
+    // Helper function to check if a user is an admin
+    function isAdmin(userId) {
+      return get(/databases/$(database)/documents/employee/$(userId)).data.role == 'admin';
     }
     
-    // Secure all other collections by default.
-    // Authenticated users can read/write their own data or data
-    // managed through secure server-side actions.
+    // Employee collection:
+    // - Authenticated users can read their own profile.
+    // - Admins can read/write any profile.
+    match /employee/{employeeId} {
+      allow read, write: if request.auth != null && isAdmin(request.auth.uid);
+      allow read: if request.auth != null && exists(/databases/$(database)/documents/employee/$(employeeId)) && get(/databases/$(database)/documents/employee/$(employeeId)).data.userId == request.auth.uid;
+      allow update: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+
+    // Jobs collection:
+    // - Anyone can read (list and get) jobs.
+    // - Only authenticated admins can create, update, or delete jobs.
+    match /jobs/{jobId} {
+      allow read: if true;
+      allow write: if request.auth != null && isAdmin(request.auth.uid);
+    }
+    
+    // Job Applications:
+    // - Anyone can create (submit) an application.
+    // - Only admins can read applications.
+    match /jobApplications/{applicationId} {
+      allow create: if true;
+      allow read, write, delete: if request.auth != null && isAdmin(request.auth.uid);
+    }
+
+    // All other collections are locked down by default and require admin access.
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if request.auth != null && isAdmin(request.auth.uid);
     }
   }
 }
