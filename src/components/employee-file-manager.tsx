@@ -26,17 +26,18 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
   const [files, setFiles] = useState<EmployeeFile[]>(employee.documents || []);
 
   useEffect(() => {
-    if (!employee?.id) {
+    // A more robust check to ensure employee.id is a valid, non-empty string
+    if (typeof employee.id === 'string' && employee.id.length > 0) {
+      const unsub = onSnapshot(doc(db, "employee", employee.id), (doc) => {
+          const data = doc.data();
+          setFiles(data?.documents || []);
+      });
+      // The cleanup function should be returned from within the condition
+      return () => unsub();
+    } else {
+        // If there's no valid ID, ensure files are cleared
         setFiles([]);
-        return;
     }
-
-    const unsub = onSnapshot(doc(db, "employee", employee.id), (doc) => {
-        const data = doc.data();
-        setFiles(data?.documents || []);
-    });
-
-    return () => unsub();
   }, [employee.id]);
 
 
