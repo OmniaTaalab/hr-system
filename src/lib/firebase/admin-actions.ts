@@ -216,9 +216,9 @@ export async function createEmployeeAction(
 
 // Schema for validating form data for updating an employee
 const UpdateEmployeeFormSchema = z.object({
-  employeeDocId: z.string().min(1, "Employee document ID is required."), // Firestore document ID
-  firstName: z.string().min(1, "First name is required.").optional(),
-  lastName: z.string().min(1, "Last name is required.").optional(),
+  employeeDocId: z.string().min(1, "Employee document ID is required."),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
   department: z.string().optional(),
   role: z.string().optional(),
   system: z.string().optional(),
@@ -234,17 +234,17 @@ const UpdateEmployeeFormSchema = z.object({
     z.number().nonnegative({ message: "Hourly rate must be a non-negative number." }).optional()
   ),
   dateOfBirth: z.preprocess((arg) => {
-    if (!arg || typeof arg !== "string") return undefined;
+    if (!arg || typeof arg !== "string" || arg === "") return undefined;
     const date = new Date(arg);
     return isValid(date) ? date : undefined;
   }, z.date().optional()),
   joiningDate: z.preprocess((arg) => {
-    if (!arg || typeof arg !== "string") return undefined;
+    if (!arg || typeof arg !== "string" || arg === "") return undefined;
     const date = new Date(arg);
     return isValid(date) ? date : undefined;
   }, z.date().optional()),
   leavingDate: z.preprocess((arg) => {
-    if (!arg || typeof arg !== "string") return null;
+    if (!arg || typeof arg !== "string" || arg === "") return null;
     const date = new Date(arg);
     return isValid(date) ? date : null;
   }, z.date().nullable().optional()),
