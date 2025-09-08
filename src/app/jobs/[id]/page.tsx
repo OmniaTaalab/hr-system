@@ -22,6 +22,15 @@ interface JobOpening {
   createdAt?: Timestamp;
 }
 
+const LinkedInIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect width="4" height="12" x="2" y="9"></rect><circle cx="4" cy="4" r="2"></circle></svg>
+);
+
+const FacebookIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg>
+);
+
+
 export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -30,8 +39,12 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<JobOpening | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pageUrl, setPageUrl] = useState('');
 
   useEffect(() => {
+    // This runs on the client, so window is available
+    setPageUrl(window.location.href);
+
     if (id) {
       const fetchJob = async () => {
         setLoading(true);
@@ -55,6 +68,26 @@ export default function JobDetailPage() {
       fetchJob();
     }
   }, [id]);
+
+  const handleShare = (platform: 'linkedin' | 'facebook') => {
+    if (!job || !pageUrl) return;
+
+    const title = encodeURIComponent(job.title);
+    const url = encodeURIComponent(pageUrl);
+    let shareUrl = '';
+
+    if (platform === 'linkedin') {
+      const summary = encodeURIComponent(`Apply for the ${job.title} position at our company.`);
+      shareUrl = `https://www.linkedin.com/shareArticle?mini=true&url=${url}&title=${title}&summary=${summary}`;
+    } else if (platform === 'facebook') {
+      shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
+    }
+
+    if (shareUrl) {
+      window.open(shareUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
 
   return (
     <AppLayout>
@@ -97,8 +130,18 @@ export default function JobDetailPage() {
                   <li key={idx}>{req}</li>
                 ))}
               </ul>
-              <div className="mt-6 not-prose">
+              <div className="mt-6 flex flex-wrap gap-4 items-center not-prose">
                 <JobApplicationDialog job={job} />
+                <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleShare('linkedin')}>
+                        <LinkedInIcon className="mr-2 h-4 w-4" />
+                        Share on LinkedIn
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleShare('facebook')}>
+                        <FacebookIcon className="mr-2 h-4 w-4" />
+                        Share on Facebook
+                    </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
