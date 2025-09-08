@@ -1,15 +1,13 @@
-
-[
-  {
-    "origin": ["https://hr.nis-eg.com", "*"],
+[{
+    "origin": ["http://localhost:3000", "https://hr.nis-eg.com","*"],
     "method": ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS"],
     "responseHeader": [
       "Content-Type",
       "Content-Range",
-      "Access-Control-Allow-Origin",
       "x-goog-resumable",
+      "Access-Control-Allow-Origin",
+      "Access-Control-Allow-Headers",
       "x-goog-meta-*"
     ],
     "maxAgeSeconds": 3600
-  }
-]
+  }]

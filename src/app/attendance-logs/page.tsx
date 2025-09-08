@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
 import { collection, query, orderBy, limit, getDocs, startAfter, endBefore, limitToLast, DocumentSnapshot, where, QueryConstraint } from 'firebase/firestore';
-import { Loader2, BookOpenCheck, Search, AlertTriangle, ArrowRight, ArrowLeft, Filter, Calendar as CalendarIcon, X } from 'lucide-react';
+import { Loader2, BookOpenCheck, Search, AlertTriangle, ArrowRight, ArrowLeft, Filter, Calendar as CalendarIcon, X, FileDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
@@ -17,6 +17,7 @@ import { format, startOfDay, endOfDay } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
+import * as XLSX from 'xlsx';
 
 
 interface AttendanceLog {
@@ -223,6 +224,36 @@ function AttendanceLogsContent() {
     return records;
   }, [allLogs, searchTerm]);
 
+  const handleExportExcel = () => {
+    if (displayedRecords.length === 0) {
+      toast({
+        title: "No Data",
+        description: "There are no records to export in the current view.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const dataToExport = displayedRecords.map(log => ({
+      'Employee ID': log.userId,
+      'Employee Name': log.employeeName,
+      'Date': log.date,
+      'Check In': log.check_in || '-',
+      'Check Out': log.check_out || '-',
+      'Machine': log.machine || '-'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Logs");
+    XLSX.writeFile(workbook, `Attendance_Logs_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+
+    toast({
+      title: "Export Successful",
+      description: "Attendance logs have been exported to Excel.",
+    });
+  };
+
   if (isLoadingProfile) {
     return (
         <div className="flex justify-center items-center h-full">
@@ -278,8 +309,8 @@ function AttendanceLogsContent() {
                           onChange={(e) => setSearchTerm(e.target.value)}
                       />
                   </div>
-                  <div className="flex items-center gap-2">
-                      <Filter className="h-4 w-4 text-muted-foreground"/>
+                  <div className="flex items-center gap-2 flex-wrap">
+                      <Filter className="h-4 w-4 text-muted-foreground hidden sm:block"/>
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button variant="outline" className={cn("w-full sm:w-[240px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
@@ -303,6 +334,10 @@ function AttendanceLogsContent() {
                               ))}
                           </SelectContent>
                       </Select>
+                      <Button onClick={handleExportExcel} variant="outline" className="w-full sm:w-auto">
+                        <FileDown className="mr-2 h-4 w-4" />
+                        Export Excel
+                      </Button>
                   </div>
                </div>
           </CardHeader>
@@ -393,4 +428,5 @@ export default function AttendanceLogsPage() {
     )
 }
 
+    
     
