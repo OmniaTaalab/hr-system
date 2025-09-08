@@ -568,6 +568,8 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   const [joiningDate, setJoiningDate] = useState<Date | undefined>(employee.joiningDate?.toDate());
   const [leavingDate, setLeavingDate] = useState<Date | undefined>(employee.leavingDate?.toDate());
   const [leaveBalances, setLeaveBalances] = useState<{ [key: string]: number }>(employee.leaveBalances || {});
+  const [documents, setDocuments] = useState<EmployeeFile[]>(employee.documents || []);
+
 
   const handleBalanceChange = (leaveTypeName: string, value: string) => {
     const numericValue = parseInt(value, 10);
@@ -714,7 +716,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="edit-hourlyRate">Hourly Rate (Optional)</Label>
-                    <Input id="edit-hourlyRate" name="hourlyRate" type="number" step="0.01" defaultValue={employee.hourlyRate ?? 0} placeholder="e.g., 25.50" />
+                    <Input id="edit-hourlyRate" name="hourlyRate" type="number" step="0.01" defaultValue={employee.hourlyRate || 0} placeholder="e.g., 25.50" />
                     {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
@@ -835,7 +837,11 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
               )}
             </div>
 
-            <EmployeeFileManager employee={employee} />
+            <EmployeeFileManager 
+                employeeId={employee.id} 
+                initialFiles={documents}
+                onFilesChange={setDocuments}
+            />
             
             {(formClientError || serverState?.errors?.form) && (
               <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">

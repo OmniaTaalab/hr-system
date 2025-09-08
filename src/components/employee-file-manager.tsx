@@ -1,40 +1,28 @@
 
+
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Loader2, UploadCloud, Trash2, File as FileIcon } from 'lucide-react';
 import { db, storage } from '@/lib/firebase/config';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, arrayRemove, Timestamp } from 'firebase/firestore';
 import type { EmployeeFile } from '@/app/employees/page';
 import { Label } from './ui/label';
 
 interface EmployeeFileManagerProps {
-  employee: { id: string; documents?: EmployeeFile[] };
+  employeeId: string;
+  initialFiles: EmployeeFile[];
+  onFilesChange: (files: EmployeeFile[]) => void;
 }
 
-export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
+export function EmployeeFileManager({ employeeId, initialFiles, onFilesChange }: EmployeeFileManagerProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [files, setFiles] = useState<EmployeeFile[]>(employee.documents || []);
-
-  useEffect(() => {
-    // Prevent setting up listener if employee ID is not available
-    if (!employee?.id) {
-        setFiles([]); // Clear files if there's no valid employee
-        return;
-    }
-
-    const unsub = onSnapshot(doc(db, "employee", employee.id), (doc) => {
-        const data = doc.data();
-        setFiles(data?.documents || []);
-    });
-    return () => unsub();
-  }, [employee.id]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -43,18 +31,12 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
   };
 
   const handleUpload = async (file: File) => {
-    if (!employee || !employee.id) {
-        toast({ variant: "destructive", title: "Error", description: "No employee selected."});
-        return;
-    }
-
     setIsUploading(true);
-    const filePath = `employee-documents/${employee.id}/${file.name}`;
+    const filePath = `employee-documents/${employeeId}/${file.name}`;
     const fileRef = ref(storage, filePath);
-    const employeeDocRef = doc(db, "employee", employee.id);
 
     try {
-      if (files.some(f => f.name === file.name)) {
+      if (initialFiles.some(f => f.name === file.name)) {
         toast({
           variant: "destructive",
           title: "Duplicate File Name",
@@ -74,10 +56,13 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
         uploadedAt: Timestamp.now(),
       };
       
+      const employeeDocRef = doc(db, "employee", employeeId);
       await updateDoc(employeeDocRef, {
         documents: arrayUnion(newFile)
       });
       
+      onFilesChange([...initialFiles, newFile]);
+
       toast({
         title: "Success",
         description: `File "${file.name}" uploaded successfully.`,
@@ -96,28 +81,28 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
   };
 
   const handleDelete = async (fileName: string) => {
-      if (!employee || !employee.id) return;
       setIsDeleting(fileName);
-      const filePath = `employee-documents/${employee.id}/${fileName}`;
+      const filePath = `employee-documents/${employeeId}/${fileName}`;
       const fileRef = ref(storage, filePath);
-      const employeeDocRef = doc(db, "employee", employee.id);
+      const employeeDocRef = doc(db, "employee", employeeId);
 
       try {
-          const fileToDelete = files.find(f => f.name === fileName);
+          const fileToDelete = initialFiles.find(f => f.name === fileName);
           if (!fileToDelete) throw new Error("File not found in record.");
           
           await deleteObject(fileRef);
           await updateDoc(employeeDocRef, { documents: arrayRemove(fileToDelete) });
+          
+          onFilesChange(initialFiles.filter(f => f.name !== fileName));
 
           toast({ title: "File Removed", description: `File "${fileName}" has been removed.` });
       } catch (error: any) {
-          if (error.code === 'storage/object-not-found') {
-            // If the file doesn't exist in storage, just clear it from the DB
-            const fileToDelete = files.find(f => f.name === fileName);
+        if (error.code === 'storage/object-not-found') {
+            const fileToDelete = initialFiles.find(f => f.name === fileName);
             if(fileToDelete) {
                 await updateDoc(employeeDocRef, { documents: arrayRemove(fileToDelete) });
+                onFilesChange(initialFiles.filter(f => f.name !== fileName));
             }
-            setFiles(files.filter(f => f.name !== fileName));
             toast({
                 title: "File Removed",
                 description: "Employee file was not in storage, but removed from profile.",
@@ -135,8 +120,8 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
       }
   };
   
-  if (!employee?.id) {
-    return null; // Render nothing if there is no valid employee ID
+  if (!employeeId) {
+    return null;
   }
 
   return (
@@ -157,9 +142,9 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
       </div>
        <p className="text-xs text-muted-foreground">Upload CV, National ID, and other relevant documents.</p>
       <div className="border rounded-md">
-        {files.length > 0 ? (
+        {initialFiles.length > 0 ? (
           <ul className="divide-y max-h-48 overflow-y-auto">
-            {files.map(file => (
+            {initialFiles.map(file => (
               <li key={file.name} className="p-2 flex justify-between items-center group">
                 <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline truncate flex items-center gap-2">
                   <FileIcon className="h-4 w-4 text-muted-foreground" />
