@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Briefcase, MapPin, DollarSign, CalendarDays } from 'lucide-react';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
-import Link from 'next/link';
 import { JobApplicationDialog } from '@/components/job-application-dialog';
 
 interface JobOpening {

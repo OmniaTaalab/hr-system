@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, deleteDoc } from 'firebase/firestore';
 
 const JobFormSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters long."),
@@ -144,6 +144,43 @@ export async function applyForJobAction(
     console.error("Error submitting application to Firestore:", error);
     return {
       errors: { form: ["Failed to save application to our database. An unexpected error occurred."] },
+      message: `Error: ${error.message}`,
+      success: false,
+    };
+  }
+}
+
+// --- New Delete Job Action ---
+const DeleteJobSchema = z.object({
+  jobId: z.string().min(1, "Job ID is required."),
+});
+
+export type DeleteJobState = {
+  errors?: { form?: string[] };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function deleteJobAction(
+  prevState: DeleteJobState,
+  formData: FormData
+): Promise<DeleteJobState> {
+  const validatedFields = DeleteJobSchema.safeParse({
+    jobId: formData.get('jobId'),
+  });
+
+  if (!validatedFields.success) {
+    return { errors: { form: ["Invalid Job ID."] }, success: false };
+  }
+
+  const { jobId } = validatedFields.data;
+
+  try {
+    await deleteDoc(doc(db, "jobs", jobId));
+    return { success: true, message: "Job opening deleted successfully." };
+  } catch (error: any) {
+    return {
+      errors: { form: ["Failed to delete job opening."] },
       message: `Error: ${error.message}`,
       success: false,
     };

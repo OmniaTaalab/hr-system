@@ -1,17 +1,19 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useActionState } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Briefcase, MapPin, DollarSign, ArrowRight, Loader2, PlusCircle, Search } from "lucide-react";
+import { Briefcase, MapPin, DollarSign, ArrowRight, Loader2, PlusCircle, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { deleteJobAction, type DeleteJobState } from "@/app/actions/job-actions";
 
 interface JobOpening {
   id: string;
@@ -24,6 +26,51 @@ interface JobOpening {
   createdAt?: Timestamp;
 }
 
+const initialDeleteState: DeleteJobState = { success: false, message: null, errors: {} };
+
+function DeleteJobDialog({ job }: { job: JobOpening }) {
+    const { toast } = useToast();
+    const [deleteState, deleteAction, isDeletePending] = useActionState(deleteJobAction, initialDeleteState);
+
+    useEffect(() => {
+        if (deleteState.message) {
+            toast({
+                title: deleteState.success ? "Success" : "Error",
+                description: deleteState.message,
+                variant: deleteState.success ? "default" : "destructive",
+            });
+        }
+    }, [deleteState, toast]);
+
+    return (
+        <AlertDialog>
+            <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <form action={deleteAction}>
+                    <input type="hidden" name="jobId" value={job.id} />
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete the job opening for "{job.title}". This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="mt-4">
+                        <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+                        <AlertDialogAction type="submit" disabled={isDeletePending}>
+                            {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </form>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
 function JobBoardContent() {
   const [jobOpenings, setJobOpenings] = useState<JobOpening[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,7 +78,7 @@ function JobBoardContent() {
   const { toast } = useToast();
   const { profile, loading: isLoadingProfile } = useUserProfile();
 
-  const canCreateJobs = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
+  const canManageJobs = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
 
   useEffect(() => {
     setIsLoading(true);
@@ -82,7 +129,7 @@ function JobBoardContent() {
         </div>
         {isLoadingProfile ? (
           <Skeleton className="h-10 w-40 rounded-md" />
-        ) : canCreateJobs ? (
+        ) : canManageJobs ? (
           <Button asChild>
             <Link href="/jobs/create">
               <PlusCircle className="mr-2 h-4 w-4" />
@@ -144,13 +191,16 @@ function JobBoardContent() {
                   ))}
                 </ul>
               </CardContent>
-              <CardFooter>
-                <Button asChild variant="default" className="w-full group">
+              <CardFooter className="flex items-center justify-between">
+                <Button asChild variant="default" className="group">
                   <Link href={`/jobs/${job.id}`}>
-                    View Details & Apply
+                    View Details
                     <ArrowRight className="ml-2 h-4 w-4 transform transition-transform group-hover:translate-x-1" />
                   </Link>
                 </Button>
+                 {canManageJobs && (
+                    <DeleteJobDialog job={job} />
+                )}
               </CardFooter>
             </Card>
           ))}
