@@ -1,17 +1,23 @@
-
 "use client";
-
-import React, { useState, useEffect, useRef, useActionState, useTransition } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import React, { useState, useEffect, useRef, useActionState, useTransition } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { applyForJobAction, type ApplyForJobState } from '@/app/actions/job-actions';
-import { Loader2, Send, AlertTriangle } from 'lucide-react';
-import { storage } from '@/lib/firebase/config';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { nanoid } from 'nanoid';
+import { applyForJobAction, type ApplyForJobState } from "@/app/actions/job-actions";
+import { Loader2, Send, AlertTriangle } from "lucide-react";
+import { storage } from "@/lib/firebase/config";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { nanoid } from "nanoid";
 
 interface JobOpening {
   id: string;
@@ -34,54 +40,38 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
-  
+
   const [state, formAction] = useActionState(applyForJobAction, initialState);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, startTransition] = useTransition();
 
   const isPending = isUploading || isSubmitting;
 
-  useEffect(() => {
-    if (state.message) {
-      if (state.success) {
-         toast({
-            title: "Success",
-            description: state.message,
-            variant: "default",
-        });
-        setIsOpen(false);
-        formRef.current?.reset();
-        setFile(null);
-      } else {
-        toast({
-            title: "Error",
-            description: state.errors?.form?.join(', ') || state.message,
-            variant: "destructive",
-        });
-      }
-    }
-  }, [state, toast]);
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    console.log(selectedFile);
     setFileError(null);
-    if (selectedFile) {
-        if (selectedFile.type !== 'application/pdf') {
-            setFileError("Resume must be a PDF file.");
-            setFile(null);
-            e.target.value = "";
-            return;
-        }
-        if (selectedFile.size > 5 * 1024 * 1024) { // 5MB
-            setFileError("Resume must be smaller than 5MB.");
-            setFile(null);
-            e.target.value = "";
-            return;
-        }
-        setFile(selectedFile);
-    } else {
-        setFile(null);
+    if (!selectedFile) {
+      setFile(null);
+      return;
     }
+
+    // التحقق من نوع الملف
+    if (selectedFile.type !== "application/pdf") {
+      setFileError("Resume must be a PDF file.");
+      setFile(null);
+      e.target.value = "";
+      return;
+    }
+
+    // التحقق من حجم الملف
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      setFileError("Resume must be smaller than 5MB.");
+      setFile(null);
+      e.target.value = "";
+      return;
+    }
+
+    setFile(selectedFile);
   };
 
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -91,57 +81,77 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       setFileError("A resume file is required.");
       return;
     }
-    
+
     const currentForm = formRef.current;
     if (!currentForm) return;
 
     setIsUploading(true);
 
     try {
-      const fileExtension = file.name.split('.').pop();
+      const fileExtension = file.name.split(".").pop();
       const fileName = `${job.id}-${nanoid()}.${fileExtension}`;
       const filePath = `job-applications/${fileName}`;
       const fileRef = ref(storage, filePath);
-      
-      await uploadBytes(fileRef, file);
-      const resumeURL = await getDownloadURL(fileRef);
-      
-      const formData = new FormData(currentForm);
-      formData.set('resumeURL', resumeURL); // Use set to ensure it's there
-      
-      startTransition(() => {
-          formAction(formData);
-      });
 
-    } catch (error: any) {
-      console.error("Error during file upload or form submission:", error);
-      let errorMessage = "Could not upload your resume. Please try again.";
-      if (error.code === 'storage/retry-limit-exceeded') {
-        errorMessage = "Upload failed due to network issues or permissions. Please check your connection and try again.";
-      }
+      const uploadTask = uploadBytesResumable(fileRef, file);
+
+      uploadTask.on(
+        "state_changed",
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          console.log("Upload progress:", progress.toFixed(2) + "%");
+        },
+        (error) => {
+          console.error("Upload failed:", error);
+          toast({
+            variant: "destructive",
+            title: "Upload Failed",
+            description: "Could not upload your resume. Please try again.",
+          });
+          setIsUploading(false);
+        },
+        async () => {
+          // بعد انتهاء الرفع
+          const resumeURL = await getDownloadURL(fileRef);
+          console.log("Resume uploaded successfully:", resumeURL);
+
+          const formData = new FormData(currentForm);
+          formData.set("resumeURL", resumeURL);
+
+          startTransition(() => {
+            formAction(formData);
+          });
+
+          setIsUploading(false);
+        }
+      );
+    } catch (error) {
+      console.error("Error during upload or submission:", error);
       toast({
         variant: "destructive",
         title: "Submission Failed",
-        description: errorMessage,
+        description: "Could not upload your resume. Please try again.",
       });
-    } finally {
-        setIsUploading(false);
+      setIsUploading(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
         if (!open) {
-            formRef.current?.reset();
-            setFile(null);
-            setFileError(null);
+          formRef.current?.reset();
+          setFile(null);
+          setFileError(null);
         }
         setIsOpen(open);
-    }}>
+      }}
+    >
       <DialogTrigger asChild>
         <Button className="w-full sm:w-auto group">
-            Apply Now
-            <Send className="ml-2 h-4 w-4 transform transition-transform group-hover:translate-x-1" />
+          Apply Now
+          <Send className="ml-2 h-4 w-4 transform transition-transform group-hover:translate-x-1" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[480px]">
@@ -152,62 +162,51 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
           </DialogDescription>
         </DialogHeader>
         <form ref={formRef} onSubmit={handleFormSubmit}>
-            <input type="hidden" name="jobId" value={job.id} />
-            <input type="hidden" name="jobTitle" value={job.title} />
-            <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input id="name" name="name" placeholder="e.g., Jane Doe" required disabled={isPending} />
-                    {state.errors?.name && <p className="text-sm text-destructive mt-1">{state.errors.name.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input id="email" name="email" type="email" placeholder="e.g., jane.doe@example.com" required disabled={isPending} />
-                    {state.errors?.email && <p className="text-sm text-destructive mt-1">{state.errors.email.join(', ')}</p>}
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="expectedSalary">Expected Salary</Label>
-                        <Input id="expectedSalary" name="expectedSalary" type="number" placeholder="e.g., 50000" disabled={isPending} />
-                        {state.errors?.expectedSalary && <p className="text-sm text-destructive mt-1">{state.errors.expectedSalary.join(', ')}</p>}
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="expectedNetSalary">Expected Net Salary</Label>
-                        <Input id="expectedNetSalary" name="expectedNetSalary" type="number" placeholder="e.g., 45000" disabled={isPending} />
-                        {state.errors?.expectedNetSalary && <p className="text-sm text-destructive mt-1">{state.errors.expectedNetSalary.join(', ')}</p>}
-                    </div>
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="resume">Resume (PDF, max 5MB)</Label>
-                    <Input id="resume" name="resume" type="file" accept=".pdf" required onChange={handleFileChange} disabled={isPending} />
-                    {fileError && <p className="text-sm text-destructive mt-1">{fileError}</p>}
-                    {state.errors?.resumeURL && <p className="text-sm text-destructive mt-1">{state.errors.resumeURL.join(', ')}</p>}
-                </div>
+          <input type="hidden" name="jobId" value={job.id} />
+          <input type="hidden" name="jobTitle" value={job.title} />
+
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input id="name" name="name" placeholder="e.g., Jane Doe" required disabled={isPending} />
             </div>
-            
-            {state.errors?.form && (
-                <div className="flex items-center p-2 mb-4 text-sm text-destructive bg-destructive/10 rounded-md">
-                    <AlertTriangle className="mr-2 h-4 w-4 flex-shrink-0" />
-                    <span>{state.errors.form.join(', ')}</span>
-                </div>
-            )}
-            
-            <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isPending}>Cancel</Button>
-                <Button type="submit" disabled={isPending}>
-                {isPending ? (
-                    <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Submitting...
-                    </>
-                ) : (
-                    <>
-                        <Send className="mr-2 h-4 w-4" />
-                        Submit Application
-                    </>
-                )}
-                </Button>
-            </DialogFooter>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input id="email" name="email" type="email" placeholder="e.g., jane.doe@example.com" required disabled={isPending} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="resume">Resume (PDF, max 5MB)</Label>
+              <Input
+                id="resume"
+                name="resume"
+                type="file"
+                accept=".pdf"
+                required
+                onChange={handleFileChange}
+                disabled={isPending}
+              />
+              {fileError && <p className="text-sm text-destructive mt-1">{fileError}</p>}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-2 h-4 w-4" />
+                  Submit Application
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

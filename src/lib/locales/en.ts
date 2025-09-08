@@ -13,7 +13,6 @@ export default {
     tpi: 'TPIs',
     job_board: 'Job Board',
     job_applications: 'Job Applications',
-    career_advisor: 'Career Advisor',
     settings: 'Settings',
   },
   header: {

@@ -68,11 +68,6 @@ export const navItems: NavItem[] = [
     iconName: 'FileText',
   },
   {
-    i18nKey: 'sidebar.career_advisor',
-    href: '/career-advisor',
-    iconName: 'Lightbulb',
-  },
-  {
     i18nKey: 'sidebar.settings',
     href: '/settings',
     iconName: 'Settings',
