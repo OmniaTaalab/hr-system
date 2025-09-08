@@ -240,7 +240,6 @@ const UpdateEmployeeFormSchema = z.object({
   dateOfBirth: z.string().optional().transform((val) => val ? new Date(val) : undefined),
   joiningDate: z.string().optional().transform((val) => val ? new Date(val) : undefined),
   leavingDate: z.string().optional().nullable().transform((val) => val ? new Date(val) : null),
-  leaveBalancesJson: z.string().optional(), // Receive balances as a JSON string
   gender: z.string().optional(),
   nationalId: z.string().optional(),
   religion: z.string().optional(),
@@ -348,17 +347,6 @@ export async function updateEmployeeAction(
         dataToUpdate.leavingDate = Timestamp.fromDate(dataToUpdate.leavingDate);
     } else {
        delete dataToUpdate.leavingDate;
-    }
-
-    if (dataToUpdate.leaveBalancesJson) {
-        try {
-            const parsedBalances = JSON.parse(dataToUpdate.leaveBalancesJson);
-            const validatedBalances = LeaveBalancesSchema.safeParse(parsedBalances);
-            if (validatedBalances.success) {
-                dataToUpdate.leaveBalances = validatedBalances.data;
-            }
-        } catch (e) { /* ignore parse error */ }
-        delete dataToUpdate.leaveBalancesJson;
     }
     
     // Ensure `null` or empty values from form don't overwrite existing good data unless intended

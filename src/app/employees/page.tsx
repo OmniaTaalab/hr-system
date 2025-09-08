@@ -554,7 +554,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; onSuccess: () => void }) {
   const { toast } = useToast();
   const [serverState, formAction, isPending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
-  const { roles, stage: stages, systems, campuses, leaveTypes, subjects, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, stage: stages, systems, campuses, subjects, isLoading: isLoadingLists } = useOrganizationLists();
   const [formClientError, setFormClientError] = useState<string | null>(null);
 
   // State for controlled components
@@ -567,16 +567,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(employee.dateOfBirth?.toDate());
   const [joiningDate, setJoiningDate] = useState<Date | undefined>(employee.joiningDate?.toDate());
   const [leavingDate, setLeavingDate] = useState<Date | undefined>(employee.leavingDate?.toDate());
-  const [leaveBalances, setLeaveBalances] = useState<{ [key: string]: number }>(employee.leaveBalances || {});
-
-
-  const handleBalanceChange = (leaveTypeName: string, value: string) => {
-    const numericValue = parseInt(value, 10);
-    setLeaveBalances(prev => ({
-      ...prev,
-      [leaveTypeName]: isNaN(numericValue) ? 0 : numericValue,
-    }));
-  };
 
   useEffect(() => {
     if (!serverState) return;
@@ -612,7 +602,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         className="flex flex-col overflow-hidden"
       >
         <input type="hidden" name="employeeDocId" defaultValue={employee.id} />
-        <input type="hidden" name="leaveBalancesJson" value={JSON.stringify(leaveBalances)} />
         {/* Hidden inputs for controlled Selects */}
         <input type="hidden" name="role" value={role} />
         <input type="hidden" name="system" value={system || ''} />
@@ -801,39 +790,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                 </Popover>
                 <input type="hidden" name="leavingDate" value={leavingDate?.toISOString() ?? ''} />
                 {serverState?.errors?.leavingDate && <p className="text-sm text-destructive">{serverState.errors.leavingDate.join(', ')}</p>}
-            </div>
-
-            <div className="space-y-4 pt-4 border-t">
-              <Label className="text-base font-semibold">Leave Balances</Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {isLoadingLists ? (
-                  <p>Loading leave types...</p>
-                ) : leaveTypes.length > 0 ? (
-                  leaveTypes.map((leaveType) => (
-                    <div key={leaveType.id} className="space-y-2">
-                      <Label htmlFor={`balance-${leaveType.name}`}>{leaveType.name}</Label>
-                      <Input
-                        id={`balance-${leaveType.name}`}
-                        name={`leaveBalances[${leaveType.name}]`}
-                        type="number"
-                        placeholder="Days"
-                        value={leaveBalances[leaveType.name] ?? ''}
-                        onChange={(e) => handleBalanceChange(leaveType.name, e.target.value)}
-                      />
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground col-span-full">
-                    No leave types found. Please add them in Settings &gt; Organization.
-                  </p>
-                )}
-              </div>
-              {serverState?.errors?.leaveBalances && (
-                <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
-                    <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-                    <span>{serverState.errors.leaveBalances.join(', ')}</span>
-                </div>
-              )}
             </div>
 
             <EmployeeFileManager employee={employee} />
