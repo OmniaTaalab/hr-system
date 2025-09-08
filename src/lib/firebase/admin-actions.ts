@@ -214,8 +214,6 @@ export async function createEmployeeAction(
 }
 
 
-// Sub-schema for validating the parsed leave balances object
-
 // Schema for validating form data for updating an employee
 const UpdateEmployeeFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee document ID is required."), // Firestore document ID
@@ -226,7 +224,7 @@ const UpdateEmployeeFormSchema = z.object({
   system: z.string().optional(),
   campus: z.string().optional(),
   email: z.string().email({ message: 'Invalid email address.' }).optional(),
-  phone: z.string().regex(/^\d*$/, "Phone number must contain only numbers.").optional(),
+  phone: z.string().optional(),
   hourlyRate: z.preprocess(
     (val) => {
       if (val === '' || val === null || val === undefined) return undefined;
@@ -235,9 +233,21 @@ const UpdateEmployeeFormSchema = z.object({
     },
     z.number().nonnegative({ message: "Hourly rate must be a non-negative number." }).optional()
   ),
-  dateOfBirth: z.string().optional().transform((val) => val ? new Date(val) : undefined),
-  joiningDate: z.string().optional().transform((val) => val ? new Date(val) : undefined),
-  leavingDate: z.string().optional().nullable().transform((val) => val ? new Date(val) : null),
+  dateOfBirth: z.preprocess((arg) => {
+    if (!arg || typeof arg !== "string") return undefined;
+    const date = new Date(arg);
+    return isValid(date) ? date : undefined;
+  }, z.date().optional()),
+  joiningDate: z.preprocess((arg) => {
+    if (!arg || typeof arg !== "string") return undefined;
+    const date = new Date(arg);
+    return isValid(date) ? date : undefined;
+  }, z.date().optional()),
+  leavingDate: z.preprocess((arg) => {
+    if (!arg || typeof arg !== "string") return null;
+    const date = new Date(arg);
+    return isValid(date) ? date : null;
+  }, z.date().nullable().optional()),
   gender: z.string().optional(),
   nationalId: z.string().optional(),
   religion: z.string().optional(),
@@ -317,7 +327,6 @@ export async function updateEmployeeAction(
 
     // Build the update object, excluding any undefined fields
     Object.entries(updateData).forEach(([key, value]) => {
-      // Use a more robust check for null or undefined
       if (value !== undefined) { 
         dataToUpdate[key] = value;
       }
@@ -346,11 +355,7 @@ export async function updateEmployeeAction(
        delete dataToUpdate.leavingDate;
     }
     
-    // Ensure `null` or empty values from form don't overwrite existing good data unless intended
-    // For example, if a field is optional and left blank, we might not want to update it
-    // This current implementation will overwrite with empty strings.
     for (const key in dataToUpdate) {
-        // This is a placeholder for any more complex logic you might want to add
     }
 
 
