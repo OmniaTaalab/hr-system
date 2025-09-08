@@ -165,6 +165,18 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                     <Input id="email" name="email" type="email" placeholder="e.g., jane.doe@example.com" required disabled={isPending} />
                     {state.errors?.email && <p className="text-sm text-destructive mt-1">{state.errors.email.join(', ')}</p>}
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="expectedSalary">Expected Salary</Label>
+                        <Input id="expectedSalary" name="expectedSalary" type="number" placeholder="e.g., 50000" disabled={isPending} />
+                        {state.errors?.expectedSalary && <p className="text-sm text-destructive mt-1">{state.errors.expectedSalary.join(', ')}</p>}
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="expectedNetSalary">Expected Net Salary</Label>
+                        <Input id="expectedNetSalary" name="expectedNetSalary" type="number" placeholder="e.g., 45000" disabled={isPending} />
+                        {state.errors?.expectedNetSalary && <p className="text-sm text-destructive mt-1">{state.errors.expectedNetSalary.join(', ')}</p>}
+                    </div>
+                </div>
                 <div className="space-y-2">
                     <Label htmlFor="resume">Resume (PDF, max 5MB)</Label>
                     <Input id="resume" name="resume" type="file" accept=".pdf" required onChange={handleFileChange} disabled={isPending} />

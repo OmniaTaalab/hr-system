@@ -23,6 +23,8 @@ interface JobApplication {
   jobId: string;
   jobTitle: string;
   resumeURL: string;
+  expectedSalary?: number;
+  expectedNetSalary?: number;
   submittedAt: Timestamp;
 }
 
@@ -86,6 +88,11 @@ function JobApplicationsContent() {
     );
   }
 
+  const formatCurrency = (value?: number) => {
+    if (value === undefined || value === null) return '-';
+    return `$${value.toLocaleString()}`;
+  }
+
   return (
     <div className="space-y-8">
       <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -120,8 +127,9 @@ function JobApplicationsContent() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Applicant Name</TableHead>
-                            <TableHead>Email</TableHead>
                             <TableHead>Applying For</TableHead>
+                            <TableHead>Expected Salary</TableHead>
+                            <TableHead>Expected Net Salary</TableHead>
                             <TableHead>Submitted On</TableHead>
                             <TableHead className="text-right">Resume</TableHead>
                         </TableRow>
@@ -130,12 +138,13 @@ function JobApplicationsContent() {
                         {applications.map((app) => (
                             <TableRow key={app.id}>
                                 <TableCell className="font-medium">{app.name}</TableCell>
-                                <TableCell>{app.email}</TableCell>
                                 <TableCell>
                                     <Link href={`/jobs/${app.jobId}`} className="hover:underline text-primary">
                                         {app.jobTitle}
                                     </Link>
                                 </TableCell>
+                                <TableCell>{formatCurrency(app.expectedSalary)}</TableCell>
+                                <TableCell>{formatCurrency(app.expectedNetSalary)}</TableCell>
                                 <TableCell>
                                     {app.submittedAt ? format(app.submittedAt.toDate(), 'PPP p') : '-'}
                                 </TableCell>

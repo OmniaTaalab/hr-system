@@ -82,6 +82,14 @@ const JobApplicationSchema = z.object({
     name: z.string().min(2, "Your name is required."),
     email: z.string().email("A valid email is required."),
     resumeURL: z.string().url("A valid resume URL is required."),
+    expectedSalary: z.preprocess(
+      (val) => (val === "" ? undefined : parseFloat(String(val))),
+      z.number().nonnegative("Salary must be a positive number.").optional()
+    ),
+    expectedNetSalary: z.preprocess(
+      (val) => (val === "" ? undefined : parseFloat(String(val))),
+      z.number().nonnegative("Net salary must be a positive number.").optional()
+    ),
 });
 
 export type ApplyForJobState = {
@@ -89,6 +97,8 @@ export type ApplyForJobState = {
     name?: string[];
     email?: string[];
     resumeURL?: string[];
+    expectedSalary?: string[];
+    expectedNetSalary?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -106,6 +116,8 @@ export async function applyForJobAction(
     name: formData.get('name'),
     email: formData.get('email'),
     resumeURL: formData.get('resumeURL'),
+    expectedSalary: formData.get('expectedSalary'),
+    expectedNetSalary: formData.get('expectedNetSalary'),
   });
   
   if (!validatedFields.success) {
@@ -116,7 +128,7 @@ export async function applyForJobAction(
     };
   }
   
-  const { jobId, jobTitle, name, email, resumeURL } = validatedFields.data;
+  const { jobId, jobTitle, name, email, resumeURL, expectedSalary, expectedNetSalary } = validatedFields.data;
   
   try {
     // Save application to Firestore
@@ -126,6 +138,8 @@ export async function applyForJobAction(
       name,
       email,
       resumeURL,
+      expectedSalary,
+      expectedNetSalary,
       submittedAt: serverTimestamp(),
     });
 
