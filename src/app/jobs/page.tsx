@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState } from "react";
@@ -127,14 +128,14 @@ function JobBoardContent() {
         </div>
         {isLoadingProfile ? (
           <Skeleton className="h-10 w-40 rounded-md" />
-        ) : canManageJobs ? (
+        ) : canManageJobs && (
           <Button asChild>
             <Link href="/jobs/create">
               <PlusCircle className="mr-2 h-4 w-4" />
               Create New Job
             </Link>
           </Button>
-        ) : null}
+        )}
       </header>
 
       <div className="relative">
