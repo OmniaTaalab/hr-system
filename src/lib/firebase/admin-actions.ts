@@ -235,7 +235,7 @@ const UpdateEmployeeFormSchema = z.object({
       const parsed = parseFloat(z.string().parse(val));
       return isNaN(parsed) ? undefined : parsed;
     },
-    z.number().positive({ message: "Hourly rate must be a positive number." }).optional()
+    z.number().nonnegative({ message: "Hourly rate must be a non-negative number." }).optional()
   ),
   dateOfBirth: z.string().optional().transform((val) => val ? new Date(val) : undefined),
   joiningDate: z.string().optional().transform((val) => val ? new Date(val) : undefined),
