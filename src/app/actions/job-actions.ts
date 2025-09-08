@@ -9,9 +9,6 @@ const JobFormSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters long."),
   department: z.string().min(2, "Department is required."),
   location: z.string().min(2, "Location is required."),
-  salaryRange: z.string().optional(),
-  description: z.string().min(20, "Description must be at least 20 characters long."),
-  // Comes as a string from a textarea, split by newlines
   shortRequirements: z.string().min(1, "At least one requirement is needed."),
 });
 
@@ -20,8 +17,6 @@ export type CreateJobState = {
     title?: string[];
     department?: string[];
     location?: string[];
-    salaryRange?: string[];
-    description?: string[];
     shortRequirements?: string[];
     form?: string[];
   };
@@ -37,8 +32,6 @@ export async function createJobAction(
     title: formData.get('title'),
     department: formData.get('department'),
     location: formData.get('location'),
-    salaryRange: formData.get('salaryRange'),
-    description: formData.get('description'),
     shortRequirements: formData.get('shortRequirements'),
   });
 
@@ -50,9 +43,8 @@ export async function createJobAction(
     };
   }
 
-  const { title, department, location, salaryRange, description, shortRequirements } = validatedFields.data;
+  const { title, department, location, shortRequirements } = validatedFields.data;
   
-  // Split requirements string by newlines and trim whitespace
   const requirementsArray = shortRequirements.split('\n').map(req => req.trim()).filter(req => req.length > 0);
 
   if (requirementsArray.length === 0) {
@@ -67,8 +59,6 @@ export async function createJobAction(
       title,
       department,
       location,
-      salaryRange: salaryRange || "",
-      description,
       shortRequirements: requirementsArray,
       createdAt: serverTimestamp(),
     });

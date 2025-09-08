@@ -20,8 +20,6 @@ interface JobOpening {
   title: string;
   department: string;
   location: string;
-  salaryRange?: string;
-  description: string;
   shortRequirements: string[];
   createdAt?: Timestamp;
 }
@@ -173,17 +171,9 @@ function JobBoardContent() {
                 <div className="flex items-center space-x-2 text-xs text-muted-foreground pt-1">
                   <MapPin className="h-3 w-3" />
                   <span>{job.location}</span>
-                  {job.salaryRange && (
-                    <>
-                      <span className="mx-1">|</span>
-                      <DollarSign className="h-3 w-3" />
-                      <span>{job.salaryRange}</span>
-                    </>
-                  )}
                 </div>
               </CardHeader>
               <CardContent className="flex-grow">
-                <p className="text-sm mb-3">{job.description}</p>
                 <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Key Requirements:</h4>
                 <ul className="list-disc list-inside text-sm space-y-0.5">
                   {job.shortRequirements && job.shortRequirements.map((req, idx) => (

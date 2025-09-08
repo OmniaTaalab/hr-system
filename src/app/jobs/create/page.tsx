@@ -61,16 +61,6 @@ function CreateJobForm() {
                     <Input id="location" name="location" placeholder="e.g., Remote or City, Country" required />
                     {state.errors?.location && <p className="text-sm text-destructive">{state.errors.location.join(', ')}</p>}
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="salaryRange">Salary Range (Optional)</Label>
-                    <Input id="salaryRange" name="salaryRange" placeholder="e.g., $100,000 - $120,000" />
-                    {state.errors?.salaryRange && <p className="text-sm text-destructive">{state.errors.salaryRange.join(', ')}</p>}
-                </div>
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="description">Full Job Description</Label>
-                <Textarea id="description" name="description" rows={6} placeholder="Describe the role, responsibilities, and benefits..." required />
-                 {state.errors?.description && <p className="text-sm text-destructive">{state.errors.description.join(', ')}</p>}
             </div>
              <div className="space-y-2">
                 <Label htmlFor="shortRequirements">Key Requirements</Label>

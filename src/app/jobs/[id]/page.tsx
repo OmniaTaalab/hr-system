@@ -18,8 +18,6 @@ interface JobOpening {
   title: string;
   department: string;
   location: string;
-  salaryRange?: string;
-  description: string;
   shortRequirements: string[];
   createdAt?: Timestamp;
 }
@@ -74,8 +72,6 @@ export default function JobDetailPage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-20 w-full" />
-                    <Skeleton className="h-4 w-1/3" />
                     <Skeleton className="h-12 w-full" />
                 </CardContent>
             </Card>
@@ -91,14 +87,10 @@ export default function JobDetailPage() {
               <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-1 text-base pt-2">
                 <span className="flex items-center"><Briefcase className="mr-2 h-4 w-4 text-muted-foreground" /> {job.department}</span>
                 <span className="flex items-center"><MapPin className="mr-2 h-4 w-4 text-muted-foreground" /> {job.location}</span>
-                {job.salaryRange && <span className="flex items-center"><DollarSign className="mr-2 h-4 w-4 text-muted-foreground" /> {job.salaryRange}</span>}
                 {job.createdAt && <span className="flex items-center"><CalendarDays className="mr-2 h-4 w-4 text-muted-foreground" /> Posted {format(job.createdAt.toDate(), 'PPP')}</span>}
               </CardDescription>
             </CardHeader>
             <CardContent className="prose dark:prose-invert max-w-none">
-              <h3>About the Role</h3>
-              <p>{job.description}</p>
-              
               <h3>Key Requirements</h3>
               <ul>
                 {job.shortRequirements.map((req, idx) => (
