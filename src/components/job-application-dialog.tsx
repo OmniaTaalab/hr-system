@@ -187,6 +187,16 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
               />
               {fileError && <p className="text-sm text-destructive mt-1">{fileError}</p>}
             </div>
+            <div className="grid grid-cols-2 gap-4">
+               <div className="space-y-2">
+                 <Label htmlFor="expectedSalary">Expected Salary (Optional)</Label>
+                 <Input id="expectedSalary" name="expectedSalary" type="number" placeholder="e.g., 50000" disabled={isPending} />
+               </div>
+               <div className="space-y-2">
+                 <Label htmlFor="expectedNetSalary">Expected Net Salary (Optional)</Label>
+                 <Input id="expectedNetSalary" name="expectedNetSalary" type="number" placeholder="e.g., 45000" disabled={isPending} />
+               </div>
+             </div>
           </div>
 
           <DialogFooter>
