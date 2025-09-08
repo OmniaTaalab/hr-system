@@ -1,9 +1,8 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState } from "react";
 import { PublicLayout } from "@/components/layout/public-layout"; // Use PublicLayout
-import { useUserProfile } from "@/components/layout/app-layout";
+import { useApp } from "@/components/layout/app-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Briefcase, MapPin, ArrowRight, Loader2, PlusCircle, Search, Trash2 } from "lucide-react";
@@ -75,7 +74,7 @@ function JobBoardContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
-  const { profile, loading: isLoadingProfile } = useUserProfile();
+  const { profile, loading: isLoadingProfile } = useApp();
 
   const canManageJobs = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
 
