@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useState, useEffect, useRef, useActionState, useTransition } from "react";
 import {
@@ -47,6 +48,19 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
 
   const isPending = isUploading || isSubmitting;
 
+  useEffect(() => {
+    if(state?.message) {
+      toast({
+        title: state.success ? "Success!" : "Submission Failed",
+        description: state.message,
+        variant: state.success ? "default" : "destructive",
+      });
+      if(state.success) {
+        setIsOpen(false);
+      }
+    }
+  }, [state, toast]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     setFileError(null);
@@ -55,7 +69,6 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       return;
     }
 
-    // التحقق من نوع الملف
     if (selectedFile.type !== "application/pdf") {
       setFileError("Resume must be a PDF file.");
       setFile(null);
@@ -63,8 +76,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       return;
     }
 
-    // التحقق من حجم الملف
-    if (selectedFile.size > 5 * 1024 * 1024) {
+    if (selectedFile.size > 5 * 1024 * 1024) { // 5MB limit
       setFileError("Resume must be smaller than 5MB.");
       setFile(null);
       e.target.value = "";
@@ -84,6 +96,12 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
 
     const currentForm = formRef.current;
     if (!currentForm) return;
+    
+    // Check form validity before proceeding
+    if (!currentForm.checkValidity()) {
+        currentForm.reportValidity();
+        return;
+    }
 
     setIsUploading(true);
 
@@ -98,8 +116,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       uploadTask.on(
         "state_changed",
         (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          console.log("Upload progress:", progress.toFixed(2) + "%");
+          // Can be used to show upload progress
         },
         (error) => {
           console.error("Upload failed:", error);
@@ -111,26 +128,25 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
           setIsUploading(false);
         },
         async () => {
-          // بعد انتهاء الرفع
+          // On successful upload, get URL and submit form data
           const resumeURL = await getDownloadURL(fileRef);
-          console.log("Resume uploaded successfully:", resumeURL);
-
+          
           const formData = new FormData(currentForm);
           formData.set("resumeURL", resumeURL);
-
+          
           startTransition(() => {
             formAction(formData);
           });
-
+          
           setIsUploading(false);
         }
       );
     } catch (error) {
-      console.error("Error during upload or submission:", error);
+      console.error("Error during upload setup:", error);
       toast({
         variant: "destructive",
         title: "Submission Failed",
-        description: "Could not upload your resume. Please try again.",
+        description: "An unexpected error occurred. Please try again.",
       });
       setIsUploading(false);
     }
@@ -161,7 +177,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
             Fill in your details and upload your resume to apply.
           </DialogDescription>
         </DialogHeader>
-        <form ref={formRef} onSubmit={handleFormSubmit}>
+        <form ref={formRef} onSubmit={handleFormSubmit} noValidate>
           <input type="hidden" name="jobId" value={job.id} />
           <input type="hidden" name="jobTitle" value={job.title} />
 
@@ -197,6 +213,12 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                  <Input id="expectedNetSalary" name="expectedNetSalary" type="number" placeholder="e.g., 45000" disabled={isPending} />
                </div>
              </div>
+             {state?.errors?.form && (
+                <div className="text-sm text-destructive flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4"/>
+                    {state.errors.form.join(', ')}
+                </div>
+            )}
           </div>
 
           <DialogFooter>
