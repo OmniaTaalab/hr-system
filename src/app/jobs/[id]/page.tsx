@@ -8,10 +8,11 @@ import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Briefcase, MapPin, DollarSign, CalendarDays } from 'lucide-react';
+import { Loader2, ArrowLeft, Briefcase, MapPin, DollarSign, CalendarDays, Copy, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { JobApplicationDialog } from '@/components/job-application-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 interface JobOpening {
   id: string;
@@ -35,11 +36,13 @@ export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
+  const { toast } = useToast();
 
   const [job, setJob] = useState<JobOpening | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageUrl, setPageUrl] = useState('');
+  const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
     // This runs on the client, so window is available
@@ -85,6 +88,26 @@ export default function JobDetailPage() {
 
     if (shareUrl) {
       window.open(shareUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!pageUrl) return;
+    try {
+      await navigator.clipboard.writeText(pageUrl);
+      setIsCopied(true);
+      toast({
+        title: "Link Copied!",
+        description: "The job link has been copied to your clipboard.",
+      });
+      setTimeout(() => setIsCopied(false), 2000); // Reset after 2 seconds
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+      toast({
+        variant: "destructive",
+        title: "Failed to Copy",
+        description: "Could not copy the link to your clipboard.",
+      });
     }
   };
 
@@ -140,6 +163,14 @@ export default function JobDetailPage() {
                     <Button variant="outline" size="sm" onClick={() => handleShare('facebook')}>
                         <FacebookIcon className="mr-2 h-4 w-4" />
                         Share on Facebook
+                    </Button>
+                     <Button variant="outline" size="sm" onClick={handleCopyLink}>
+                      {isCopied ? (
+                        <Check className="mr-2 h-4 w-4 text-green-500" />
+                      ) : (
+                        <Copy className="mr-2 h-4 w-4" />
+                      )}
+                      {isCopied ? 'Copied!' : 'Copy Link'}
                     </Button>
                 </div>
               </div>
