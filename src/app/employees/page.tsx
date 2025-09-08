@@ -1010,6 +1010,7 @@ function EmployeeManagementContent() {
   const [stageFilter, setStageFilter] = useState("All");
   const [subjectFilter, setSubjectFilter] = useState("All");
   const [genderFilter, setGenderFilter] = useState("All");
+  const [religionFilter, setReligionFilter] = useState("All");
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -1059,7 +1060,7 @@ function EmployeeManagementContent() {
   }, [profile]);
 
   const isPrincipalView = useMemo(() => profile?.role?.toLowerCase() === 'principal', [profile]);
-  const isFiltered = useMemo(() => campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All" || genderFilter !== "All", [campusFilter, stageFilter, subjectFilter, genderFilter]);
+  const isFiltered = useMemo(() => campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All" || genderFilter !== "All" || religionFilter !== "All", [campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
   
   const isSearching = useMemo(() => searchTerm.trim() !== '', [searchTerm]);
 
@@ -1086,6 +1087,7 @@ function EmployeeManagementContent() {
         if (stageFilter !== "All") queryConstraints.push(where("stage", "==", stageFilter));
         if (subjectFilter !== "All") queryConstraints.push(where("subject", "==", subjectFilter));
         if (genderFilter !== "All") queryConstraints.push(where("gender", "==", genderFilter));
+        if (religionFilter !== "All") queryConstraints.push(where("religion", "==", religionFilter));
       }
       
       const isFilteredOrPrincipalView = isFiltered || isPrincipal;
@@ -1160,7 +1162,7 @@ function EmployeeManagementContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [hasFullView, profile, campusFilter, stageFilter, subjectFilter, genderFilter, isFiltered, firstVisible, lastVisible, toast, isSearching]);
+  }, [hasFullView, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, isFiltered, firstVisible, lastVisible, toast, isSearching]);
   
   useEffect(() => {
     if(isLoadingProfile) return;
@@ -1183,6 +1185,7 @@ function EmployeeManagementContent() {
              if (stageFilter !== 'All') countFilters.push(where("stage", "==", stageFilter));
              if (subjectFilter !== 'All') countFilters.push(where("subject", "==", subjectFilter));
              if (genderFilter !== 'All') countFilters.push(where("gender", "==", genderFilter));
+             if (religionFilter !== "All") countFilters.push(where("religion", "==", religionFilter));
         }
         
         countQuery = query(employeeCollection, ...countFilters);
@@ -1192,7 +1195,7 @@ function EmployeeManagementContent() {
         }).catch(() => setTotalEmployees(0));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter, subjectFilter, genderFilter, isSearching]);
+  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, isSearching]);
   
   const goToNextPage = () => {
     if (isLastPage) return;
@@ -1530,6 +1533,17 @@ function EmployeeManagementContent() {
                           <SelectItem value="All">All Genders</SelectItem>
                           <SelectItem value="Male">Male</SelectItem>
                           <SelectItem value="Female">Female</SelectItem>
+                      </SelectContent>
+                  </Select>
+                  <Select value={religionFilter} onValueChange={setReligionFilter}>
+                      <SelectTrigger className="w-full sm:w-auto flex-1">
+                          <SelectValue placeholder="Filter by religion..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="All">All Religions</SelectItem>
+                          <SelectItem value="Muslim">Muslim</SelectItem>
+                          <SelectItem value="Christian">Christian</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
                       </SelectContent>
                   </Select>
               </div>
