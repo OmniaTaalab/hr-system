@@ -80,8 +80,9 @@ const JobApplicationSchema = z.object({
     name: z.string().min(2, "Your name must be at least 2 characters."),
     email: z.string().email("A valid email is required."),
     resumeURL: z.string().url("A valid resume URL is required."),
-    salary: z.coerce.number().nonnegative().optional(),
-    netSalary: z.coerce.number().nonnegative().optional(),
+    // Keep salary fields as optional strings to handle empty form values gracefully
+    salary: z.string().optional(),
+    netSalary: z.string().optional(),
 });
 
 export type ApplyForJobState = {
@@ -122,6 +123,11 @@ export async function applyForJobAction(
   
   const { jobId, jobTitle, name, email, resumeURL, salary, netSalary } = validatedFields.data;
 
+  // Convert salary strings to numbers, defaulting to null if empty or invalid
+  const salaryValue = salary && !isNaN(parseFloat(salary)) ? parseFloat(salary) : null;
+  const netSalaryValue = netSalary && !isNaN(parseFloat(netSalary)) ? parseFloat(netSalary) : null;
+
+
   try {
     await addDoc(collection(db, "jobApplications"), {
       jobId,
@@ -129,8 +135,8 @@ export async function applyForJobAction(
       name,
       email,
       resumeURL,
-      salary: salary ?? null,
-      netSalary: netSalary ?? null,
+      salary: salaryValue,
+      netSalary: netSalaryValue,
       submittedAt: serverTimestamp(),
     });
 
