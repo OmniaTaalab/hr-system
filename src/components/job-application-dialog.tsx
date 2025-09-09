@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { applyForJobAction, type ApplyForJobState } from "@/app/actions/job-actions";
+import { applyForJobAction, type ApplyForJobState, type JobApplicationPayload } from "@/app/actions/job-actions";
 import { Loader2, Send, AlertTriangle } from "lucide-react";
 import { storage } from "@/lib/firebase/config";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -60,6 +60,14 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       }
     }
   }, [state, toast]);
+  
+  useEffect(() => {
+    if (!isOpen) {
+        formRef.current?.reset();
+        setFile(null);
+        setFileError(null);
+    }
+  }, [isOpen]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -110,14 +118,23 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       const filePath = `job-applications/${fileName}`;
       const fileRef = ref(storage, filePath);
 
-      await uploadBytes(fileRef, file);
+      await uploadBytes(fileRef, file, { contentType: "application/pdf" });
       const resumeURL = await getDownloadURL(fileRef);
       
       const formData = new FormData(currentForm);
-      formData.set("resumeURL", resumeURL);
+      
+      const payload: JobApplicationPayload = {
+        jobId: job.id,
+        jobTitle: job.title,
+        name: formData.get('name') as string,
+        email: formData.get('email') as string,
+        resumeURL: resumeURL,
+        salary: formData.get('salary') ? Number(formData.get('salary')) : undefined,
+        netSalary: formData.get('netSalary') ? Number(formData.get('netSalary')) : undefined,
+      };
 
       startTransition(() => {
-        formAction(formData);
+        formAction(payload);
       });
 
     } catch (error) {
@@ -125,7 +142,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       toast({
         variant: "destructive",
         title: "Submission Failed",
-        description: "An unexpected error occurred. Please try again.",
+        description: "An unexpected error occurred during file upload. Please try again.",
       });
     } finally {
         setIsUploading(false);
@@ -135,14 +152,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   return (
     <Dialog
       open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) {
-          formRef.current?.reset();
-          setFile(null);
-          setFileError(null);
-        }
-        setIsOpen(open);
-      }}
+      onOpenChange={setIsOpen}
     >
       <DialogTrigger asChild>
         <Button className="w-full sm:w-auto group">
@@ -158,9 +168,6 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
           </DialogDescription>
         </DialogHeader>
         <form ref={formRef} onSubmit={handleFormSubmit} noValidate>
-          <input type="hidden" name="jobId" value={job.id} />
-          <input type="hidden" name="jobTitle" value={job.title} />
-
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>

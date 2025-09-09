@@ -80,9 +80,11 @@ const JobApplicationSchema = z.object({
     name: z.string().min(2, { message: "Your name must be at least 2 characters."}),
     email: z.string().email({ message: "A valid email is required." }),
     resumeURL: z.string().url({ message: "A valid resume URL is required." }),
-    salary: z.coerce.number().optional(),
-    netSalary: z.coerce.number().optional(),
+    salary: z.number().optional(),
+    netSalary: z.number().optional(),
 });
+
+export type JobApplicationPayload = z.infer<typeof JobApplicationSchema>;
 
 export type ApplyForJobState = {
   errors?: {
@@ -99,23 +101,15 @@ export type ApplyForJobState = {
 
 export async function applyForJobAction(
   prevState: ApplyForJobState,
-  formData: FormData
+  payload: JobApplicationPayload
 ): Promise<ApplyForJobState> {
 
-  const validatedFields = JobApplicationSchema.safeParse({
-    jobId: formData.get('jobId'),
-    jobTitle: formData.get('jobTitle'),
-    name: formData.get('name'),
-    email: formData.get('email'),
-    resumeURL: formData.get('resumeURL'),
-    salary: formData.get('salary') || undefined,
-    netSalary: formData.get('netSalary') || undefined,
-  });
-  
+  const validatedFields = JobApplicationSchema.safeParse(payload);
+ 
   if (!validatedFields.success) {
     return {
       errors: validatedFields.error.flatten().fieldErrors,
-      message: "Validation failed on server.",
+      message: "Validation failed. Please check the form data.",
       success: false,
     };
   }
