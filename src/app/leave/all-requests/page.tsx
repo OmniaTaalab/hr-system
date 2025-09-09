@@ -41,7 +41,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send, Filter, AlertTriangle } from "lucide-react";
+import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send, Filter, AlertTriangle, FileDown } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { db } from '@/lib/firebase/config';
@@ -51,6 +51,7 @@ import {
   editLeaveRequestAction, type EditLeaveRequestState,
   deleteLeaveRequestAction, type DeleteLeaveRequestState
 } from "@/app/actions/leave-actions";
+import * as XLSX from 'xlsx';
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -549,6 +550,41 @@ function AllLeaveRequestsContent() {
     }
     return requests;
   }, [allRequests, searchTerm, statusFilter, campusFilter, stageFilter]);
+  
+  const handleExportExcel = () => {
+    if (filteredRequests.length === 0) {
+      toast({
+        title: "No Data",
+        description: "There are no records to export in the current view.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const dataToExport = filteredRequests.map(req => ({
+      'Employee Name': req.employeeName,
+      'Stage': req.employeeStage || '-',
+      'Campus': req.employeeCampus || '-',
+      'Leave Type': req.leaveType,
+      'Start Date': format(req.startDate.toDate(), 'yyyy-MM-dd'),
+      'End Date': format(req.endDate.toDate(), 'yyyy-MM-dd'),
+      'Working Days': req.numberOfDays ?? 0,
+      'Status': req.status,
+      'Reason': req.reason,
+      'Manager Notes': req.managerNotes || '-',
+      'Submitted At': format(req.submittedAt.toDate(), 'yyyy-MM-dd p'),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Leave Requests");
+    XLSX.writeFile(workbook, `Leave_Requests_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+
+    toast({
+      title: "Export Successful",
+      description: "Leave requests have been exported to Excel.",
+    });
+  };
 
   const openStatusUpdateDialog = (request: LeaveRequestEntry, type: "Approved" | "Rejected") => {
     setSelectedRequestToAction(request);
@@ -679,6 +715,10 @@ function AllLeaveRequestsContent() {
                         {stages.map(stage => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
+                <Button onClick={handleExportExcel} variant="outline" className="w-full sm:w-auto">
+                    <FileDown className="mr-2 h-4 w-4" />
+                    Export Excel
+                </Button>
               </div>
           </div>
         </CardHeader>
