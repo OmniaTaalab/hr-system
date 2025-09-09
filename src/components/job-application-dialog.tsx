@@ -110,47 +110,26 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       const filePath = `job-applications/${fileName}`;
       const fileRef = ref(storage, filePath);
 
-      const uploadTask = uploadBytesResumable(fileRef, file, {
-        contentType: "application/pdf",
+      // No need for resumable upload here, a simple upload is fine and easier to manage with async/await
+      await uploadBytes(fileRef, file, { contentType: "application/pdf" });
+      const resumeURL = await getDownloadURL(fileRef);
+
+      const formData = new FormData(currentForm);
+      formData.set("resumeURL", resumeURL); // Now we add the URL before calling the action
+
+      startTransition(() => {
+        formAction(formData);
       });
 
-      uploadTask.on(
-        "state_changed",
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          console.log(`Upload is ${progress}% done`);
-        console.log(snapshot.task);
-        },
-        (error) => {
-          console.error("Upload failed:", error);
-          toast({
-            variant: "destructive",
-            title: "Upload Failed",
-            description: "Could not upload your resume. Please try again.",
-          });
-          setIsUploading(false);
-        },
-        async () => {
-          const resumeURL = await getDownloadURL(fileRef);
-
-          const formData = new FormData(currentForm);
-          formData.set("resumeURL", resumeURL);
-
-          startTransition(() => {
-            formAction(formData);
-          });
-
-          setIsUploading(false);
-        }
-      );
     } catch (error) {
-      console.error("Error during upload setup:", error);
+      console.error("Error during upload or submission:", error);
       toast({
         variant: "destructive",
         title: "Submission Failed",
         description: "An unexpected error occurred. Please try again.",
       });
-      setIsUploading(false);
+    } finally {
+        setIsUploading(false);
     }
   };
 

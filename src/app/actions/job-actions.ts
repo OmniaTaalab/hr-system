@@ -75,7 +75,7 @@ export async function createJobAction(
 
 
 // --- Updated Job Application Action ---
-// This action no longer handles file uploads directly. It expects a URL.
+// This action now expects a resumeURL which is added to the formData by the client after upload.
 const JobApplicationSchema = z.object({
     jobId: z.string().min(1, "Job ID is required."),
     jobTitle: z.string().min(1, "Job Title is required."),
