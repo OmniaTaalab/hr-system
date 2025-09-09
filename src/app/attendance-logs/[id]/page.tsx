@@ -7,11 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, where, orderBy, getDocs } from 'firebase/firestore';
-import { Loader2, BookOpenCheck, ArrowLeft, AlertTriangle, Search } from 'lucide-react';
+import { Loader2, BookOpenCheck, ArrowLeft, AlertTriangle, Search, Calendar as CalendarIcon, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+
 
 interface AttendanceLog {
   id: string;
@@ -38,7 +43,7 @@ function UserAttendanceLogContent() {
   const router = useRouter();
   const params = useParams();
   const userId = params.id as string;
-  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
   
@@ -51,11 +56,22 @@ function UserAttendanceLogContent() {
     }
 
     setIsLoading(true);
-    // Removed orderBy to prevent needing a composite index. Sorting is handled client-side.
-    const logsQuery = query(
-      collection(db, "attendance_log"), 
-      where("userId", "==", Number(userId))
-    );
+    let logsQuery;
+    
+    if (selectedDate) {
+        const dateString = format(selectedDate, 'yyyy-MM-dd');
+        logsQuery = query(
+            collection(db, "attendance_log"), 
+            where("userId", "==", Number(userId)),
+            where("date", "==", dateString)
+        );
+    } else {
+        logsQuery = query(
+            collection(db, "attendance_log"), 
+            where("userId", "==", Number(userId))
+        );
+    }
+
 
     const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
       const rawLogs = snapshot.docs.map(doc => ({
@@ -93,6 +109,17 @@ function UserAttendanceLogContent() {
 
       if (rawLogs.length > 0) {
         setEmployeeName(rawLogs[0].employeeName);
+      } else if (!employeeName) {
+        // If no logs are found for the filter, we might not get the name.
+        // Try fetching the employee document to get the name.
+        const fetchEmployeeName = async () => {
+            const employeeQuery = query(collection(db, "employee"), where("employeeId", "==", userId), limit(1));
+            const employeeSnapshot = await getDocs(employeeQuery);
+            if(!employeeSnapshot.empty) {
+                setEmployeeName(employeeSnapshot.docs[0].data().name);
+            }
+        }
+        fetchEmployeeName();
       }
       setIsLoading(false);
     }, (error) => {
@@ -100,21 +127,13 @@ function UserAttendanceLogContent() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Could not load user attendance logs.",
+        description: "Could not load user attendance logs. Check Firestore rules or query constraints.",
       });
       setIsLoading(false);
     });
 
     return () => unsubscribe();
-  }, [toast, canViewPage, isLoadingProfile, router, userId]);
-  
-  const filteredLogs = useMemo(() => {
-    if (!searchTerm) {
-      return logs;
-    }
-    const lowercasedFilter = searchTerm.toLowerCase();
-    return logs.filter(log => log.date.toLowerCase().includes(lowercasedFilter));
-  }, [logs, searchTerm]);
+  }, [toast, canViewPage, isLoadingProfile, router, userId, selectedDate, employeeName]);
 
 
   if (isLoadingProfile || isLoading) {
@@ -148,22 +167,26 @@ function UserAttendanceLogContent() {
           {`Attendance History for ${employeeName || `ID: ${userId}`}`}
         </h1>
         <p className="text-muted-foreground">
-          Showing all check-in and check-out events for this employee.
+            {selectedDate ? `Showing records for ${format(selectedDate, 'PPP')}.` : "Showing all check-in and check-out events for this employee."}
         </p>
       </header>
 
       <Card className="shadow-lg">
           <CardHeader>
               <CardTitle>Full Log Data</CardTitle>
-              <div className="relative pt-2">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                    type="search"
-                    placeholder="Search by date (YYYY-MM-DD)..."
-                    className="w-full pl-8 sm:w-72"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+              <div className="flex pt-2">
+                 <Popover>
+                    <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full sm:w-[240px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {selectedDate ? format(selectedDate, 'PPP') : <span>Filter by date...</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                        <Calendar mode="single" selected={selectedDate || undefined} onSelect={(date) => setSelectedDate(date || null)} initialFocus />
+                    </PopoverContent>
+                  </Popover>
+                  {selectedDate && <Button variant="ghost" size="icon" onClick={() => setSelectedDate(null)}><X className="h-4 w-4" /></Button>}
               </div>
           </CardHeader>
           <CardContent>
@@ -172,10 +195,10 @@ function UserAttendanceLogContent() {
                       <Loader2 className="h-12 w-12 animate-spin text-primary" />
                       <p className="ml-4 text-lg">Loading logs...</p>
                   </div>
-               ) : filteredLogs.length === 0 ? (
+               ) : logs.length === 0 ? (
                   <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
                       <h3 className="text-xl font-semibold">No Logs Found</h3>
-                      <p className="mt-2">{searchTerm ? `No records match your search for "${searchTerm}".` : `No attendance records found for user ID ${userId}.`}</p>
+                      <p className="mt-2">{selectedDate ? `No records found for ${format(selectedDate, 'PPP')}.` : `No attendance records found for user ID ${userId}.`}</p>
                   </div>
                ) : (
                   <Table>
@@ -187,7 +210,7 @@ function UserAttendanceLogContent() {
                           </TableRow>
                       </TableHeader>
                       <TableBody>
-                          {filteredLogs.map((record) => (
+                          {logs.map((record) => (
                               <TableRow key={record.date}>
                                   <TableCell className="font-medium">{record.date}</TableCell>
                                   <TableCell>{record.check_in || '-'}</TableCell>
