@@ -1,6 +1,5 @@
-
 "use client";
-import React, { useState, useEffect, useRef, useActionState, useTransition } from "react";
+import React, { useState, useEffect, useRef, useTransition } from "react";
 import {
   Dialog,
   DialogContent,
@@ -42,20 +41,20 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const [fileError, setFileError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const [state, formAction] = useActionState(applyForJobAction, initialState);
+  const [state, formAction] = React.useActionState(applyForJobAction, initialState);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, startTransition] = useTransition();
 
   const isPending = isUploading || isSubmitting;
 
   useEffect(() => {
-    if(state?.message) {
+    if (state?.message) {
       toast({
         title: state.success ? "Success!" : "Submission Failed",
         description: state.message,
         variant: state.success ? "default" : "destructive",
       });
-      if(state.success) {
+      if (state.success) {
         setIsOpen(false);
       }
     }
@@ -76,7 +75,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       return;
     }
 
-    if (selectedFile.size > 5 * 1024 * 1024) { // 5MB limit
+    if (selectedFile.size > 5 * 1024 * 1024) {
       setFileError("Resume must be smaller than 5MB.");
       setFile(null);
       e.target.value = "";
@@ -96,11 +95,10 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
 
     const currentForm = formRef.current;
     if (!currentForm) return;
-    
-    // Check form validity before proceeding
+
     if (!currentForm.checkValidity()) {
-        currentForm.reportValidity();
-        return;
+      currentForm.reportValidity();
+      return;
     }
 
     setIsUploading(true);
@@ -111,12 +109,16 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       const filePath = `job-applications/${fileName}`;
       const fileRef = ref(storage, filePath);
 
-      const uploadTask = uploadBytesResumable(fileRef, file);
+      // ✨ upload without manual Authorization header
+      const uploadTask = uploadBytesResumable(fileRef, file, {
+        contentType: "application/pdf",
+      });
 
       uploadTask.on(
         "state_changed",
         (snapshot) => {
-          // Can be used to show upload progress
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          console.log(`Upload is ${progress}% done`);
         },
         (error) => {
           console.error("Upload failed:", error);
@@ -128,16 +130,15 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
           setIsUploading(false);
         },
         async () => {
-          // On successful upload, get URL and submit form data
           const resumeURL = await getDownloadURL(fileRef);
-          
+
           const formData = new FormData(currentForm);
           formData.set("resumeURL", resumeURL);
-          
+
           startTransition(() => {
             formAction(formData);
           });
-          
+
           setIsUploading(false);
         }
       );
@@ -184,11 +185,11 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
-              <Input id="name" name="name" placeholder="e.g., Jane Doe" required disabled={isPending} />
+              <Input id="name" name="name" required disabled={isPending} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
-              <Input id="email" name="email" type="email" placeholder="e.g., jane.doe@example.com" required disabled={isPending} />
+              <Input id="email" name="email" type="email" required disabled={isPending} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="resume">Resume (PDF, max 5MB)</Label>
@@ -204,20 +205,20 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
               {fileError && <p className="text-sm text-destructive mt-1">{fileError}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
-               <div className="space-y-2">
-                 <Label htmlFor="expectedSalary">Expected Salary (Optional)</Label>
-                 <Input id="expectedSalary" name="expectedSalary" type="number" placeholder="e.g., 50000" disabled={isPending} />
-               </div>
-               <div className="space-y-2">
-                 <Label htmlFor="expectedNetSalary">Expected Net Salary (Optional)</Label>
-                 <Input id="expectedNetSalary" name="expectedNetSalary" type="number" placeholder="e.g., 45000" disabled={isPending} />
-               </div>
-             </div>
-             {state?.errors?.form && (
-                <div className="text-sm text-destructive flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4"/>
-                    {state.errors.form.join(', ')}
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="expectedSalary">Expected Salary (Optional)</Label>
+                <Input id="expectedSalary" name="expectedSalary" type="number" disabled={isPending} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="expectedNetSalary">Expected Net Salary (Optional)</Label>
+                <Input id="expectedNetSalary" name="expectedNetSalary" type="number" disabled={isPending} />
+              </div>
+            </div>
+            {state?.errors?.form && (
+              <div className="text-sm text-destructive flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                {state.errors.form.join(", ")}
+              </div>
             )}
           </div>
 

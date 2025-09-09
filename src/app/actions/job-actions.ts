@@ -79,7 +79,7 @@ export async function createJobAction(
 const JobApplicationSchema = z.object({
     jobId: z.string().min(1, "Job ID is required."),
     jobTitle: z.string().min(1, "Job Title is required."),
-    name: z.string().min(2, "Your name is required."),
+    name: z.string().min(2, "Your name must be at least 2 characters."),
     email: z.string().email("A valid email is required."),
     resumeURL: z.string().url("A valid resume URL is required."),
     expectedSalary: z.preprocess(
