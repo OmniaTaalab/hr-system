@@ -42,7 +42,7 @@ function LeaveRequestForm() {
   
   const [serverState, formAction, isSubmitting] = useActionState(submitLeaveRequestAction, initialSubmitState);
   
-  const { profile, loading: isLoadingProfile } = useUserProfile();
+  const { profile, user, loading: isLoadingProfile } = useUserProfile();
   const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
   
   const [startDate, setStartDate] = useState<Date | undefined>();
@@ -102,7 +102,7 @@ function LeaveRequestForm() {
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const currentForm = formRef.current;
-    if (!currentForm) return;
+    if (!currentForm || !user) return;
 
     const formData = new FormData(currentForm);
     let attachmentURL = '';
@@ -110,8 +110,9 @@ function LeaveRequestForm() {
     if (attachment) {
       setIsUploading(true);
       try {
+        // Use the auth user's UID in the path to match security rules
         const fileExtension = attachment.name.split('.').pop();
-        const fileName = `leave-attachments/${profile?.id}-${nanoid()}.${fileExtension}`;
+        const fileName = `leave-attachments/${user.uid}/${nanoid()}.${fileExtension}`;
         const fileRef = ref(storage, fileName);
         const snapshot = await uploadBytes(fileRef, attachment);
         attachmentURL = await getDownloadURL(snapshot.ref);
@@ -121,7 +122,7 @@ function LeaveRequestForm() {
         toast({
           variant: "destructive",
           title: "Upload Failed",
-          description: "Could not upload your attachment. Please try again."
+          description: "Could not upload your attachment. Please check storage rules and try again."
         });
         setIsUploading(false);
         return; // Stop submission if upload fails
@@ -278,5 +279,3 @@ export default function LeaveRequestPage() {
     </AppLayout>
   );
 }
-
-    
