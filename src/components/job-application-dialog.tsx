@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { applyForJobAction, type ApplyForJobState } from "@/app/actions/job-actions";
 import { Loader2, Send, AlertTriangle } from "lucide-react";
 import { storage } from "@/lib/firebase/config";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { nanoid } from "nanoid";
 
 interface JobOpening {
