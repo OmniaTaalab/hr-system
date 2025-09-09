@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Briefcase, MapPin, DollarSign, CalendarDays, Copy, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
-import { JobApplicationDialog } from '@/components/job-application-dialog';
 import { useToast } from '@/hooks/use-toast';
 
 interface JobOpening {
@@ -154,7 +153,6 @@ export default function JobDetailPage() {
                 ))}
               </ul>
               <div className="mt-6 flex flex-wrap gap-4 items-center not-prose">
-                <JobApplicationDialog job={job} />
                 <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => handleShare('linkedin')}>
                         <LinkedInIcon className="mr-2 h-4 w-4" />
