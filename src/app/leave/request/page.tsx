@@ -55,8 +55,9 @@ function LeaveRequestForm() {
   const [attachment, setAttachment] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [_isPending, startTransition] = useTransition();
   
-  const isPending = isSubmitting || isUploading;
+  const isPending = isSubmitting || isUploading || _isPending;
 
   useEffect(() => {
     if (serverState?.message) {
@@ -131,7 +132,9 @@ function LeaveRequestForm() {
     }
     
     // Now call the server action
-    formAction(formData);
+    startTransition(() => {
+        formAction(formData);
+    });
   };
 
 
