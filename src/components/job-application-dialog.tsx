@@ -110,12 +110,11 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       const filePath = `job-applications/${fileName}`;
       const fileRef = ref(storage, filePath);
 
-      // No need for resumable upload here, a simple upload is fine and easier to manage with async/await
       await uploadBytes(fileRef, file, { contentType: "application/pdf" });
       const resumeURL = await getDownloadURL(fileRef);
 
       const formData = new FormData(currentForm);
-      formData.set("resumeURL", resumeURL); // Now we add the URL before calling the action
+      formData.set("resumeURL", resumeURL); 
 
       startTransition(() => {
         formAction(formData);
@@ -170,6 +169,16 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
               <Input id="email" name="email" type="email" required disabled={isPending} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+               <div className="space-y-2">
+                <Label htmlFor="salary">Expected Salary (Optional)</Label>
+                <Input id="salary" name="salary" type="number" placeholder="e.g., 50000" disabled={isPending} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="netSalary">Expected Net Salary (Optional)</Label>
+                <Input id="netSalary" name="netSalary" type="number" placeholder="e.g., 45000" disabled={isPending} />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="resume">Resume (PDF, max 5MB)</Label>

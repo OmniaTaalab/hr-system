@@ -74,14 +74,14 @@ export async function createJobAction(
 }
 
 
-// --- Updated Job Application Action ---
-// This action now expects a resumeURL which is added to the formData by the client after upload.
 const JobApplicationSchema = z.object({
     jobId: z.string().min(1, "Job ID is required."),
     jobTitle: z.string().min(1, "Job Title is required."),
     name: z.string().min(2, "Your name must be at least 2 characters."),
     email: z.string().email("A valid email is required."),
     resumeURL: z.string().url("A valid resume URL is required."),
+    salary: z.coerce.number().nonnegative().optional(),
+    netSalary: z.coerce.number().nonnegative().optional(),
 });
 
 export type ApplyForJobState = {
@@ -89,6 +89,8 @@ export type ApplyForJobState = {
     name?: string[];
     email?: string[];
     resumeURL?: string[];
+    salary?: string[];
+    netSalary?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -106,6 +108,8 @@ export async function applyForJobAction(
     name: formData.get('name'),
     email: formData.get('email'),
     resumeURL: formData.get('resumeURL'),
+    salary: formData.get('salary') || undefined,
+    netSalary: formData.get('netSalary') || undefined,
   });
   
   if (!validatedFields.success) {
@@ -116,16 +120,17 @@ export async function applyForJobAction(
     };
   }
   
-  const { jobId, jobTitle, name, email, resumeURL } = validatedFields.data;
+  const { jobId, jobTitle, name, email, resumeURL, salary, netSalary } = validatedFields.data;
 
   try {
-    // Save application to Firestore
     await addDoc(collection(db, "jobApplications"), {
       jobId,
       jobTitle,
       name,
       email,
       resumeURL,
+      salary: salary ?? null,
+      netSalary: netSalary ?? null,
       submittedAt: serverTimestamp(),
     });
 

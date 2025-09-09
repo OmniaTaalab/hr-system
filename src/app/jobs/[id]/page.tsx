@@ -12,6 +12,7 @@ import { Loader2, ArrowLeft, Briefcase, MapPin, DollarSign, CalendarDays, Copy, 
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { JobApplicationDialog } from '@/components/job-application-dialog';
 
 interface JobOpening {
   id: string;
@@ -152,7 +153,8 @@ export default function JobDetailPage() {
                   <li key={idx}>{req}</li>
                 ))}
               </ul>
-              <div className="mt-6 flex flex-wrap gap-4 items-center not-prose">
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 items-center not-prose">
+                <JobApplicationDialog job={job} />
                 <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => handleShare('linkedin')}>
                         <LinkedInIcon className="mr-2 h-4 w-4" />
