@@ -77,8 +77,8 @@ export async function createJobAction(
 const JobApplicationSchema = z.object({
     jobId: z.string().min(1, "Job ID is required."),
     jobTitle: z.string().min(1, "Job Title is required."),
-    name: z.string().min(2, { message: "Your name must be at least 2 characters."}),
-    email: z.string().email({ message: "A valid email is required." }),
+    name: z.string({ required_error: "Name is required."}).min(2, { message: "Your name must be at least 2 characters."}),
+    email: z.string({ required_error: "Email is required."}).email({ message: "A valid email is required." }),
     resumeURL: z.string().url({ message: "A valid resume URL is required." }),
     salary: z.number().optional(),
     netSalary: z.number().optional(),

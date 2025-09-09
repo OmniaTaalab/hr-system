@@ -42,6 +42,12 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const [fileError, setFileError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
+  // Use state for form fields
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [salary, setSalary] = useState('');
+  const [netSalary, setNetSalary] = useState('');
+
   const [state, formAction] = React.useActionState(applyForJobAction, initialState);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, startTransition] = useTransition();
@@ -66,6 +72,11 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
         formRef.current?.reset();
         setFile(null);
         setFileError(null);
+        // Reset state when dialog closes
+        setName('');
+        setEmail('');
+        setSalary('');
+        setNetSalary('');
     }
   }, [isOpen]);
 
@@ -121,16 +132,14 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       await uploadBytes(fileRef, file, { contentType: "application/pdf" });
       const resumeURL = await getDownloadURL(fileRef);
       
-      const formData = new FormData(currentForm);
-      
       const payload: JobApplicationPayload = {
         jobId: job.id,
         jobTitle: job.title,
-        name: formData.get('name') as string,
-        email: formData.get('email') as string,
+        name: name,
+        email: email,
         resumeURL: resumeURL,
-        salary: formData.get('salary') ? Number(formData.get('salary')) : undefined,
-        netSalary: formData.get('netSalary') ? Number(formData.get('netSalary')) : undefined,
+        salary: salary ? Number(salary) : undefined,
+        netSalary: netSalary ? Number(netSalary) : undefined,
       };
 
       startTransition(() => {
@@ -171,23 +180,54 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
-              <Input id="name" name="name" required disabled={isPending} />
+              <Input 
+                id="name" 
+                name="name" 
+                required 
+                disabled={isPending} 
+                value={name} 
+                onChange={(e) => setName(e.target.value)} 
+              />
               {state?.errors?.name && <p className="text-sm text-destructive mt-1">{state.errors.name[0]}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
-              <Input id="email" name="email" type="email" required disabled={isPending} />
+              <Input 
+                id="email" 
+                name="email" 
+                type="email" 
+                required 
+                disabled={isPending}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
               {state?.errors?.email && <p className="text-sm text-destructive mt-1">{state.errors.email[0]}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
                <div className="space-y-2">
                 <Label htmlFor="salary">Expected Salary (Optional)</Label>
-                <Input id="salary" name="salary" type="number" placeholder="e.g., 50000" disabled={isPending} />
+                <Input 
+                  id="salary" 
+                  name="salary" 
+                  type="number" 
+                  placeholder="e.g., 50000" 
+                  disabled={isPending} 
+                  value={salary}
+                  onChange={(e) => setSalary(e.target.value)}
+                />
                  {state?.errors?.salary && <p className="text-sm text-destructive mt-1">{state.errors.salary[0]}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="netSalary">Expected Net Salary (Optional)</Label>
-                <Input id="netSalary" name="netSalary" type="number" placeholder="e.g., 45000" disabled={isPending} />
+                <Input 
+                  id="netSalary" 
+                  name="netSalary" 
+                  type="number" 
+                  placeholder="e.g., 45000" 
+                  disabled={isPending} 
+                  value={netSalary}
+                  onChange={(e) => setNetSalary(e.target.value)}
+                />
                  {state?.errors?.netSalary && <p className="text-sm text-destructive mt-1">{state.errors.netSalary[0]}</p>}
               </div>
             </div>
@@ -217,7 +257,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
             <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending || !name || !email}>
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
