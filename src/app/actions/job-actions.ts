@@ -83,12 +83,12 @@ const JobApplicationSchema = z.object({
     email: z.string().email("A valid email is required."),
     resumeURL: z.string().url("A valid resume URL is required."),
     expectedSalary: z.preprocess(
-      (val) => (val === "" ? undefined : parseFloat(String(val))),
-      z.number().nonnegative("Salary must be a positive number.").optional()
+      (val) => val === '' || val === null || val === undefined ? undefined : parseFloat(String(val)),
+      z.number({ invalid_type_error: "Salary must be a number." }).nonnegative("Salary must be a positive number.").optional()
     ),
     expectedNetSalary: z.preprocess(
-      (val) => (val === "" ? undefined : parseFloat(String(val))),
-      z.number().nonnegative("Net salary must be a positive number.").optional()
+      (val) => val === '' || val === null || val === undefined ? undefined : parseFloat(String(val)),
+      z.number({ invalid_type_error: "Net salary must be a number." }).nonnegative("Net salary must be a positive number.").optional()
     ),
 });
 
