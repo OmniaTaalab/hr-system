@@ -116,6 +116,14 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       const formData = new FormData(currentForm);
       formData.set("resumeURL", resumeURL); 
 
+      // Remove salary fields if they are empty
+      if (!formData.get('salary')) {
+        formData.delete('salary');
+      }
+      if (!formData.get('netSalary')) {
+        formData.delete('netSalary');
+      }
+
       startTransition(() => {
         formAction(formData);
       });
