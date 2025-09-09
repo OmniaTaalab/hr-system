@@ -82,14 +82,9 @@ const JobApplicationSchema = z.object({
     name: z.string().min(2, "Your name must be at least 2 characters."),
     email: z.string().email("A valid email is required."),
     resumeURL: z.string().url("A valid resume URL is required."),
-    expectedSalary: z.preprocess(
-      (val) => val === '' || val === null || val === undefined ? undefined : parseFloat(String(val)),
-      z.number({ invalid_type_error: "Salary must be a number." }).nonnegative("Salary must be a positive number.").optional()
-    ),
-    expectedNetSalary: z.preprocess(
-      (val) => val === '' || val === null || val === undefined ? undefined : parseFloat(String(val)),
-      z.number({ invalid_type_error: "Net salary must be a number." }).nonnegative("Net salary must be a positive number.").optional()
-    ),
+    // Treat as optional strings first, then parse manually
+    expectedSalary: z.string().optional(),
+    expectedNetSalary: z.string().optional(),
 });
 
 export type ApplyForJobState = {
@@ -130,6 +125,22 @@ export async function applyForJobAction(
   
   const { jobId, jobTitle, name, email, resumeURL, expectedSalary, expectedNetSalary } = validatedFields.data;
   
+  let salaryNum: number | undefined;
+  if (expectedSalary && expectedSalary.trim() !== '') {
+    salaryNum = parseFloat(expectedSalary);
+    if (isNaN(salaryNum) || salaryNum < 0) {
+      return { errors: { expectedSalary: ["Salary must be a valid, non-negative number."] }, success: false };
+    }
+  }
+
+  let netSalaryNum: number | undefined;
+  if (expectedNetSalary && expectedNetSalary.trim() !== '') {
+    netSalaryNum = parseFloat(expectedNetSalary);
+    if (isNaN(netSalaryNum) || netSalaryNum < 0) {
+      return { errors: { expectedNetSalary: ["Net salary must be a valid, non-negative number."] }, success: false };
+    }
+  }
+
   try {
     // Save application to Firestore
     await addDoc(collection(db, "jobApplications"), {
@@ -138,8 +149,8 @@ export async function applyForJobAction(
       name,
       email,
       resumeURL,
-      expectedSalary,
-      expectedNetSalary,
+      expectedSalary: salaryNum,
+      expectedNetSalary: netSalaryNum,
       submittedAt: serverTimestamp(),
     });
 
