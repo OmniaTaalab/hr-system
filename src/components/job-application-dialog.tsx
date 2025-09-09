@@ -110,19 +110,11 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       const filePath = `job-applications/${fileName}`;
       const fileRef = ref(storage, filePath);
 
-      await uploadBytes(fileRef, file, { contentType: "application/pdf" });
+      await uploadBytes(fileRef, file);
       const resumeURL = await getDownloadURL(fileRef);
-
+      
       const formData = new FormData(currentForm);
-      formData.set("resumeURL", resumeURL); 
-
-      // Remove salary fields if they are empty
-      if (!formData.get('salary')) {
-        formData.delete('salary');
-      }
-      if (!formData.get('netSalary')) {
-        formData.delete('netSalary');
-      }
+      formData.set("resumeURL", resumeURL);
 
       startTransition(() => {
         formAction(formData);
@@ -173,19 +165,23 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
               <Input id="name" name="name" required disabled={isPending} />
+              {state?.errors?.name && <p className="text-sm text-destructive mt-1">{state.errors.name[0]}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
               <Input id="email" name="email" type="email" required disabled={isPending} />
+              {state?.errors?.email && <p className="text-sm text-destructive mt-1">{state.errors.email[0]}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
                <div className="space-y-2">
                 <Label htmlFor="salary">Expected Salary (Optional)</Label>
                 <Input id="salary" name="salary" type="number" placeholder="e.g., 50000" disabled={isPending} />
+                 {state?.errors?.salary && <p className="text-sm text-destructive mt-1">{state.errors.salary[0]}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="netSalary">Expected Net Salary (Optional)</Label>
                 <Input id="netSalary" name="netSalary" type="number" placeholder="e.g., 45000" disabled={isPending} />
+                 {state?.errors?.netSalary && <p className="text-sm text-destructive mt-1">{state.errors.netSalary[0]}</p>}
               </div>
             </div>
             <div className="space-y-2">
@@ -200,6 +196,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                 disabled={isPending}
               />
               {fileError && <p className="text-sm text-destructive mt-1">{fileError}</p>}
+               {state?.errors?.resumeURL && <p className="text-sm text-destructive mt-1">{state.errors.resumeURL[0]}</p>}
             </div>
             {state?.errors?.form && (
               <div className="text-sm text-destructive flex items-center gap-2">
