@@ -41,7 +41,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send, Filter, AlertTriangle, FileDown } from "lucide-react";
+import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send, Filter, AlertTriangle, FileDown, Paperclip } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { db } from '@/lib/firebase/config';
@@ -76,6 +76,7 @@ export interface LeaveRequestEntry {
   managerNotes?: string;
   updatedAt?: Timestamp;
   numberOfDays?: number; // Number of working days
+  attachmentURL?: string; // Attachment URL
 }
 
 const initialUpdateStatusState: UpdateLeaveStatusState = { message: null, errors: {}, success: false };
@@ -740,6 +741,7 @@ function AllLeaveRequestsContent() {
                   <TableHead>End Date</TableHead>
                   <TableHead>Working Days</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Attachment</TableHead>
                   {canManageRequests && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -760,6 +762,17 @@ function AllLeaveRequestsContent() {
                         <TableCell>{request.numberOfDays ?? fallbackDays}</TableCell>
                         <TableCell>
                           <LeaveStatusBadge status={request.status} />
+                        </TableCell>
+                        <TableCell>
+                            {request.attachmentURL ? (
+                                <Button asChild variant="outline" size="sm">
+                                    <a href={request.attachmentURL} target="_blank" rel="noopener noreferrer">
+                                        <Paperclip className="mr-2 h-4 w-4" /> View
+                                    </a>
+                                </Button>
+                            ) : (
+                                <span className="text-muted-foreground text-xs">None</span>
+                            )}
                         </TableCell>
                         {canManageRequests && (
                             <TableCell className="text-right">
@@ -804,7 +817,7 @@ function AllLeaveRequestsContent() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={canManageRequests ? 9 : 7} className="h-24 text-center">
+                    <TableCell colSpan={canManageRequests ? 10 : 8} className="h-24 text-center">
                       {searchTerm || statusFilter !== "All" || campusFilter !== "All" || stageFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
                     </TableCell>
                   </TableRow>
@@ -878,3 +891,5 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
+
+    

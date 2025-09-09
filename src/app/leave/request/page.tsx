@@ -20,11 +20,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Send, Loader2, AlertTriangle } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { CalendarIcon, Send, Loader2, AlertTriangle, FileUp } from "lucide-react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { storage } from "@/lib/firebase/config";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { nanoid } from "nanoid";
 
 const initialSubmitState: SubmitLeaveRequestState = {
   message: null,
@@ -36,7 +40,7 @@ function LeaveRequestForm() {
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   
-  const [serverState, formAction, isPending] = useActionState(submitLeaveRequestAction, initialSubmitState);
+  const [serverState, formAction, isSubmitting] = useActionState(submitLeaveRequestAction, initialSubmitState);
   
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
@@ -46,6 +50,13 @@ function LeaveRequestForm() {
   
   const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
   const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
+
+  // States for file handling
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  
+  const isPending = isSubmitting || isUploading;
 
   useEffect(() => {
     if (serverState?.message) {
@@ -58,6 +69,8 @@ function LeaveRequestForm() {
         formRef.current?.reset();
         setStartDate(undefined);
         setEndDate(undefined);
+        setAttachment(null);
+        setFileError(null);
       } else {
         const errorDescription = serverState.errors?.form?.join(", ") || serverState.message || "Please check the form for errors.";
         toast({
@@ -68,6 +81,58 @@ function LeaveRequestForm() {
       }
     }
   }, [serverState, toast]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    setFileError(null);
+    if (!selectedFile) {
+        setAttachment(null);
+        return;
+    }
+    // You can add file type/size validation here if needed
+    if (selectedFile.size > 10 * 1024 * 1024) { // 10MB limit
+        setFileError("File is too large. Maximum size is 10MB.");
+        setAttachment(null);
+        e.target.value = ""; // Clear the input
+        return;
+    }
+    setAttachment(selectedFile);
+  };
+  
+  const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const currentForm = formRef.current;
+    if (!currentForm) return;
+
+    const formData = new FormData(currentForm);
+    let attachmentURL = '';
+
+    if (attachment) {
+      setIsUploading(true);
+      try {
+        const fileExtension = attachment.name.split('.').pop();
+        const fileName = `leave-attachments/${profile?.id}-${nanoid()}.${fileExtension}`;
+        const fileRef = ref(storage, fileName);
+        const snapshot = await uploadBytes(fileRef, attachment);
+        attachmentURL = await getDownloadURL(snapshot.ref);
+        formData.set('attachmentURL', attachmentURL);
+      } catch (error: any) {
+        console.error("Error uploading attachment:", error);
+        toast({
+          variant: "destructive",
+          title: "Upload Failed",
+          description: "Could not upload your attachment. Please try again."
+        });
+        setIsUploading(false);
+        return; // Stop submission if upload fails
+      }
+      setIsUploading(false);
+    }
+    
+    // Now call the server action
+    formAction(formData);
+  };
+
 
   if (isLoadingProfile) {
     return (
@@ -88,7 +153,7 @@ function LeaveRequestForm() {
           </p>
         </header>
 
-        <form ref={formRef} action={formAction} className="space-y-8">
+        <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-8">
             <input type="hidden" name="requestingEmployeeDocId" value={profile?.id || ''} />
             
             <div className="space-y-2">
@@ -166,6 +231,21 @@ function LeaveRequestForm() {
                 {serverState?.errors?.reason && <p className="text-sm font-medium text-destructive">{serverState.errors.reason[0]}</p>}
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="attachment">Attach Document (Optional)</Label>
+              <Input 
+                id="attachment"
+                name="attachment"
+                type="file"
+                onChange={handleFileChange}
+                disabled={isPending}
+                className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+              />
+              <p className="text-sm text-muted-foreground">You can attach a supporting document (e.g., medical certificate). Max 10MB.</p>
+              {fileError && <p className="text-sm text-destructive">{fileError}</p>}
+              {serverState?.errors?.attachmentURL && <p className="text-sm font-medium text-destructive">{serverState.errors.attachmentURL[0]}</p>}
+            </div>
+
             {serverState?.errors?.form && (
               <div className="flex items-center text-sm text-destructive">
                 <AlertTriangle className="mr-2 h-4 w-4"/>
@@ -177,7 +257,7 @@ function LeaveRequestForm() {
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
+                  {isUploading ? 'Uploading...' : 'Submitting...'}
                 </>
               ) : (
                 <>
@@ -198,3 +278,5 @@ export default function LeaveRequestPage() {
     </AppLayout>
   );
 }
+
+    
