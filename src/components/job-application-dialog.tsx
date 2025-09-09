@@ -136,18 +136,6 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
           const formData = new FormData(currentForm);
           formData.set("resumeURL", resumeURL);
 
-          // Only append salary fields if they have a value
-          const expectedSalary = formData.get('expectedSalary');
-          const expectedNetSalary = formData.get('expectedNetSalary');
-
-          if (expectedSalary === '') {
-              formData.delete('expectedSalary');
-          }
-          if (expectedNetSalary === '') {
-              formData.delete('expectedNetSalary');
-          }
-
-
           startTransition(() => {
             formAction(formData);
           });
@@ -216,16 +204,6 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                 disabled={isPending}
               />
               {fileError && <p className="text-sm text-destructive mt-1">{fileError}</p>}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="expectedSalary">Expected Salary (Optional)</Label>
-                <Input id="expectedSalary" name="expectedSalary" type="number" disabled={isPending} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="expectedNetSalary">Expected Net Salary (Optional)</Label>
-                <Input id="expectedNetSalary" name="expectedNetSalary" type="number" disabled={isPending} />
-              </div>
             </div>
             {state?.errors?.form && (
               <div className="text-sm text-destructive flex items-center gap-2">

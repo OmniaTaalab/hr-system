@@ -82,9 +82,6 @@ const JobApplicationSchema = z.object({
     name: z.string().min(2, "Your name must be at least 2 characters."),
     email: z.string().email("A valid email is required."),
     resumeURL: z.string().url("A valid resume URL is required."),
-    // Treat as optional strings first, then parse manually
-    expectedSalary: z.string().optional(),
-    expectedNetSalary: z.string().optional(),
 });
 
 export type ApplyForJobState = {
@@ -92,8 +89,6 @@ export type ApplyForJobState = {
     name?: string[];
     email?: string[];
     resumeURL?: string[];
-    expectedSalary?: string[];
-    expectedNetSalary?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -111,8 +106,6 @@ export async function applyForJobAction(
     name: formData.get('name'),
     email: formData.get('email'),
     resumeURL: formData.get('resumeURL'),
-    expectedSalary: formData.get('expectedSalary'),
-    expectedNetSalary: formData.get('expectedNetSalary'),
   });
   
   if (!validatedFields.success) {
@@ -123,23 +116,7 @@ export async function applyForJobAction(
     };
   }
   
-  const { jobId, jobTitle, name, email, resumeURL, expectedSalary, expectedNetSalary } = validatedFields.data;
-  
-  let salaryNum: number | undefined;
-  if (expectedSalary && expectedSalary.trim() !== '') {
-    salaryNum = parseFloat(expectedSalary);
-    if (isNaN(salaryNum) || salaryNum < 0) {
-      return { errors: { expectedSalary: ["Salary must be a valid, non-negative number."] }, success: false };
-    }
-  }
-
-  let netSalaryNum: number | undefined;
-  if (expectedNetSalary && expectedNetSalary.trim() !== '') {
-    netSalaryNum = parseFloat(expectedNetSalary);
-    if (isNaN(netSalaryNum) || netSalaryNum < 0) {
-      return { errors: { expectedNetSalary: ["Net salary must be a valid, non-negative number."] }, success: false };
-    }
-  }
+  const { jobId, jobTitle, name, email, resumeURL } = validatedFields.data;
 
   try {
     // Save application to Firestore
@@ -149,8 +126,6 @@ export async function applyForJobAction(
       name,
       email,
       resumeURL,
-      expectedSalary: salaryNum,
-      expectedNetSalary: netSalaryNum,
       submittedAt: serverTimestamp(),
     });
 
