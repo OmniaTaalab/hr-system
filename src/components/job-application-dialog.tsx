@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useState, useEffect, useRef, useTransition } from "react";
 import {
@@ -109,7 +110,6 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       const filePath = `job-applications/${fileName}`;
       const fileRef = ref(storage, filePath);
 
-      // ✨ upload without manual Authorization header
       const uploadTask = uploadBytesResumable(fileRef, file, {
         contentType: "application/pdf",
       });
@@ -134,6 +134,18 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
 
           const formData = new FormData(currentForm);
           formData.set("resumeURL", resumeURL);
+
+          // Only append salary fields if they have a value
+          const expectedSalary = formData.get('expectedSalary');
+          const expectedNetSalary = formData.get('expectedNetSalary');
+
+          if (expectedSalary === '') {
+              formData.delete('expectedSalary');
+          }
+          if (expectedNetSalary === '') {
+              formData.delete('expectedNetSalary');
+          }
+
 
           startTransition(() => {
             formAction(formData);
