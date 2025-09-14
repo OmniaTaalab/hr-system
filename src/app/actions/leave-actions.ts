@@ -177,8 +177,8 @@ export async function submitLeaveRequestAction(
                       body: notificationMessage
                   },
                   webpush: {
-                      fcm_options: {
-                          link: '/leave/all-requests'
+                      notification: {
+                        click_action: '/leave/all-requests'
                       }
                   },
                   tokens: tokens,
@@ -386,6 +386,8 @@ export async function deleteLeaveRequestAction(
     };
   }
 }
+
+    
 
     
 
