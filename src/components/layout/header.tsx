@@ -43,6 +43,8 @@ export function Header() {
   const displayName = profile?.name || user?.displayName;
   const photoURL = profile?.photoURL || user?.photoURL;
   const canViewSettings = profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr';
+  const canReceiveNotifications = canViewSettings || profile?.role?.toLowerCase() === 'principal';
+
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -51,7 +53,7 @@ export function Header() {
           <SidebarTrigger />
         </div>
         <div className="flex items-center space-x-4">
-          {user && <Notifications />}
+          {user && canReceiveNotifications && <Notifications />}
           {loading ? (
             <div className="flex items-center space-x-2">
               <Skeleton className="h-6 w-6 rounded-full" />
@@ -103,3 +105,5 @@ export function Header() {
     </header>
   );
 }
+
+    

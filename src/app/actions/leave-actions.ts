@@ -129,8 +129,11 @@ export async function submitLeaveRequestAction(
       managerNotes: "", 
     });
 
-    // --- Send notification to Principal ---
+    // --- Send notifications ---
     try {
+        const userIdsToNotify = new Set<string>();
+
+        // 1. Find Principal for the employee's stage
         const employeeStage = employeeData.stage;
         if (employeeStage) {
             const principalQuery = query(
@@ -140,28 +143,42 @@ export async function submitLeaveRequestAction(
                 limit(1)
             );
             const principalSnapshot = await getDocs(principalQuery);
-
             if (!principalSnapshot.empty) {
                 const principalDoc = principalSnapshot.docs[0];
                 const principalUserId = principalDoc.data().userId;
-                  console.log('principalUserId');
-                  console.log(principalUserId);
                 if (principalUserId) {
-                    await addDoc(collection(db, "notifications"), {
-                        userId: principalUserId, // The user ID of the person to notify
-                        message: `${employeeName} has submitted a new leave request.`,
-                        link: `/leave/all-requests?requestId=${leaveRequestRef.id}`,
-                        read: false,
-                        createdAt: serverTimestamp(),
-                    });
+                    userIdsToNotify.add(principalUserId);
                 }
             }
         }
+        
+        // 2. Find all HR users
+        const hrQuery = query(collection(db, "employee"), where("role", "==", "HR"));
+        const hrSnapshot = await getDocs(hrQuery);
+        hrSnapshot.forEach(hrDoc => {
+            const hrUserId = hrDoc.data().userId;
+            if (hrUserId) {
+                userIdsToNotify.add(hrUserId);
+            }
+        });
+
+        // 3. Create notification documents
+        const notificationPromises = Array.from(userIdsToNotify).map(userId => {
+            return addDoc(collection(db, "notifications"), {
+                userId: userId,
+                message: `${employeeName} has submitted a new leave request.`,
+                link: `/leave/all-requests?requestId=${leaveRequestRef.id}`, // Link to the specific request
+                read: false,
+                createdAt: serverTimestamp(),
+            });
+        });
+
+        await Promise.all(notificationPromises);
+
     } catch(notificationError) {
         // Log the error but don't fail the entire transaction
         console.error("Failed to send notification:", notificationError);
     }
-
         
     return { message: "Leave request submitted successfully and is pending approval.", success: true };
   } catch (error: any) {
@@ -355,5 +372,7 @@ export async function deleteLeaveRequestAction(
     };
   }
 }
+
+    
 
     
