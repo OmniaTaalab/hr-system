@@ -165,7 +165,8 @@ export async function submitLeaveRequestAction(
     }
     
     // Also send Push Notifications if FCM is configured
-    if (adminMessaging) {
+    if (adminMessaging && allRecipientIds.length > 0) {
+        // Correct way to get tokens for a list of user IDs
         const tokensQuery = query(collection(db, "fcmTokens"), where('userId', 'in', allRecipientIds));
         const tokensSnapshot = await getDocs(tokensQuery);
         const tokens = tokensSnapshot.docs.map(doc => doc.data().token);
