@@ -1,20 +1,16 @@
-
-// This file needs to be in the public directory
-// It's a service worker that handles background notifications for Firebase Cloud Messaging
-
-// Scripts for firebase and firebase messaging
-importScripts("https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js");
+// Import the Firebase app and messaging services
+importScripts("https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/9.15.0/firebase-messaging-compat.js");
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBSs_07LU1yI6lNPvq50hs-zP_hrgtPQ84",
-  authDomain: "streamlined-hr-assistant.firebaseapp.com",
-  projectId: "streamlined-hr-assistant",
-  storageBucket: "streamlined-hr-assistant.appspot.com",
-  messagingSenderId: "738520001905",
-  appId: "1:738520001905:web:b94818595a2713e8251ad0",
-  measurementId: "G-1VD5Y3D383",
+    apiKey: "AIzaSyBSs_07LU1yI6lNPvq50hs-zP_hrgtPQ84",
+    authDomain: "streamlined-hr-assistant.firebaseapp.com",
+    projectId: "streamlined-hr-assistant",
+    storageBucket: "streamlined-hr-assistant.appspot.com",
+    messagingSenderId: "738520001905",
+    appId: "1:738520001905:web:b94818595a2713e8251ad0",
+    measurementId: "G-2073PERBQ5"
 };
 
 // Initialize Firebase
@@ -29,11 +25,11 @@ messaging.onBackgroundMessage((payload) => {
     "[firebase-messaging-sw.js] Received background message ",
     payload
   );
-  
+  // Customize notification here
   const notificationTitle = payload.notification.title;
   const notificationOptions = {
     body: payload.notification.body,
-    icon: payload.notification.image || '/nis_logo.png' 
+    icon: "/nis_logo.png",
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);

@@ -9,14 +9,14 @@ import { getMessaging, type Messaging } from "firebase/messaging";
 
 // Your project's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBSs_07LU1yI6lNPvq50hs-zP_hrgtPQ84",
-  authDomain: "streamlined-hr-assistant.firebaseapp.com",
-  projectId: "streamlined-hr-assistant",
-  storageBucket: "streamlined-hr-assistant.appspot.com",
-  messagingSenderId: "738520001905",
-  appId: "1:738520001905:web:b94818595a2713e8251ad0",
-  measurementId: "G-2073PERBQ5",
-};
+    apiKey: "AIzaSyBSs_07LU1yI6lNPvq50hs-zP_hrgtPQ84",
+    authDomain: "streamlined-hr-assistant.firebaseapp.com",
+    projectId: "streamlined-hr-assistant",
+    storageBucket: "streamlined-hr-assistant",
+    messagingSenderId: "738520001905",
+    appId: "1:738520001905:web:b94818595a2713e8251ad0",
+    measurementId: "G-2073PERBQ5"
+  };
 
 // Initialize Firebase
 let app: FirebaseApp;
