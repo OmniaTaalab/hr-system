@@ -167,6 +167,7 @@ const PAGE_SIZE = 15;
 // Internal component for Add Employee Form
 function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
+  const { profile } = useUserProfile();
   const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialAddEmployeeState);
   const { roles, stage: stages, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
   
@@ -324,6 +325,9 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         <input type="hidden" name="stage" value={stage} />
         <input type="hidden" name="reportLine1" value={reportLine1} />
         <input type="hidden" name="reportLine2" value={reportLine2} />
+        <input type="hidden" name="actorId" value={profile?.id} />
+        <input type="hidden" name="actorEmail" value={profile?.email} />
+        <input type="hidden" name="actorRole" value={profile?.role} />
 
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
@@ -553,6 +557,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 // Internal component for Edit Employee Form content
 function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; onSuccess: () => void }) {
   const { toast } = useToast();
+  const { profile } = useUserProfile();
   const [serverState, formAction, isPending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
   const { roles, stage: stages, systems, campuses, subjects, isLoading: isLoadingLists } = useOrganizationLists();
   const [formClientError, setFormClientError] = useState<string | null>(null);
@@ -602,6 +607,9 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         className="flex flex-col overflow-hidden"
       >
         <input type="hidden" name="employeeDocId" defaultValue={employee.id} />
+        <input type="hidden" name="actorId" value={profile?.id} />
+        <input type="hidden" name="actorEmail" value={profile?.email} />
+        <input type="hidden" name="actorRole" value={profile?.role} />
         {/* Hidden inputs for controlled Selects */}
         <input type="hidden" name="role" value={role} />
         <input type="hidden" name="system" value={system || ''} />
@@ -821,6 +829,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
 // New Component for Deactivating an Employee
 function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: Employee | null; open: boolean; onOpenChange: (open: boolean) => void; }) {
     const { toast } = useToast();
+    const { profile } = useUserProfile();
     const [deactivateState, deactivateAction, isDeactivatePending] = useActionState(deactivateEmployeeAction, initialDeactivateState);
     const [leavingDate, setLeavingDate] = useState<Date | undefined>(new Date());
 
@@ -849,6 +858,9 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
             <DialogContent>
                 <form action={deactivateAction}>
                     <input type="hidden" name="employeeDocId" value={employee.id} />
+                    <input type="hidden" name="actorId" value={profile?.id} />
+                    <input type="hidden" name="actorEmail" value={profile?.email} />
+                    <input type="hidden" name="actorRole" value={profile?.role} />
                     <DialogHeader>
                         <DialogTitle>Deactivate Employee: {employee.name}</DialogTitle>
                         <DialogDescription>
@@ -895,6 +907,7 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
 // New Component for Importing Employees from Excel
 function ImportEmployeesDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void; }) {
     const { toast } = useToast();
+    const { profile } = useUserProfile();
     const [file, setFile] = useState<File | null>(null);
     const [fileError, setFileError] = useState<string | null>(null);
     const [batchState, batchAction, isBatchPending] = useActionState(batchCreateEmployeesAction, initialBatchCreateState);
@@ -948,6 +961,9 @@ function ImportEmployeesDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
             const formData = new FormData();
             formData.append('recordsJson', JSON.stringify(json));
+            formData.append('actorId', profile?.id || '');
+            formData.append('actorEmail', profile?.email || '');
+            formData.append('actorRole', profile?.role || '');
             
             startTransition(() => {
                 batchAction(formData);
@@ -1711,6 +1727,9 @@ function EmployeeManagementContent() {
           <AlertDialogContent>
             <form action={deleteAction}>
                 <input type="hidden" name="employeeDocId" value={employeeToDelete.id} />
+                 <input type="hidden" name="actorId" value={profile?.id} />
+                <input type="hidden" name="actorEmail" value={profile?.email} />
+                <input type="hidden" name="actorRole" value={profile?.role} />
                 <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
@@ -1750,6 +1769,9 @@ function EmployeeManagementContent() {
               <input type="hidden" name="employeeDocId" value={employeeToCreateLogin.id} />
               <input type="hidden" name="email" value={employeeToCreateLogin.email} />
               <input type="hidden" name="name" value={employeeToCreateLogin.name} />
+              <input type="hidden" name="actorId" value={profile?.id} />
+              <input type="hidden" name="actorEmail" value={profile?.email} />
+              <input type="hidden" name="actorRole" value={profile?.role} />
               
               <div className="grid gap-4 py-4">
                 <div className="space-y-2">
@@ -1827,6 +1849,10 @@ function EmployeeManagementContent() {
                 <form action={deleteLoginFormAction}>
                     <input type="hidden" name="employeeDocId" value={employeeToDeleteLogin.id} />
                     <input type="hidden" name="userId" value={employeeToDeleteLogin.userId ?? ''} />
+                    <input type="hidden" name="employeeName" value={employeeToDeleteLogin.name} />
+                    <input type="hidden" name="actorId" value={profile?.id} />
+                    <input type="hidden" name="actorEmail" value={profile?.email} />
+                    <input type="hidden" name="actorRole" value={profile?.role} />
                     <AlertDialogHeader>
                         <AlertDialogTitle>Delete Login Account?</AlertDialogTitle>
                         <AlertDialogDescription>
@@ -1859,6 +1885,10 @@ function EmployeeManagementContent() {
               </DialogHeader>
               
               <input type="hidden" name="userId" value={employeeToChangePassword.userId ?? ''} />
+              <input type="hidden" name="employeeName" value={employeeToChangePassword.name} />
+              <input type="hidden" name="actorId" value={profile?.id} />
+              <input type="hidden" name="actorEmail" value={profile?.email} />
+              <input type="hidden" name="actorRole" value={profile?.role} />
               
               <div className="grid gap-4 py-4">
                 <div className="space-y-2">
@@ -1940,3 +1970,5 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
+    

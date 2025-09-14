@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { z } from 'zod';
@@ -86,11 +87,13 @@ export async function saveTpiDataAction(
       await addDoc(tpiCollectionRef, dataToSave);
     }
 
+    const employeeName = (await getDoc(doc(db, "employee", employeeDocId))).data()?.name || 'Unknown';
     await logSystemEvent(action, {
         actorId,
         actorEmail,
         actorRole,
         targetEmployeeId: employeeDocId,
+        targetEmployeeName: employeeName,
         sheetName: tpiData.sheetName,
     });
 
@@ -143,6 +146,7 @@ export async function batchSaveTpiDataAction(
   const actorId = formData.get('actorId') as string;
   const actorEmail = formData.get('actorEmail') as string;
   const actorRole = formData.get('actorRole') as string;
+  const sheetName = formData.get('sheetName') as string;
 
   if (!recordsJson || typeof recordsJson !== 'string') {
     return { errors: { file: ["No data received from file."] }, success: false };
@@ -200,6 +204,7 @@ export async function batchSaveTpiDataAction(
       ...record,
       employeeDocId, // This will be null if not found
       lastUpdatedAt: serverTimestamp(),
+      sheetName: sheetName || record.sheetName,
     };
 
     batch.set(tpiDocRef, dataToSave, { merge: true });
@@ -218,6 +223,7 @@ export async function batchSaveTpiDataAction(
         actorId,
         actorEmail,
         actorRole,
+        sheetName,
         createdCount,
         updatedCount,
         notFoundCount,
@@ -233,3 +239,5 @@ export async function batchSaveTpiDataAction(
     return { errors: { form: [`Failed to save data: ${error.message}`] }, success: false };
   }
 }
+
+    

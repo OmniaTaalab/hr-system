@@ -7,6 +7,7 @@ import { db } from '@/lib/firebase/config';
 import { adminAuth, adminStorage } from '@/lib/firebase/admin-config';
 import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc, getDoc, writeBatch } from 'firebase/firestore';
 import { isValid } from 'date-fns';
+import { logSystemEvent } from '../system-log';
 
 export async function getAllAuthUsers() {
   if (!adminAuth) {
@@ -73,6 +74,9 @@ const CreateEmployeeFormSchema = z.object({
   reportLine1: z.string().optional(),
   reportLine2: z.string().optional(),
   subject: z.string().optional(),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 });
 
 
@@ -133,6 +137,9 @@ export async function createEmployeeAction(
     reportLine1: formData.get('reportLine1'),
     reportLine2: formData.get('reportLine2'),
     subject: formData.get('subject'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   });
 
   if (!validatedFields.success) {
@@ -147,7 +154,7 @@ export async function createEmployeeAction(
     name, personalEmail, personalPhone, emergencyContactName,
     emergencyContactRelationship, emergencyContactNumber, dateOfBirth, gender,
     nationalId, religion, nisEmail, joiningDate, title, department, role, stage, campus,
-    reportLine1, reportLine2, subject
+    reportLine1, reportLine2, subject, actorId, actorEmail, actorRole
   } = validatedFields.data;
   
   const nameParts = name.trim().split(/\s+/);
@@ -204,6 +211,9 @@ export async function createEmployeeAction(
     };
 
     const newEmployeeDoc = await addDoc(employeeCollectionRef, employeeData);
+    
+    await logSystemEvent("Create Employee", { actorId, actorEmail, actorRole, newEmployeeId: newEmployeeDoc.id, newEmployeeName: name });
+
     return { success: true, message: `Employee "${name}" created successfully.`, employeeId: newEmployeeDoc.id };
 
   } catch (error: any) {
@@ -254,6 +264,9 @@ const UpdateEmployeeFormSchema = z.object({
   stage: z.string().optional(),
   subject: z.string().optional(),
   title: z.string().optional(),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 });
 
 
@@ -308,7 +321,7 @@ export async function updateEmployeeAction(
   }
   
   const { 
-    employeeDocId, ...updateData
+    employeeDocId, actorId, actorEmail, actorRole, ...updateData
   } = validatedFields.data;
 
 
@@ -322,6 +335,7 @@ export async function updateEmployeeAction(
             message: 'Failed to update employee.',
         };
     }
+    const employeeName = docSnap.data().name;
 
     const dataToUpdate: { [key: string]: any } = {};
 
@@ -361,6 +375,8 @@ export async function updateEmployeeAction(
 
     await updateDoc(employeeRef, dataToUpdate);
     
+    await logSystemEvent("Update Employee", { actorId, actorEmail, actorRole, targetEmployeeId: employeeDocId, targetEmployeeName: employeeName });
+
     return { success: true, message: "Employee details updated successfully." };
   } catch (error: any) {
     console.error('Firestore Update Employee Error:', error);
@@ -377,17 +393,35 @@ export type DeleteEmployeeState = {
   success?: boolean;
 };
 
+const DeleteEmployeeSchema = z.object({
+  employeeDocId: z.string().min(1, "Employee document ID is required."),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
+});
+
 export async function deleteEmployeeAction(
   prevState: DeleteEmployeeState,
   formData: FormData
 ): Promise<DeleteEmployeeState> {
-  const employeeDocId = formData.get('employeeDocId') as string;
+  const validatedFields = DeleteEmployeeSchema.safeParse({
+    employeeDocId: formData.get('employeeDocId'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
+  });
 
-  if (!employeeDocId) {
-    return { success: false, errors: {form: ["Employee ID is missing."]} };
+  if (!validatedFields.success) {
+    return { success: false, errors: {form: ["Invalid data submitted."]} };
   }
+  
+  const { employeeDocId, actorId, actorEmail, actorRole } = validatedFields.data;
 
   try {
+    const docRef = doc(db, "employee", employeeDocId);
+    const docSnap = await getDoc(docRef);
+    const employeeName = docSnap.exists() ? docSnap.data().name : 'Unknown';
+
     if (adminStorage) {
       try {
         const avatarPath = `employee-avatars/${employeeDocId}`;
@@ -411,6 +445,8 @@ export async function deleteEmployeeAction(
     }
 
     await deleteDoc(doc(db, "employee", employeeDocId));
+
+    await logSystemEvent("Delete Employee", { actorId, actorEmail, actorRole, deletedEmployeeId: employeeDocId, deletedEmployeeName: employeeName });
     
     return { success: true, message: `Employee and associated data deleted successfully.` };
   } catch (error: any) {
@@ -436,6 +472,9 @@ const DeactivationSchema = z.object({
     employeeDocId: z.string().min(1, "Employee document ID is required."),
     leavingDate: z.coerce.date({ required_error: "A valid leaving date is required." }),
     reasonForLeaving: z.string().min(5, "Reason must be at least 5 characters long.").max(500, "Reason must not exceed 500 characters."),
+    actorId: z.string().optional(),
+    actorEmail: z.string().optional(),
+    actorRole: z.string().optional(),
 });
 
 export async function deactivateEmployeeAction(
@@ -446,6 +485,9 @@ export async function deactivateEmployeeAction(
         employeeDocId: formData.get('employeeDocId'),
         leavingDate: formData.get('leavingDate'),
         reasonForLeaving: formData.get('reasonForLeaving'),
+        actorId: formData.get('actorId'),
+        actorEmail: formData.get('actorEmail'),
+        actorRole: formData.get('actorRole'),
     });
 
     if (!validatedDeactivation.success) {
@@ -456,16 +498,20 @@ export async function deactivateEmployeeAction(
         };
     }
     
-    const { employeeDocId, leavingDate, reasonForLeaving } = validatedDeactivation.data;
+    const { employeeDocId, leavingDate, reasonForLeaving, actorId, actorEmail, actorRole } = validatedDeactivation.data;
     
     try {
         const employeeRef = doc(db, "employee", employeeDocId);
+        const docSnap = await getDoc(employeeRef);
+        const employeeName = docSnap.exists() ? docSnap.data().name : 'Unknown';
         
         await updateDoc(employeeRef, {
             status: 'Terminated',
             leavingDate: Timestamp.fromDate(leavingDate),
             reasonForLeaving,
         });
+
+        await logSystemEvent("Deactivate Employee", { actorId, actorEmail, actorRole, targetEmployeeId: employeeDocId, targetEmployeeName: employeeName });
 
         return { success: true, message: "Employee has been deactivated successfully." };
 
@@ -581,7 +627,9 @@ export async function createEmployeeProfileAction(
       createdAt: serverTimestamp(),
     };
 
-    await addDoc(employeeCollectionRef, employeeData);
+    const newDoc = await addDoc(employeeCollectionRef, employeeData);
+
+    await logSystemEvent("Create Employee Profile", { actorId: userId, actorEmail: email, newEmployeeId: newDoc.id, newEmployeeName: name });
     
     return { success: true, message: `Your profile has been created successfully!` };
   } catch (error: any) {
@@ -614,6 +662,9 @@ export async function batchCreateEmployeesAction(
   formData: FormData
 ): Promise<BatchCreateEmployeesState> {
   const recordsJson = formData.get('recordsJson') as string;
+  const actorId = formData.get('actorId') as string;
+  const actorEmail = formData.get('actorEmail') as string;
+  const actorRole = formData.get('actorRole') as string;
 
   if (!recordsJson) {
     return { success: false, errors: { form: ["No employee data provided."] } };
@@ -725,9 +776,13 @@ export async function batchCreateEmployeesAction(
       message += ` Failed to create ${results.failed} employee(s) due to duplicate or invalid emails/names: ${results.failedEmails.slice(0, 5).join(", ")}${results.failed > 5 ? '...' : ''}`;
     }
 
+    await logSystemEvent("Batch Create Employees", { actorId, actorEmail, actorRole, createdCount: results.created, failedCount: results.failed });
+
     return { success: true, message, results };
   } catch (error: any) {
     console.error("Batch employee creation error:", error);
     return { success: false, errors: { form: [`An unexpected error occurred during batch creation: ${error.message}`] } };
   }
 }
+
+    
