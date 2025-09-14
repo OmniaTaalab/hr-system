@@ -39,6 +39,7 @@ import { useOrganizationLists } from "@/hooks/use-organization-lists";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import jsPDF from "jspdf";
 import autoTable from 'jspdf-autotable';
+import { ImageUploader } from "@/components/image-uploader";
 
 
 // Define the Employee interface to include all necessary fields
@@ -375,11 +376,14 @@ export default function ProfilePage() {
               <div className="md:col-span-1">
                   <Card className="shadow-lg">
                   <CardContent className="pt-6 flex flex-col items-center text-center">
-                      <Avatar className="h-24 w-24 mb-4 border-2 border-primary shadow-md">
-                          <AvatarImage src={employeeProfile?.photoURL || `https://placehold.co/100x100.png`} alt={employeeProfile?.name || ""} data-ai-hint="profile picture" />
-                          <AvatarFallback>{getInitials(employeeProfile?.name)}</AvatarFallback>
-                      </Avatar>
-                      <h2 className="text-xl font-semibold font-headline mt-2">{employeeProfile?.name || "N/A"}</h2>
+                       {employeeProfile && (
+                          <ImageUploader 
+                            employeeId={employeeProfile.id}
+                            employeeName={employeeProfile.name}
+                            currentPhotoUrl={employeeProfile.photoURL}
+                          />
+                        )}
+                      <h2 className="text-xl font-semibold font-headline mt-4">{employeeProfile?.name || "N/A"}</h2>
                       <p className="text-sm text-primary font-medium">{employeeProfile?.role || "N/A"}</p>
                       <div className="mt-2">
                           <EmployeeStatusBadge status={employeeProfile?.status} />
