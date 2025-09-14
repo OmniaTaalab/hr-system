@@ -43,7 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send, Filter, AlertTriangle, FileDown, Paperclip } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
-import { format, differenceInCalendarDays } from "date-fns";
+import { format } from "date-fns";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, Timestamp, orderBy, where, getDocs, QueryConstraint } from 'firebase/firestore';
 import { 
@@ -63,10 +63,10 @@ import { useOrganizationLists } from "@/hooks/use-organization-lists";
 
 export interface LeaveRequestEntry {
   id: string; 
-  requestingEmployeeDocId: string; // Added this for robust linking
+  requestingEmployeeDocId: string;
   employeeName: string;
-  employeeStage?: string; // For filtering
-  employeeCampus?: string; // For filtering
+  employeeStage?: string; 
+  employeeCampus?: string; 
   leaveType: string;
   startDate: Timestamp;
   endDate: Timestamp;
@@ -75,8 +75,8 @@ export interface LeaveRequestEntry {
   submittedAt: Timestamp;
   managerNotes?: string;
   updatedAt?: Timestamp;
-  numberOfDays?: number; // Number of working days
-  attachmentURL?: string; // Attachment URL
+  numberOfDays?: number; 
+  attachmentURL?: string; 
 }
 
 const initialUpdateStatusState: UpdateLeaveStatusState = { message: null, errors: {}, success: false };
@@ -402,97 +402,39 @@ function AllLeaveRequestsContent() {
   }, [profile]);
   
   useEffect(() => {
-    if (isLoadingProfile || !profile) return;
+    if (isLoadingProfile) return;
     
-    const fetchAllData = async () => {
-        setIsLoading(true);
-        const userRole = profile.role?.toLowerCase();
-        
-        let employeeQuery;
-        if (userRole === 'admin' || userRole === 'hr') {
-            employeeQuery = query(collection(db, "employee"));
-        } 
-        else if (userRole === 'principal' && profile.stage) {
-            employeeQuery = query(collection(db, "employee"), where("stage", "==", profile.stage));
-        } 
-        else {
-            setAllRequests([]);
-            setIsLoading(false);
-            return;
-        }
+    setIsLoading(true);
+    let queryConstraints: QueryConstraint[] = [];
+    const userRole = profile?.role?.toLowerCase();
 
-        try {
-            const employeeSnapshot = await getDocs(employeeQuery);
-            const employeeMap = new Map();
-            const employeeIds: string[] = [];
-            employeeSnapshot.forEach(doc => {
-                employeeMap.set(doc.id, doc.data());
-                employeeIds.push(doc.id);
-            });
-
-            if (employeeIds.length === 0) {
-                setAllRequests([]);
-                setIsLoading(false);
-                return;
-            }
-
-            const idChunks: string[][] = [];
-            for (let i = 0; i < employeeIds.length; i += 30) {
-                idChunks.push(employeeIds.slice(i, i + 30));
-            }
-
-            let allLeaveRequests: LeaveRequestEntry[] = [];
-            const unsubscribes: (() => void)[] = [];
-
-            const processSnapshot = (newRequests: LeaveRequestEntry[]) => {
-                const requestMap = new Map(allLeaveRequests.map(r => [r.id, r]));
-                newRequests.forEach(r => requestMap.set(r.id, r));
-                
-                let combinedRequests = Array.from(requestMap.values());
-                combinedRequests.sort((a, b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
-                
-                const requestsWithDetails = combinedRequests.map(req => {
-                    const employeeData = employeeMap.get(req.requestingEmployeeDocId);
-                    return {
-                        ...req,
-                        employeeStage: employeeData?.stage || 'N/A',
-                        employeeCampus: employeeData?.campus || 'N/A',
-                    };
-                });
-                
-                allLeaveRequests = requestsWithDetails;
-                setAllRequests(requestsWithDetails);
-                setIsLoading(false);
-            };
-
-            for (const chunk of idChunks) {
-                const leaveQuery = query(collection(db, "leaveRequests"), where("requestingEmployeeDocId", "in", chunk));
-                const unsubscribe = onSnapshot(leaveQuery, (snapshot) => {
-                    const newRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
-                    processSnapshot(newRequests);
-                }, (error) => {
-                    console.error("Error fetching leave requests: ", error);
-                    toast({
-                        variant: "destructive",
-                        title: "Error Fetching Requests",
-                        description: "Could not load leave requests. This might be due to a missing Firestore index.",
-                    });
-                     setIsLoading(false);
-                });
-                unsubscribes.push(unsubscribe);
-            }
-            
-            return () => {
-                unsubscribes.forEach(unsub => unsub());
-            };
-
-        } catch (error) {
-            console.error("Error fetching employees for leave requests: ", error);
-            setIsLoading(false);
-        }
-    };
+    // Base query
+    queryConstraints.push(orderBy("submittedAt", "desc"));
     
-    fetchAllData();
+    // Role-based filtering
+    if (userRole === 'principal' && profile?.stage) {
+      queryConstraints.push(where("employeeStage", "==", profile.stage));
+    } else if (userRole !== 'admin' && userRole !== 'hr' && profile?.id) {
+      queryConstraints.push(where("requestingEmployeeDocId", "==", profile.id));
+    }
+
+    const finalQuery = query(collection(db, "leaveRequests"), ...queryConstraints);
+    
+    const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
+        const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+        setAllRequests(requests);
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching leave requests: ", error);
+        toast({
+            variant: "destructive",
+            title: "Error Fetching Requests",
+            description: "Could not load leave requests. This might be due to a missing Firestore index.",
+        });
+        setIsLoading(false);
+    });
+
+    return () => unsubscribe();
     
 }, [profile, isLoadingProfile, toast]);
 
@@ -891,5 +833,3 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
-
-    

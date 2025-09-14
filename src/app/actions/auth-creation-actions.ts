@@ -2,7 +2,7 @@
 'use server';
 
 import { z } from 'zod';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, deleteField } from 'firebase/firestore';
 import { adminAuth } from '@/lib/firebase/admin-config'; // Use admin config
 import { db } from '@/lib/firebase/config'; // Client SDK for some operations if needed
 
@@ -163,7 +163,7 @@ export async function deleteAuthUserAction(
     // Update the employee document in Firestore to remove the UID
     const employeeDocRef = doc(db, "employee", employeeDocId);
     await updateDoc(employeeDocRef, {
-      userId: null,
+      userId: deleteField(),
     });
     
     return {
@@ -179,7 +179,7 @@ export async function deleteAuthUserAction(
         // If user doesn't exist in Auth, still unlink them from Firestore
         try {
             const employeeDocRef = doc(db, "employee", employeeDocId);
-            await updateDoc(employeeDocRef, { userId: null });
+            await updateDoc(employeeDocRef, { userId: deleteField() });
             return { success: true, message: errorMessage };
         } catch (unlinkError: any) {
             return { errors: { form: [`User not found in Auth, and failed to unlink from employee: ${unlinkError.message}`] }, success: false };
