@@ -152,15 +152,17 @@ export async function submitLeaveRequestAction(
             }
         }
         
-        // 2. Find all HR users
-        const hrQuery = query(collection(db, "employee"), where("role", "==", "HR"));
-        const hrSnapshot = await getDocs(hrQuery);
-        hrSnapshot.forEach(hrDoc => {
-            const hrUserId = hrDoc.data().userId;
-            if (hrUserId) {
-                userIdsToNotify.add(hrUserId);
+        // 2. Find all HR and Admin users
+        const managerRoles = ["HR", "Admin"];
+        const managerQuery = query(collection(db, "employee"), where("role", "in", managerRoles));
+        const managerSnapshot = await getDocs(managerQuery);
+        managerSnapshot.forEach(doc => {
+            const userId = doc.data().userId;
+            if (userId) {
+                userIdsToNotify.add(userId);
             }
         });
+
 
         // 3. Create notification documents
         const notificationPromises = Array.from(userIdsToNotify).map(userId => {
