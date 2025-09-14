@@ -254,7 +254,7 @@ const UpdateEmployeeFormSchema = z.object({
     return isValid(date) ? date : undefined;
   }, z.date().optional()),
   leavingDate: z.preprocess((arg) => {
-    if (!arg || typeof arg !== "string" || arg === "") return null;
+    if (!arg || typeof arg !== "string" || arg === "") return null; // Handle empty string as null
     const date = new Date(arg);
     return isValid(date) ? date : null;
   }, z.date().nullable().optional()),
@@ -303,17 +303,16 @@ export async function updateEmployeeAction(
 ): Promise<UpdateEmployeeState> {
     const rawData: Record<string, any> = {};
     formData.forEach((value, key) => {
-      // Don't add empty file inputs to rawData
       if (value instanceof File && value.size === 0) {
         return;
       }
       rawData[key] = value;
     });
     
-    // --- Handle standard employee update ---
     const validatedFields = UpdateEmployeeFormSchema.safeParse(rawData);
 
   if (!validatedFields.success) {
+    console.error("Zod Validation Errors:", validatedFields.error.flatten().fieldErrors);
     return {
       errors: validatedFields.error.flatten().fieldErrors,
       message: 'Validation failed. Please check your input.',
@@ -340,37 +339,26 @@ export async function updateEmployeeAction(
 
     const dataToUpdate: { [key: string]: any } = {};
 
-    // Build the update object, excluding any undefined fields
     Object.entries(updateData).forEach(([key, value]) => {
       if (value !== undefined) { 
         dataToUpdate[key] = value;
       }
     });
 
-    // If either first name or last name is being updated, reconstruct the full name
     if (dataToUpdate.firstName || dataToUpdate.lastName) {
       const newFirstName = dataToUpdate.firstName ?? currentEmployeeData.firstName;
       const newLastName = dataToUpdate.lastName ?? currentEmployeeData.lastName;
       dataToUpdate.name = `${newFirstName} ${newLastName}`.trim();
     }
 
-    if (dataToUpdate.dateOfBirth && isValid(dataToUpdate.dateOfBirth)) {
+    if (dataToUpdate.dateOfBirth) {
         dataToUpdate.dateOfBirth = Timestamp.fromDate(dataToUpdate.dateOfBirth);
-    } else {
-       delete dataToUpdate.dateOfBirth;
     }
-    if (dataToUpdate.joiningDate && isValid(dataToUpdate.joiningDate)) {
+    if (dataToUpdate.joiningDate) {
         dataToUpdate.joiningDate = Timestamp.fromDate(dataToUpdate.joiningDate);
-    } else {
-      delete dataToUpdate.joiningDate;
     }
-
-    if (dataToUpdate.leavingDate === null) {
-      dataToUpdate.leavingDate = null;
-    } else if (dataToUpdate.leavingDate && isValid(dataToUpdate.leavingDate)) {
-        dataToUpdate.leavingDate = Timestamp.fromDate(dataToUpdate.leavingDate);
-    } else {
-       delete dataToUpdate.leavingDate;
+    if (dataToUpdate.hasOwnProperty('leavingDate')) {
+        dataToUpdate.leavingDate = dataToUpdate.leavingDate ? Timestamp.fromDate(dataToUpdate.leavingDate) : null;
     }
     
     await updateDoc(employeeRef, dataToUpdate);
@@ -784,6 +772,8 @@ export async function batchCreateEmployeesAction(
     return { success: false, errors: { form: [`An unexpected error occurred during batch creation: ${error.message}`] } };
   }
 }
+
+    
 
     
 
