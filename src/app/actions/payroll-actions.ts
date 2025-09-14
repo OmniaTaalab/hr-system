@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase/config';
 import { collection, addDoc, query, where, getDocs, serverTimestamp, Timestamp, doc, updateDoc, limit, setDoc } from 'firebase/firestore';
 import { parse as parseDateFns, isValid as isValidDateFns, startOfMonth, endOfMonth, format as formatDateFns } from 'date-fns';
 import { getWeekendSettings } from './settings-actions';
+import { logSystemEvent } from '@/lib/system-log';
 
 const PayrollFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee is required."),
@@ -32,6 +33,9 @@ const PayrollFormSchema = z.object({
     z.number().nonnegative({ message: "Final net salary must be a non-negative number." })
   ),
   notes: z.string().optional(),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 });
 
 export type PayrollState = {
@@ -64,6 +68,9 @@ export async function savePayrollAction(
     deductions: formData.get('deductions'),
     finalNetSalary: formData.get('finalNetSalary'),
     notes: formData.get('notes'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   });
 
   if (!validatedFields.success) {
@@ -85,6 +92,9 @@ export async function savePayrollAction(
     deductions,
     finalNetSalary: finalNetSalaryFromForm,
     notes,
+    actorId,
+    actorEmail,
+    actorRole,
   } = validatedFields.data;
 
   const baseSalaryCalculated = hourlyRateForCalc * totalWorkHoursFetched;
@@ -116,30 +126,41 @@ export async function savePayrollAction(
 
     const existingPayrollSnap = await getDocs(q);
     let docIdToUpdate: string | null = null;
+    let action = "Save Payroll";
 
     if (!existingPayrollSnap.empty) {
       docIdToUpdate = existingPayrollSnap.docs[0].id;
+      action = "Update Payroll";
     }
 
+    let payrollRecordId: string;
     if (docIdToUpdate) {
       // Update existing record
       const payrollDocRef = doc(db, "monthlyPayrolls", docIdToUpdate);
       await updateDoc(payrollDocRef, payrollData);
-      return {
-        message: `Payroll for ${employeeName} for ${monthYear} updated successfully.`,
-        success: true,
-        payrollRecordId: docIdToUpdate,
-      };
+      payrollRecordId = docIdToUpdate;
     } else {
       // Create new record
       payrollData.calculatedAt = serverTimestamp(); // Add calculatedAt only for new records
       const newPayrollDocRef = await addDoc(payrollCollectionRef, payrollData);
-      return {
+      payrollRecordId = newPayrollDocRef.id;
+    }
+
+    await logSystemEvent(action, {
+        actorId,
+        actorEmail,
+        actorRole,
+        payrollRecordId,
+        employeeName,
+        monthYear,
+    });
+
+    return {
         message: `Payroll for ${employeeName} for ${monthYear} saved successfully.`,
         success: true,
-        payrollRecordId: newPayrollDocRef.id,
-      };
-    }
+        payrollRecordId,
+    };
+
   } catch (error: any) {
     console.error('Firestore Save Payroll Error:', error);
     return {

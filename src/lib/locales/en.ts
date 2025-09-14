@@ -13,6 +13,7 @@ export default {
     tpi: 'TPIs',
     job_board: 'Job Board',
     job_applications: 'Job Applications',
+    system_log: 'System Log',
     settings: 'Settings',
   },
   header: {

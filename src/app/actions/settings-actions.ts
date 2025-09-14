@@ -4,12 +4,16 @@
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, doc, Timestamp, setDoc, getDoc, updateDoc, writeBatch, limit, startAfter, orderBy } from 'firebase/firestore';
+import { logSystemEvent } from '@/lib/system-log';
 
 // --- HOLIDAY SETTINGS ---
 
 const HolidaySchema = z.object({
   name: z.string().min(2, "Holiday name must be at least 2 characters long."),
   date: z.coerce.date({ required_error: "A valid date is required." }),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 });
 
 export type HolidayState = {
@@ -29,6 +33,9 @@ export async function addHolidayAction(
   const validatedFields = HolidaySchema.safeParse({
     name: formData.get('name'),
     date: formData.get('date'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   });
 
   if (!validatedFields.success) {
@@ -39,7 +46,7 @@ export async function addHolidayAction(
     };
   }
   
-  const { name, date } = validatedFields.data;
+  const { name, date, actorId, actorEmail, actorRole } = validatedFields.data;
 
   // Set time to UTC midnight to avoid timezone issues
   const dateUTC = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -62,6 +69,8 @@ export async function addHolidayAction(
       createdAt: serverTimestamp(),
     });
 
+    await logSystemEvent("Add Holiday", { actorId, actorEmail, actorRole, holidayName: name, holidayDate: date.toISOString().split('T')[0] });
+
     return { success: true, message: `Holiday "${name}" added successfully.` };
   } catch (error: any) {
     return {
@@ -74,6 +83,9 @@ export async function addHolidayAction(
 
 const DeleteHolidaySchema = z.object({
   holidayId: z.string().min(1, "Holiday ID is required."),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 });
 
 export async function deleteHolidayAction(
@@ -82,6 +94,9 @@ export async function deleteHolidayAction(
 ): Promise<HolidayState> {
   const validatedFields = DeleteHolidaySchema.safeParse({
     holidayId: formData.get('holidayId'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   });
 
   if (!validatedFields.success) {
@@ -91,10 +106,11 @@ export async function deleteHolidayAction(
     };
   }
 
-  const { holidayId } = validatedFields.data;
+  const { holidayId, actorId, actorEmail, actorRole } = validatedFields.data;
 
   try {
     await deleteDoc(doc(db, "holidays", holidayId));
+    await logSystemEvent("Delete Holiday", { actorId, actorEmail, actorRole, holidayId });
     return { success: true, message: "Holiday deleted successfully." };
   } catch (error: any) {
     return {
@@ -113,13 +129,35 @@ export type WeekendSettingsState = {
   success?: boolean;
 };
 
+const WeekendSettingsSchema = z.object({
+    weekend: z.array(z.string()),
+    actorId: z.string().optional(),
+    actorEmail: z.string().optional(),
+    actorRole: z.string().optional(),
+});
+
 // Action to update weekend settings
 export async function updateWeekendSettingsAction(
   prevState: WeekendSettingsState,
   formData: FormData
 ): Promise<WeekendSettingsState> {
   
-  const weekendDays = formData.getAll('weekend').map(day => parseInt(day as string, 10));
+  const validatedFields = WeekendSettingsSchema.safeParse({
+      weekend: formData.getAll('weekend'),
+      actorId: formData.get('actorId'),
+      actorEmail: formData.get('actorEmail'),
+      actorRole: formData.get('actorRole'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: { form: ["Invalid data submitted for weekend days."] },
+      success: false,
+    };
+  }
+
+  const { weekend, actorId, actorEmail, actorRole } = validatedFields.data;
+  const weekendDays = weekend.map(day => parseInt(day, 10));
 
   if (weekendDays.some(isNaN)) {
      return {
@@ -131,6 +169,7 @@ export async function updateWeekendSettingsAction(
   try {
     const settingsRef = doc(db, "settings", "weekend");
     await setDoc(settingsRef, { days: weekendDays }, { merge: true });
+    await logSystemEvent("Update Weekend Settings", { actorId, actorEmail, actorRole, newWeekendDays: weekendDays });
     return { success: true, message: "Weekend settings updated successfully." };
   } catch (error: any) {
     return {
@@ -172,6 +211,9 @@ export type WorkdaySettingsState = {
 
 const WorkdaySettingsSchema = z.object({
     hours: z.coerce.number().positive("Hours must be a positive number.").min(1).max(24),
+    actorId: z.string().optional(),
+    actorEmail: z.string().optional(),
+    actorRole: z.string().optional(),
 });
 
 // Action to update workday settings
@@ -182,6 +224,9 @@ export async function updateWorkdaySettingsAction(
   
   const validatedFields = WorkdaySettingsSchema.safeParse({
     hours: formData.get('hours'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   });
 
   if (!validatedFields.success) {
@@ -192,11 +237,12 @@ export async function updateWorkdaySettingsAction(
     };
   }
   
-  const { hours } = validatedFields.data;
+  const { hours, actorId, actorEmail, actorRole } = validatedFields.data;
   
   try {
     const settingsRef = doc(db, "settings", "workday");
     await setDoc(settingsRef, { standardHours: hours }, { merge: true });
+    await logSystemEvent("Update Workday Settings", { actorId, actorEmail, actorRole, newStandardHours: hours });
     return { success: true, message: "Workday settings updated successfully." };
   } catch (error: any) {
     return {
@@ -240,6 +286,9 @@ const ManageItemSchema = z.object({
     (val) => (val === null ? undefined : val),
     z.string().optional()
   ),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 });
 
 export type ManageListItemState = {
@@ -260,6 +309,9 @@ export async function manageListItemAction(
     operation: formData.get('operation'),
     name: formData.get('name'),
     id: formData.get('id'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   });
 
   if (!validatedFields.success) {
@@ -269,7 +321,7 @@ export async function manageListItemAction(
     };
   }
 
-  const { collectionName, operation, name, id } = validatedFields.data;
+  const { collectionName, operation, name, id, actorId, actorEmail, actorRole } = validatedFields.data;
   const collectionRef = collection(db, collectionName);
 
   try {
@@ -283,6 +335,7 @@ export async function manageListItemAction(
           return { errors: { form: [`An item with the name "${name}" already exists.`] }, success: false };
         }
         await addDoc(collectionRef, { name });
+        await logSystemEvent("Manage List Item", { actorId, actorEmail, actorRole, operation, collectionName, itemName: name });
         return { success: true, message: `"${name}" added successfully.` };
 
       case 'update':
@@ -296,12 +349,14 @@ export async function manageListItemAction(
         
         const docRefUpdate = doc(db, collectionName, id);
         await updateDoc(docRefUpdate, { name });
+        await logSystemEvent("Manage List Item", { actorId, actorEmail, actorRole, operation, collectionName, itemId: id, newItemName: name });
         return { success: true, message: `Item updated to "${name}" successfully.` };
 
       case 'delete':
         if (!id) return { errors: { form: ["ID is required for deletion."] }, success: false };
         const docRefDelete = doc(db, collectionName, id);
         await deleteDoc(docRefDelete);
+        await logSystemEvent("Manage List Item", { actorId, actorEmail, actorRole, operation, collectionName, itemId: id });
         return { success: true, message: "Item deleted successfully." };
 
       default:
@@ -327,7 +382,8 @@ export type SyncState = {
 async function syncListFromSource(
     sourceCollection: string,
     sourceField: string,
-    targetCollection: string
+    targetCollection: string,
+    actorDetails: { actorId?: string, actorEmail?: string, actorRole?: string }
 ): Promise<SyncState> {
     const BATCH_SIZE = 5000;
     try {
@@ -387,6 +443,8 @@ async function syncListFromSource(
         }
         await Promise.all(batchCommits);
 
+        await logSystemEvent("Sync List", { ...actorDetails, sourceCollection, targetCollection, itemsAdded: newValues.length });
+
         return {
             success: true,
             message: `Successfully added ${newValues.length} new item(s) to the "${targetCollection}" list.`
@@ -400,28 +458,37 @@ async function syncListFromSource(
     }
 }
 
-
-export async function syncGroupNamesFromEmployeesAction(): Promise<SyncState> {
-    return syncListFromSource("employee", "groupName", "groupNames");
+async function runSync(
+    formData: FormData,
+    syncFunction: (actorDetails: any) => Promise<SyncState>
+): Promise<SyncState> {
+    const actorId = formData.get('actorId') as string;
+    const actorEmail = formData.get('actorEmail') as string;
+    const actorRole = formData.get('actorRole') as string;
+    return syncFunction({ actorId, actorEmail, actorRole });
 }
 
-export async function syncRolesFromEmployeesAction(): Promise<SyncState> {
-    return syncListFromSource("employee", "role", "roles");
+
+export async function syncGroupNamesFromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
+    return runSync(formData, (actorDetails) => syncListFromSource("employee", "groupName", "groupNames", actorDetails));
 }
 
-export async function syncCampusesFromEmployeesAction(): Promise<SyncState> {
-    return syncListFromSource("employee", "campus", "campuses");
+export async function syncRolesFromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
+    return runSync(formData, (actorDetails) => syncListFromSource("employee", "role", "roles", actorDetails));
 }
 
-export async function syncStagesFromEmployeesAction(): Promise<SyncState> {
-    return syncListFromSource("employee", "stage", "stage");
+export async function syncCampusesFromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
+    return runSync(formData, (actorDetails) => syncListFromSource("employee", "campus", "campuses", actorDetails));
 }
 
-export async function syncSubjectsFromEmployeesAction(): Promise<SyncState> {
-    return syncListFromSource("employee", "subject", "subjects");
+export async function syncStagesFromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
+    return runSync(formData, (actorDetails) => syncListFromSource("employee", "stage", "stage", actorDetails));
 }
 
-// New action to sync machine names from attendance logs
-export async function syncMachineNamesFromAttendanceLogsAction(): Promise<SyncState> {
-    return syncListFromSource("attendance_log", "machine", "machineNames");
+export async function syncSubjectsFromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
+    return runSync(formData, (actorDetails) => syncListFromSource("employee", "subject", "subjects", actorDetails));
+}
+
+export async function syncMachineNamesFromAttendanceLogsAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
+    return runSync(formData, (actorDetails) => syncListFromSource("attendance_log", "machine", "machineNames", actorDetails));
 }

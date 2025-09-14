@@ -42,6 +42,7 @@ import {
   AlertTriangle,
   BookOpenCheck,
   Bell,
+  History, // Added History icon for System Log
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -86,10 +87,5 @@ export const iconMap: { [key: string]: LucideIcon } = {
   AlertTriangle,
   BookOpenCheck,
   Bell,
+  History, // Added History icon for System Log
 };
-
-    
-
-    
-
-    

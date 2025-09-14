@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { doc, updateDoc, getDoc, deleteField } from 'firebase/firestore';
 import { adminAuth } from '@/lib/firebase/admin-config'; // Use admin config
 import { db } from '@/lib/firebase/config'; // Client SDK for some operations if needed
+import { logSystemEvent } from '@/lib/system-log';
 
 // --- Updated Create Auth User Action ---
 const CreateAuthUserSchema = z.object({
@@ -13,6 +14,9 @@ const CreateAuthUserSchema = z.object({
   name: z.string().min(1, 'Employee name is required.'),
   password: z.string().min(6, 'Password must be at least 6 characters long.'),
   confirmPassword: z.string().min(6, 'Password confirmation is required.'),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords do not match.",
   path: ["confirmPassword"], // Set the error on the confirmPassword field
@@ -49,6 +53,9 @@ export async function createAuthUserForEmployeeAction(
     name: formData.get('name'),
     password: formData.get('password'),
     confirmPassword: formData.get('confirmPassword'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   });
 
   if (!validatedFields.success) {
@@ -59,7 +66,7 @@ export async function createAuthUserForEmployeeAction(
     };
   }
 
-  const { employeeDocId, email, name, password } = validatedFields.data;
+  const { employeeDocId, email, name, password, actorId, actorEmail, actorRole } = validatedFields.data;
   
   try {
     const employeeRef = doc(db, 'employee', employeeDocId);
@@ -91,6 +98,14 @@ export async function createAuthUserForEmployeeAction(
       userId: newUserId,
     });
     
+    await logSystemEvent("Create Auth User", {
+        actorId,
+        actorEmail,
+        actorRole,
+        targetUserId: newUserId,
+        targetEmployeeName: name,
+    });
+
     return {
       success: true,
       message: `Successfully created login for ${name}.`,
@@ -118,6 +133,10 @@ export async function createAuthUserForEmployeeAction(
 const DeleteAuthUserSchema = z.object({
   employeeDocId: z.string().min(1, 'Employee document ID is required.'),
   userId: z.string().min(1, 'User ID is required.'),
+  employeeName: z.string().optional(),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 });
 
 export type DeleteAuthUserState = {
@@ -145,6 +164,10 @@ export async function deleteAuthUserAction(
   const validatedFields = DeleteAuthUserSchema.safeParse({
     employeeDocId: formData.get('employeeDocId'),
     userId: formData.get('userId'),
+    employeeName: formData.get('employeeName'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   });
 
   if (!validatedFields.success) {
@@ -154,7 +177,7 @@ export async function deleteAuthUserAction(
     };
   }
 
-  const { employeeDocId, userId } = validatedFields.data;
+  const { employeeDocId, userId, employeeName, actorId, actorEmail, actorRole } = validatedFields.data;
 
   try {
     // Delete user from Firebase Auth
@@ -166,6 +189,14 @@ export async function deleteAuthUserAction(
       userId: deleteField(),
     });
     
+    await logSystemEvent("Delete Auth User", {
+        actorId,
+        actorEmail,
+        actorRole,
+        targetUserId: userId,
+        targetEmployeeName: employeeName,
+    });
+
     return {
       success: true,
       message: `Successfully deleted login account.`,
@@ -201,6 +232,10 @@ const UpdateAuthPasswordSchema = z.object({
   userId: z.string().min(1, 'User ID is required.'),
   password: z.string().min(6, 'Password must be at least 6 characters long.'),
   confirmPassword: z.string().min(6, 'Password confirmation is required.'),
+  employeeName: z.string().optional(),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords do not match.",
   path: ["confirmPassword"],
@@ -234,6 +269,10 @@ export async function updateAuthUserPasswordAction(
     userId: formData.get('userId'),
     password: formData.get('password'),
     confirmPassword: formData.get('confirmPassword'),
+    employeeName: formData.get('employeeName'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   });
 
   if (!validatedFields.success) {
@@ -244,13 +283,21 @@ export async function updateAuthUserPasswordAction(
     };
   }
 
-  const { userId, password } = validatedFields.data;
+  const { userId, password, employeeName, actorId, actorEmail, actorRole } = validatedFields.data;
 
   try {
     await adminAuth.updateUser(userId, {
       password: password,
     });
     
+    await logSystemEvent("Update Auth Password", {
+        actorId,
+        actorEmail,
+        actorRole,
+        targetUserId: userId,
+        targetEmployeeName: employeeName,
+    });
+
     return {
       success: true,
       message: `Password updated successfully.`,

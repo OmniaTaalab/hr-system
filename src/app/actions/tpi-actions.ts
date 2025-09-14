@@ -4,6 +4,7 @@
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { collection, query, where, getDocs, setDoc, doc, serverTimestamp, addDoc, limit, writeBatch } from 'firebase/firestore';
+import { logSystemEvent } from '@/lib/system-log';
 
 const TpiFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee is required."),
@@ -13,6 +14,9 @@ const TpiFormSchema = z.object({
   points: z.coerce.number().int().nonnegative("Must be a non-negative integer.").optional(),
   total: z.coerce.number().nonnegative("Must be a non-negative number.").optional(),
   sheetName: z.string().optional(),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 });
 
 export type TpiState = {
@@ -42,6 +46,9 @@ export async function saveTpiDataAction(
     points: formData.get('points') || 0,
     total: formData.get('total') || 0,
     sheetName: formData.get('sheetName'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   });
 
   if (!validatedFields.success) {
@@ -52,7 +59,7 @@ export async function saveTpiDataAction(
     };
   }
 
-  const { employeeDocId, ...tpiData } = validatedFields.data;
+  const { employeeDocId, actorId, actorEmail, actorRole, ...tpiData } = validatedFields.data;
 
   try {
     const tpiCollectionRef = collection(db, "tpiRecords");
@@ -66,23 +73,31 @@ export async function saveTpiDataAction(
       ...tpiData,
       lastUpdatedAt: serverTimestamp(),
     };
+    
+    let action = "Save TPI Data";
 
     if (!existingSnapshot.empty) {
       // Update existing record
+      action = "Update TPI Data";
       const docRef = existingSnapshot.docs[0].ref;
       await setDoc(docRef, dataToSave, { merge: true });
-      return { 
-        message: `TPI data updated successfully for the selected employee.`, 
-        success: true 
-      };
     } else {
       // Create new record
       await addDoc(tpiCollectionRef, dataToSave);
-      return { 
+    }
+
+    await logSystemEvent(action, {
+        actorId,
+        actorEmail,
+        actorRole,
+        targetEmployeeId: employeeDocId,
+        sheetName: tpiData.sheetName,
+    });
+
+    return { 
         message: `TPI data saved successfully for the selected employee.`, 
         success: true 
-      };
-    }
+    };
 
   } catch (error: any) {
     console.error('Firestore Save TPI Error:', error);
@@ -125,6 +140,10 @@ export async function batchSaveTpiDataAction(
   formData: FormData
 ): Promise<BatchTpiState> {
   const recordsJson = formData.get('recordsJson');
+  const actorId = formData.get('actorId') as string;
+  const actorEmail = formData.get('actorEmail') as string;
+  const actorRole = formData.get('actorRole') as string;
+
   if (!recordsJson || typeof recordsJson !== 'string') {
     return { errors: { file: ["No data received from file."] }, success: false };
   }
@@ -194,6 +213,16 @@ export async function batchSaveTpiDataAction(
 
   try {
     await batch.commit();
+
+    await logSystemEvent("Batch Save TPI Data", {
+        actorId,
+        actorEmail,
+        actorRole,
+        createdCount,
+        updatedCount,
+        notFoundCount,
+    });
+
     let message = `Successfully processed file. ${createdCount} records created, ${updatedCount} records updated.`;
     if (notFoundCount > 0) {
       message += ` ${notFoundCount} employees were not found in the system but their TPI data was imported (Names: ${employeeNotFoundNames.slice(0, 5).join(', ')}${notFoundCount > 5 ? '...' : ''}).`;

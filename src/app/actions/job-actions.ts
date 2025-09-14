@@ -4,12 +4,16 @@
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp, doc, deleteDoc } from 'firebase/firestore';
+import { logSystemEvent } from '@/lib/system-log';
 
 const JobFormSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters long."),
   department: z.string().min(2, "Department is required."),
   location: z.string().min(2, "Location is required."),
   shortRequirements: z.string().min(1, "At least one requirement is needed."),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 });
 
 export type CreateJobState = {
@@ -33,6 +37,9 @@ export async function createJobAction(
     department: formData.get('department'),
     location: formData.get('location'),
     shortRequirements: formData.get('shortRequirements'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   });
 
   if (!validatedFields.success) {
@@ -43,7 +50,7 @@ export async function createJobAction(
     };
   }
 
-  const { title, department, location, shortRequirements } = validatedFields.data;
+  const { title, department, location, shortRequirements, actorId, actorEmail, actorRole } = validatedFields.data;
   
   const requirementsArray = shortRequirements.split('\n').map(req => req.trim()).filter(req => req.length > 0);
 
@@ -55,12 +62,20 @@ export async function createJobAction(
   }
 
   try {
-    await addDoc(collection(db, "jobs"), {
+    const newJobRef = await addDoc(collection(db, "jobs"), {
       title,
       department,
       location,
       shortRequirements: requirementsArray,
       createdAt: serverTimestamp(),
+    });
+
+    await logSystemEvent("Create Job", {
+        actorId,
+        actorEmail,
+        actorRole,
+        jobId: newJobRef.id,
+        jobTitle: title,
     });
 
     return { success: true, message: `Job opening "${title}" created successfully.` };
@@ -117,7 +132,7 @@ export async function applyForJobAction(
   const { jobId, jobTitle, name, email, resumeURL, salary, netSalary } = validatedFields.data;
 
   try {
-    await addDoc(collection(db, "jobApplications"), {
+    const newApplicationRef = await addDoc(collection(db, "jobApplications"), {
       jobId,
       jobTitle,
       name,
@@ -126,6 +141,12 @@ export async function applyForJobAction(
       salary: salary ?? null,
       netSalary: netSalary ?? null,
       submittedAt: serverTimestamp(),
+    });
+
+    await logSystemEvent("Apply for Job", {
+        actorEmail: email, // Applicant is the actor
+        applicationId: newApplicationRef.id,
+        jobTitle,
     });
 
     return { success: true, message: "Your application has been submitted successfully! We will get back to you soon." };
@@ -142,6 +163,9 @@ export async function applyForJobAction(
 // --- New Delete Job Action ---
 const DeleteJobSchema = z.object({
   jobId: z.string().min(1, "Job ID is required."),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 });
 
 export type DeleteJobState = {
@@ -156,16 +180,27 @@ export async function deleteJobAction(
 ): Promise<DeleteJobState> {
   const validatedFields = DeleteJobSchema.safeParse({
     jobId: formData.get('jobId'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   });
 
   if (!validatedFields.success) {
     return { errors: { form: ["Invalid Job ID."] }, success: false };
   }
 
-  const { jobId } = validatedFields.data;
+  const { jobId, actorId, actorEmail, actorRole } = validatedFields.data;
 
   try {
     await deleteDoc(doc(db, "jobs", jobId));
+    
+    await logSystemEvent("Delete Job", {
+        actorId,
+        actorEmail,
+        actorRole,
+        jobId: jobId,
+    });
+
     return { success: true, message: "Job opening deleted successfully." };
   } catch (error: any) {
     return {

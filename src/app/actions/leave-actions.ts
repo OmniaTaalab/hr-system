@@ -7,6 +7,7 @@ import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, update
 // Assuming these functions exist for getting user info
 import { getWeekendSettings } from './settings-actions';
 import { adminMessaging } from '@/lib/firebase/admin-config';
+import { logSystemEvent } from '@/lib/system-log';
 
 // New helper function to calculate working days, excluding weekends and holidays
 async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<number> {
@@ -114,7 +115,7 @@ export async function submitLeaveRequestAction(
 
     const numberOfDays = await calculateWorkingDays(startDate, endDate);
 
-    await addDoc(collection(db, "leaveRequests"), {
+    const newRequestRef = await addDoc(collection(db, "leaveRequests"), {
       requestingEmployeeDocId,
       employeeName, 
       employeeStage: employeeData.stage || null,
@@ -128,6 +129,15 @@ export async function submitLeaveRequestAction(
       status: "Pending",
       submittedAt: serverTimestamp(),
       managerNotes: "", 
+    });
+
+    await logSystemEvent("Submit Leave Request", {
+        actorId: employeeData.userId,
+        actorEmail: employeeData.email,
+        actorRole: employeeData.role,
+        leaveRequestId: newRequestRef.id,
+        leaveType: leaveType,
+        employeeName: employeeName,
     });
 
     // --- Start Notification Logic ---
@@ -216,6 +226,9 @@ const UpdateLeaveStatusSchema = z.object({
   requestId: z.string().min(1, "Request ID is required."),
   newStatus: z.enum(["Approved", "Rejected"], { required_error: "New status is required." }),
   managerNotes: z.string().optional(),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 });
 
 
@@ -238,6 +251,9 @@ export async function updateLeaveRequestStatusAction(
     requestId: formData.get('requestId'),
     newStatus: formData.get('newStatus'),
     managerNotes: formData.get('managerNotes'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   });
 
   if (!validatedFields.success) {
@@ -248,7 +264,7 @@ export async function updateLeaveRequestStatusAction(
     };
   }
   
-  const { requestId, newStatus, managerNotes } = validatedFields.data;
+  const { requestId, newStatus, managerNotes, actorId, actorEmail, actorRole } = validatedFields.data;
 
   try {
     const requestRef = doc(db, "leaveRequests", requestId);
@@ -257,6 +273,15 @@ export async function updateLeaveRequestStatusAction(
       managerNotes: managerNotes || "", 
       updatedAt: serverTimestamp(), 
     });
+
+    await logSystemEvent("Update Leave Request Status", {
+        actorId,
+        actorEmail,
+        actorRole,
+        leaveRequestId: requestId,
+        newStatus,
+    });
+
     return { message: `Leave request status updated to ${newStatus}.`, success: true };
   } catch (error: any) {
     console.error("Error updating leave request status:", error);
@@ -276,6 +301,9 @@ const EditLeaveRequestFormSchema = z.object({
   endDate: z.date({ required_error: "End date is required." }),
   reason: z.string().min(10, "Reason must be at least 10 characters.").max(500, "Reason must be at most 500 characters."),
   status: z.enum(["Pending", "Approved", "Rejected"], { required_error: "Status is required." }),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
   path: ["endDate"],
@@ -306,6 +334,9 @@ export async function editLeaveRequestAction(
     endDate: formData.get('endDate') ? new Date(formData.get('endDate') as string) : undefined,
     reason: formData.get('reason'),
     status: formData.get('status'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   };
 
   const validatedFields = EditLeaveRequestFormSchema.safeParse(rawFormData);
@@ -318,7 +349,7 @@ export async function editLeaveRequestAction(
     };
   }
 
-  const { requestId, leaveType, startDate, endDate, reason, status } = validatedFields.data;
+  const { requestId, leaveType, startDate, endDate, reason, status, actorId, actorEmail, actorRole } = validatedFields.data;
 
   try {
     const numberOfDays = await calculateWorkingDays(startDate, endDate);
@@ -332,6 +363,13 @@ export async function editLeaveRequestAction(
       status,
       numberOfDays, // Recalculate and update working days
       updatedAt: serverTimestamp(),
+    });
+
+    await logSystemEvent("Edit Leave Request", {
+        actorId,
+        actorEmail,
+        actorRole,
+        leaveRequestId: requestId,
     });
 
     return { message: "Leave request updated successfully.", success: true };
@@ -348,6 +386,9 @@ export async function editLeaveRequestAction(
 // Schema for deleting a leave request (only needs ID)
 const DeleteLeaveRequestSchema = z.object({
   requestId: z.string().min(1, "Request ID is required."),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
 });
 
 export type DeleteLeaveRequestState = {
@@ -366,6 +407,9 @@ export async function deleteLeaveRequestAction(
 ): Promise<DeleteLeaveRequestState> {
   const validatedFields = DeleteLeaveRequestSchema.safeParse({
     requestId: formData.get('requestId'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
   });
 
   if (!validatedFields.success) {
@@ -376,11 +420,19 @@ export async function deleteLeaveRequestAction(
     };
   }
 
-  const { requestId } = validatedFields.data;
+  const { requestId, actorId, actorEmail, actorRole } = validatedFields.data;
 
   try {
     const requestRef = doc(db, "leaveRequests", requestId);
     await deleteDoc(requestRef);
+
+    await logSystemEvent("Delete Leave Request", {
+        actorId,
+        actorEmail,
+        actorRole,
+        leaveRequestId: requestId,
+    });
+
     return { message: "Leave request deleted successfully.", success: true };
   } catch (error: any) {
     console.error("Error deleting leave request:", error);
@@ -391,5 +443,3 @@ export async function deleteLeaveRequestAction(
     };
   }
 }
-
-    
