@@ -6,7 +6,7 @@ import { app, db } from "./config";
 import { doc, setDoc } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 
-const VAPID_KEY = "TtRftn96m4yKkQiRgSvBfa0yJ7A8vb-NMr8oYbIkqgABDFWzm3VhduoropNI1PzVACR7mVnXmZ45zYJra2gV88EJeqrZnh2Ad2O7kqMFCguHxnQbNvSVzsBc1jUlDy3yvk";
+const VAPID_KEY = "BDFWzm3VhduoropNI1PzVACR7mVnXmZ45zYJra2gV88EJeqrZnh2Ad2O7kqMFCguHxnQbNvSVzsBc1jUlDy3yvk";
 
 export const requestNotificationPermission = async (userId: string, role: string) => {
     if (typeof window === 'undefined' || !('Notification' in window)) {

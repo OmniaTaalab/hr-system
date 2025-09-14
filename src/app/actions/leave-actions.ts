@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, Timestamp, deleteDoc, getDoc, limit } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, Timestamp, deleteDoc, getDoc } from 'firebase/firestore';
 // Assuming these functions exist for getting user info
 import { getWeekendSettings } from './settings-actions';
 import { adminMessaging } from '@/lib/firebase/admin-config';
@@ -113,7 +113,7 @@ export async function submitLeaveRequestAction(
 
     const numberOfDays = await calculateWorkingDays(startDate, endDate);
 
-    const newLeaveRequestRef = await addDoc(collection(db, "leaveRequests"), {
+    await addDoc(collection(db, "leaveRequests"), {
       requestingEmployeeDocId,
       employeeName, 
       employeeStage: employeeData.stage || null,
@@ -132,25 +132,30 @@ export async function submitLeaveRequestAction(
     // --- Start Notification Logic ---
     const notificationMessage = `New leave request from ${employeeName} for ${leaveType}.`;
     
-    // 1. Get HR users
+    // 1. Get userIds of HR users, Admins, and relevant Principal
     const hrUsersQuery = query(collection(db, "employee"), where("role", "==", "HR"));
-    const hrSnapshot = await getDocs(hrUsersQuery);
-    const hrUserIds = hrSnapshot.docs.map(doc => doc.id);
-
-    // 2. Get Admin users
     const adminUsersQuery = query(collection(db, "employee"), where("role", "==", "Admin"));
-    const adminSnapshot = await getDocs(adminUsersQuery);
-    const adminUserIds = adminSnapshot.docs.map(doc => doc.id);
     
-    // 3. Get Principal for the employee's stage
-    let principalUserIds: string[] = [];
-    if(employeeData.stage){
-        const principalQuery = query(collection(db, "employee"), where("role", "==", "Principal"), where("stage", "==", employeeData.stage));
-        const principalSnapshot = await getDocs(principalQuery);
-        principalUserIds = principalSnapshot.docs.map(doc => doc.id);
+    const queries = [getDocs(hrUsersQuery), getDocs(adminUsersQuery)];
+
+    if (employeeData.stage) {
+      const principalQuery = query(collection(db, "employee"), where("role", "==", "Principal"), where("stage", "==", employeeData.stage));
+      queries.push(getDocs(principalQuery));
     }
+
+    const snapshots = await Promise.all(queries);
     
-    const allRecipientIds = [...new Set([...hrUserIds, ...adminUserIds, ...principalUserIds])];
+    const recipientUserIds = new Set<string>();
+    snapshots.forEach(snapshot => {
+      snapshot.docs.forEach(doc => {
+        const userId = doc.data().userId;
+        if (userId) {
+          recipientUserIds.add(userId);
+        }
+      });
+    });
+
+    const allRecipientIds = Array.from(recipientUserIds);
     
     if (allRecipientIds.length > 0) {
       // Create notification documents for each recipient to see in the UI
@@ -185,7 +190,6 @@ export async function submitLeaveRequestAction(
               };
               try {
                 await adminMessaging.sendEachForMulticast(message);
-                console.log("Successfully sent push notifications to relevant managers.");
               } catch (error) {
                 console.error("Error sending push notifications:", error);
               }
@@ -386,9 +390,5 @@ export async function deleteLeaveRequestAction(
     };
   }
 }
-
-    
-
-    
 
     
