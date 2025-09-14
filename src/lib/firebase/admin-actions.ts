@@ -335,7 +335,8 @@ export async function updateEmployeeAction(
             message: 'Failed to update employee.',
         };
     }
-    const employeeName = docSnap.data().name;
+    const currentEmployeeData = docSnap.data();
+    const employeeName = currentEmployeeData.name;
 
     const dataToUpdate: { [key: string]: any } = {};
 
@@ -346,8 +347,11 @@ export async function updateEmployeeAction(
       }
     });
 
-    if (dataToUpdate.firstName && dataToUpdate.lastName) {
-      dataToUpdate.name = `${dataToUpdate.firstName} ${dataToUpdate.lastName}`;
+    // If either first name or last name is being updated, reconstruct the full name
+    if (dataToUpdate.firstName || dataToUpdate.lastName) {
+      const newFirstName = dataToUpdate.firstName ?? currentEmployeeData.firstName;
+      const newLastName = dataToUpdate.lastName ?? currentEmployeeData.lastName;
+      dataToUpdate.name = `${newFirstName} ${newLastName}`.trim();
     }
 
     if (dataToUpdate.dateOfBirth && isValid(dataToUpdate.dateOfBirth)) {
@@ -369,10 +373,6 @@ export async function updateEmployeeAction(
        delete dataToUpdate.leavingDate;
     }
     
-    for (const key in dataToUpdate) {
-    }
-
-
     await updateDoc(employeeRef, dataToUpdate);
     
     await logSystemEvent("Update Employee", { actorId, actorEmail, actorRole, targetEmployeeId: employeeDocId, targetEmployeeName: employeeName });
@@ -784,5 +784,7 @@ export async function batchCreateEmployeesAction(
     return { success: false, errors: { form: [`An unexpected error occurred during batch creation: ${error.message}`] } };
   }
 }
+
+    
 
     
