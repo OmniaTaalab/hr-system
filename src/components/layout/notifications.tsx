@@ -40,7 +40,7 @@ export function Notifications() {
 
         // The collection path should be `users/{userId}/notifications`
         const notifsCollectionPath = `users/${profile.id}/notifications`;
-        const q = query(collection(db, notifsCollectionPath));
+        const q = query(collection(db, notifsCollectionPath), orderBy("createdAt", "desc"));
 
         const unsubscribe = onSnapshot(q, 
             (snapshot) => {
@@ -48,8 +48,6 @@ export function Notifications() {
                     id: doc.id,
                     ...doc.data()
                 } as Notification));
-                // Sort client-side to avoid complex index requirements
-                notifs.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
                 setNotifications(notifs);
                 setIsLoading(false);
             },
