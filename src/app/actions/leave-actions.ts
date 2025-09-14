@@ -115,7 +115,7 @@ export async function submitLeaveRequestAction(
     const numberOfDays = await calculateWorkingDays(startDate, endDate);
 
     // The 'requestingEmployeeDocId' field in Firestore stores the unique document ID from 'employee' collection
-    const leaveRequestRef = await addDoc(collection(db, "leaveRequests"), {
+    await addDoc(collection(db, "leaveRequests"), {
       requestingEmployeeDocId, // Store the unique Firestore document ID of the employee
       employeeName, // Keep employee name for display purposes if needed elsewhere
       leaveType,
@@ -128,59 +128,6 @@ export async function submitLeaveRequestAction(
       submittedAt: serverTimestamp(),
       managerNotes: "", 
     });
-
-    // --- Send notifications ---
-    try {
-        const userIdsToNotify = new Set<string>();
-
-        // 1. Find Principal for the employee's stage
-        const employeeStage = employeeData.stage;
-        if (employeeStage) {
-            const principalQuery = query(
-                collection(db, "employee"),
-                where("stage", "==", employeeStage),
-                where("role", "==", "Principal"),
-                limit(1)
-            );
-            const principalSnapshot = await getDocs(principalQuery);
-            if (!principalSnapshot.empty) {
-                const principalDoc = principalSnapshot.docs[0];
-                const principalUserId = principalDoc.data().userId;
-                if (principalUserId) {
-                    userIdsToNotify.add(principalUserId);
-                }
-            }
-        }
-        
-        // 2. Find all HR and Admin users
-        const managerRoles = ["HR", "Admin"];
-        const managerQuery = query(collection(db, "employee"), where("role", "in", managerRoles));
-        const managerSnapshot = await getDocs(managerQuery);
-        managerSnapshot.forEach(doc => {
-            const userId = doc.data().userId;
-            if (userId) {
-                userIdsToNotify.add(userId);
-            }
-        });
-
-
-        // 3. Create notification documents
-        const notificationPromises = Array.from(userIdsToNotify).map(userId => {
-            return addDoc(collection(db, "notifications"), {
-                userId: userId,
-                message: `${employeeName} has submitted a new leave request.`,
-                link: `/leave/all-requests?requestId=${leaveRequestRef.id}`, // Link to the specific request
-                read: false,
-                createdAt: serverTimestamp(),
-            });
-        });
-
-        await Promise.all(notificationPromises);
-
-    } catch(notificationError) {
-        // Log the error but don't fail the entire transaction
-        console.error("Failed to send notification:", notificationError);
-    }
         
     return { message: "Leave request submitted successfully and is pending approval.", success: true };
   } catch (error: any) {
@@ -374,5 +321,7 @@ export async function deleteLeaveRequestAction(
     };
   }
 }
+
+    
 
     
