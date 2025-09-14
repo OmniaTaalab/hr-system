@@ -41,6 +41,7 @@ import {
   FileText,
   AlertTriangle,
   BookOpenCheck,
+  Bell,
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -84,7 +85,10 @@ export const iconMap: { [key: string]: LucideIcon } = {
   FileText,
   AlertTriangle,
   BookOpenCheck,
+  Bell,
 };
+
+    
 
     
 

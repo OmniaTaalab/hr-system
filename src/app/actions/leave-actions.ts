@@ -116,7 +116,7 @@ export async function submitLeaveRequestAction(
     const numberOfDays = await calculateWorkingDays(startDate, endDate);
 
     // The 'requestingEmployeeDocId' field in Firestore stores the unique document ID from 'employee' collection
-    await addDoc(collection(db, "leaveRequests"), {
+    const newLeaveRequestRef = await addDoc(collection(db, "leaveRequests"), {
       requestingEmployeeDocId, // Store the unique Firestore document ID of the employee
       employeeName, // Keep employee name for display purposes if needed elsewhere
       leaveType,
@@ -130,22 +130,63 @@ export async function submitLeaveRequestAction(
       managerNotes: "", 
     });
 
+    // --- Start Notification Logic ---
+    const notificationMessage = `New leave request from ${employeeName} for ${leaveType}.`;
+    const notificationPayload = {
+      message: notificationMessage,
+      link: `/leave/all-requests`, // Link to the all requests page
+      createdAt: serverTimestamp(),
+      isRead: false
+    };
+
+    // 1. Get HR users
+    const hrUsersQuery = query(collection(db, "employee"), where("role", "==", "HR"));
+    const hrSnapshot = await getDocs(hrUsersQuery);
+    const hrUserIds = hrSnapshot.docs.map(doc => doc.id);
+
+    // 2. Get Admin users
+    const adminUsersQuery = query(collection(db, "employee"), where("role", "==", "Admin"));
+    const adminSnapshot = await getDocs(adminUsersQuery);
+    const adminUserIds = adminSnapshot.docs.map(doc => doc.id);
+    
+    // 3. Get Principal for the employee's stage
+    let principalUserIds: string[] = [];
+    if(employeeData.stage){
+        const principalQuery = query(collection(db, "employee"), where("role", "==", "Principal"), where("stage", "==", employeeData.stage));
+        const principalSnapshot = await getDocs(principalQuery);
+        principalUserIds = principalSnapshot.docs.map(doc => doc.id);
+    }
+    
+    const allRecipientIds = [...new Set([...hrUserIds, ...adminUserIds, ...principalUserIds])];
+    
+    // Create notification documents for each recipient
+    for (const userId of allRecipientIds) {
+      await addDoc(collection(db, `users/${userId}/notifications`), notificationPayload);
+    }
+    
+    // Also send Push Notifications if FCM is configured
     if (adminMessaging) {
-        const hrUsersQuery = query(collection(db, "fcmTokens"), where("role", "==", "hr"));
-        const hrUsersSnapshot = await getDocs(hrUsersQuery);
-        const tokens = hrUsersSnapshot.docs.map(doc => doc.data().token);
+        const tokensQuery = query(collection(db, "fcmTokens"), where('userId', 'in', allRecipientIds));
+        const tokensSnapshot = await getDocs(tokensQuery);
+        const tokens = tokensSnapshot.docs.map(doc => doc.data().token);
         
         if (tokens.length > 0) {
             const message = {
                 notification: {
                     title: 'New Leave Request',
-                    body: `${employeeName} has submitted a new leave request for ${leaveType}.`
+                    body: notificationMessage
+                },
+                webpush: {
+                    fcm_options: {
+                        link: '/leave/all-requests'
+                    }
                 },
                 tokens: tokens,
             };
             await adminMessaging.sendEachForMulticast(message);
         }
     }
+    // --- End Notification Logic ---
         
     return { message: "Leave request submitted successfully and is pending approval.", success: true };
   } catch (error: any) {
@@ -339,3 +380,5 @@ export async function deleteLeaveRequestAction(
     };
   }
 }
+
+    
