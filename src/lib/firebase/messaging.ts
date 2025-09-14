@@ -4,6 +4,7 @@
 import { getMessaging, getToken } from "firebase/messaging";
 import { app, db } from "./config";
 import { doc, setDoc } from "firebase/firestore";
+import { toast } from "@/hooks/use-toast";
 
 const VAPID_KEY = "BE6Xntok3JasNmcwEoWfWAGcFjbUa07XQZ5ecV8Pr1yMmt2Xk9z0PqEHeleNGajjVunl634XtaOu6904GMsw7oA";
 
@@ -37,5 +38,11 @@ export const requestNotificationPermission = async (userId: string, role: string
         }
     } else {
         console.log('Unable to get permission to notify.');
+        toast({
+            title: "Notification Permission Denied",
+            description: "To receive notifications, please allow them in your browser settings (click the padlock in the address bar).",
+            variant: "destructive",
+            duration: 10000,
+        });
     }
 };
