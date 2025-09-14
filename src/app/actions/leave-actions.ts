@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, Timestamp, deleteDoc, getDoc, limit } from 'firebase/firestore';
 // Assuming these functions exist for getting user info
 import { getWeekendSettings } from './settings-actions';
+import { adminMessaging } from '@/lib/firebase/admin-config';
 
 // New helper function to calculate working days, excluding weekends and holidays
 async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<number> {
@@ -128,6 +129,23 @@ export async function submitLeaveRequestAction(
       submittedAt: serverTimestamp(),
       managerNotes: "", 
     });
+
+    if (adminMessaging) {
+        const hrUsersQuery = query(collection(db, "fcmTokens"), where("role", "==", "hr"));
+        const hrUsersSnapshot = await getDocs(hrUsersQuery);
+        const tokens = hrUsersSnapshot.docs.map(doc => doc.data().token);
+        
+        if (tokens.length > 0) {
+            const message = {
+                notification: {
+                    title: 'New Leave Request',
+                    body: `${employeeName} has submitted a new leave request for ${leaveType}.`
+                },
+                tokens: tokens,
+            };
+            await adminMessaging.sendEachForMulticast(message);
+        }
+    }
         
     return { message: "Leave request submitted successfully and is pending approval.", success: true };
   } catch (error: any) {
@@ -321,7 +339,3 @@ export async function deleteLeaveRequestAction(
     };
   }
 }
-
-    
-
-    

@@ -6,6 +6,7 @@ import admin from 'firebase-admin';
 let adminAuth: admin.auth.Auth | null = null;
 let adminStorage: admin.storage.Storage | null = null;
 let adminDb: admin.firestore.Firestore | null = null;
+let adminMessaging: admin.messaging.Messaging | null = null;
 
 // Initialize Firebase Admin SDK only if it's not already initialized
 if (!admin.apps.length) {
@@ -29,16 +30,18 @@ if (!admin.apps.length) {
     adminAuth = admin.auth();
     adminStorage = admin.storage();
     adminDb = admin.firestore();
+    adminMessaging = admin.messaging();
 
   } catch (error: any) {
     console.error('Firebase admin initialization error:', error.message);
-    // Keep adminAuth, adminStorage, and adminDb as null
+    // Keep services as null
   }
 } else {
     // If already initialized, get the services from the existing app
     adminAuth = admin.auth();
     adminStorage = admin.storage();
     adminDb = admin.firestore();
+    adminMessaging = admin.messaging();
 }
 
-export { adminAuth, adminDb, adminStorage };
+export { adminAuth, adminDb, adminStorage, adminMessaging };

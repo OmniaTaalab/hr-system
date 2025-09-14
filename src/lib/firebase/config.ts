@@ -12,11 +12,10 @@ const firebaseConfig = {
   apiKey: "AIzaSyBSs_07LU1yI6lNPvq50hs-zP_hrgtPQ84",
   authDomain: "streamlined-hr-assistant.firebaseapp.com",
   projectId: "streamlined-hr-assistant",
-  storageBucket: "streamlined-hr-assistant.com",
+  storageBucket: "streamlined-hr-assistant.appspot.com",
   messagingSenderId: "738520001905",
   appId: "1:738520001905:web:b94818595a2713e8251ad0",
-  measurementId: "",
-  vapidKey: "BE6Xntok3JasNmcwEoWfWAGcFjbUa07XQZ5ecV8Pr1yMmt2Xk9z0PqEHeleNGajjVunl634XtaOu6904GMsw7oA",
+  measurementId: "G-1VD5Y3D383",
 };
 
 // Initialize Firebase
@@ -69,3 +68,4 @@ if (!getApps().length) {
 }
 
 export { app, auth, db, storage, messaging, analytics }; // Export storage
+

@@ -8,6 +8,7 @@ import { collection, query, where, onSnapshot, DocumentData, limit } from 'fireb
 import { auth, db } from '@/lib/firebase/config';
 import { Loader2 } from 'lucide-react';
 import { Icons } from '../icons';
+import { requestNotificationPermission } from '@/lib/firebase/messaging';
 
 // Define the shape of the employee profile
 export interface EmployeeProfile extends DocumentData {
@@ -60,7 +61,12 @@ export function AppProvider({ children }: AppProviderProps) {
         const unsubscribeFirestore = onSnapshot(q, (querySnapshot) => {
           if (!querySnapshot.empty) {
             const employeeDoc = querySnapshot.docs[0];
-            setProfile({ id: employeeDoc.id, ...employeeDoc.data() } as EmployeeProfile);
+            const userProfile = { id: employeeDoc.id, ...employeeDoc.data() } as EmployeeProfile;
+            setProfile(userProfile);
+            // After getting profile, request notification permission
+            if(userProfile.id && userProfile.role){
+               requestNotificationPermission(userProfile.id, userProfile.role);
+            }
           } else {
             // User is authenticated but has no linked employee profile.
             setProfile(null);
@@ -121,5 +127,3 @@ export function AppProvider({ children }: AppProviderProps) {
     </AppContext.Provider>
   );
 }
-
-    
