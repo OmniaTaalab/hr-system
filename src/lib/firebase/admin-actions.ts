@@ -212,7 +212,7 @@ export async function createEmployeeAction(
 
     const newEmployeeDoc = await addDoc(employeeCollectionRef, employeeData);
     
-    await logSystemEvent("Create Employee", { actorId, actorEmail, actorRole, newEmployeeId: newEmployeeDoc.id, newEmployeeName: name });
+    await logSystemEvent("Create Employee", { actorId, actorEmail, actorRole, newEmployeeId: newEmployeeDoc.id, newEmployeeName: name, changes: { newData: employeeData } });
 
     return { success: true, message: `Employee "${name}" created successfully.`, employeeId: newEmployeeDoc.id };
 
@@ -253,7 +253,7 @@ const UpdateEmployeeFormSchema = z.object({
     const date = new Date(arg);
     return isValid(date) ? date : undefined;
   }, z.date().optional()),
-  leavingDate: z.preprocess((arg) => {
+    leavingDate: z.preprocess((arg) => {
     if (!arg || typeof arg !== "string" || arg === "") return null; // Handle empty string as null
     const date = new Date(arg);
     return isValid(date) ? date : null;
@@ -335,35 +335,55 @@ export async function updateEmployeeAction(
         };
     }
     const currentEmployeeData = docSnap.data();
-    const employeeName = currentEmployeeData.name;
 
     const dataToUpdate: { [key: string]: any } = {};
 
     Object.entries(updateData).forEach(([key, value]) => {
+      // Only include fields that were actually submitted on the form
       if (value !== undefined) { 
         dataToUpdate[key] = value;
       }
     });
 
+    // If either first name or last name is updated, reconstruct the full name
     if (dataToUpdate.firstName || dataToUpdate.lastName) {
       const newFirstName = dataToUpdate.firstName ?? currentEmployeeData.firstName;
       const newLastName = dataToUpdate.lastName ?? currentEmployeeData.lastName;
       dataToUpdate.name = `${newFirstName} ${newLastName}`.trim();
     }
-
+    
     if (dataToUpdate.dateOfBirth) {
         dataToUpdate.dateOfBirth = Timestamp.fromDate(dataToUpdate.dateOfBirth);
     }
     if (dataToUpdate.joiningDate) {
         dataToUpdate.joiningDate = Timestamp.fromDate(dataToUpdate.joiningDate);
     }
+    // Handle leavingDate: allow it to be set to null
     if (dataToUpdate.hasOwnProperty('leavingDate')) {
-        dataToUpdate.leavingDate = dataToUpdate.leavingDate ? Timestamp.fromDate(dataToUpdate.leavingDate) : null;
+      dataToUpdate.leavingDate = dataToUpdate.leavingDate ? Timestamp.fromDate(dataToUpdate.leavingDate) : null;
+    }
+
+    if (Object.keys(dataToUpdate).length === 0) {
+      return { success: true, message: "No changes were submitted." };
     }
     
     await updateDoc(employeeRef, dataToUpdate);
+
+    // For logging, we need a "plain" version of the old and new data
+    const oldDataForLog = JSON.parse(JSON.stringify(currentEmployeeData));
+    const newDataForLog = JSON.parse(JSON.stringify(dataToUpdate));
     
-    await logSystemEvent("Update Employee", { actorId, actorEmail, actorRole, targetEmployeeId: employeeDocId, targetEmployeeName: employeeName });
+    await logSystemEvent("Update Employee", {
+        actorId,
+        actorEmail,
+        actorRole,
+        targetEmployeeId: employeeDocId,
+        targetEmployeeName: currentEmployeeData.name,
+        changes: {
+            oldData: oldDataForLog,
+            newData: newDataForLog,
+        }
+    });
 
     return { success: true, message: "Employee details updated successfully." };
   } catch (error: any) {
@@ -408,7 +428,10 @@ export async function deleteEmployeeAction(
   try {
     const docRef = doc(db, "employee", employeeDocId);
     const docSnap = await getDoc(docRef);
-    const employeeName = docSnap.exists() ? docSnap.data().name : 'Unknown';
+    if (!docSnap.exists()) {
+        return { success: false, errors: {form: ["Employee not found."]} };
+    }
+    const employeeData = docSnap.data();
 
     if (adminStorage) {
       try {
@@ -434,7 +457,7 @@ export async function deleteEmployeeAction(
 
     await deleteDoc(doc(db, "employee", employeeDocId));
 
-    await logSystemEvent("Delete Employee", { actorId, actorEmail, actorRole, deletedEmployeeId: employeeDocId, deletedEmployeeName: employeeName });
+    await logSystemEvent("Delete Employee", { actorId, actorEmail, actorRole, changes: { oldData: employeeData } });
     
     return { success: true, message: `Employee and associated data deleted successfully.` };
   } catch (error: any) {
@@ -499,7 +522,7 @@ export async function deactivateEmployeeAction(
             reasonForLeaving,
         });
 
-        await logSystemEvent("Deactivate Employee", { actorId, actorEmail, actorRole, targetEmployeeId: employeeDocId, targetEmployeeName: employeeName });
+        await logSystemEvent("Deactivate Employee", { actorId, actorEmail, actorRole, targetEmployeeId: employeeDocId, targetEmployeeName: employeeName, changes: { newData: { status: 'Terminated', leavingDate, reasonForLeaving } } });
 
         return { success: true, message: "Employee has been deactivated successfully." };
 
@@ -617,7 +640,7 @@ export async function createEmployeeProfileAction(
 
     const newDoc = await addDoc(employeeCollectionRef, employeeData);
 
-    await logSystemEvent("Create Employee Profile", { actorId: userId, actorEmail: email, newEmployeeId: newDoc.id, newEmployeeName: name });
+    await logSystemEvent("Create Employee Profile", { actorId: userId, actorEmail: email, newEmployeeId: newDoc.id, newEmployeeName: name, changes: { newData: employeeData } });
     
     return { success: true, message: `Your profile has been created successfully!` };
   } catch (error: any) {
@@ -772,9 +795,3 @@ export async function batchCreateEmployeesAction(
     return { success: false, errors: { form: [`An unexpected error occurred during batch creation: ${error.message}`] } };
   }
 }
-
-    
-
-    
-
-    

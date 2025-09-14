@@ -59,7 +59,7 @@ function SystemLogContent() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [actionFilter, setActionFilter] = useState("All");
 
-  const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
+  const canViewPage = !isLoadingProfile && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
   
   const isDateFiltered = !!selectedDate;
   const isActionFiltered = actionFilter !== "All";
@@ -83,7 +83,7 @@ function SystemLogContent() {
       }
       
       if (isActionFiltered) {
-        q = query(q, where("action", "==", actionFilter));
+        // We will filter client-side for actions to avoid composite index
       }
 
       const shouldPaginate = !isDateFiltered && !isActionFiltered && !searchTerm;
@@ -99,7 +99,11 @@ function SystemLogContent() {
       }
 
       const documentSnapshots = await getDocs(q);
-      const logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemLog));
+      let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemLog));
+      
+      if(isActionFiltered){
+        logsData = logsData.filter(log => log.action === actionFilter);
+      }
       
       setLogs(logsData);
 
@@ -125,12 +129,14 @@ function SystemLogContent() {
     }
   }, [canViewPage, toast, lastVisible, firstVisible, selectedDate, actionFilter, isDateFiltered, isActionFiltered, searchTerm]);
 
+
   useEffect(() => {
     // Reset to page 1 and fetch logs whenever a filter changes
     setCurrentPage(1);
     setFirstVisible(null);
     setLastVisible(null);
     fetchLogs('first');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actionFilter, selectedDate, canViewPage]);
 
   const goToNextPage = () => {
@@ -246,7 +252,11 @@ function SystemLogContent() {
                       </TableHeader>
                       <TableBody>
                           {displayedRecords.map((log) => (
-                              <TableRow key={log.id}>
+                              <TableRow 
+                                key={log.id} 
+                                onClick={() => router.push(`/system-logs/${log.id}`)}
+                                className="cursor-pointer hover:bg-muted/50"
+                              >
                                   <TableCell>{format(log.timestamp.toDate(), 'PPP p')}</TableCell>
                                   <TableCell className="font-medium">{log.action}</TableCell>
                                   <TableCell>{log.actorEmail || 'System'}</TableCell>
