@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -130,7 +131,7 @@ function SystemLogContent() {
     setFirstVisible(null);
     setLastVisible(null);
     fetchLogs('first');
-  }, [fetchLogs]);
+  }, [actionFilter, selectedDate, canViewPage]);
 
   const goToNextPage = () => {
     if (isLastPage) return;
