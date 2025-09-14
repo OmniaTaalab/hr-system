@@ -18,6 +18,7 @@ async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<num
     where("date", ">=", Timestamp.fromDate(utcStartDate)),
     where("date", "<=", Timestamp.fromDate(utcEndDate))
   );
+  
   const holidaySnapshots = await getDocs(holidaysQuery);
   const holidayDates = holidaySnapshots.docs.map(doc => {
     const ts = doc.data().date as Timestamp;
