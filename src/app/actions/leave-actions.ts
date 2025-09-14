@@ -10,31 +10,29 @@ import { adminMessaging } from '@/lib/firebase/admin-config';
 
 // New helper function to calculate working days, excluding weekends and holidays
 async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<number> {
-  // Fetch all holidays within the date range
+  const utcStartDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
+  const utcEndDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
+
   const holidaysQuery = query(
     collection(db, "holidays"),
-    where("date", ">=", Timestamp.fromDate(startDate)),
-    where("date", "<=", Timestamp.fromDate(endDate))
+    where("date", ">=", Timestamp.fromDate(utcStartDate)),
+    where("date", "<=", Timestamp.fromDate(utcEndDate))
   );
   const holidaySnapshots = await getDocs(holidaysQuery);
   const holidayDates = holidaySnapshots.docs.map(doc => {
     const ts = doc.data().date as Timestamp;
     const d = ts.toDate();
-    // Return date string in YYYY-MM-DD format for easy comparison
     return `${d.getUTCFullYear()}-${(d.getUTCMonth() + 1).toString().padStart(2, '0')}-${d.getUTCDate().toString().padStart(2, '0')}`;
   });
   const holidaySet = new Set(holidayDates);
 
-  // Fetch weekend settings
   const weekendDays = await getWeekendSettings();
   const weekendSet = new Set(weekendDays);
 
   let workingDays = 0;
-  let currentDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
-  const finalEndDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
+  let currentDate = new Date(utcStartDate);
 
-
-  while (currentDate <= finalEndDate) {
+  while (currentDate <= utcEndDate) {
     const dayOfWeek = currentDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
     const isWeekend = weekendSet.has(dayOfWeek);
 
@@ -115,16 +113,17 @@ export async function submitLeaveRequestAction(
 
     const numberOfDays = await calculateWorkingDays(startDate, endDate);
 
-    // The 'requestingEmployeeDocId' field in Firestore stores the unique document ID from 'employee' collection
     const newLeaveRequestRef = await addDoc(collection(db, "leaveRequests"), {
-      requestingEmployeeDocId, // Store the unique Firestore document ID of the employee
-      employeeName, // Keep employee name for display purposes if needed elsewhere
+      requestingEmployeeDocId,
+      employeeName, 
+      employeeStage: employeeData.stage || null,
+      employeeCampus: employeeData.campus || null,
       leaveType,
       startDate: Timestamp.fromDate(startDate),
       endDate: Timestamp.fromDate(endDate),
       reason,
       attachmentURL: attachmentURL || null,
-      numberOfDays, // Store calculated working days
+      numberOfDays,
       status: "Pending",
       submittedAt: serverTimestamp(),
       managerNotes: "", 
@@ -132,13 +131,7 @@ export async function submitLeaveRequestAction(
 
     // --- Start Notification Logic ---
     const notificationMessage = `New leave request from ${employeeName} for ${leaveType}.`;
-    const notificationPayload = {
-      message: notificationMessage,
-      link: `/leave/all-requests`, // Link to the all requests page
-      createdAt: serverTimestamp(),
-      isRead: false
-    };
-
+    
     // 1. Get HR users
     const hrUsersQuery = query(collection(db, "employee"), where("role", "==", "HR"));
     const hrSnapshot = await getDocs(hrUsersQuery);
@@ -159,33 +152,45 @@ export async function submitLeaveRequestAction(
     
     const allRecipientIds = [...new Set([...hrUserIds, ...adminUserIds, ...principalUserIds])];
     
-    // Create notification documents for each recipient
-    for (const userId of allRecipientIds) {
-      await addDoc(collection(db, `users/${userId}/notifications`), notificationPayload);
-    }
-    
-    // Also send Push Notifications if FCM is configured
-    if (adminMessaging && allRecipientIds.length > 0) {
-        // Correct way to get tokens for a list of user IDs
-        const tokensQuery = query(collection(db, "fcmTokens"), where('userId', 'in', allRecipientIds));
-        const tokensSnapshot = await getDocs(tokensQuery);
-        const tokens = tokensSnapshot.docs.map(doc => doc.data().token);
-        
-        if (tokens.length > 0) {
-            const message = {
-                notification: {
-                    title: 'New Leave Request',
-                    body: notificationMessage
-                },
-                webpush: {
-                    fcm_options: {
-                        link: '/leave/all-requests'
-                    }
-                },
-                tokens: tokens,
-            };
-            await adminMessaging.sendEachForMulticast(message);
-        }
+    if (allRecipientIds.length > 0) {
+      // Create notification documents for each recipient to see in the UI
+      const notificationPayload = {
+        message: notificationMessage,
+        link: `/leave/all-requests`,
+        createdAt: serverTimestamp(),
+        isRead: false
+      };
+      for (const userId of allRecipientIds) {
+        await addDoc(collection(db, `users/${userId}/notifications`), notificationPayload);
+      }
+      
+      // Also send Push Notifications if FCM is configured
+      if (adminMessaging) {
+          const tokensQuery = query(collection(db, "fcmTokens"), where('userId', 'in', allRecipientIds));
+          const tokensSnapshot = await getDocs(tokensQuery);
+          const tokens = tokensSnapshot.docs.map(doc => doc.data().token).filter(Boolean);
+          
+          if (tokens.length > 0) {
+              const message = {
+                  notification: {
+                      title: 'New Leave Request',
+                      body: notificationMessage
+                  },
+                  webpush: {
+                      fcm_options: {
+                          link: '/leave/all-requests'
+                      }
+                  },
+                  tokens: tokens,
+              };
+              try {
+                await adminMessaging.sendEachForMulticast(message);
+                console.log("Successfully sent push notifications to relevant managers.");
+              } catch (error) {
+                console.error("Error sending push notifications:", error);
+              }
+          }
+      }
     }
     // --- End Notification Logic ---
         
@@ -381,5 +386,7 @@ export async function deleteLeaveRequestAction(
     };
   }
 }
+
+    
 
     
