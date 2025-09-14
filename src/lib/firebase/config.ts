@@ -12,7 +12,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyBSs_07LU1yI6lNPvq50hs-zP_hrgtPQ84",
   authDomain: "streamlined-hr-assistant.firebaseapp.com",
   projectId: "streamlined-hr-assistant",
-  storageBucket: "streamlined-hr-assistant",
+  storageBucket: "streamlined-hr-assistant.appspot.com",
   messagingSenderId: "738520001905",
   appId: "1:738520001905:web:b94818595a2713e8251ad0",
   measurementId: "G-1VD5Y3D383",
@@ -26,12 +26,12 @@ let storage: FirebaseStorage; // Use FirebaseStorage type
 let messaging: Messaging | null = null;
 let analytics: Analytics | null = null;
 
-if (!getApps().length) {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  storage = getStorage(app);
-  if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined') {
+  if (!getApps().length) {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
     try {
         messaging = getMessaging(app);
     } catch (e) {
@@ -42,14 +42,11 @@ if (!getApps().length) {
      } catch (e) {
         console.error("Failed to initialize Firebase Analytics", e);
      }
-  }
-} else {
-
-  app = getApps()[0];
-  auth = getAuth(app);
-  db = getFirestore(app);
-  storage = getStorage(app);
-  if (typeof window !== 'undefined') {
+  } else {
+    app = getApps()[0];
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
      if (!messaging) {
         try {
             messaging = getMessaging(app);
@@ -65,7 +62,16 @@ if (!getApps().length) {
          }
      }
   }
+} else {
+    if (!getApps().length) {
+        app = initializeApp(firebaseConfig);
+    } else {
+        app = getApps()[0];
+    }
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
 }
 
-export { app, auth, db, storage, messaging, analytics }; // Export storage
 
+export { app, auth, db, storage, messaging, analytics }; // Export storage
