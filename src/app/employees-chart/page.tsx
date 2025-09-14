@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useOrganizationLists } from '@/hooks/use-organization-lists';
 
 interface Employee {
   id: string;
@@ -80,6 +81,9 @@ const EmployeesChartContent = () => {
   const [principals, setPrincipals] = useState<Employee[]>([]);
   const [selectedPrincipalId, setSelectedPrincipalId] = useState<string | null>(null);
 
+  const { campuses, isLoading: isLoadingCampuses } = useOrganizationLists();
+  const [selectedCampus, setSelectedCampus] = useState<string | null>(null);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -103,17 +107,27 @@ const EmployeesChartContent = () => {
     fetchData();
   }, []);
 
-  const buildTree = (employeeList: Employee[], filterByPrincipalId: string | null): TreeNode[] => {
+  const buildTree = (employeeList: Employee[], filterByPrincipalId: string | null, filterByCampus: string | null): TreeNode[] => {
     let directors = employeeList.filter(e => e.role === 'Campus Director');
     let currentPrincipals = employeeList.filter(e => e.role === 'Principal');
     let otherStaff = employeeList.filter(e => e.role !== 'Campus Director' && e.role !== 'Principal');
+
+    if (filterByCampus) {
+        directors = directors.filter(d => d.campus === filterByCampus);
+        currentPrincipals = currentPrincipals.filter(p => p.campus === filterByCampus);
+        otherStaff = otherStaff.filter(s => s.campus === filterByCampus);
+    }
     
     if(filterByPrincipalId){
       const selectedPrincipal = currentPrincipals.find(p => p.id === filterByPrincipalId);
       if(selectedPrincipal){
           currentPrincipals = [selectedPrincipal];
           otherStaff = otherStaff.filter(s => s.stage === selectedPrincipal.stage);
+          // Also filter directors to only the one matching the principal's campus
           directors = directors.filter(d => d.campus === selectedPrincipal.campus);
+      } else {
+        // If principal is selected but not found (e.g. after a campus filter), show nothing
+        return [];
       }
     }
 
@@ -144,15 +158,22 @@ const EmployeesChartContent = () => {
 
   useEffect(() => {
     if (employees.length === 0) return;
-    setTree(buildTree(employees, selectedPrincipalId));
-  }, [selectedPrincipalId, employees]);
+    // When campus filter changes, reset principal filter if the principal is not in the new campus
+    if(selectedPrincipalId && selectedCampus) {
+        const principal = principals.find(p => p.id === selectedPrincipalId);
+        if(principal && principal.campus !== selectedCampus) {
+            setSelectedPrincipalId(null);
+        }
+    }
+    setTree(buildTree(employees, selectedPrincipalId, selectedCampus));
+  }, [selectedPrincipalId, selectedCampus, employees, principals]);
 
   const handleExportToPDF = () => {
       toast({ title: 'Exporting...', description: 'Generating PDF, please wait.' });
       try {
         const doc = new jsPDF();
-        // Always build the full tree for export
-        const exportTree = buildTree(employees, null); 
+        // Export the currently filtered tree
+        const exportTree = buildTree(employees, selectedPrincipalId, selectedCampus); 
         const employeeList: (string | null)[][] = [];
 
         function traverseTree(nodes: TreeNode[], level: number) {
@@ -213,14 +234,23 @@ const EmployeesChartContent = () => {
                     <span className="sr-only">Zoom In</span>
                 </Button>
             </div>
-             <div className="flex items-center gap-2">
-                <Select onValueChange={(value) => setSelectedPrincipalId(value === "all" ? null : value)}>
+             <div className="flex items-center gap-2 flex-wrap">
+                <Select onValueChange={(value) => setSelectedCampus(value === "all" ? null : value)} disabled={isLoadingCampuses}>
+                    <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder={isLoadingCampuses ? "Loading..." : "Filter by Campus..."} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Campuses</SelectItem>
+                        {campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                <Select onValueChange={(value) => setSelectedPrincipalId(value === "all" ? null : value)} value={selectedPrincipalId || 'all'}>
                     <SelectTrigger className="w-[200px]">
                         <SelectValue placeholder="Filter by Principal..." />
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">All Principals</SelectItem>
-                        {principals.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                        {principals.filter(p => !selectedCampus || p.campus === selectedCampus).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
                 <Button onClick={handleExportToPDF} variant="outline"><FileDown className="mr-2 h-4 w-4"/>Export PDF</Button>
@@ -244,7 +274,7 @@ const EmployeesChartContent = () => {
                   </div>
               ) : (
                   <p className="text-center text-muted-foreground py-10">
-                    {selectedPrincipalId ? "No employees found for the selected principal." : "No employees with roles Director/Principal found to build the chart."}
+                    {selectedPrincipalId || selectedCampus ? "No employees found for the selected filter." : "No employees with roles Director/Principal found to build the chart."}
                   </p>
               )}
             </div>
