@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useActionState, useEffect } from "react";
@@ -13,6 +14,7 @@ import {
   syncStagesFromEmployeesAction,
   syncSubjectsFromEmployeesAction,
   syncMachineNamesFromAttendanceLogsAction,
+  syncReportLines1FromEmployeesAction,
   type SyncState
 } from "@/app/actions/settings-actions";
 import { useToast } from "@/hooks/use-toast";
@@ -63,6 +65,7 @@ export default function SyncDataPage() {
   const [syncStageState, syncStageAction, isSyncStagePending] = useActionState(syncStagesFromEmployeesAction, initialSyncState);
   const [syncSubjectState, syncSubjectAction, isSyncSubjectPending] = useActionState(syncSubjectsFromEmployeesAction, initialSyncState);
   const [syncMachineState, syncMachineAction, isSyncMachinePending] = useActionState(syncMachineNamesFromAttendanceLogsAction, initialSyncState);
+  const [syncReportLine1State, syncReportLine1Action, isSyncReportLine1Pending] = useActionState(syncReportLines1FromEmployeesAction, initialSyncState);
 
 
   return (
@@ -120,6 +123,12 @@ export default function SyncDataPage() {
                     action={syncMachineAction}
                     isPending={isSyncMachinePending}
                     state={syncMachineState}
+                />
+                <SyncButton
+                    label="Sync Report Lines from Employees"
+                    action={syncReportLine1Action}
+                    isPending={isSyncReportLine1Pending}
+                    state={syncReportLine1State}
                 />
             </CardContent>
           </Card>
