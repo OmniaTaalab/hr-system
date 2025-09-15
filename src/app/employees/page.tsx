@@ -1082,101 +1082,86 @@ function EmployeeManagementContent() {
 
   const fetchEmployees = useCallback(async (page: 'first' | 'next' | 'prev' = 'first') => {
     if (!hasFullView) {
-      setIsLoading(false);
-      setAllEmployees([]);
-      setPaginatedEmployees([]);
-      setTotalEmployees(0);
-      return;
+        setIsLoading(false);
+        setPaginatedEmployees([]);
+        return;
     }
     
     setIsLoading(true);
     try {
-      const employeeCollection = collection(db, "employee");
-      let queryConstraints: QueryConstraint[] = [];
-      
-      const isPrincipal = profile?.role?.toLowerCase() === 'principal';
-      
-      if (isPrincipal && profile?.stage) {
-        queryConstraints.push(where("stage", "==", profile.stage));
-      } else {
-        if (campusFilter !== "All") queryConstraints.push(where("campus", "==", campusFilter));
-        if (stageFilter !== "All") queryConstraints.push(where("stage", "==", stageFilter));
-        if (subjectFilter !== "All") queryConstraints.push(where("subject", "==", subjectFilter));
-        if (genderFilter !== "All") queryConstraints.push(where("gender", "==", genderFilter));
-        if (religionFilter !== "All") queryConstraints.push(where("religion", "==", religionFilter));
-      }
-      
-      const isFilteredOrPrincipalView = isFiltered || isPrincipal;
-      const shouldPaginate = !isFilteredOrPrincipalView && !isSearching;
-      
-      if (!isFilteredOrPrincipalView) {
-        queryConstraints.push(orderBy("name"));
-      }
+        const employeeCollection = collection(db, "employee");
+        let queryConstraints: QueryConstraint[] = [];
+        const userRole = profile?.role?.toLowerCase();
 
-      let q;
-
-      if (shouldPaginate) {
-        if (page === 'first') {
-          q = query(employeeCollection, ...queryConstraints, limit(PAGE_SIZE));
-        } else if (page === 'next' && lastVisible) {
-          q = query(employeeCollection, ...queryConstraints, startAfter(lastVisible), limit(PAGE_SIZE));
-        } else if (page === 'prev' && firstVisible) {
-          q = query(employeeCollection, ...queryConstraints, endBefore(firstVisible), limitToLast(PAGE_SIZE));
+        // Role-based filtering logic
+        if (userRole === 'principal' && profile?.name) {
+            queryConstraints.push(where("reportLine1", "==", profile.name));
         } else {
-          setIsLoading(false);
-          return;
+            // Admin and HR filters
+            if (campusFilter !== "All") queryConstraints.push(where("campus", "==", campusFilter));
+            if (stageFilter !== "All") queryConstraints.push(where("stage", "==", stageFilter));
+            if (subjectFilter !== "All") queryConstraints.push(where("subject", "==", subjectFilter));
+            if (genderFilter !== "All") queryConstraints.push(where("gender", "==", genderFilter));
+            if (religionFilter !== "All") queryConstraints.push(where("religion", "==", religionFilter));
         }
-      } else {
-        q = query(employeeCollection, ...queryConstraints);
-      }
 
-      const documentSnapshots = await getDocs(q);
-      let employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-      
-      if (isFilteredOrPrincipalView) {
-        employeeData.sort((a, b) => a.name.localeCompare(b.name));
-      }
-      
-      if (isSearching) {
-        setAllEmployees(employeeData); // For client-side search on full list
-        setPaginatedEmployees([]); // Clear paginated if searching
-      } else {
-        setPaginatedEmployees(employeeData);
-        setAllEmployees([]); // Clear all if not searching
-      }
-      
-      if (!documentSnapshots.empty) {
-        if (shouldPaginate) {
+        const isFilteredOrPrincipalView = isFiltered || userRole === 'principal';
+        
+        if (!isFilteredOrPrincipalView) {
+            queryConstraints.push(orderBy("name"));
+        }
+        
+        let q;
+        if (!isFilteredOrPrincipalView && !isSearching) { // Paginate only for full, unfiltered view
+            if (page === 'first') {
+                q = query(employeeCollection, ...queryConstraints, limit(PAGE_SIZE));
+            } else if (page === 'next' && lastVisible) {
+                q = query(employeeCollection, ...queryConstraints, startAfter(lastVisible), limit(PAGE_SIZE));
+            } else if (page === 'prev' && firstVisible) {
+                q = query(employeeCollection, ...queryConstraints, endBefore(firstVisible), limitToLast(PAGE_SIZE));
+            } else {
+                setIsLoading(false);
+                return;
+            }
+        } else {
+            q = query(employeeCollection, ...queryConstraints);
+        }
+
+        const documentSnapshots = await getDocs(q);
+        let employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        
+        // Sort client-side if we didn't order by name in the query
+        if (isFilteredOrPrincipalView) {
+            employeeData.sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        if (isSearching) {
+            setAllEmployees(employeeData);
+            setPaginatedEmployees([]);
+        } else {
+            setPaginatedEmployees(employeeData);
+            setAllEmployees([]);
+        }
+
+        if (!documentSnapshots.empty && !isFilteredOrPrincipalView && !isSearching) {
             setFirstVisible(documentSnapshots.docs[0]);
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
-            
-            const nextQueryConstraints = [...queryConstraints, startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
-            const nextQuery = query(employeeCollection, ...nextQueryConstraints);
-            const nextSnapshot = await getDocs(nextQuery);
+            const nextPageQuery = query(employeeCollection, ...queryConstraints, startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1));
+            const nextSnapshot = await getDocs(nextPageQuery);
             setIsLastPage(nextSnapshot.empty);
+        } else {
+            setIsLastPage(true);
         }
-      } else {
-         if (shouldPaginate && page === 'next') {
-            setIsLastPage(true);
-         } else if (page === 'first' || page === 'prev') {
-            setPaginatedEmployees([]);
-            setFirstVisible(null);
-            setLastVisible(null);
-            setIsLastPage(true);
-         }
-         if (isFilteredOrPrincipalView) {
-            setPaginatedEmployees([]);
-         }
-      }
+
     } catch (error) {
-      console.error("Error fetching employees:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Could not load employees. A Firestore index might be required.",
-      });
+        console.error("Error fetching employees:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not load employees. A Firestore index might be required for this filter combination.",
+        });
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
   }, [hasFullView, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, isFiltered, firstVisible, lastVisible, toast, isSearching]);
   
@@ -1194,8 +1179,10 @@ function EmployeeManagementContent() {
         let countQuery;
         let countFilters: QueryConstraint[] = [];
         
-        if (profile?.role?.toLowerCase() === 'principal' && profile.stage) {
-            countFilters.push(where("stage", "==", profile.stage));
+        const userRole = profile?.role?.toLowerCase();
+
+        if (userRole === 'principal' && profile?.name) {
+            countFilters.push(where("reportLine1", "==", profile.name));
         } else {
              if (campusFilter !== 'All') countFilters.push(where("campus", "==", campusFilter));
              if (stageFilter !== 'All') countFilters.push(where("stage", "==", stageFilter));
@@ -1668,7 +1655,7 @@ function EmployeeManagementContent() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={canManageEmployees ? 7 : 6} className="h-24 text-center">
-                    {searchTerm ? "No employees found matching your search." : (isFiltered) ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
+                    {searchTerm ? "No employees found matching your search." : (isFiltered || isPrincipalView) ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
                   </TableCell>
                 </TableRow>
               )}
