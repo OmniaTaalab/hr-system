@@ -153,8 +153,8 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
       <div className="border rounded-md">
         {files.length > 0 ? (
           <ul className="divide-y max-h-48 overflow-y-auto">
-            {files.map(file => (
-              <li key={`${file.name}-${file.uploadedAt?.seconds || Math.random()}`} className="p-2 flex justify-between items-center group">
+            {files.map((file, idx) => (
+              <li key={`${file.url}-${idx}`} className="p-2 flex justify-between items-center group">
                 <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline truncate flex items-center gap-2">
                   <FileIcon className="h-4 w-4 text-muted-foreground" />
                   {file.name}

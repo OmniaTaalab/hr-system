@@ -541,7 +541,3 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
-
-    
-
-    
