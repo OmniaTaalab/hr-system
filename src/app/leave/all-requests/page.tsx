@@ -105,6 +105,7 @@ interface UpdateStatusFormProps {
 
 function UpdateStatusForm({ request, actionType, onClose }: UpdateStatusFormProps) {
   const { toast } = useToast();
+  const { profile } = useUserProfile();
   const [serverState, formAction, isPending] = useActionState(updateLeaveRequestStatusAction, initialUpdateStatusState);
   const [managerNotes, setManagerNotes] = useState(request.managerNotes || "");
 
@@ -123,6 +124,10 @@ function UpdateStatusForm({ request, actionType, onClose }: UpdateStatusFormProp
     <form action={formAction}>
       <input type="hidden" name="requestId" value={request.id} />
       <input type="hidden" name="newStatus" value={actionType} />
+      <input type="hidden" name="actorId" value={profile?.id || ""} />
+      <input type="hidden" name="actorEmail" value={profile?.email || ""} />
+      <input type="hidden" name="actorRole" value={profile?.role || ""} />
+
 
       <AlertDialogHeader>
         <AlertDialogTitle>Confirm {actionType === "Approved" ? "Approval" : "Rejection"}</AlertDialogTitle>
@@ -186,6 +191,7 @@ interface EditLeaveRequestDialogProps {
 
 function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDialogProps) {
   const { toast } = useToast();
+  const { profile } = useUserProfile();
   const formRef = useRef<HTMLFormElement>(null);
   const [serverState, formAction, isPending] = useActionState(editLeaveRequestAction, initialEditState);
   const [_isTransitionPending, startTransition] = useTransition();
@@ -234,6 +240,9 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
     formData.set('leaveType', data.leaveType);
     formData.set('reason', data.reason);
     formData.set('status', data.status);
+    formData.set('actorId', profile?.id || "");
+    formData.set('actorEmail', profile?.email || "");
+    formData.set('actorRole', profile?.role || "");
     startTransition(() => {
       formAction(formData);
     });
@@ -398,44 +407,88 @@ function AllLeaveRequestsContent() {
   const canManageRequests = useMemo(() => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();
-    return userRole === 'admin' || userRole === 'hr' || userRole === 'principal'; 
+    return userRole === 'admin' || userRole === 'hr'; 
   }, [profile]);
   
   useEffect(() => {
     if (isLoadingProfile) return;
     
     setIsLoading(true);
-    let queryConstraints: QueryConstraint[] = [];
-    const userRole = profile?.role?.toLowerCase();
 
-    // Base query
-    queryConstraints.push(orderBy("submittedAt", "desc"));
-    
-    // Role-based filtering
-    if (userRole === 'principal' && profile?.stage) {
-      queryConstraints.push(where("employeeStage", "==", profile.stage));
-    } else if (userRole !== 'admin' && userRole !== 'hr' && profile?.id) {
-      queryConstraints.push(where("requestingEmployeeDocId", "==", profile.id));
-    }
+    const buildQuery = async () => {
+        let queryConstraints: QueryConstraint[] = [];
+        const userRole = profile?.role?.toLowerCase();
+        
+        // Admins and HR see all requests initially.
+        if (userRole === 'admin' || userRole === 'hr') {
+            // No additional constraints needed for full view
+        } 
+        // Other roles might be managers, so find their direct reports.
+        else if (profile?.name) {
+            try {
+                const reportsQuery = query(collection(db, "employee"), where("reportLine1", "==", profile.name));
+                const reportsSnapshot = await getDocs(reportsQuery);
+                const reportIds = reportsSnapshot.docs.map(doc => doc.id);
+                
+                // Also include the user's own requests
+                if(profile.id && !reportIds.includes(profile.id)) {
+                    reportIds.push(profile.id);
+                }
 
-    const finalQuery = query(collection(db, "leaveRequests"), ...queryConstraints);
-    
-    const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
-        const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
-        setAllRequests(requests);
-        setIsLoading(false);
-    }, (error) => {
-        console.error("Error fetching leave requests: ", error);
-        toast({
-            variant: "destructive",
-            title: "Error Fetching Requests",
-            description: "Could not load leave requests. This might be due to a missing Firestore index.",
+                if (reportIds.length > 0) {
+                    // Firestore 'in' query is limited to 30 items
+                    if (reportIds.length <= 30) {
+                        queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds));
+                    } else {
+                        // Handle case with more than 30 reports if necessary (e.g., fetch in batches)
+                        // For now, we'll just log a warning and show the first 30
+                        console.warn("User manages more than 30 employees, showing requests for the first 30.");
+                        queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds.slice(0, 30)));
+                    }
+                } else {
+                    // If user is not a manager, only show their own requests.
+                     queryConstraints.push(where("requestingEmployeeDocId", "==", profile.id || ""));
+                }
+            } catch (error) {
+                console.error("Error finding direct reports:", error);
+                // Fallback to only own requests on error
+                queryConstraints.push(where("requestingEmployeeDocId", "==", profile.id || ""));
+            }
+        }
+        // If user is not admin/hr and has no profile name (unlikely), show nothing
+        else {
+             queryConstraints.push(where("requestingEmployeeDocId", "==", "")); // query that returns nothing
+        }
+
+        const finalQuery = query(collection(db, "leaveRequests"), ...queryConstraints, orderBy("submittedAt", "desc"));
+        
+        const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
+            const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+            setAllRequests(requestsData);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching leave requests: ", error);
+            toast({
+                variant: "destructive",
+                title: "Error Fetching Requests",
+                description: "Could not load leave requests. This might be due to a missing Firestore index.",
+            });
+            setIsLoading(false);
         });
-        setIsLoading(false);
+
+        return unsubscribe;
+    };
+
+    let unsubscribe: (() => void) | undefined;
+    buildQuery().then(unsub => {
+        if (unsub) unsubscribe = unsub;
     });
 
-    return () => unsubscribe();
-    
+    return () => {
+        if (unsubscribe) {
+            unsubscribe();
+        }
+    };
 }, [profile, isLoadingProfile, toast]);
 
 
@@ -567,55 +620,50 @@ function AllLeaveRequestsContent() {
           Leave Requests
         </h1>
         <p className="text-muted-foreground">
-          {canManageRequests 
-            ? "View, search, and manage all employee leave requests."
-            : "View and manage your personal leave requests."
-          }
+          View, search, and manage all employee leave requests.
         </p>
       </header>
 
-      {canManageRequests && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
-              <Hourglass className="h-4 w-4 text-yellow-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {finalIsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.pending}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Approved Requests</CardTitle>
-              <ShieldCheck className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {finalIsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.approved}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Rejected Requests</CardTitle>
-              <ShieldX className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {finalIsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.rejected}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
+            <Hourglass className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {finalIsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.pending}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Approved Requests</CardTitle>
+            <ShieldCheck className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {finalIsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.approved}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Rejected Requests</CardTitle>
+            <ShieldX className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {finalIsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.rejected}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Leave Request Log</CardTitle>
-           <CardDescription>{canManageRequests ? "A comprehensive list of all submitted leave requests." : "Your personal list of submitted leave requests."}</CardDescription>
+           <CardDescription>A comprehensive list of all submitted leave requests.</CardDescription>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-2">
               <div className="relative flex-grow sm:flex-grow-0 sm:w-full lg:w-1/3">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -676,15 +724,15 @@ function AllLeaveRequestsContent() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee Name</TableHead>
-                  {canManageRequests && <TableHead>Stage</TableHead>}
-                  {canManageRequests && <TableHead>Campus</TableHead>}
+                  <TableHead>Stage</TableHead>
+                  <TableHead>Campus</TableHead>
                   <TableHead>Leave Type</TableHead>
                   <TableHead>Start Date</TableHead>
                   <TableHead>End Date</TableHead>
                   <TableHead>Working Days</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Attachment</TableHead>
-                  {canManageRequests && <TableHead className="text-right">Actions</TableHead>}
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -696,8 +744,8 @@ function AllLeaveRequestsContent() {
                     return (
                       <TableRow key={request.id}>
                         <TableCell className="font-medium">{request.employeeName}</TableCell>
-                        {canManageRequests && <TableCell>{request.employeeStage}</TableCell>}
-                        {canManageRequests && <TableCell>{request.employeeCampus}</TableCell>}
+                        <TableCell>{request.employeeStage}</TableCell>
+                        <TableCell>{request.employeeCampus}</TableCell>
                         <TableCell>{request.leaveType}</TableCell>
                         <TableCell>{format(startDate, "PPP")}</TableCell>
                         <TableCell>{format(endDate, "PPP")}</TableCell>
@@ -716,50 +764,48 @@ function AllLeaveRequestsContent() {
                                 <span className="text-muted-foreground text-xs">None</span>
                             )}
                         </TableCell>
-                        {canManageRequests && (
-                            <TableCell className="text-right">
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                    <span className="sr-only">Open menu</span>
-                                    <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                
-                                {request.status === "Pending" && (
-                                    <>
-                                    <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Approved")}>
-                                        <ShieldCheck className="mr-2 h-4 w-4" /> Approve
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Rejected")}>
-                                        <ShieldX className="mr-2 h-4 w-4" /> Reject
-                                    </DropdownMenuItem>
-                                    </>
-                                )}
-
-                                <DropdownMenuItem onClick={() => openEditDialog(request)}>
-                                    <Edit3 className="mr-2 h-4 w-4" /> Edit
+                        <TableCell className="text-right">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            
+                            {request.status === "Pending" && (
+                                <>
+                                <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Approved")}>
+                                    <ShieldCheck className="mr-2 h-4 w-4" /> Approve
                                 </DropdownMenuItem>
-                                
-                                {(request.status === "Pending") && (
-                                    <DropdownMenuSeparator />
-                                )}
-
-                                <DropdownMenuItem onClick={() => openDeleteDialog(request)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Rejected")}>
+                                    <ShieldX className="mr-2 h-4 w-4" /> Reject
                                 </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                            </TableCell>
-                        )}
+                                </>
+                            )}
+
+                            <DropdownMenuItem onClick={() => openEditDialog(request)}>
+                                <Edit3 className="mr-2 h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            
+                            {(request.status === "Pending") && (
+                                <DropdownMenuSeparator />
+                            )}
+
+                            <DropdownMenuItem onClick={() => openDeleteDialog(request)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        </TableCell>
                       </TableRow>
                     );
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={canManageRequests ? 10 : 8} className="h-24 text-center">
+                    <TableCell colSpan={10} className="h-24 text-center">
                       {searchTerm || statusFilter !== "All" || campusFilter !== "All" || stageFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
                     </TableCell>
                   </TableRow>
@@ -833,3 +879,5 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
+
+    

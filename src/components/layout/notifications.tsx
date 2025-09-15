@@ -15,7 +15,7 @@ import {
 import { Bell, BellRing, Loader2 } from "lucide-react";
 import { useUserProfile } from "./app-layout";
 import { db } from "@/lib/firebase/config";
-import { collection, query, onSnapshot, doc, updateDoc, Timestamp, orderBy, arrayUnion } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, updateDoc, Timestamp, orderBy, arrayUnion, where, getDocs, or } from "firebase/firestore";
 import { formatDistanceToNow } from "date-fns";
 
 interface Notification {
@@ -24,86 +24,102 @@ interface Notification {
   link?: string;
   createdAt: Timestamp;
   readBy?: string[]; // Array of user IDs who have read it
+  isRead?: boolean; // For personal notifications
 }
 
 export function Notifications() {
   const { profile, user } = useUserProfile();
   const router = useRouter();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [globalNotifications, setGlobalNotifications] = useState<Notification[]>([]);
+  const [personalNotifications, setPersonalNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!profile?.id) {
+    if (!profile?.id || !user?.uid) {
       setIsLoading(false);
       return;
     }
     
+    setIsLoading(true);
     const userRole = profile.role?.toLowerCase();
     const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
     
-    if (!isPrivilegedUser) {
-        setIsLoading(false);
-        return;
+    const unsubscribes: (() => void)[] = [];
+
+    // 1. Fetch global notifications for privileged users
+    if (isPrivilegedUser) {
+      const globalQuery = query(collection(db, "notifications"), orderBy("createdAt", "desc"));
+      const unsubGlobal = onSnapshot(globalQuery, (snapshot) => {
+        const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+        setGlobalNotifications(notifs);
+      }, (error) => {
+        console.error("Error fetching global notifications:", error);
+      });
+      unsubscribes.push(unsubGlobal);
     }
     
-    const q = query(collection(db, "notifications"), orderBy("createdAt", "desc"));
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const notifs = snapshot.docs.map(
-          (doc) =>
-            ({
-              id: doc.id,
-              ...doc.data(),
-            } as Notification)
-        );
-        setNotifications(notifs);
-        setIsLoading(false);
-      },
-      (error) => {
-        console.error("Error fetching notifications:", error);
-        setIsLoading(false);
-      }
+    // 2. Fetch personal notifications for the current user.
+    const personalQuery = query(
+      collection(db, `users/${user.uid}/notifications`), 
+      orderBy("createdAt", "desc")
     );
+    const unsubPersonal = onSnapshot(personalQuery, (snapshot) => {
+        const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+        setPersonalNotifications(notifs);
+    }, (error) => {
+        console.error("Error fetching personal notifications:", error);
+    });
+    unsubscribes.push(unsubPersonal);
+    
+    setIsLoading(false);
 
-    return () => unsubscribe();
-  }, [profile?.id, profile?.role]);
+    return () => unsubscribes.forEach(unsub => unsub());
 
-  const handleNotificationClick = async (notification: Notification) => {
-    if (user?.uid) {
+  }, [profile?.id, profile?.role, user?.uid]);
+
+  const handleGlobalNotificationClick = async (notification: Notification) => {
+    if (user?.uid && !notification.readBy?.includes(user.uid)) {
         const notifDocRef = doc(db, `notifications`, notification.id);
         try {
-          // Use arrayUnion to prevent duplicates and handle concurrency
           await updateDoc(notifDocRef, { readBy: arrayUnion(user.uid) });
-           // Optimistically update the UI by removing the notification from the local state
-          setNotifications(prevNotifications =>
-            prevNotifications.filter(n => n.id !== notification.id)
-          );
         } catch (error) {
           console.error("Error updating global notification:", error);
         }
     }
-
-    if (notification.link) {
-      router.push(notification.link);
-    }
+    if (notification.link) router.push(notification.link);
   };
+  
+  const handlePersonalNotificationClick = async (notification: Notification) => {
+     if (user?.uid && !notification.isRead) {
+        const notifDocRef = doc(db, `users/${user.uid}/notifications`, notification.id);
+        try {
+            await updateDoc(notifDocRef, { isRead: true });
+        } catch(error) {
+             console.error("Error updating personal notification:", error);
+        }
+    }
+    if (notification.link) router.push(notification.link);
+  }
 
-  const isNotificationUnread = (notification: Notification): boolean => {
-    const userRole = profile?.role?.toLowerCase();
-    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
-    
-    if (isPrivilegedUser) {
-      // A notification is unread if the readBy array is undefined, null, or doesn't include the current user's UID
+  const isGlobalNotificationUnread = (notification: Notification): boolean => {
+      // A global notification is unread if the user's ID is not in the `readBy` array.
+      // Also treats missing `readBy` as unread.
       return !notification.readBy || !notification.readBy.includes(user?.uid ?? '');
-    }
-    // Non-privileged users don't see these global notifications
-    return false; 
   };
+  
+  const isPersonalNotificationUnread = (notification: Notification): boolean => {
+      return !notification.isRead;
+  }
 
-  const unreadNotifications = notifications.filter(isNotificationUnread);
-  const unreadCount = unreadNotifications.length;
+  const unreadGlobalNotifications = globalNotifications.filter(isGlobalNotificationUnread);
+  const unreadPersonalNotifications = personalNotifications.filter(isPersonalNotificationUnread);
+  
+  const allUnreadNotifications = [
+      ...unreadGlobalNotifications.map(n => ({...n, type: 'global'})),
+      ...unreadPersonalNotifications.map(n => ({...n, type: 'personal'}))
+  ].sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+
+  const unreadCount = allUnreadNotifications.length;
 
   return (
     <DropdownMenu>
@@ -116,7 +132,7 @@ export function Notifications() {
           )}
           {unreadCount > 0 && (
             <span className="absolute top-0 right-0 -mt-1 -mr-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground">
-              {unreadCount}
+              {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
           <span className="sr-only">Notifications</span>
@@ -129,16 +145,16 @@ export function Notifications() {
           <div className="flex justify-center items-center p-4">
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
-        ) : unreadNotifications.length === 0 ? (
+        ) : unreadCount === 0 ? (
           <p className="p-4 text-sm text-center text-muted-foreground">
             No new notifications
           </p>
         ) : (
           <div className="max-h-80 overflow-y-auto">
-            {unreadNotifications.map((notif) => (
+            {allUnreadNotifications.map((notif) => (
               <DropdownMenuItem
                 key={notif.id}
-                onSelect={() => handleNotificationClick(notif)}
+                onSelect={() => notif.type === 'global' ? handleGlobalNotificationClick(notif) : handlePersonalNotificationClick(notif)}
                 className="flex flex-col items-start gap-1 cursor-pointer"
               >
                 <p className="text-sm font-medium whitespace-normal">
@@ -155,3 +171,5 @@ export function Notifications() {
     </DropdownMenu>
   );
 }
+
+    
