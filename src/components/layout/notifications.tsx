@@ -23,7 +23,7 @@ interface Notification {
   message: string;
   link?: string;
   createdAt: Timestamp;
-  readBy: string[]; // Array of user IDs who have read it
+  readBy?: string[]; // Array of user IDs who have read it
 }
 
 export function Notifications() {
@@ -103,8 +103,8 @@ export function Notifications() {
     const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
     
     if (isPrivilegedUser) {
-      // For HR/Admin, a notification is unread if their UID is not in the `readBy` array
-      return !notification.readBy?.includes(user?.uid ?? '');
+      // A notification is unread if the readBy array doesn't exist OR it doesn't include the current user's UID
+      return !notification.readBy || !notification.readBy.includes(user?.uid ?? '');
     } else {
       // For other users, it depends on the isRead flag (assuming they have personal notifications)
       // This is a placeholder for a more complete implementation for non-privileged users.
