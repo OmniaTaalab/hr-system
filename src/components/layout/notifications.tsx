@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -37,8 +38,8 @@ export function Notifications() {
       return;
     }
 
-    // المسار بتاع النوتفكيشن لكل يوزر
-    const notifsCollectionPath = `users/${profile.id}/notifications`;
+    // Correct path to the notifications subcollection within the employee document
+    const notifsCollectionPath = `employee/${profile.id}/notifications`;
     const q = query(collection(db, notifsCollectionPath), orderBy("createdAt", "desc"));
 
     const unsubscribe = onSnapshot(
@@ -65,22 +66,20 @@ export function Notifications() {
 
   const handleNotificationClick = async (notification: Notification) => {
     if (profile?.id) {
-      const notifDocRef = doc(db, `users/${profile.id}/notifications`, notification.id);
+      // Correct path to update the notification document
+      const notifDocRef = doc(db, `employee/${profile.id}/notifications`, notification.id);
       try {
-        // بدل ما نعمل delete، نعمل update ونخلي isRead = true
         await updateDoc(notifDocRef, { isRead: true });
       } catch (error) {
         console.error("Error updating notification:", error);
       }
     }
 
-    // لو في لينك، نروحله
     if (notification.link) {
       router.push(notification.link);
     }
   };
 
-  // حساب عدد النوتفكيشن الغير مقروءة
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
@@ -131,3 +130,5 @@ export function Notifications() {
     </DropdownMenu>
   );
 }
+
+    

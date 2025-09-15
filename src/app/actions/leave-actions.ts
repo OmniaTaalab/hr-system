@@ -165,8 +165,9 @@ export async function submitLeaveRequestAction(
         isRead: false
       };
       for (const recipient of recipients) {
-        // Use the employee document ID to save to the correct subcollection
-        await addDoc(collection(db, `users/${recipient.docId}/notifications`), notificationPayload);
+        // Correct path to the notifications subcollection
+        const notificationCollectionPath = `employee/${recipient.docId}/notifications`;
+        await addDoc(collection(db, notificationCollectionPath), notificationPayload);
       }
       
       // Also send Push Notifications if FCM is configured
@@ -433,3 +434,5 @@ export async function deleteLeaveRequestAction(
     };
   }
 }
+
+    
