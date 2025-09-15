@@ -143,60 +143,49 @@ export async function submitLeaveRequestAction(
     // --- Start Notification Logic ---
     const notificationMessage = `New leave request from ${employeeName} for ${leaveType}.`;
     
-    // 1. Get document IDs of HR users
-    const hrUsersQuery = query(collection(db, "employee"), where("role", "==", "hr"));
-    const hrSnapshot = await getDocs(hrUsersQuery);
-    
-    // Get both the user's auth ID (for push notifications) and their document ID (for in-app notifications)
-    const recipients: { userId: string, docId: string }[] = [];
-    hrSnapshot.forEach(doc => {
-      const data = doc.data();
-      if (data.userId) { // Ensure they have a login to receive notifications
-        recipients.push({ userId: data.userId, docId: doc.id });
-      }
+    // Create a single notification in the top-level 'notifications' collection for HR/Admin
+    await addDoc(collection(db, "notifications"), {
+      message: notificationMessage,
+      link: `/leave/all-requests`,
+      createdAt: serverTimestamp(),
+      readBy: [], // Array to store UIDs of users who have read it
     });
     
-    if (recipients.length > 0) {
-      // Create notification documents for each recipient to see in the UI
-      const notificationPayload = {
-        message: notificationMessage,
-        link: `/leave/all-requests`,
-        createdAt: serverTimestamp(),
-        isRead: false
-      };
-      for (const recipient of recipients) {
-        // Correct path to the notifications subcollection
-        const notificationCollectionPath = `employee/${recipient.docId}/notifications`;
-        await addDoc(collection(db, notificationCollectionPath), notificationPayload);
-      }
-      
-      // Also send Push Notifications if FCM is configured
-      if (adminMessaging) {
-          const recipientAuthIds = recipients.map(r => r.userId);
-          const tokensQuery = query(collection(db, "fcmTokens"), where('userId', 'in', recipientAuthIds));
-          const tokensSnapshot = await getDocs(tokensQuery);
-          const tokens = tokensSnapshot.docs.map(doc => doc.data().token).filter(Boolean);
-          
-          if (tokens.length > 0) {
-              const message = {
-                  notification: {
-                      title: 'New Leave Request',
-                      body: notificationMessage
-                  },
-                  webpush: {
-                      notification: {
-                        click_action: '/leave/all-requests'
-                      }
-                  },
-                  tokens: tokens,
-              };
-              try {
-                await adminMessaging.sendEachForMulticast(message);
-              } catch (error) {
-                console.error("Error sending push notifications:", error);
-              }
-          }
-      }
+    // Also send Push Notifications if FCM is configured
+    if (adminMessaging) {
+        // Query for all HR and Admin users to send them push notifications
+        const hrUsersQuery = query(collection(db, "employee"), where("role", "in", ["hr", "admin"]));
+        const hrSnapshot = await getDocs(hrUsersQuery);
+        
+        const recipientAuthIds = hrSnapshot.docs
+            .map(doc => doc.data().userId)
+            .filter(Boolean); // Filter out employees without a linked auth account
+
+        if (recipientAuthIds.length > 0) {
+            const tokensQuery = query(collection(db, "fcmTokens"), where('userId', 'in', recipientAuthIds));
+            const tokensSnapshot = await getDocs(tokensQuery);
+            const tokens = tokensSnapshot.docs.map(doc => doc.data().token).filter(Boolean);
+            
+            if (tokens.length > 0) {
+                const message = {
+                    notification: {
+                        title: 'New Leave Request',
+                        body: notificationMessage
+                    },
+                    webpush: {
+                        fcm_options: {
+                          link: '/leave/all-requests'
+                        }
+                    },
+                    tokens: tokens,
+                };
+                try {
+                  await adminMessaging.sendEachForMulticast(message);
+                } catch (error) {
+                  console.error("Error sending push notifications:", error);
+                }
+            }
+        }
     }
     // --- End Notification Logic ---
         

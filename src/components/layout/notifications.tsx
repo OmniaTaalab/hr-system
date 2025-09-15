@@ -15,7 +15,7 @@ import {
 import { Bell, BellRing, Loader2 } from "lucide-react";
 import { useUserProfile } from "./app-layout";
 import { db } from "@/lib/firebase/config";
-import { collection, query, onSnapshot, doc, updateDoc, Timestamp, orderBy } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, updateDoc, Timestamp, orderBy, arrayUnion } from "firebase/firestore";
 import { formatDistanceToNow } from "date-fns";
 
 interface Notification {
@@ -23,11 +23,11 @@ interface Notification {
   message: string;
   link?: string;
   createdAt: Timestamp;
-  isRead: boolean;
+  readBy: string[]; // Array of user IDs who have read it
 }
 
 export function Notifications() {
-  const { profile } = useUserProfile();
+  const { profile, user } = useUserProfile();
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,10 +37,14 @@ export function Notifications() {
       setIsLoading(false);
       return;
     }
-
-    // Correct path to the notifications subcollection within the employee document
-    const notifsCollectionPath = `employee/${profile.id}/notifications`;
-    const q = query(collection(db, notifsCollectionPath), orderBy("createdAt", "desc"));
+    
+    const userRole = profile.role?.toLowerCase();
+    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
+    
+    // Admins and HR listen to the global notifications collection
+    const collectionPath = isPrivilegedUser ? "notifications" : `users/${profile.id}/notifications`;
+    
+    const q = query(collection(db, collectionPath), orderBy("createdAt", "desc"));
 
     const unsubscribe = onSnapshot(
       q,
@@ -62,16 +66,30 @@ export function Notifications() {
     );
 
     return () => unsubscribe();
-  }, [profile?.id]);
+  }, [profile?.id, profile?.role]);
 
   const handleNotificationClick = async (notification: Notification) => {
-    if (profile?.id) {
-      // Correct path to update the notification document
-      const notifDocRef = doc(db, `employee/${profile.id}/notifications`, notification.id);
-      try {
-        await updateDoc(notifDocRef, { isRead: true });
-      } catch (error) {
-        console.error("Error updating notification:", error);
+    const userRole = profile?.role?.toLowerCase();
+    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
+    
+    if (user?.uid) {
+      // For privileged users, add their UID to the readBy array in the global notification
+      if (isPrivilegedUser) {
+        const notifDocRef = doc(db, `notifications`, notification.id);
+        try {
+          // Use arrayUnion to prevent duplicates and handle concurrency
+          await updateDoc(notifDocRef, { readBy: arrayUnion(user.uid) });
+        } catch (error) {
+          console.error("Error updating global notification:", error);
+        }
+      } else {
+         // For regular users, update the isRead flag in their personal subcollection
+         const notifDocRef = doc(db, `users/${profile?.id}/notifications`, notification.id);
+         try {
+           await updateDoc(notifDocRef, { isRead: true });
+         } catch (error) {
+           console.error("Error updating personal notification:", error);
+         }
       }
     }
 
@@ -80,7 +98,23 @@ export function Notifications() {
     }
   };
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const isNotificationUnread = (notification: Notification): boolean => {
+    const userRole = profile?.role?.toLowerCase();
+    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
+    
+    if (isPrivilegedUser) {
+      // For HR/Admin, a notification is unread if their UID is not in the `readBy` array
+      return !notification.readBy?.includes(user?.uid ?? '');
+    } else {
+      // For other users, it depends on the isRead flag (assuming they have personal notifications)
+      // This is a placeholder for a more complete implementation for non-privileged users.
+      // For now, based on current logic, only HR/Admin will see notifications from the global collection.
+      return false; 
+    }
+  };
+
+  const unreadNotifications = notifications.filter(isNotificationUnread);
+  const unreadCount = unreadNotifications.length;
 
   return (
     <DropdownMenu>
@@ -106,29 +140,29 @@ export function Notifications() {
           <div className="flex justify-center items-center p-4">
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
-        ) : notifications.length === 0 ? (
+        ) : unreadNotifications.length === 0 ? (
           <p className="p-4 text-sm text-center text-muted-foreground">
             No new notifications
           </p>
         ) : (
-          notifications.map((notif) => (
-            <DropdownMenuItem
-              key={notif.id}
-              onSelect={() => handleNotificationClick(notif)}
-              className="flex flex-col items-start gap-1 cursor-pointer"
-            >
-              <p className="text-sm font-medium whitespace-normal">
-                {notif.message}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {formatDistanceToNow(notif.createdAt.toDate(), { addSuffix: true })}
-              </p>
-            </DropdownMenuItem>
-          ))
+          <div className="max-h-80 overflow-y-auto">
+            {unreadNotifications.map((notif) => (
+              <DropdownMenuItem
+                key={notif.id}
+                onSelect={() => handleNotificationClick(notif)}
+                className="flex flex-col items-start gap-1 cursor-pointer"
+              >
+                <p className="text-sm font-medium whitespace-normal">
+                  {notif.message}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {formatDistanceToNow(notif.createdAt.toDate(), { addSuffix: true })}
+                </p>
+              </DropdownMenuItem>
+            ))}
+          </div>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
-
-    
