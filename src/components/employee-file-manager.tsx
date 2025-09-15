@@ -23,19 +23,16 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [files, setFiles] = useState<EmployeeFile[]>(employee.documents || []);
+  const [files, setFiles] = useState<EmployeeFile[]>([]);
 
   useEffect(() => {
-    // A more robust check to ensure employee.id is a valid, non-empty string
     if (typeof employee.id === 'string' && employee.id.length > 0) {
       const unsub = onSnapshot(doc(db, "employee", employee.id), (doc) => {
           const data = doc.data();
           setFiles(data?.documents || []);
       });
-      // The cleanup function should be returned from within the condition
       return () => unsub();
     } else {
-        // If there's no valid ID, ensure files are cleared
         setFiles([]);
     }
   }, [employee.id]);
@@ -157,7 +154,7 @@ export function EmployeeFileManager({ employee }: EmployeeFileManagerProps) {
         {files.length > 0 ? (
           <ul className="divide-y max-h-48 overflow-y-auto">
             {files.map(file => (
-              <li key={`${file.name}-${file.url}`} className="p-2 flex justify-between items-center group">
+              <li key={`${file.name}-${file.uploadedAt?.seconds || Math.random()}`} className="p-2 flex justify-between items-center group">
                 <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline truncate flex items-center gap-2">
                   <FileIcon className="h-4 w-4 text-muted-foreground" />
                   {file.name}
