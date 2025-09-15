@@ -120,6 +120,7 @@ export async function submitLeaveRequestAction(
       employeeName, 
       employeeStage: employeeData.stage || null,
       employeeCampus: employeeData.campus || null,
+      reportLine1: employeeData.reportLine1 || null, // Store for reference
       leaveType,
       startDate: Timestamp.fromDate(startDate),
       endDate: Timestamp.fromDate(endDate),
@@ -143,45 +144,43 @@ export async function submitLeaveRequestAction(
     // --- Start Notification Logic ---
     const notificationMessage = `New leave request from ${employeeName} for ${leaveType}.`;
     
-    // Create a single notification in the top-level 'notifications' collection for HR/Admin
+    // 1. Create a single notification in the top-level 'notifications' collection for HR/Admin
     await addDoc(collection(db, "notifications"), {
       message: notificationMessage,
       link: `/leave/all-requests`,
       createdAt: serverTimestamp(),
-      readBy: [], // Array to store UIDs of users who have read it
+      readBy: [], 
     });
 
-    // --- NEW: Notify Principal of the same Stage ---
-    const employeeStage = employeeData.stage;
-    if (employeeStage) {
-      const principalsQuery = query(
+    // 2. Notify the direct manager in reportLine1
+    const managerName = employeeData.reportLine1;
+    if (managerName) {
+      const managerQuery = query(
         collection(db, "employee"),
-        where("role", "==", "Principal"),
-        where("stage", "==", employeeStage),
+        where("name", "==", managerName),
         limit(1)
       );
-      const principalsSnapshot = await getDocs(principalsQuery);
+      const managerSnapshot = await getDocs(managerQuery);
 
-      if (!principalsSnapshot.empty) {
-        const principalDoc = principalsSnapshot.docs[0];
-        const principalId = principalDoc.id; 
+      if (!managerSnapshot.empty) {
+        const managerDoc = managerSnapshot.docs[0];
+        const managerId = managerDoc.id; 
         
-        // Create a notification for the principal in their personal notifications
-        await addDoc(collection(db, `users/${principalId}/notifications`), {
+        await addDoc(collection(db, `users/${managerId}/notifications`), {
           message: `New leave request from your subordinate, ${employeeName}.`,
           link: `/leave/all-requests`,
           createdAt: serverTimestamp(),
           isRead: false,
         });
 
-        // Also send a push notification if the principal has an FCM token
-        const principalAuthId = principalDoc.data().userId;
-        if (adminMessaging && principalAuthId) {
-          const tokensQuery = query(collection(db, "fcmTokens"), where('userId', '==', principalAuthId), limit(1));
+        // Also send a push notification if the manager has an FCM token
+        const managerAuthId = managerDoc.data().userId;
+        if (adminMessaging && managerAuthId) {
+          const tokensQuery = query(collection(db, "fcmTokens"), where('userId', '==', managerAuthId), limit(1));
           const tokensSnapshot = await getDocs(tokensQuery);
           if (!tokensSnapshot.empty) {
             const token = tokensSnapshot.docs[0].data().token;
-            const principalMessage = {
+            const managerMessage = {
               notification: {
                 title: 'New Subordinate Leave Request',
                 body: `New leave request from ${employeeName}.`
@@ -190,16 +189,16 @@ export async function submitLeaveRequestAction(
               token: token,
             };
             try {
-              await adminMessaging.send(principalMessage);
+              await adminMessaging.send(managerMessage);
             } catch (error) {
-              console.error(`Error sending push notification to principal ${principalDoc.data().name}:`, error);
+              console.error(`Error sending push notification to manager ${managerDoc.data().name}:`, error);
             }
           }
         }
       }
     }
     
-    // Also send Push Notifications to HR/Admin if FCM is configured
+    // 3. Send Push Notifications to HR/Admin if FCM is configured
     if (adminMessaging) {
         const hrUsersQuery = query(collection(db, "employee"), where("role", "in", ["hr", "admin"]));
         const hrSnapshot = await getDocs(hrUsersQuery);
