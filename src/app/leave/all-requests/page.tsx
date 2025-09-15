@@ -421,7 +421,7 @@ function AllLeaveRequestsContent() {
         
         // Admins and HR see all requests initially.
         if (userRole === 'admin' || userRole === 'hr') {
-            // No additional constraints needed for full view
+            queryConstraints.push(orderBy("submittedAt", "desc"));
         } 
         // Other roles might be managers, so find their direct reports.
         else if (profile?.name) {
@@ -460,10 +460,12 @@ function AllLeaveRequestsContent() {
              queryConstraints.push(where("requestingEmployeeDocId", "==", "")); // query that returns nothing
         }
 
-        const finalQuery = query(collection(db, "leaveRequests"), ...queryConstraints, orderBy("submittedAt", "desc"));
+        const finalQuery = query(collection(db, "leaveRequests"), ...queryConstraints);
         
         const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
             const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+            // Sort client-side
+            requestsData.sort((a,b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
             setAllRequests(requestsData);
             setIsLoading(false);
         }, (error) => {
@@ -880,4 +882,3 @@ export default function AllLeaveRequestsPage() {
   );
 }
 
-    
