@@ -41,10 +41,12 @@ export function Notifications() {
     const userRole = profile.role?.toLowerCase();
     const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
     
-    // Admins and HR listen to the global notifications collection
-    const collectionPath = isPrivilegedUser ? "notifications" : `users/${profile.id}/notifications`;
+    if (!isPrivilegedUser) {
+        setIsLoading(false);
+        return;
+    }
     
-    const q = query(collection(db, collectionPath), orderBy("createdAt", "desc"));
+    const q = query(collection(db, "notifications"), orderBy("createdAt", "desc"));
 
     const unsubscribe = onSnapshot(
       q,
@@ -69,28 +71,18 @@ export function Notifications() {
   }, [profile?.id, profile?.role]);
 
   const handleNotificationClick = async (notification: Notification) => {
-    const userRole = profile?.role?.toLowerCase();
-    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
-    
     if (user?.uid) {
-      // For privileged users, add their UID to the readBy array in the global notification
-      if (isPrivilegedUser) {
         const notifDocRef = doc(db, `notifications`, notification.id);
         try {
           // Use arrayUnion to prevent duplicates and handle concurrency
           await updateDoc(notifDocRef, { readBy: arrayUnion(user.uid) });
+           // Optimistically update the UI by removing the notification from the local state
+          setNotifications(prevNotifications =>
+            prevNotifications.filter(n => n.id !== notification.id)
+          );
         } catch (error) {
           console.error("Error updating global notification:", error);
         }
-      } else {
-         // For regular users, update the isRead flag in their personal subcollection
-         const notifDocRef = doc(db, `users/${profile?.id}/notifications`, notification.id);
-         try {
-           await updateDoc(notifDocRef, { isRead: true });
-         } catch (error) {
-           console.error("Error updating personal notification:", error);
-         }
-      }
     }
 
     if (notification.link) {
@@ -103,14 +95,11 @@ export function Notifications() {
     const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
     
     if (isPrivilegedUser) {
-      // A notification is unread if the readBy array doesn't exist OR it doesn't include the current user's UID
+      // A notification is unread if the readBy array is undefined, null, or doesn't include the current user's UID
       return !notification.readBy || !notification.readBy.includes(user?.uid ?? '');
-    } else {
-      // For other users, it depends on the isRead flag (assuming they have personal notifications)
-      // This is a placeholder for a more complete implementation for non-privileged users.
-      // For now, based on current logic, only HR/Admin will see notifications from the global collection.
-      return false; 
     }
+    // Non-privileged users don't see these global notifications
+    return false; 
   };
 
   const unreadNotifications = notifications.filter(isNotificationUnread);
