@@ -417,8 +417,8 @@ function EmployeeProfileContent() {
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2">
-                    {employee.documents.map((file) => (
-                      <li key={`${file.name}-${file.url}`} className="flex items-center justify-between p-2 rounded-md border bg-muted/50">
+                    {employee.documents.map((file, idx) => (
+                      <li key={`${file.url}-${idx}`} className="flex items-center justify-between p-2 rounded-md border bg-muted/50">
                         <span className="font-medium text-sm">{file.name}</span>
                         <Button asChild variant="secondary" size="sm">
                           <a href={file.url} target="_blank" rel="noopener noreferrer">
