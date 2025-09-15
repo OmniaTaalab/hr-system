@@ -142,11 +142,11 @@ export async function submitLeaveRequestAction(
     });
 
     // --- Start Notification Logic ---
-    const notificationMessage = `New leave request from ${employeeName} for ${leaveType}.`;
     
     // 1. Create a single notification in the top-level 'notifications' collection for HR/Admin
+    const hrNotificationMessage = `New leave request from ${employeeName} for ${leaveType}.`;
     await addDoc(collection(db, "notifications"), {
-      message: notificationMessage,
+      message: hrNotificationMessage,
       link: `/leave/all-requests`,
       createdAt: serverTimestamp(),
       readBy: [], 
@@ -164,17 +164,38 @@ export async function submitLeaveRequestAction(
 
       if (!managerSnapshot.empty) {
         const managerDoc = managerSnapshot.docs[0];
-        const managerAuthId = managerDoc.data().userId; 
+        const managerData = managerDoc.data();
+        const managerAuthId = managerData.userId; 
         
         if (managerAuthId) {
+            // Create a personal notification for the manager
             await addDoc(collection(db, `users/${managerAuthId}/notifications`), {
                 message: `New leave request from your subordinate, ${employeeName}.`,
                 link: `/leave/all-requests`,
                 createdAt: serverTimestamp(),
                 isRead: false,
             });
+            
+            // Send email notification to manager
+            if (managerData.email) {
+                await addDoc(collection(db, "mail"), {
+                  to: [managerData.email],
+                  message: {
+                    subject: `New Leave Request from ${employeeName}`,
+                    html: `
+                      <h1>New Leave Request for Approval</h1>
+                      <p><strong>Employee:</strong> ${employeeName}</p>
+                      <p><strong>Leave Type:</strong> ${leaveType}</p>
+                      <p><strong>Dates:</strong> ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}</p>
+                      <p><strong>Reason:</strong> ${reason}</p>
+                      <p>You can approve or reject this request in the HR system.</p>
+                    `,
+                  },
+                });
+            }
 
-            // Also send a push notification if the manager has an FCM token
+
+            // Send a push notification if the manager has an FCM token
             if (adminMessaging) {
               const tokensQuery = query(collection(db, "fcmTokens"), where('userId', '==', managerAuthId), limit(1));
               const tokensSnapshot = await getDocs(tokensQuery);
@@ -191,7 +212,7 @@ export async function submitLeaveRequestAction(
                 try {
                   await adminMessaging.send(managerMessage);
                 } catch (error) {
-                  console.error(`Error sending push notification to manager ${managerDoc.data().name}:`, error);
+                  console.error(`Error sending push notification to manager ${managerData.name}:`, error);
                 }
               }
             }
@@ -217,7 +238,7 @@ export async function submitLeaveRequestAction(
                 const message = {
                     notification: {
                         title: 'New Leave Request',
-                        body: notificationMessage
+                        body: hrNotificationMessage
                     },
                     webpush: {
                         fcm_options: {
@@ -470,6 +491,8 @@ export async function deleteLeaveRequestAction(
     };
   }
 }
+
+    
 
     
 
