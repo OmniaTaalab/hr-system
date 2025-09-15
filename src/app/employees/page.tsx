@@ -64,6 +64,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Textarea } from "@/components/ui/textarea";
+import { useRouter } from "next/navigation";
 
 
 export interface EmployeeFile {
@@ -1015,6 +1016,7 @@ function ImportEmployeesDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
 function EmployeeManagementContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [paginatedEmployees, setPaginatedEmployees] = useState<Employee[]>([]);
