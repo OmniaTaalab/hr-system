@@ -164,36 +164,37 @@ export async function submitLeaveRequestAction(
 
       if (!managerSnapshot.empty) {
         const managerDoc = managerSnapshot.docs[0];
-        const managerId = managerDoc.id; 
+        const managerAuthId = managerDoc.data().userId; 
         
-        await addDoc(collection(db, `users/${managerId}/notifications`), {
-          message: `New leave request from your subordinate, ${employeeName}.`,
-          link: `/leave/all-requests`,
-          createdAt: serverTimestamp(),
-          isRead: false,
-        });
+        if (managerAuthId) {
+            await addDoc(collection(db, `users/${managerAuthId}/notifications`), {
+                message: `New leave request from your subordinate, ${employeeName}.`,
+                link: `/leave/all-requests`,
+                createdAt: serverTimestamp(),
+                isRead: false,
+            });
 
-        // Also send a push notification if the manager has an FCM token
-        const managerAuthId = managerDoc.data().userId;
-        if (adminMessaging && managerAuthId) {
-          const tokensQuery = query(collection(db, "fcmTokens"), where('userId', '==', managerAuthId), limit(1));
-          const tokensSnapshot = await getDocs(tokensQuery);
-          if (!tokensSnapshot.empty) {
-            const token = tokensSnapshot.docs[0].data().token;
-            const managerMessage = {
-              notification: {
-                title: 'New Subordinate Leave Request',
-                body: `New leave request from ${employeeName}.`
-              },
-              webpush: { fcm_options: { link: '/leave/all-requests' } },
-              token: token,
-            };
-            try {
-              await adminMessaging.send(managerMessage);
-            } catch (error) {
-              console.error(`Error sending push notification to manager ${managerDoc.data().name}:`, error);
+            // Also send a push notification if the manager has an FCM token
+            if (adminMessaging) {
+              const tokensQuery = query(collection(db, "fcmTokens"), where('userId', '==', managerAuthId), limit(1));
+              const tokensSnapshot = await getDocs(tokensQuery);
+              if (!tokensSnapshot.empty) {
+                const token = tokensSnapshot.docs[0].data().token;
+                const managerMessage = {
+                  notification: {
+                    title: 'New Subordinate Leave Request',
+                    body: `New leave request from ${employeeName}.`
+                  },
+                  webpush: { fcm_options: { link: '/leave/all-requests' } },
+                  token: token,
+                };
+                try {
+                  await adminMessaging.send(managerMessage);
+                } catch (error) {
+                  console.error(`Error sending push notification to manager ${managerDoc.data().name}:`, error);
+                }
+              }
             }
-          }
         }
       }
     }
@@ -469,5 +470,7 @@ export async function deleteLeaveRequestAction(
     };
   }
 }
+
+    
 
     

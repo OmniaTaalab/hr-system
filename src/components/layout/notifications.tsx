@@ -59,17 +59,19 @@ export function Notifications() {
     }
     
     // 2. Fetch personal notifications for the current user.
-    const personalQuery = query(
-      collection(db, `users/${user.uid}/notifications`), 
-      orderBy("createdAt", "desc")
-    );
-    const unsubPersonal = onSnapshot(personalQuery, (snapshot) => {
-        const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
-        setPersonalNotifications(notifs);
-    }, (error) => {
-        console.error("Error fetching personal notifications:", error);
-    });
-    unsubscribes.push(unsubPersonal);
+    if(user?.uid) {
+        const personalQuery = query(
+          collection(db, `users/${user.uid}/notifications`), 
+          orderBy("createdAt", "desc")
+        );
+        const unsubPersonal = onSnapshot(personalQuery, (snapshot) => {
+            const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+            setPersonalNotifications(notifs);
+        }, (error) => {
+            console.error("Error fetching personal notifications:", error);
+        });
+        unsubscribes.push(unsubPersonal);
+    }
     
     setIsLoading(false);
 
@@ -78,19 +80,21 @@ export function Notifications() {
   }, [profile?.id, profile?.role, user?.uid]);
 
   const handleGlobalNotificationClick = async (notification: Notification) => {
-    if (user?.uid && !notification.readBy?.includes(user.uid)) {
-        const notifDocRef = doc(db, `notifications`, notification.id);
-        try {
-          await updateDoc(notifDocRef, { readBy: arrayUnion(user.uid) });
-        } catch (error) {
-          console.error("Error updating global notification:", error);
-        }
+    if (user?.uid && isGlobalNotificationUnread(notification)) {
+      setGlobalNotifications(prev => prev.filter(n => n.id !== notification.id));
+      const notifDocRef = doc(db, `notifications`, notification.id);
+      try {
+        await updateDoc(notifDocRef, { readBy: arrayUnion(user.uid) });
+      } catch (error) {
+        console.error("Error updating global notification:", error);
+      }
     }
     if (notification.link) router.push(notification.link);
   };
   
   const handlePersonalNotificationClick = async (notification: Notification) => {
      if (user?.uid && !notification.isRead) {
+        setPersonalNotifications(prev => prev.filter(n => n.id !== notification.id));
         const notifDocRef = doc(db, `users/${user.uid}/notifications`, notification.id);
         try {
             await updateDoc(notifDocRef, { isRead: true });
@@ -102,8 +106,6 @@ export function Notifications() {
   }
 
   const isGlobalNotificationUnread = (notification: Notification): boolean => {
-      // A global notification is unread if the user's ID is not in the `readBy` array.
-      // Also treats missing `readBy` as unread.
       return !notification.readBy || !notification.readBy.includes(user?.uid ?? '');
   };
   
