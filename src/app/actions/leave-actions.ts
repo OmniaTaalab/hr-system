@@ -143,27 +143,16 @@ export async function submitLeaveRequestAction(
     // --- Start Notification Logic ---
     const notificationMessage = `New leave request from ${employeeName} for ${leaveType}.`;
     
-    // 1. Get userIds of HR users, Admins, and relevant Principal
+    // 1. Get userIds of HR users
     const hrUsersQuery = query(collection(db, "employee"), where("role", "==", "HR"));
-    const adminUsersQuery = query(collection(db, "employee"), where("role", "==", "Admin"));
-    
-    const queries = [getDocs(hrUsersQuery), getDocs(adminUsersQuery)];
-
-    if (employeeData.stage) {
-      const principalQuery = query(collection(db, "employee"), where("role", "==", "Principal"), where("stage", "==", employeeData.stage));
-      queries.push(getDocs(principalQuery));
-    }
-
-    const snapshots = await Promise.all(queries);
+    const hrSnapshot = await getDocs(hrUsersQuery);
     
     const recipientUserIds = new Set<string>();
-    snapshots.forEach(snapshot => {
-      snapshot.docs.forEach(doc => {
-        const userId = doc.data().userId;
-        if (userId) {
-          recipientUserIds.add(userId);
-        }
-      });
+    hrSnapshot.forEach(doc => {
+      const userId = doc.data().userId;
+      if (userId) {
+        recipientUserIds.add(userId);
+      }
     });
 
     const allRecipientIds = Array.from(recipientUserIds);
