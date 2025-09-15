@@ -151,36 +151,37 @@ export async function submitLeaveRequestAction(
       readBy: [], // Array to store UIDs of users who have read it
     });
 
-    // --- NEW: Notify Reporting Line 1 ---
-    const managerName = employeeData.reportLine1;
-    if (managerName) {
-      const managersQuery = query(
+    // --- NEW: Notify Principal of the same Stage ---
+    const employeeStage = employeeData.stage;
+    if (employeeStage) {
+      const principalsQuery = query(
         collection(db, "employee"),
-        where("name", "==", managerName),
+        where("role", "==", "Principal"),
+        where("stage", "==", employeeStage),
         limit(1)
       );
-      const managersSnapshot = await getDocs(managersQuery);
+      const principalsSnapshot = await getDocs(principalsQuery);
 
-      if (!managersSnapshot.empty) {
-        const managerDoc = managersSnapshot.docs[0];
-        const managerId = managerDoc.id; // This is the employee doc ID of the manager
+      if (!principalsSnapshot.empty) {
+        const principalDoc = principalsSnapshot.docs[0];
+        const principalId = principalDoc.id; 
         
-        // Create a notification for the manager in their personal notifications
-        await addDoc(collection(db, `users/${managerId}/notifications`), {
+        // Create a notification for the principal in their personal notifications
+        await addDoc(collection(db, `users/${principalId}/notifications`), {
           message: `New leave request from your subordinate, ${employeeName}.`,
           link: `/leave/all-requests`,
           createdAt: serverTimestamp(),
           isRead: false,
         });
 
-        // Also send a push notification if the manager has an FCM token
-        const managerAuthId = managerDoc.data().userId;
-        if (adminMessaging && managerAuthId) {
-          const tokensQuery = query(collection(db, "fcmTokens"), where('userId', '==', managerAuthId), limit(1));
+        // Also send a push notification if the principal has an FCM token
+        const principalAuthId = principalDoc.data().userId;
+        if (adminMessaging && principalAuthId) {
+          const tokensQuery = query(collection(db, "fcmTokens"), where('userId', '==', principalAuthId), limit(1));
           const tokensSnapshot = await getDocs(tokensQuery);
           if (!tokensSnapshot.empty) {
             const token = tokensSnapshot.docs[0].data().token;
-            const managerMessage = {
+            const principalMessage = {
               notification: {
                 title: 'New Subordinate Leave Request',
                 body: `New leave request from ${employeeName}.`
@@ -189,9 +190,9 @@ export async function submitLeaveRequestAction(
               token: token,
             };
             try {
-              await adminMessaging.send(managerMessage);
+              await adminMessaging.send(principalMessage);
             } catch (error) {
-              console.error(`Error sending push notification to manager ${managerDoc.data().name}:`, error);
+              console.error(`Error sending push notification to principal ${principalDoc.data().name}:`, error);
             }
           }
         }
