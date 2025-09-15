@@ -143,21 +143,20 @@ export async function submitLeaveRequestAction(
     // --- Start Notification Logic ---
     const notificationMessage = `New leave request from ${employeeName} for ${leaveType}.`;
     
-    // 1. Get userIds of HR users
-    const hrUsersQuery = query(collection(db, "employee"), where("role", "==", "HR"));
+    // 1. Get document IDs of HR users
+    const hrUsersQuery = query(collection(db, "employee"), where("role", "==", "hr"));
     const hrSnapshot = await getDocs(hrUsersQuery);
     
-    const recipientUserIds = new Set<string>();
+    // Get both the user's auth ID (for push notifications) and their document ID (for in-app notifications)
+    const recipients: { userId: string, docId: string }[] = [];
     hrSnapshot.forEach(doc => {
-      const userId = doc.data().userId;
-      if (userId) {
-        recipientUserIds.add(userId);
+      const data = doc.data();
+      if (data.userId) { // Ensure they have a login to receive notifications
+        recipients.push({ userId: data.userId, docId: doc.id });
       }
     });
-
-    const allRecipientIds = Array.from(recipientUserIds);
     
-    if (allRecipientIds.length > 0) {
+    if (recipients.length > 0) {
       // Create notification documents for each recipient to see in the UI
       const notificationPayload = {
         message: notificationMessage,
@@ -165,13 +164,15 @@ export async function submitLeaveRequestAction(
         createdAt: serverTimestamp(),
         isRead: false
       };
-      for (const userId of allRecipientIds) {
-        await addDoc(collection(db, `users/${userId}/notifications`), notificationPayload);
+      for (const recipient of recipients) {
+        // Use the employee document ID to save to the correct subcollection
+        await addDoc(collection(db, `users/${recipient.docId}/notifications`), notificationPayload);
       }
       
       // Also send Push Notifications if FCM is configured
       if (adminMessaging) {
-          const tokensQuery = query(collection(db, "fcmTokens"), where('userId', 'in', allRecipientIds));
+          const recipientAuthIds = recipients.map(r => r.userId);
+          const tokensQuery = query(collection(db, "fcmTokens"), where('userId', 'in', recipientAuthIds));
           const tokensSnapshot = await getDocs(tokensQuery);
           const tokens = tokensSnapshot.docs.map(doc => doc.data().token).filter(Boolean);
           
