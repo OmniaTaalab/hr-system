@@ -151,16 +151,18 @@ export async function submitLeaveRequestAction(
       readBy: [], // Array to store UIDs of users who have read it
     });
 
-    // --- NEW: Notify Reporting Lines ---
-    const managerNames = [employeeData.reportLine1, employeeData.reportLine2].filter(Boolean);
-    if (managerNames.length > 0) {
+    // --- NEW: Notify Reporting Line 1 ---
+    const managerName = employeeData.reportLine1;
+    if (managerName) {
       const managersQuery = query(
         collection(db, "employee"),
-        where("name", "in", managerNames)
+        where("name", "==", managerName),
+        limit(1)
       );
       const managersSnapshot = await getDocs(managersQuery);
 
-      for (const managerDoc of managersSnapshot.docs) {
+      if (!managersSnapshot.empty) {
+        const managerDoc = managersSnapshot.docs[0];
         const managerId = managerDoc.id; // This is the employee doc ID of the manager
         
         // Create a notification for the manager in their personal notifications
