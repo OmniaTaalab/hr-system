@@ -421,11 +421,12 @@ function AllLeaveRequestsContent() {
         
         // Admins and HR see all requests initially.
         if (userRole === 'admin' || userRole === 'hr') {
-            queryConstraints.push(orderBy("submittedAt", "desc"));
+            // No additional filters needed for query
         } 
         // Other roles might be managers, so find their direct reports.
         else if (profile?.name) {
             try {
+                // Find employees who report to the current user
                 const reportsQuery = query(collection(db, "employee"), where("reportLine1", "==", profile.name));
                 const reportsSnapshot = await getDocs(reportsQuery);
                 const reportIds = reportsSnapshot.docs.map(doc => doc.id);
@@ -436,12 +437,9 @@ function AllLeaveRequestsContent() {
                 }
 
                 if (reportIds.length > 0) {
-                    // Firestore 'in' query is limited to 30 items
                     if (reportIds.length <= 30) {
                         queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds));
                     } else {
-                        // Handle case with more than 30 reports if necessary (e.g., fetch in batches)
-                        // For now, we'll just log a warning and show the first 30
                         console.warn("User manages more than 30 employees, showing requests for the first 30.");
                         queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds.slice(0, 30)));
                     }
@@ -734,7 +732,7 @@ function AllLeaveRequestsContent() {
                   <TableHead>Working Days</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Attachment</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {canManageRequests && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -766,48 +764,50 @@ function AllLeaveRequestsContent() {
                                 <span className="text-muted-foreground text-xs">None</span>
                             )}
                         </TableCell>
-                        <TableCell className="text-right">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            
-                            {request.status === "Pending" && (
-                                <>
-                                <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Approved")}>
-                                    <ShieldCheck className="mr-2 h-4 w-4" /> Approve
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Rejected")}>
-                                    <ShieldX className="mr-2 h-4 w-4" /> Reject
-                                </DropdownMenuItem>
-                                </>
-                            )}
+                        {canManageRequests && (
+                          <TableCell className="text-right">
+                          <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                  <span className="sr-only">Open menu</span>
+                                  <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              
+                              {request.status === "Pending" && (
+                                  <>
+                                  <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Approved")}>
+                                      <ShieldCheck className="mr-2 h-4 w-4" /> Approve
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Rejected")}>
+                                      <ShieldX className="mr-2 h-4 w-4" /> Reject
+                                  </DropdownMenuItem>
+                                  </>
+                              )}
 
-                            <DropdownMenuItem onClick={() => openEditDialog(request)}>
-                                <Edit3 className="mr-2 h-4 w-4" /> Edit
-                            </DropdownMenuItem>
-                            
-                            {(request.status === "Pending") && (
-                                <DropdownMenuSeparator />
-                            )}
+                              <DropdownMenuItem onClick={() => openEditDialog(request)}>
+                                  <Edit3 className="mr-2 h-4 w-4" /> Edit
+                              </DropdownMenuItem>
+                              
+                              {(request.status === "Pending") && (
+                                  <DropdownMenuSeparator />
+                              )}
 
-                            <DropdownMenuItem onClick={() => openDeleteDialog(request)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                                <Trash2 className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        </TableCell>
+                              <DropdownMenuItem onClick={() => openDeleteDialog(request)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                              </DropdownMenuItem>
+                              </DropdownMenuContent>
+                          </DropdownMenu>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={10} className="h-24 text-center">
+                    <TableCell colSpan={canManageRequests ? 10 : 9} className="h-24 text-center">
                       {searchTerm || statusFilter !== "All" || campusFilter !== "All" || stageFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
                     </TableCell>
                   </TableRow>
@@ -881,4 +881,3 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
-
