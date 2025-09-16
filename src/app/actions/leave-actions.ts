@@ -8,6 +8,10 @@ import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, update
 import { getWeekendSettings } from './settings-actions';
 import { adminMessaging } from '@/lib/firebase/admin-config';
 import { logSystemEvent } from '@/lib/system-log';
+import { Resend } from 'resend';
+import LeaveRequestNotificationEmail from '@/emails/leave-request-notification';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // New helper function to calculate working days, excluding weekends and holidays
 async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<number> {
@@ -177,31 +181,29 @@ export async function submitLeaveRequestAction(
             });
             
             // Send email notification to manager's personal email
-            if (managerData.personalEmail) {
+            if (managerData.personalEmail && process.env.RESEND_API_KEY) {
                 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
                 const leaveRequestLink = `${appUrl}/leave/all-requests`;
-                await addDoc(collection(db, "mail"), {
-                  to: [managerData.personalEmail],
-                  message: {
+
+                try {
+                  await resend.emails.send({
+                    from: 'HR System <onboarding@resend.dev>',
+                    to: managerData.personalEmail,
                     subject: `New Leave Request from ${employeeName}`,
-                    html: `
-                      <div style="font-family: sans-serif; padding: 20px; color: #333;">
-                        <h1 style="color: #4A5568;">New Leave Request for Approval</h1>
-                        <p>A new leave request has been submitted by your subordinate that requires your review.</p>
-                        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-                          <tr><td style="padding: 8px; border: 1px solid #E2E8F0; font-weight: bold;">Employee:</td><td style="padding: 8px; border: 1px solid #E2E8F0;">${employeeName}</td></tr>
-                          <tr><td style="padding: 8px; border: 1px solid #E2E8F0; font-weight: bold;">Leave Type:</td><td style="padding: 8px; border: 1px solid #E2E8F0;">${leaveType}</td></tr>
-                          <tr><td style="padding: 8px; border: 1px solid #E2E8F0; font-weight: bold;">Dates:</td><td style="padding: 8px; border: 1px solid #E2E8F0;">${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}</td></tr>
-                          <tr><td style="padding: 8px; border: 1px solid #E2E8F0; font-weight: bold;">Reason:</td><td style="padding: 8px; border: 1px solid #E2E8F0;">${reason}</td></tr>
-                        </table>
-                        <a href="${leaveRequestLink}" style="display: inline-block; background-color: #465975; color: #ffffff; padding: 12px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                          View Request
-                        </a>
-                        <p style="margin-top: 20px; font-size: 12px; color: #718096;">You can approve or reject this request in the HR system.</p>
-                      </div>
-                    `,
-                  },
-                });
+                    react: LeaveRequestNotificationEmail({
+                      managerName: managerData.name,
+                      employeeName: employeeName,
+                      leaveType: leaveType,
+                      startDate: startDate.toLocaleDateString(),
+                      endDate: endDate.toLocaleDateString(),
+                      reason: reason,
+                      leaveRequestLink: leaveRequestLink,
+                    }),
+                  });
+                } catch (emailError) {
+                    console.error("Resend email failed:", emailError);
+                    // Don't fail the whole action, just log the error
+                }
             }
 
 
