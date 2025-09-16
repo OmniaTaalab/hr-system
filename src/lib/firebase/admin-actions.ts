@@ -351,17 +351,19 @@ export async function updateEmployeeAction(
     const dataToUpdate: { [key: string]: any } = {};
     let emergencyContact: { [key: string]: any } | undefined = undefined;
 
-    Object.entries(updateData).forEach(([key, value]) => {
-      if (value !== undefined && value !== "") { // Also check for empty strings to avoid overwriting with them
-         if (key.startsWith('emergencyContact')) {
-          if (!emergencyContact) emergencyContact = { ...(currentEmployeeData.emergencyContact || {}) };
-          const fieldName = key.replace('emergencyContact', '').charAt(0).toLowerCase() + key.slice('emergencyContact'.length + 1);
-          emergencyContact[fieldName] = value;
-        } else {
-          dataToUpdate[key] = value;
+    // Build the dataToUpdate object carefully, only including defined values
+    for (const key in updateData) {
+        const value = (updateData as any)[key];
+        if (value !== undefined) {
+             if (key.startsWith('emergencyContact')) {
+                if (!emergencyContact) emergencyContact = { ...(currentEmployeeData.emergencyContact || {}) };
+                const fieldName = key.replace('emergencyContact', '').charAt(0).toLowerCase() + key.slice('emergencyContact'.length + 1);
+                emergencyContact[fieldName] = value;
+             } else {
+                 dataToUpdate[key] = value;
+             }
         }
-      }
-    });
+    }
     
     if (emergencyContact) {
       dataToUpdate.emergencyContact = emergencyContact;
@@ -381,8 +383,8 @@ export async function updateEmployeeAction(
         dataToUpdate.joiningDate = Timestamp.fromDate(dataToUpdate.joiningDate);
     }
     // Handle leavingDate: allow it to be set to null
-    if (rawData.hasOwnProperty('leavingDate')) { // Check raw form data
-      dataToUpdate.leavingDate = rawData.leavingDate ? Timestamp.fromDate(new Date(rawData.leavingDate as string)) : null;
+    if (Object.prototype.hasOwnProperty.call(dataToUpdate, 'leavingDate')) {
+        dataToUpdate.leavingDate = dataToUpdate.leavingDate ? Timestamp.fromDate(dataToUpdate.leavingDate) : null;
     }
 
     if (Object.keys(dataToUpdate).length === 0) {
