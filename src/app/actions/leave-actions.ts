@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -177,17 +178,27 @@ export async function submitLeaveRequestAction(
             
             // Send email notification to manager's personal email
             if (managerData.personalEmail) {
+                const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+                const leaveRequestLink = `${appUrl}/leave/all-requests`;
                 await addDoc(collection(db, "mail"), {
                   to: [managerData.personalEmail],
                   message: {
                     subject: `New Leave Request from ${employeeName}`,
                     html: `
-                      <h1>New Leave Request for Approval</h1>
-                      <p><strong>Employee:</strong> ${employeeName}</p>
-                      <p><strong>Leave Type:</strong> ${leaveType}</p>
-                      <p><strong>Dates:</strong> ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}</p>
-                      <p><strong>Reason:</strong> ${reason}</p>
-                      <p>You can approve or reject this request in the HR system.</p>
+                      <div style="font-family: sans-serif; padding: 20px; color: #333;">
+                        <h1 style="color: #4A5568;">New Leave Request for Approval</h1>
+                        <p>A new leave request has been submitted by your subordinate that requires your review.</p>
+                        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                          <tr><td style="padding: 8px; border: 1px solid #E2E8F0; font-weight: bold;">Employee:</td><td style="padding: 8px; border: 1px solid #E2E8F0;">${employeeName}</td></tr>
+                          <tr><td style="padding: 8px; border: 1px solid #E2E8F0; font-weight: bold;">Leave Type:</td><td style="padding: 8px; border: 1px solid #E2E8F0;">${leaveType}</td></tr>
+                          <tr><td style="padding: 8px; border: 1px solid #E2E8F0; font-weight: bold;">Dates:</td><td style="padding: 8px; border: 1px solid #E2E8F0;">${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}</td></tr>
+                          <tr><td style="padding: 8px; border: 1px solid #E2E8F0; font-weight: bold;">Reason:</td><td style="padding: 8px; border: 1px solid #E2E8F0;">${reason}</td></tr>
+                        </table>
+                        <a href="${leaveRequestLink}" style="display: inline-block; background-color: #465975; color: #ffffff; padding: 12px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                          View Request
+                        </a>
+                        <p style="margin-top: 20px; font-size: 12px; color: #718096;">You can approve or reject this request in the HR system.</p>
+                      </div>
                     `,
                   },
                 });
