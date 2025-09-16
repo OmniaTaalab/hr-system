@@ -315,7 +315,8 @@ export async function updateEmployeeAction(
 ): Promise<UpdateEmployeeState> {
     const rawData: Record<string, any> = {};
     formData.forEach((value, key) => {
-      if (value instanceof File && value.size === 0) {
+      // Don't include file uploads in this action's data
+      if (value instanceof File) {
         return;
       }
       rawData[key] = value;
@@ -351,9 +352,11 @@ export async function updateEmployeeAction(
     const dataToUpdate: { [key: string]: any } = {};
     let emergencyContact: { [key: string]: any } | undefined = undefined;
 
-    // Build the dataToUpdate object carefully, only including defined values
-    for (const key in updateData) {
+    // Build the dataToUpdate object carefully, only including defined values from the schema
+     Object.keys(updateData).forEach(key => {
         const value = (updateData as any)[key];
+        
+        // This check handles `null`, `undefined`, but allows `0` and `false`
         if (value !== undefined) {
              if (key.startsWith('emergencyContact')) {
                 if (!emergencyContact) emergencyContact = { ...(currentEmployeeData.emergencyContact || {}) };
@@ -363,7 +366,7 @@ export async function updateEmployeeAction(
                  dataToUpdate[key] = value;
              }
         }
-    }
+    });
     
     if (emergencyContact) {
       dataToUpdate.emergencyContact = emergencyContact;
