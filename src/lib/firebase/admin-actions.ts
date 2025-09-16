@@ -234,7 +234,13 @@ const UpdateEmployeeFormSchema = z.object({
   system: z.string().optional(),
   campus: z.string().optional(),
   email: z.string().email({ message: 'Invalid email address.' }).optional(),
+  personalEmail: z.string().email({ message: 'Invalid personal email address.' }).optional(),
   phone: z.string().optional(),
+  emergencyContactName: z.string().optional(),
+  emergencyContactRelationship: z.string().optional(),
+  emergencyContactNumber: z.string().optional(),
+  reportLine1: z.string().optional(),
+  reportLine2: z.string().optional(),
   hourlyRate: z.preprocess(
     (val) => {
       if (val === '' || val === null || val === undefined) return undefined;
@@ -280,7 +286,13 @@ export type UpdateEmployeeState = {
     system?: string[];
     campus?: string[];
     email?: string[];
+    personalEmail?: string[];
     phone?: string[];
+    emergencyContactName?: string[];
+    emergencyContactRelationship?: string[];
+    emergencyContactNumber?: string[];
+    reportLine1?: string[];
+    reportLine2?: string[];
     hourlyRate?: string[];
     dateOfBirth?: string[];
     joiningDate?: string[];
@@ -337,13 +349,23 @@ export async function updateEmployeeAction(
     const currentEmployeeData = docSnap.data();
 
     const dataToUpdate: { [key: string]: any } = {};
+    let emergencyContact: { [key: string]: any } | undefined = undefined;
 
     Object.entries(updateData).forEach(([key, value]) => {
-      // Only include fields that were actually submitted on the form
-      if (value !== undefined) { 
-        dataToUpdate[key] = value;
+      if (value !== undefined) {
+         if (key.startsWith('emergencyContact')) {
+          if (!emergencyContact) emergencyContact = { ...currentEmployeeData.emergencyContact };
+          const fieldName = key.replace('emergencyContact', '').toLowerCase();
+          emergencyContact[fieldName] = value;
+        } else {
+          dataToUpdate[key] = value;
+        }
       }
     });
+
+    if (emergencyContact) {
+      dataToUpdate.emergencyContact = emergencyContact;
+    }
 
     // If either first name or last name is updated, reconstruct the full name
     if (dataToUpdate.firstName || dataToUpdate.lastName) {

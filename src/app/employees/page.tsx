@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback, useTransition } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -599,7 +599,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
       <AlertDialogHeader>
         <AlertDialogTitle>Edit Employee: {employee.name}</AlertDialogTitle>
         <AlertDialogDescription>
-          Update the details for {employee.name}. Photo and balances are updated here.
+          Update the details for {employee.name}. Photo and documents are updated here.
         </AlertDialogDescription>
       </AlertDialogHeader>
       <form
@@ -630,6 +630,10 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
               />
               <p className="text-xs text-muted-foreground">Upload a square image. Max 5MB. Photo updates are saved immediately.</p>
             </div>
+            
+            <Separator />
+             <h3 className="text-lg font-semibold flex items-center"><UserCircle2 className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="edit-firstName">First Name</Label>
@@ -642,7 +646,98 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                     {serverState?.errors?.lastName && <p className="text-sm text-destructive">{serverState.errors.lastName.join(', ')}</p>}
                 </div>
             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="space-y-2">
+                  <Label htmlFor="edit-personalEmail">Personal Email</Label>
+                  <Input id="edit-personalEmail" name="personalEmail" type="email" defaultValue={employee.personalEmail || ''} />
+                  {serverState?.errors?.personalEmail && <p className="text-sm text-destructive">{serverState.errors.personalEmail.join(', ')}</p>}
+                </div>
+                 <div className="space-y-2">
+                  <Label htmlFor="edit-phone">Personal Phone</Label>
+                  <Input id="edit-phone" name="phone" defaultValue={employee.phone} placeholder="Numbers only" />
+                  {serverState?.errors?.phone && <p className="text-sm text-destructive">{serverState.errors.phone.join(', ')}</p>}
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                <h4 className="font-medium flex items-center text-sm"><PhoneCall className="mr-2 h-4 w-4"/>Emergency Contact</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-md">
+                     <div className="space-y-2">
+                        <Label htmlFor="edit-emergencyContactName">Name</Label>
+                        <Input id="edit-emergencyContactName" name="emergencyContactName" defaultValue={employee.emergencyContact?.name || ''} />
+                     </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="edit-emergencyContactRelationship">Relationship</Label>
+                        <Input id="edit-emergencyContactRelationship" name="emergencyContactRelationship" defaultValue={employee.emergencyContact?.relationship || ''} />
+                     </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="edit-emergencyContactNumber">Number</Label>
+                        <Input id="edit-emergencyContactNumber" name="emergencyContactNumber" defaultValue={employee.emergencyContact?.number || ''} />
+                     </div>
+                </div>
+            </div>
             
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="edit-dateOfBirth">Date of Birth</Label>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
+                        </PopoverContent>
+                    </Popover>
+                    <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
+                    {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="edit-gender">Gender</Label>
+                    <Select value={gender} onValueChange={setGender}>
+                        <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Male">Male</SelectItem>
+                            <SelectItem value="Female">Female</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <Label htmlFor="edit-nationalId">National ID</Label>
+                    <Input id="edit-nationalId" name="nationalId" defaultValue={employee.nationalId} />
+                    {serverState?.errors?.nationalId && <p className="text-sm text-destructive">{serverState.errors.nationalId.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="edit-religion">Religion</Label>
+                    <Input id="edit-religion" name="religion" defaultValue={employee.religion} />
+                    {serverState?.errors?.religion && <p className="text-sm text-destructive">{serverState.errors.religion.join(', ')}</p>}
+                </div>
+            </div>
+
+            <Separator />
+            <h3 className="text-lg font-semibold flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">NIS Email</Label>
+                  <Input id="edit-email" name="email" type="email" defaultValue={employee.email}  />
+                  {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="edit-title">Title</Label>
+                    <Input id="edit-title" name="title" defaultValue={employee.title} />
+                    {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
+                </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div className="space-y-2">
                   <Label htmlFor="edit-department">Department</Label>
@@ -696,20 +791,18 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                     {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
                 </div>
             </div>
-
-
-            <div className="grid grid-cols-2 gap-4">
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                <Label htmlFor="edit-email">Email</Label>
-                <Input id="edit-email" name="email" type="email" defaultValue={employee.email}  />
-                {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
+                    <Label htmlFor="edit-reportLine1">Report Line 1</Label>
+                    <Input id="edit-reportLine1" name="reportLine1" defaultValue={employee.reportLine1} />
                 </div>
                 <div className="space-y-2">
-                <Label htmlFor="edit-phone">Phone</Label>
-                <Input id="edit-phone" name="phone" defaultValue={employee.phone} placeholder="Numbers only" />
-                {serverState?.errors?.phone && <p className="text-sm text-destructive">{serverState.errors.phone.join(', ')}</p>}
+                    <Label htmlFor="edit-reportLine2">Report Line 2</Label>
+                    <Input id="edit-reportLine2" name="reportLine2" defaultValue={employee.reportLine2} />
                 </div>
             </div>
+           
              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="edit-hourlyRate">Hourly Rate (Optional)</Label>
@@ -717,57 +810,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                     {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
-                    <Label htmlFor="edit-nationalId">National ID</Label>
-                    <Input id="edit-nationalId" name="nationalId" defaultValue={employee.nationalId} />
-                    {serverState?.errors?.nationalId && <p className="text-sm text-destructive">{serverState.errors.nationalId.join(', ')}</p>}
-                </div>
-            </div>
-
-             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="edit-gender">Gender</Label>
-                    <Select value={gender} onValueChange={setGender}>
-                        <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="Male">Male</SelectItem>
-                            <SelectItem value="Female">Female</SelectItem>
-                            <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="edit-religion">Religion</Label>
-                    <Input id="edit-religion" name="religion" defaultValue={employee.religion} />
-                    {serverState?.errors?.religion && <p className="text-sm text-destructive">{serverState.errors.religion.join(', ')}</p>}
-                </div>
-            </div>
-             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="edit-title">Title</Label>
-                    <Input id="edit-title" name="title" defaultValue={employee.title} />
-                    {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
-                </div>
-            </div>
-           
-             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="edit-dateOfBirth">Date of Birth</Label>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
-                        </PopoverContent>
-                    </Popover>
-                    <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
-                    {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
                     <Label htmlFor="edit-joiningDate">Joining Date</Label>
                      <Popover>
                         <PopoverTrigger asChild>
