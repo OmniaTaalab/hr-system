@@ -176,10 +176,10 @@ export async function submitLeaveRequestAction(
                 isRead: false,
             });
             
-            // Send email notification to manager
-            if (managerData.email) {
+            // Send email notification to manager's personal email
+            if (managerData.personalEmail) {
                 await addDoc(collection(db, "mail"), {
-                  to: [managerData.email],
+                  to: [managerData.personalEmail],
                   message: {
                     subject: `New Leave Request from ${employeeName}`,
                     html: `
@@ -491,9 +491,3 @@ export async function deleteLeaveRequestAction(
     };
   }
 }
-
-    
-
-    
-
-    
