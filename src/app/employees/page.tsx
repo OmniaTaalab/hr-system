@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -1213,39 +1211,43 @@ function EmployeeManagementContent() {
   }, [hasFullView, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, isFiltered, firstVisible, lastVisible, toast, isSearching]);
   
   useEffect(() => {
-    if(isLoadingProfile) return;
+    if(isLoadingProfile || !hasFullView) return;
 
-    if (hasFullView) {
-        setCurrentPage(1);
-        setFirstVisible(null);
-        setLastVisible(null);
-        
-        fetchEmployees('first');
+    setCurrentPage(1);
+    setFirstVisible(null);
+    setLastVisible(null);
+    fetchEmployees('first');
+    
+  }, [hasFullView, isLoadingProfile, fetchEmployees, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
 
-        const employeeCollection = collection(db, "employee");
-        let countQuery;
-        let countFilters: QueryConstraint[] = [];
-        
-        const userRole = profile?.role?.toLowerCase();
 
-        if (userRole === 'principal' && profile?.name) {
-            countFilters.push(where("reportLine1", "==", profile.name));
-        } else {
-             if (campusFilter !== 'All') countFilters.push(where("campus", "==", campusFilter));
-             if (stageFilter !== 'All') countFilters.push(where("stage", "==", stageFilter));
-             if (subjectFilter !== 'All') countFilters.push(where("subject", "==", subjectFilter));
-             if (genderFilter !== 'All') countFilters.push(where("gender", "==", genderFilter));
-             if (religionFilter !== "All") countFilters.push(where("religion", "==", religionFilter));
-        }
-        
-        countQuery = query(employeeCollection, ...countFilters);
-        
-        getCountFromServer(countQuery).then(snapshot => {
-            setTotalEmployees(snapshot.data().count);
-        }).catch(() => setTotalEmployees(0));
+  useEffect(() => {
+    if (isLoadingProfile || !hasFullView) return;
+    
+    const employeeCollection = collection(db, "employee");
+    let countQuery;
+    let countFilters: QueryConstraint[] = [];
+    
+    const userRole = profile?.role?.toLowerCase();
+
+    if (userRole === 'principal' && profile?.name) {
+        countFilters.push(where("reportLine1", "==", profile.name));
+    } else {
+         if (campusFilter !== 'All') countFilters.push(where("campus", "==", campusFilter));
+         if (stageFilter !== 'All') countFilters.push(where("stage", "==", stageFilter));
+         if (subjectFilter !== 'All') countFilters.push(where("subject", "==", subjectFilter));
+         if (genderFilter !== 'All') countFilters.push(where("gender", "==", genderFilter));
+         if (religionFilter !== "All") countFilters.push(where("religion", "==", religionFilter));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFullView, isLoadingProfile, toast, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, isSearching]);
+    
+    countQuery = query(employeeCollection, ...countFilters);
+    
+    getCountFromServer(countQuery).then(snapshot => {
+        setTotalEmployees(snapshot.data().count);
+    }).catch(() => setTotalEmployees(0));
+
+  }, [isLoadingProfile, hasFullView, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
+  
   
   const goToNextPage = () => {
     if (isLastPage) return;
