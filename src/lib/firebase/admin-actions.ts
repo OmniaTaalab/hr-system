@@ -356,7 +356,6 @@ export async function updateEmployeeAction(
      Object.keys(updateData).forEach(key => {
         const value = (updateData as any)[key];
         
-        // This check handles `null`, `undefined`, but allows `0` and `false`
         if (value !== undefined) {
              if (key.startsWith('emergencyContact')) {
                 if (!emergencyContact) emergencyContact = { ...(currentEmployeeData.emergencyContact || {}) };
@@ -372,7 +371,6 @@ export async function updateEmployeeAction(
       dataToUpdate.emergencyContact = emergencyContact;
     }
 
-    // If either first name or last name is updated, reconstruct the full name
     if (dataToUpdate.firstName || dataToUpdate.lastName) {
       const newFirstName = dataToUpdate.firstName ?? currentEmployeeData.firstName;
       const newLastName = dataToUpdate.lastName ?? currentEmployeeData.lastName;
@@ -385,7 +383,6 @@ export async function updateEmployeeAction(
     if (dataToUpdate.joiningDate) {
         dataToUpdate.joiningDate = Timestamp.fromDate(dataToUpdate.joiningDate);
     }
-    // Handle leavingDate: allow it to be set to null
     if (Object.prototype.hasOwnProperty.call(dataToUpdate, 'leavingDate')) {
         dataToUpdate.leavingDate = dataToUpdate.leavingDate ? Timestamp.fromDate(dataToUpdate.leavingDate) : null;
     }
@@ -396,7 +393,6 @@ export async function updateEmployeeAction(
     
     await updateDoc(employeeRef, dataToUpdate);
 
-    // For logging, we need a "plain" version of the old and new data
     const oldDataForLog = JSON.parse(JSON.stringify(currentEmployeeData));
     const newDataForLog = JSON.parse(JSON.stringify(dataToUpdate));
     
@@ -416,7 +412,7 @@ export async function updateEmployeeAction(
   } catch (error: any) {
     console.error('Firestore Update Employee Error:', error);
     return {
-      errors: { form: [`Failed to update employee: ${error.message}`] },
+      errors: { form: [`An unexpected error occurred.`] },
       message: 'Failed to update employee.',
     };
   }
