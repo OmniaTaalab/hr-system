@@ -487,7 +487,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                           <SelectValue placeholder={isLoadingPrincipals ? "Loading..." : "Select a Principal"} />
                       </SelectTrigger>
                       <SelectContent>
-                          {principals.map(p => <SelectItem key={p.id} value={p.name}>{p.name} ({p.email}) - {p.personalEmail}</SelectItem>)}
+                          {principals.map(p => <SelectItem key={p.id} value={p.name}>{p.name} ({p.email})</SelectItem>)}
                       </SelectContent>
                     </Select>
                     {serverState?.errors?.reportLine1 && <p className="text-sm text-destructive">{serverState.errors.reportLine1.join(', ')}</p>}
@@ -1218,7 +1218,7 @@ function EmployeeManagementContent() {
     setLastVisible(null);
     fetchEmployees('first');
     
-  }, [hasFullView, isLoadingProfile, fetchEmployees, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
+  }, [hasFullView, isLoadingProfile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
 
 
   useEffect(() => {
@@ -1500,7 +1500,7 @@ function EmployeeManagementContent() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent className="p-3 pt-0">
-              <div className="text-lg font-bold sm:text-2xl">{isLoading ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : totalEmployees}</div>
+              <div className="text-lg font-bold sm:text-2xl">{isLoadingProfile || totalEmployees === null ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : totalEmployees}</div>
             </CardContent>
           </Card>
         </div>
