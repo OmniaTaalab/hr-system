@@ -63,6 +63,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 
 export interface EmployeeFile {
@@ -1798,18 +1799,39 @@ function EmployeeManagementContent() {
               <DialogHeader>
                 <DialogTitle>Create Login for {employeeToCreateLogin.name}</DialogTitle>
                 <DialogDescription>
-                  Create a secure password for <strong>{employeeToCreateLogin.email}</strong>.
+                  Choose which email to use for the login account and create a secure password.
                 </DialogDescription>
               </DialogHeader>
               
               <input type="hidden" name="employeeDocId" value={employeeToCreateLogin.id} />
-              <input type="hidden" name="email" value={employeeToCreateLogin.email} />
               <input type="hidden" name="name" value={employeeToCreateLogin.name} />
               <input type="hidden" name="actorId" value={profile?.id} />
               <input type="hidden" name="actorEmail" value={profile?.email} />
               <input type="hidden" name="actorRole" value={profile?.role} />
               
               <div className="grid gap-4 py-4">
+                <div className="space-y-3">
+                  <Label>Email for Login</Label>
+                  <RadioGroup name="emailType" defaultValue="work" className="grid grid-cols-2 gap-4">
+                    <div>
+                      <RadioGroupItem value="work" id="emailType-work" className="peer sr-only" />
+                      <Label htmlFor="emailType-work" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                        Work Email
+                        <span className="font-normal text-xs mt-1 truncate">{employeeToCreateLogin.email}</span>
+                      </Label>
+                    </div>
+                    <div>
+                      <RadioGroupItem value="personal" id="emailType-personal" className="peer sr-only" disabled={!employeeToCreateLogin.personalEmail} />
+                      <Label htmlFor="emailType-personal" className={`flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 ${!employeeToCreateLogin.personalEmail ? 'cursor-not-allowed opacity-50' : 'hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary'}`}>
+                        Personal Email
+                        <span className="font-normal text-xs mt-1 truncate">{employeeToCreateLogin.personalEmail || 'Not available'}</span>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                   {createLoginServerState?.errors?.email && (
+                      <p className="text-sm text-destructive mt-1">{createLoginServerState.errors.email.join(', ')}</p>
+                  )}
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <div className="relative">

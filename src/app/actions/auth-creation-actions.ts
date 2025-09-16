@@ -10,7 +10,7 @@ import { logSystemEvent } from '@/lib/system-log';
 // --- Updated Create Auth User Action ---
 const CreateAuthUserSchema = z.object({
   employeeDocId: z.string().min(1, 'Employee document ID is required.'),
-  email: z.string().email('A valid email is required.'),
+  emailType: z.enum(['work', 'personal'], { required_error: "You must select an email type." }),
   name: z.string().min(1, 'Employee name is required.'),
   password: z.string().min(6, 'Password must be at least 6 characters long.'),
   confirmPassword: z.string().min(6, 'Password confirmation is required.'),
@@ -25,6 +25,7 @@ const CreateAuthUserSchema = z.object({
 
 export type CreateAuthUserState = {
   errors?: {
+    email?: string[];
     form?: string[];
     password?: string[];
     confirmPassword?: string[];
@@ -49,7 +50,7 @@ export async function createAuthUserForEmployeeAction(
   
   const validatedFields = CreateAuthUserSchema.safeParse({
     employeeDocId: formData.get('employeeDocId'),
-    email: formData.get('email'),
+    emailType: formData.get('emailType'),
     name: formData.get('name'),
     password: formData.get('password'),
     confirmPassword: formData.get('confirmPassword'),
@@ -66,8 +67,10 @@ export async function createAuthUserForEmployeeAction(
     };
   }
 
-  const { employeeDocId, email, name, password, actorId, actorEmail, actorRole } = validatedFields.data;
+  const { employeeDocId, emailType, name, password, actorId, actorEmail, actorRole } = validatedFields.data;
   
+  let emailToUse: string | undefined;
+
   try {
     const employeeRef = doc(db, 'employee', employeeDocId);
     const employeeSnap = await getDoc(employeeRef);
@@ -75,16 +78,29 @@ export async function createAuthUserForEmployeeAction(
     if (!employeeSnap.exists()) {
       return { errors: { form: ['Employee not found.'] }, success: false };
     }
-    if (employeeSnap.data().userId) {
+    const employeeData = employeeSnap.data();
+
+    if (employeeData.userId) {
       return { errors: { form: [`Employee ${name} already has a linked account.`] }, success: false };
     }
+
+    if (emailType === 'work') {
+      emailToUse = employeeData.email;
+    } else if (emailType === 'personal') {
+      emailToUse = employeeData.personalEmail;
+    }
+
+    if (!emailToUse) {
+       return { errors: { email: [`The selected ${emailType} email is not available for this employee.`] }, success: false };
+    }
+
   } catch (e: any) {
      return { errors: { form: [`Error fetching employee data: ${e.message}`] }, success: false };
   }
 
   try {
     const userRecord = await adminAuth.createUser({
-      email: email,
+      email: emailToUse,
       emailVerified: true,
       password: password,
       displayName: name,
@@ -115,7 +131,7 @@ export async function createAuthUserForEmployeeAction(
     console.error('Error creating Firebase Auth user:', error);
     let errorMessage = 'An unexpected error occurred.';
     if (error.code === 'auth/email-already-exists') {
-      errorMessage = `The email address "${email}" is already in use by another account.`;
+      errorMessage = `The email address "${emailToUse}" is already in use by another account.`;
     } else if (error.message) {
       errorMessage = error.message;
     }
