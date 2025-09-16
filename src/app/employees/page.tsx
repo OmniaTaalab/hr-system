@@ -489,7 +489,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                           <SelectValue placeholder={isLoadingPrincipals ? "Loading..." : "Select a Principal"} />
                       </SelectTrigger>
                       <SelectContent>
-                          {principals.map(p => <SelectItem key={p.id} value={p.name}>{p.name} ({p.email})</SelectItem>)}
+                          {principals.map(p => <SelectItem key={p.id} value={p.name}>{p.name} ({p.email}) - {p.personalEmail}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     {serverState?.errors?.reportLine1 && <p className="text-sm text-destructive">{serverState.errors.reportLine1.join(', ')}</p>}
