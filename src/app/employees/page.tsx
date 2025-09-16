@@ -1218,7 +1218,7 @@ function EmployeeManagementContent() {
     setLastVisible(null);
     fetchEmployees('first');
     
-  }, [hasFullView, isLoadingProfile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
+  }, [hasFullView, isLoadingProfile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, fetchEmployees]);
 
 
   useEffect(() => {
