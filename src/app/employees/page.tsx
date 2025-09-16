@@ -572,7 +572,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   const [subject, setSubject] = useState(employee.subject || "");
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(employee.dateOfBirth?.toDate());
   const [joiningDate, setJoiningDate] = useState<Date | undefined>(employee.joiningDate?.toDate());
-  const [leavingDate, setLeavingDate] = useState<Date | undefined>(employee.leavingDate?.toDate());
+  const [leavingDate, setLeavingDate] = useState<Date | undefined | null>(employee.leavingDate?.toDate());
 
   useEffect(() => {
     if (!serverState) return;
@@ -618,6 +618,9 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         <input type="hidden" name="gender" value={gender || ''} />
         <input type="hidden" name="stage" value={stage || ''} />
         <input type="hidden" name="subject" value={subject || ''} />
+        <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
+        <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
+        <input type="hidden" name="leavingDate" value={leavingDate?.toISOString() ?? ''} />
         
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
@@ -692,7 +695,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                             <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
                         </PopoverContent>
                     </Popover>
-                    <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
                     {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
@@ -822,12 +824,14 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                             <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} initialFocus />
                         </PopoverContent>
                     </Popover>
-                    <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
                     {serverState?.errors?.joiningDate && <p className="text-sm text-destructive">{serverState.errors.joiningDate.join(', ')}</p>}
                 </div>
             </div>
             <div className="space-y-2">
-                <Label htmlFor="edit-leavingDate">Leaving Date (Optional)</Label>
+                <div className="flex items-center justify-between">
+                    <Label htmlFor="edit-leavingDate">Leaving Date (Optional)</Label>
+                    {leavingDate && <Button variant="ghost" size="sm" onClick={() => setLeavingDate(null)}>Clear</Button>}
+                </div>
                 <Popover>
                     <PopoverTrigger asChild>
                         <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !leavingDate && "text-muted-foreground")}>
@@ -836,10 +840,9 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                         </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                        <Calendar mode="single" selected={leavingDate} onSelect={setLeavingDate} />
+                        <Calendar mode="single" selected={leavingDate || undefined} onSelect={setLeavingDate} />
                     </PopoverContent>
                 </Popover>
-                <input type="hidden" name="leavingDate" value={leavingDate?.toISOString() ?? ''} />
                 {serverState?.errors?.leavingDate && <p className="text-sm text-destructive">{serverState.errors.leavingDate.join(', ')}</p>}
             </div>
 

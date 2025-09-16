@@ -352,17 +352,17 @@ export async function updateEmployeeAction(
     let emergencyContact: { [key: string]: any } | undefined = undefined;
 
     Object.entries(updateData).forEach(([key, value]) => {
-      if (value !== undefined) {
+      if (value !== undefined && value !== "") { // Also check for empty strings to avoid overwriting with them
          if (key.startsWith('emergencyContact')) {
-          if (!emergencyContact) emergencyContact = { ...currentEmployeeData.emergencyContact };
-          const fieldName = key.replace('emergencyContact', '').toLowerCase();
+          if (!emergencyContact) emergencyContact = { ...(currentEmployeeData.emergencyContact || {}) };
+          const fieldName = key.replace('emergencyContact', '').charAt(0).toLowerCase() + key.slice('emergencyContact'.length + 1);
           emergencyContact[fieldName] = value;
         } else {
           dataToUpdate[key] = value;
         }
       }
     });
-
+    
     if (emergencyContact) {
       dataToUpdate.emergencyContact = emergencyContact;
     }
@@ -381,8 +381,8 @@ export async function updateEmployeeAction(
         dataToUpdate.joiningDate = Timestamp.fromDate(dataToUpdate.joiningDate);
     }
     // Handle leavingDate: allow it to be set to null
-    if (dataToUpdate.hasOwnProperty('leavingDate')) {
-      dataToUpdate.leavingDate = dataToUpdate.leavingDate ? Timestamp.fromDate(dataToUpdate.leavingDate) : null;
+    if (rawData.hasOwnProperty('leavingDate')) { // Check raw form data
+      dataToUpdate.leavingDate = rawData.leavingDate ? Timestamp.fromDate(new Date(rawData.leavingDate as string)) : null;
     }
 
     if (Object.keys(dataToUpdate).length === 0) {
