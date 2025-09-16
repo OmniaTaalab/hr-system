@@ -11,7 +11,8 @@ import { logSystemEvent } from '@/lib/system-log';
 import { Resend } from 'resend';
 import LeaveRequestNotificationEmail from '@/emails/leave-request-notification';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Only initialize Resend if the API key is provided
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 // New helper function to calculate working days, excluding weekends and holidays
 async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<number> {
@@ -180,8 +181,8 @@ export async function submitLeaveRequestAction(
                 isRead: false,
             });
             
-            // Send email notification to manager's personal email
-            if (managerData.personalEmail && process.env.RESEND_API_KEY) {
+            // Send email notification to manager's personal email if Resend is configured
+            if (managerData.personalEmail && resend) {
                 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
                 const leaveRequestLink = `${appUrl}/leave/all-requests`;
 
