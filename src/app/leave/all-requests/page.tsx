@@ -33,18 +33,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send, Filter, AlertTriangle, FileDown, Paperclip, User, Info, FileText } from "lucide-react";
-import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
-import { format, formatDistance } from "date-fns";
+import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, Filter, AlertTriangle, FileDown, Paperclip, Eye } from "lucide-react";
+import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
+import { format } from "date-fns";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, Timestamp, orderBy, where, getDocs, QueryConstraint } from 'firebase/firestore';
 import { 
@@ -53,12 +47,7 @@ import {
   deleteLeaveRequestAction, type DeleteLeaveRequestState
 } from "@/app/actions/leave-actions";
 import * as XLSX from 'xlsx';
-
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { useLeaveTypes } from "@/hooks/use-leave-types";
+import { useRouter } from "next/navigation";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
 
 
@@ -81,8 +70,6 @@ export interface LeaveRequestEntry {
   attachmentURL?: string; 
 }
 
-const initialUpdateStatusState: UpdateLeaveStatusState = { message: null, errors: {}, success: false };
-const initialEditState: EditLeaveRequestState = { message: null, errors: {}, success: false };
 const initialDeleteState: DeleteLeaveRequestState = { message: null, errors: {}, success: false };
 
 
@@ -99,368 +86,9 @@ function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
   }
 }
 
-interface UpdateStatusFormProps {
-  request: LeaveRequestEntry;
-  actionType: "Approved" | "Rejected";
-  onClose: () => void;
-}
-
-function UpdateStatusForm({ request, actionType, onClose }: UpdateStatusFormProps) {
-  const { toast } = useToast();
-  const { profile } = useUserProfile();
-  const [serverState, formAction, isPending] = useActionState(updateLeaveRequestStatusAction, initialUpdateStatusState);
-  const [managerNotes, setManagerNotes] = useState(request.managerNotes || "");
-
-  useEffect(() => {
-    if (serverState?.message) {
-      if (serverState.success) {
-        toast({ title: "Success", description: serverState.message });
-        onClose();
-      } else {
-        toast({ variant: "destructive", title: "Error", description: serverState.errors?.form?.join(", ") || serverState.message });
-      }
-    }
-  }, [serverState, toast, onClose]);
-  
-  return (
-    <form action={formAction}>
-      <input type="hidden" name="requestId" value={request.id} />
-      <input type="hidden" name="newStatus" value={actionType} />
-      <input type="hidden" name="actorId" value={profile?.id || ""} />
-      <input type="hidden" name="actorEmail" value={profile?.email || ""} />
-      <input type="hidden" name="actorRole" value={profile?.role || ""} />
-
-
-      <AlertDialogHeader>
-        <AlertDialogTitle>Confirm {actionType === "Approved" ? "Approval" : "Rejection"}</AlertDialogTitle>
-        <AlertDialogDescription>
-          You are about to {actionType.toLowerCase()} the leave request for <strong>{request.employeeName}</strong>.
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <div className="my-4 space-y-2">
-        <Label htmlFor={`managerNotes-${request.id}`}>Manager Notes (Optional)</Label>
-        <Textarea
-          id={`managerNotes-${request.id}`}
-          name="managerNotes"
-          value={managerNotes}
-          onChange={(e) => setManagerNotes(e.target.value)}
-          placeholder={`Notes for ${actionType.toLowerCase()} this request...`}
-          rows={3}
-        />
-        {serverState?.errors?.managerNotes && <p className="text-sm text-destructive">{serverState.errors.managerNotes.join(', ')}</p>}
-      </div>
-       {serverState?.errors?.form && (
-        <p className="text-sm font-medium text-destructive mb-2">
-          {serverState.errors.form.join(", ")}
-        </p>
-      )}
-      <AlertDialogFooter>
-        <AlertDialogCancel type="button" onClick={onClose}>Cancel</AlertDialogCancel>
-        <Button
-          type="submit"
-          className={cn(actionType === "Approved" ? buttonVariants({ variant: "default" }) : buttonVariants({ variant: "destructive" }))}
-          disabled={isPending}
-        >
-          {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (actionType === "Approved" ? "Approve" : "Reject")}
-        </Button>
-      </AlertDialogFooter>
-    </form>
-  );
-}
-
-// Schema for edit form (client-side)
-const editLeaveRequestClientSchema = z.object({
-  leaveType: z.string().min(1, "Leave type is required"),
-  startDate: z.date({ required_error: "Start date is required" }),
-  endDate: z.date({ required_error: "End date is required" }),
-  reason: z.string().min(10, "Reason must be at least 10 characters").max(500, "Reason must be at most 500 characters"),
-  status: z.enum(["Pending", "Approved", "Rejected"], { required_error: "Status is required" }),
-}).refine(data => data.endDate >= data.startDate, {
-  message: "End date cannot be before start date",
-  path: ["endDate"],
-});
-type EditLeaveRequestFormValues = z.infer<typeof editLeaveRequestClientSchema>;
-
-
-interface EditLeaveRequestDialogProps {
-  request: LeaveRequestEntry;
-  onClose: () => void;
-  open: boolean;
-}
-
-function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDialogProps) {
-  const { toast } = useToast();
-  const { profile } = useUserProfile();
-  const formRef = useRef<HTMLFormElement>(null);
-  const [serverState, formAction, isPending] = useActionState(editLeaveRequestAction, initialEditState);
-  const [_isTransitionPending, startTransition] = useTransition();
-  const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
-
-  const form = useForm<EditLeaveRequestFormValues>({
-    resolver: zodResolver(editLeaveRequestClientSchema),
-    defaultValues: {
-      leaveType: request.leaveType || "",
-      startDate: request.startDate.toDate(),
-      endDate: request.endDate.toDate(),
-      reason: request.reason || "",
-      status: request.status || "Pending",
-    },
-  });
-   
-  useEffect(() => {
-    if (request && open) { 
-      form.reset({
-        leaveType: request.leaveType || "",
-        startDate: request.startDate.toDate(),
-        endDate: request.endDate.toDate(),
-        reason: request.reason || "",
-        status: request.status || "Pending",
-      });
-    }
-  }, [request, form, open]);
-
-  useEffect(() => {
-    if (serverState?.message) {
-      if (serverState.success) {
-        toast({ title: "Success", description: serverState.message });
-        onClose(); 
-      } else {
-        toast({ variant: "destructive", title: "Error", description: serverState.errors?.form?.join(", ") || serverState.message });
-      }
-    }
-  }, [serverState, toast, onClose]);
-
-  const handleFormSubmit = (data: EditLeaveRequestFormValues) => {
-    if (!formRef.current) return;
-    const formData = new FormData(formRef.current);
-    formData.set('requestId', request.id);
-    formData.set('startDate', data.startDate.toISOString()); 
-    formData.set('endDate', data.endDate.toISOString());
-    formData.set('leaveType', data.leaveType);
-    formData.set('reason', data.reason);
-    formData.set('status', data.status);
-    formData.set('actorId', profile?.id || "");
-    formData.set('actorEmail', profile?.email || "");
-    formData.set('actorRole', profile?.role || "");
-    startTransition(() => {
-      formAction(formData);
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
-      <DialogContent className="sm:max-w-[480px]">
-        <DialogHeader>
-          <DialogTitle>Edit Leave Request</DialogTitle>
-          <DialogDescription>
-            Editing leave request for <strong>{request.employeeName}</strong>.
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form ref={formRef} onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6 py-4">
-            <input type="hidden" name="requestId" value={request.id} />
-            <FormField
-              control={form.control}
-              name="leaveType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Leave Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ""} disabled={isLoadingLeaveTypes}>
-                    <FormControl>
-                      <SelectTrigger><SelectValue placeholder={isLoadingLeaveTypes ? "Loading types..." : "Select a leave type"} /></SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {leaveTypes.map(type => (
-                        <SelectItem key={type.id} value={type.name}>{type.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage>{serverState?.errors?.leaveType?.[0] || form.formState.errors.leaveType?.message}</FormMessage>
-                </FormItem>
-              )}
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="startDate"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Start Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus 
-                                  disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))} />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage>{serverState?.errors?.startDate?.[0] || form.formState.errors.startDate?.message}</FormMessage>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="endDate"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>End Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus 
-                                  disabled={(date) => date < (form.getValues("startDate") || new Date(new Date().setHours(0,0,0,0)))} />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage>{serverState?.errors?.endDate?.[0] || form.formState.errors.endDate?.message}</FormMessage>
-                  </FormItem>
-                )}
-              />
-            </div>
-            <FormField
-              control={form.control}
-              name="reason"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Reason for Leave</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Reason for leave" className="resize-none" {...field} value={field.value || ""} rows={3} />
-                  </FormControl>
-                  <FormMessage>{serverState?.errors?.reason?.[0] || form.formState.errors.reason?.message}</FormMessage>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || "Pending"}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a status" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Pending">Pending</SelectItem>
-                      <SelectItem value="Approved">Approved</SelectItem>
-                      <SelectItem value="Rejected">Rejected</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage>{serverState?.errors?.status?.[0] || form.formState.errors.status?.message}</FormMessage>
-                </FormItem>
-              )}
-            />
-            {serverState?.errors?.form && <p className="text-sm font-medium text-destructive">{serverState.errors.form.join(", ")}</p>}
-            <DialogFooter>
-              <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-              <Button type="submit" disabled={isPending || isLoadingLeaveTypes}>
-                {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                Save Changes
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// New component for viewing leave details and taking action
-interface ViewRequestDialogProps {
-  request: LeaveRequestEntry | null;
-  onClose: () => void;
-  open: boolean;
-  canManage: boolean;
-}
-
-function ViewRequestDialog({ request, onClose, open, canManage }: ViewRequestDialogProps) {
-    const { profile } = useUserProfile();
-    const [actionType, setActionType] = useState<"Approved" | "Rejected" | null>(null);
-    const [isActionAlertOpen, setIsActionAlertOpen] = useState(false);
-
-    const isUserTheManager = profile && request && profile.name === request.reportLine1;
-    const canTakeAction = isUserTheManager && request?.status === 'Pending';
-    
-    if (!request) return null;
-
-    const handleActionClick = (type: "Approved" | "Rejected") => {
-        setActionType(type);
-        setIsActionAlertOpen(true);
-    };
-
-    return (
-      <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Info className="h-5 w-5 text-primary" />Leave Request Details</DialogTitle>
-            <DialogDescription>
-                Submitted {formatDistance(request.submittedAt.toDate(), new Date(), { addSuffix: true })}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4 text-sm">
-            <div className="flex items-center gap-2"><User className="h-4 w-4 text-muted-foreground" /><span className="font-semibold">Employee:</span> {request.employeeName}</div>
-            <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-muted-foreground" /><span className="font-semibold">Leave Type:</span> {request.leaveType}</div>
-            <div className="flex items-center gap-2"><CalendarIcon className="h-4 w-4 text-muted-foreground" /><span className="font-semibold">Dates:</span> {format(request.startDate.toDate(), "PPP")} to {format(request.endDate.toDate(), "PPP")}</div>
-            <div className="flex items-center gap-2"><Hourglass className="h-4 w-4 text-muted-foreground" /><span className="font-semibold">Duration:</span> {request.numberOfDays ?? 0} working days</div>
-            <div>
-              <p className="font-semibold mb-1">Reason:</p>
-              <p className="p-2 bg-muted rounded-md">{request.reason}</p>
-            </div>
-            {request.attachmentURL && (
-              <div>
-                <p className="font-semibold mb-1">Attachment:</p>
-                <Button asChild variant="secondary" size="sm">
-                  <a href={request.attachmentURL} target="_blank" rel="noopener noreferrer"><Paperclip className="mr-2 h-4 w-4" />View Attachment</a>
-                </Button>
-              </div>
-            )}
-             {request.managerNotes && (
-              <div>
-                <p className="font-semibold mb-1">Manager Notes:</p>
-                <p className="p-2 bg-muted/50 border rounded-md">{request.managerNotes}</p>
-              </div>
-            )}
-             <div><span className="font-semibold">Status:</span> <LeaveStatusBadge status={request.status} /></div>
-          </div>
-          <DialogFooter className="sm:justify-between">
-            {canTakeAction ? (
-                <div className="flex gap-2">
-                    <Button variant="destructive" onClick={() => handleActionClick("Rejected")}>Reject</Button>
-                    <Button onClick={() => handleActionClick("Approved")}>Approve</Button>
-                </div>
-            ) : <div />}
-             <DialogClose asChild><Button type="button" variant="outline">Close</Button></DialogClose>
-          </DialogFooter>
-        </DialogContent>
-        {isActionAlertOpen && actionType && (
-            <AlertDialog open={isActionAlertOpen} onOpenChange={setIsActionAlertOpen}>
-                <AlertDialogContent>
-                    <UpdateStatusForm request={request} actionType={actionType} onClose={() => { setIsActionAlertOpen(false); onClose(); }} />
-                </AlertDialogContent>
-            </AlertDialog>
-        )}
-      </Dialog>
-    );
-}
-
-
-
 function AllLeaveRequestsContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Approved" | "Rejected">("All");
   const [campusFilter, setCampusFilter] = useState<string>("All");
@@ -469,15 +97,6 @@ function AllLeaveRequestsContent() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { campuses, groupNames: stages, isLoading: isLoadingLists } = useOrganizationLists();
-  
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  
-  const [selectedRequestToAction, setSelectedRequestToAction] = useState<LeaveRequestEntry | null>(null);
-  const [actionTypeForStatusUpdate, setActionTypeForStatusUpdate] = useState<"Approved" | "Rejected" | null>(null);
-  const [isStatusUpdateDialogOpen, setIsStatusUpdateDialogOpen] = useState(false);
-  
-  const [selectedRequestToEdit, setSelectedRequestToEdit] = useState<LeaveRequestEntry | null>(null);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   
   const [selectedRequestToDelete, setSelectedRequestToDelete] = useState<LeaveRequestEntry | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -499,19 +118,15 @@ function AllLeaveRequestsContent() {
         let queryConstraints: QueryConstraint[] = [];
         const userRole = profile?.role?.toLowerCase();
         
-        // Admins and HR see all requests initially.
         if (userRole === 'admin' || userRole === 'hr') {
             // No additional filters needed for query
         } 
-        // Other roles might be managers, so find their direct reports.
         else if (profile?.name) {
             try {
-                // Find employees who report to the current user
                 const reportsQuery = query(collection(db, "employee"), where("reportLine1", "==", profile.name));
                 const reportsSnapshot = await getDocs(reportsQuery);
                 const reportIds = reportsSnapshot.docs.map(doc => doc.id);
                 
-                // Also include the user's own requests
                 if(profile.id && !reportIds.includes(profile.id)) {
                     reportIds.push(profile.id);
                 }
@@ -524,25 +139,21 @@ function AllLeaveRequestsContent() {
                         queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds.slice(0, 30)));
                     }
                 } else {
-                    // If user is not a manager, only show their own requests.
                      queryConstraints.push(where("requestingEmployeeDocId", "==", profile.id || ""));
                 }
             } catch (error) {
                 console.error("Error finding direct reports:", error);
-                // Fallback to only own requests on error
                 queryConstraints.push(where("requestingEmployeeDocId", "==", profile.id || ""));
             }
         }
-        // If user is not admin/hr and has no profile name (unlikely), show nothing
         else {
-             queryConstraints.push(where("requestingEmployeeDocId", "==", "")); // query that returns nothing
+             queryConstraints.push(where("requestingEmployeeDocId", "==", ""));
         }
 
         const finalQuery = query(collection(db, "leaveRequests"), ...queryConstraints);
         
         const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
             const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
-            // Sort client-side
             requestsData.sort((a,b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
             setAllRequests(requestsData);
             setIsLoading(false);
@@ -660,36 +271,6 @@ function AllLeaveRequestsContent() {
       title: "Export Successful",
       description: "Leave requests have been exported to Excel.",
     });
-  };
-  
-  const openViewDialog = (request: LeaveRequestEntry) => {
-    setSelectedRequestToAction(request);
-    setIsViewDialogOpen(true);
-  };
-
-  const closeViewDialog = () => {
-    setSelectedRequestToAction(null);
-    setIsViewDialogOpen(false);
-  };
-
-  const openStatusUpdateDialog = (request: LeaveRequestEntry, type: "Approved" | "Rejected") => {
-    setSelectedRequestToAction(request);
-    setActionTypeForStatusUpdate(type);
-    setIsStatusUpdateDialogOpen(true);
-  };
-  const closeStatusUpdateDialog = () => {
-    setSelectedRequestToAction(null);
-    setActionTypeForStatusUpdate(null);
-    setIsStatusUpdateDialogOpen(false);
-  };
-
-  const openEditDialog = (request: LeaveRequestEntry) => {
-    setSelectedRequestToEdit(request);
-    setIsEditDialogOpen(true);
-  };
-  const closeEditDialog = () => {
-    setSelectedRequestToEdit(null);
-    setIsEditDialogOpen(false);
   };
   
   const openDeleteDialog = (request: LeaveRequestEntry) => {
@@ -821,8 +402,7 @@ function AllLeaveRequestsContent() {
                   <TableHead>End Date</TableHead>
                   <TableHead>Working Days</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Attachment</TableHead>
-                  {canManageRequests && <TableHead className="text-right">Actions</TableHead>}
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -832,7 +412,7 @@ function AllLeaveRequestsContent() {
                     const endDate = request.endDate.toDate();
                     const fallbackDays = 0;
                     return (
-                      <TableRow key={request.id} onClick={() => openViewDialog(request)} className="cursor-pointer">
+                      <TableRow key={request.id} onClick={() => router.push(`/leave/all-requests/${request.id}`)} className="cursor-pointer">
                         <TableCell className="font-medium">{request.employeeName}</TableCell>
                         <TableCell>{request.employeeStage}</TableCell>
                         <TableCell>{request.employeeCampus}</TableCell>
@@ -843,61 +423,18 @@ function AllLeaveRequestsContent() {
                         <TableCell>
                           <LeaveStatusBadge status={request.status} />
                         </TableCell>
-                        <TableCell>
-                            {request.attachmentURL ? (
-                                <Button asChild variant="outline" size="sm">
-                                    <a href={request.attachmentURL} target="_blank" rel="noopener noreferrer">
-                                        <Paperclip className="mr-2 h-4 w-4" /> View
-                                    </a>
-                                </Button>
-                            ) : (
-                                <span className="text-muted-foreground text-xs">None</span>
-                            )}
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm">
+                            <Eye className="mr-2 h-4 w-4" />
+                            View
+                          </Button>
                         </TableCell>
-                        {canManageRequests && (
-                          <TableCell className="text-right">
-                          <DropdownMenu onOpenChange={(open) => open && event?.stopPropagation()}>
-                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                  <span className="sr-only">Open menu</span>
-                                  <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              
-                              {request.status === "Pending" && (
-                                  <>
-                                  <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Approved")}>
-                                      <ShieldCheck className="mr-2 h-4 w-4" /> Approve
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => openStatusUpdateDialog(request, "Rejected")}>
-                                      <ShieldX className="mr-2 h-4 w-4" /> Reject
-                                  </DropdownMenuItem>
-                                  </>
-                              )}
-
-                              <DropdownMenuItem onClick={() => openEditDialog(request)}>
-                                  <Edit3 className="mr-2 h-4 w-4" /> Edit
-                              </DropdownMenuItem>
-                              
-                              {(request.status === "Pending") && (
-                                  <DropdownMenuSeparator />
-                              )}
-
-                              <DropdownMenuItem onClick={() => openDeleteDialog(request)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                              </DropdownMenuItem>
-                              </DropdownMenuContent>
-                          </DropdownMenu>
-                          </TableCell>
-                        )}
                       </TableRow>
                     );
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={canManageRequests ? 10 : 9} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       {searchTerm || statusFilter !== "All" || campusFilter !== "All" || stageFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
                     </TableCell>
                   </TableRow>
@@ -907,34 +444,7 @@ function AllLeaveRequestsContent() {
           )}
         </CardContent>
       </Card>
-
-      <ViewRequestDialog
-        request={selectedRequestToAction}
-        onClose={closeViewDialog}
-        open={isViewDialogOpen}
-        canManage={canManageRequests}
-      />
       
-      {isStatusUpdateDialogOpen && selectedRequestToAction && actionTypeForStatusUpdate && (
-        <AlertDialog open={isStatusUpdateDialogOpen} onOpenChange={(isOpen) => {if(!isOpen) closeStatusUpdateDialog(); else setIsStatusUpdateDialogOpen(true);}}>
-          <AlertDialogContent>
-            <UpdateStatusForm 
-              request={selectedRequestToAction} 
-              actionType={actionTypeForStatusUpdate}
-              onClose={closeStatusUpdateDialog} 
-            />
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-
-      {isEditDialogOpen && selectedRequestToEdit && (
-        <EditLeaveRequestDialog
-          request={selectedRequestToEdit}
-          onClose={closeEditDialog}
-          open={isEditDialogOpen}
-        />
-      )}
-
       {isDeleteDialogOpen && selectedRequestToDelete && (
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {if(!isOpen) closeDeleteDialog(); else setIsDeleteDialogOpen(true);}}>
           <AlertDialogContent>
