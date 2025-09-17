@@ -189,7 +189,7 @@ export async function submitLeaveRequestAction(
                 try {
                   await resend.emails.send({
                     from: 'HR System <onboarding@resend.dev>',
-                    to: managerData.personalEmail,
+                    to: managerData.personalEmail, // Explicitly using personalEmail
                     subject: `New Leave Request from ${employeeName}`,
                     react: LeaveRequestNotificationEmail({
                       managerName: managerData.name,
