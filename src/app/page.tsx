@@ -325,6 +325,7 @@ function DashboardPageContent() {
       isLoadingStatistic: isLoadingTodaysAttendance,
       href: "/attendance-logs",
       linkText: "View Attendance Logs",
+      adminOnly: true,
     },
      {
       title: "Late Arrivals",
@@ -334,6 +335,7 @@ function DashboardPageContent() {
       isLoadingStatistic: isLoadingLateAttendance,
       href: "/attendance-logs",
       linkText: "View Attendance Logs",
+      adminOnly: true,
     },
     {
       title: "Pending Leaves",
@@ -363,17 +365,16 @@ function DashboardPageContent() {
   ];
   
   const filteredStatisticCards = useMemo(() => {
-    if (isLoadingProfile) return [];
+    if (isLoadingProfile || !profile) return [];
     
-    const userRole = profile?.role?.toLowerCase();
+    const userRole = profile.role?.toLowerCase();
     const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
 
     if (isPrivilegedUser) {
         return statisticCards;
     }
-    return statisticCards.filter(card => 
-        card.title !== "Today's Attendance" && card.title !== "Late Arrivals"
-    );
+    
+    return statisticCards.filter(card => !card.adminOnly);
   }, [profile, isLoadingProfile, statisticCards]);
 
   const actionCards: DashboardCardProps[] = [
@@ -420,16 +421,16 @@ function DashboardPageContent() {
   ];
   
   const filteredActionCards = useMemo(() => {
-    if (isLoadingProfile) return [];
+    if (isLoadingProfile || !profile) return [];
     
-    const userRole = profile?.role?.toLowerCase();
+    const userRole = profile.role?.toLowerCase();
     const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
 
     if (isPrivilegedUser) {
         return actionCards;
     }
     return actionCards.filter(card => !card.adminOnly);
-  }, [profile, isLoadingProfile]);
+  }, [profile, isLoadingProfile, actionCards]);
   
   const isPrivilegedUser = useMemo(() => {
       if (isLoadingProfile || !profile) return false;
