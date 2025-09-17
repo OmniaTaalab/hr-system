@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -41,9 +42,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send, Filter, AlertTriangle, FileDown, Paperclip } from "lucide-react";
+import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, CalendarIcon, Send, Filter, AlertTriangle, FileDown, Paperclip, User, Info, FileText } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
-import { format } from "date-fns";
+import { format, formatDistance } from "date-fns";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, Timestamp, orderBy, where, getDocs, QueryConstraint } from 'firebase/firestore';
 import { 
@@ -67,6 +68,7 @@ export interface LeaveRequestEntry {
   employeeName: string;
   employeeStage?: string; 
   employeeCampus?: string; 
+  reportLine1?: string;
   leaveType: string;
   startDate: Timestamp;
   endDate: Timestamp;
@@ -132,10 +134,7 @@ function UpdateStatusForm({ request, actionType, onClose }: UpdateStatusFormProp
       <AlertDialogHeader>
         <AlertDialogTitle>Confirm {actionType === "Approved" ? "Approval" : "Rejection"}</AlertDialogTitle>
         <AlertDialogDescription>
-          You are about to {actionType.toLowerCase()} the leave request for <strong>{request.employeeName}</strong> from{" "}
-          {format(request.startDate.toDate(), "PPP")} to {format(request.endDate.toDate(), "PPP")}.
-          <br />
-          Type: {request.leaveType}. Reason: {request.reason}
+          You are about to {actionType.toLowerCase()} the leave request for <strong>{request.employeeName}</strong>.
         </AlertDialogDescription>
       </AlertDialogHeader>
       <div className="my-4 space-y-2">
@@ -380,6 +379,85 @@ function EditLeaveRequestDialog({ request, onClose, open }: EditLeaveRequestDial
   );
 }
 
+// New component for viewing leave details and taking action
+interface ViewRequestDialogProps {
+  request: LeaveRequestEntry | null;
+  onClose: () => void;
+  open: boolean;
+  canManage: boolean;
+}
+
+function ViewRequestDialog({ request, onClose, open, canManage }: ViewRequestDialogProps) {
+    const { profile } = useUserProfile();
+    const [actionType, setActionType] = useState<"Approved" | "Rejected" | null>(null);
+    const [isActionAlertOpen, setIsActionAlertOpen] = useState(false);
+
+    const isUserTheManager = profile && request && profile.name === request.reportLine1;
+    const canTakeAction = isUserTheManager && request?.status === 'Pending';
+    
+    if (!request) return null;
+
+    const handleActionClick = (type: "Approved" | "Rejected") => {
+        setActionType(type);
+        setIsActionAlertOpen(true);
+    };
+
+    return (
+      <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Info className="h-5 w-5 text-primary" />Leave Request Details</DialogTitle>
+            <DialogDescription>
+                Submitted {formatDistance(request.submittedAt.toDate(), new Date(), { addSuffix: true })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4 text-sm">
+            <div className="flex items-center gap-2"><User className="h-4 w-4 text-muted-foreground" /><span className="font-semibold">Employee:</span> {request.employeeName}</div>
+            <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-muted-foreground" /><span className="font-semibold">Leave Type:</span> {request.leaveType}</div>
+            <div className="flex items-center gap-2"><CalendarIcon className="h-4 w-4 text-muted-foreground" /><span className="font-semibold">Dates:</span> {format(request.startDate.toDate(), "PPP")} to {format(request.endDate.toDate(), "PPP")}</div>
+            <div className="flex items-center gap-2"><Hourglass className="h-4 w-4 text-muted-foreground" /><span className="font-semibold">Duration:</span> {request.numberOfDays ?? 0} working days</div>
+            <div>
+              <p className="font-semibold mb-1">Reason:</p>
+              <p className="p-2 bg-muted rounded-md">{request.reason}</p>
+            </div>
+            {request.attachmentURL && (
+              <div>
+                <p className="font-semibold mb-1">Attachment:</p>
+                <Button asChild variant="secondary" size="sm">
+                  <a href={request.attachmentURL} target="_blank" rel="noopener noreferrer"><Paperclip className="mr-2 h-4 w-4" />View Attachment</a>
+                </Button>
+              </div>
+            )}
+             {request.managerNotes && (
+              <div>
+                <p className="font-semibold mb-1">Manager Notes:</p>
+                <p className="p-2 bg-muted/50 border rounded-md">{request.managerNotes}</p>
+              </div>
+            )}
+             <div><span className="font-semibold">Status:</span> <LeaveStatusBadge status={request.status} /></div>
+          </div>
+          <DialogFooter className="sm:justify-between">
+            {canTakeAction ? (
+                <div className="flex gap-2">
+                    <Button variant="destructive" onClick={() => handleActionClick("Rejected")}>Reject</Button>
+                    <Button onClick={() => handleActionClick("Approved")}>Approve</Button>
+                </div>
+            ) : <div />}
+             <DialogClose asChild><Button type="button" variant="outline">Close</Button></DialogClose>
+          </DialogFooter>
+        </DialogContent>
+        {isActionAlertOpen && actionType && (
+            <AlertDialog open={isActionAlertOpen} onOpenChange={setIsActionAlertOpen}>
+                <AlertDialogContent>
+                    <UpdateStatusForm request={request} actionType={actionType} onClose={() => { setIsActionAlertOpen(false); onClose(); }} />
+                </AlertDialogContent>
+            </AlertDialog>
+        )}
+      </Dialog>
+    );
+}
+
+
 
 function AllLeaveRequestsContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
@@ -391,6 +469,8 @@ function AllLeaveRequestsContent() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { campuses, groupNames: stages, isLoading: isLoadingLists } = useOrganizationLists();
+  
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   
   const [selectedRequestToAction, setSelectedRequestToAction] = useState<LeaveRequestEntry | null>(null);
   const [actionTypeForStatusUpdate, setActionTypeForStatusUpdate] = useState<"Approved" | "Rejected" | null>(null);
@@ -581,6 +661,16 @@ function AllLeaveRequestsContent() {
       description: "Leave requests have been exported to Excel.",
     });
   };
+  
+  const openViewDialog = (request: LeaveRequestEntry) => {
+    setSelectedRequestToAction(request);
+    setIsViewDialogOpen(true);
+  };
+
+  const closeViewDialog = () => {
+    setSelectedRequestToAction(null);
+    setIsViewDialogOpen(false);
+  };
 
   const openStatusUpdateDialog = (request: LeaveRequestEntry, type: "Approved" | "Rejected") => {
     setSelectedRequestToAction(request);
@@ -742,7 +832,7 @@ function AllLeaveRequestsContent() {
                     const endDate = request.endDate.toDate();
                     const fallbackDays = 0;
                     return (
-                      <TableRow key={request.id}>
+                      <TableRow key={request.id} onClick={() => openViewDialog(request)} className="cursor-pointer">
                         <TableCell className="font-medium">{request.employeeName}</TableCell>
                         <TableCell>{request.employeeStage}</TableCell>
                         <TableCell>{request.employeeCampus}</TableCell>
@@ -766,14 +856,14 @@ function AllLeaveRequestsContent() {
                         </TableCell>
                         {canManageRequests && (
                           <TableCell className="text-right">
-                          <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
+                          <DropdownMenu onOpenChange={(open) => open && event?.stopPropagation()}>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                               <Button variant="ghost" className="h-8 w-8 p-0">
                                   <span className="sr-only">Open menu</span>
                                   <MoreHorizontal className="h-4 w-4" />
                               </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               
                               {request.status === "Pending" && (
@@ -817,6 +907,13 @@ function AllLeaveRequestsContent() {
           )}
         </CardContent>
       </Card>
+
+      <ViewRequestDialog
+        request={selectedRequestToAction}
+        onClose={closeViewDialog}
+        open={isViewDialogOpen}
+        canManage={canManageRequests}
+      />
       
       {isStatusUpdateDialogOpen && selectedRequestToAction && actionTypeForStatusUpdate && (
         <AlertDialog open={isStatusUpdateDialogOpen} onOpenChange={(isOpen) => {if(!isOpen) closeStatusUpdateDialog(); else setIsStatusUpdateDialogOpen(true);}}>
