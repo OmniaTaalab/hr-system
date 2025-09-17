@@ -325,7 +325,6 @@ function DashboardPageContent() {
       isLoadingStatistic: isLoadingTodaysAttendance,
       href: "/attendance-logs",
       linkText: "View Attendance Logs",
-      adminOnly: true,
     },
      {
       title: "Late Arrivals",
@@ -335,7 +334,6 @@ function DashboardPageContent() {
       isLoadingStatistic: isLoadingLateAttendance,
       href: "/attendance-logs",
       linkText: "View Attendance Logs",
-      adminOnly: true,
     },
     {
       title: "Pending Leaves",
@@ -373,7 +371,9 @@ function DashboardPageContent() {
     if (isPrivilegedUser) {
         return statisticCards;
     }
-    return statisticCards.filter(card => !card.adminOnly);
+    return statisticCards.filter(card => 
+        card.title !== "Today's Attendance" && card.title !== "Late Arrivals"
+    );
   }, [profile, isLoadingProfile, statisticCards]);
 
   const actionCards: DashboardCardProps[] = [
@@ -430,6 +430,13 @@ function DashboardPageContent() {
     }
     return actionCards.filter(card => !card.adminOnly);
   }, [profile, isLoadingProfile]);
+  
+  const isPrivilegedUser = useMemo(() => {
+      if (isLoadingProfile || !profile) return false;
+      const userRole = profile.role?.toLowerCase();
+      return userRole === 'admin' || userRole === 'hr';
+  }, [profile, isLoadingProfile]);
+
 
   return (
     <div className="space-y-8">
@@ -488,54 +495,56 @@ function DashboardPageContent() {
         </section>
       )}
 
-      <section aria-labelledby="charts-title" className="mt-8">
-         <h2 id="charts-title" className="text-2xl font-semibold font-headline mb-4">
-          Visualizations
-        </h2>
-        <Card className="shadow-lg col-span-1 lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="font-headline text-xl flex items-center">
-              <iconMap.BarChartBig className="mr-2 h-6 w-6 text-primary" />
-              Employee Distribution by Campus
-            </CardTitle>
-            <CardDescription>Number of employees in each campus.</CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2 pr-6">
-            {isLoadingCampusData ? (
-              <div className="flex justify-center items-center h-[350px]">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              </div>
-            ) : campusData.length > 0 ? (
-              <ChartContainer config={chartConfig} className="h-[350px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart accessibilityLayer data={campusData} margin={{ top: 5, right: 0, left: -20, bottom: 70 }}> {/* Increased bottom margin */}
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="name"
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      angle={-45} // Angle for better readability
-                      textAnchor="end"
-                      interval={0} // Show all labels
-                      height={80} // Allocate more height for angled labels
-                      tickFormatter={(value) => value.length > 15 ? `${value.substring(0,12)}...` : value}
-                    />
-                    <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} />
-                    <ChartTooltip
-                      cursor={false}
-                      content={<ChartTooltipContent indicator="dashed" />}
-                    />
-                    <Bar dataKey="count" fill="var(--color-employees)" radius={4} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            ) : (
-              <p className="text-center text-muted-foreground py-10">No campus data available to display chart.</p>
-            )}
-          </CardContent>
-        </Card>
-      </section>
+      {isPrivilegedUser && (
+        <section aria-labelledby="charts-title" className="mt-8">
+          <h2 id="charts-title" className="text-2xl font-semibold font-headline mb-4">
+            Visualizations
+          </h2>
+          <Card className="shadow-lg col-span-1 lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="font-headline text-xl flex items-center">
+                <iconMap.BarChartBig className="mr-2 h-6 w-6 text-primary" />
+                Employee Distribution by Campus
+              </CardTitle>
+              <CardDescription>Number of employees in each campus.</CardDescription>
+            </CardHeader>
+            <CardContent className="pl-2 pr-6">
+              {isLoadingCampusData ? (
+                <div className="flex justify-center items-center h-[350px]">
+                  <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                </div>
+              ) : campusData.length > 0 ? (
+                <ChartContainer config={chartConfig} className="h-[350px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart accessibilityLayer data={campusData} margin={{ top: 5, right: 0, left: -20, bottom: 70 }}> {/* Increased bottom margin */}
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="name"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        angle={-45} // Angle for better readability
+                        textAnchor="end"
+                        interval={0} // Show all labels
+                        height={80} // Allocate more height for angled labels
+                        tickFormatter={(value) => value.length > 15 ? `${value.substring(0,12)}...` : value}
+                      />
+                      <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} />
+                      <ChartTooltip
+                        cursor={false}
+                        content={<ChartTooltipContent indicator="dashed" />}
+                      />
+                      <Bar dataKey="count" fill="var(--color-employees)" radius={4} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+              ) : (
+                <p className="text-center text-muted-foreground py-10">No campus data available to display chart.</p>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       <section aria-labelledby="quick-actions-title" className="mt-8">
         <h2 id="quick-actions-title" className="text-2xl font-semibold font-headline mb-4">
