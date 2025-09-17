@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { z } from 'zod';
@@ -140,7 +141,7 @@ export async function submitLeaveRequestAction(
     // Send HR Notification
     await addDoc(collection(db, "notifications"), {
       message: `New leave request from ${employeeName} for ${leaveType}.`,
-      link: `/leave/all-requests`,
+      link: `/leave/all-requests/${newRequestRef.id}`,
       createdAt: serverTimestamp(),
       readBy: [],
     });
@@ -162,7 +163,7 @@ export async function submitLeaveRequestAction(
         if (managerAuthId) {
           await addDoc(collection(db, `users/${managerAuthId}/notifications`), {
             message: `New leave request from your subordinate, ${employeeName}.`,
-            link: `/leave/all-requests`,
+            link: `/leave/all-requests/${newRequestRef.id}`,
             createdAt: serverTimestamp(),
             isRead: false,
           });
@@ -179,7 +180,7 @@ export async function submitLeaveRequestAction(
                 startDate: startDate.toLocaleDateString(),
                 endDate: endDate.toLocaleDateString(),
                 reason,
-                leaveRequestLink: `${appUrl}/leave/all-requests`,
+                leaveRequestLink: `${appUrl}/leave/all-requests/${newRequestRef.id}`,
               })
             );
 
