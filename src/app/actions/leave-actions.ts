@@ -7,14 +7,8 @@ import {
   Timestamp, deleteDoc, getDoc, limit 
 } from 'firebase/firestore';
 import { getWeekendSettings } from './settings-actions';
-import { adminMessaging } from '@/lib/firebase/admin-config';
 import { logSystemEvent } from '@/lib/system-log';
-import { Resend } from 'resend';
 import LeaveRequestNotificationEmail from '@/emails/leave-request-notification';
-
-// Initialize Resend only if API Key exists
-const resendApiKey = process.env.RESEND_API_KEY;
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 // Calculate working days excluding weekends/holidays
 async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<number> {
@@ -70,7 +64,6 @@ export async function submitLeaveRequestAction(
   prevState: any,
   formData: FormData
 ): Promise<any> {
-  console.log('dddddddddddddddddddddddddddddddd');
   const validatedFields = LeaveRequestFormSchema.safeParse({
     requestingEmployeeDocId: formData.get('requestingEmployeeDocId'),
     leaveType: formData.get('leaveType'),
@@ -135,7 +128,7 @@ export async function submitLeaveRequestAction(
       createdAt: serverTimestamp(),
       readBy: [],
     });
-    console.log("Resend available:", !!resend);
+
     // Notify Manager
     if (employeeData.reportLine1) {
       const managerQuery = query(
@@ -149,7 +142,6 @@ export async function submitLeaveRequestAction(
         const managerDoc = managerSnapshot.docs[0];
         const managerData = managerDoc.data();
         const managerAuthId = managerData.userId;
-        console.log("Manager Email:", managerData.personalEmail);
 
         if (managerAuthId) {
           await addDoc(collection(db, `users/${managerAuthId}/notifications`), {
@@ -159,15 +151,14 @@ export async function submitLeaveRequestAction(
             isRead: false,
           });
 
-          // Send Email if Resend is available
-          if (resend && managerData.personalEmail) {
-            try {
-              const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-              await resend.emails.send({
-                from: 'HR System <onboarding@resend.dev>',
-                to: managerData.personalEmail,
+          // Add Email to mail_queue for Firebase Email Extension
+          if (managerData.personalEmail) {
+            const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+            await addDoc(collection(db, "mail_queue"), {
+              to: managerData.personalEmail,
+              message: {
                 subject: `New Leave Request from ${employeeName}`,
-                react: LeaveRequestNotificationEmail({
+                html: LeaveRequestNotificationEmail({
                   managerName: managerData.name,
                   employeeName,
                   leaveType,
@@ -176,10 +167,10 @@ export async function submitLeaveRequestAction(
                   reason,
                   leaveRequestLink: `${appUrl}/leave/all-requests`,
                 }),
-              });
-            } catch (err) {
-              console.error("Resend email failed:", err);
-            }
+              },
+              status: "pending",
+              createdAt: serverTimestamp(),
+            });
           }
         }
       }
