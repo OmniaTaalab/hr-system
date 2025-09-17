@@ -315,6 +315,7 @@ function DashboardPageContent() {
       isLoadingStatistic: isLoadingTotalEmp,
       href: "/employees",
       linkText: "Manage Employees",
+      adminOnly: true,
     },
     {
       title: "Today's Attendance",
@@ -324,6 +325,7 @@ function DashboardPageContent() {
       isLoadingStatistic: isLoadingTodaysAttendance,
       href: "/attendance-logs",
       linkText: "View Attendance Logs",
+      adminOnly: true,
     },
      {
       title: "Late Arrivals",
@@ -333,6 +335,7 @@ function DashboardPageContent() {
       isLoadingStatistic: isLoadingLateAttendance,
       href: "/attendance-logs",
       linkText: "View Attendance Logs",
+      adminOnly: true,
     },
     {
       title: "Pending Leaves",
@@ -341,6 +344,7 @@ function DashboardPageContent() {
       isLoadingStatistic: isLoadingPendingLeaves,
       href: "/leave/all-requests", 
       linkText: "Review Requests",
+      adminOnly: true,
     },
     {
       title: "Approved Leaves",
@@ -359,6 +363,18 @@ function DashboardPageContent() {
       linkText: "View Rejected",
     },
   ];
+  
+  const filteredStatisticCards = useMemo(() => {
+    if (isLoadingProfile) return [];
+    
+    const userRole = profile?.role?.toLowerCase();
+    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
+
+    if (isPrivilegedUser) {
+        return statisticCards;
+    }
+    return statisticCards.filter(card => !card.adminOnly);
+  }, [profile, isLoadingProfile, statisticCards]);
 
   const actionCards: DashboardCardProps[] = [
      {
@@ -431,7 +447,7 @@ function DashboardPageContent() {
           Key Statistics
         </h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
-          {statisticCards.map((card) => (
+          {filteredStatisticCards.map((card) => (
             <DashboardCard key={card.title} {...card} />
           ))}
         </div>
