@@ -1,20 +1,22 @@
-
 'use server';
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, Timestamp, deleteDoc, getDoc, limit } from 'firebase/firestore';
-// Assuming these functions exist for getting user info
+import { 
+  collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, 
+  Timestamp, deleteDoc, getDoc, limit 
+} from 'firebase/firestore';
 import { getWeekendSettings } from './settings-actions';
 import { adminMessaging } from '@/lib/firebase/admin-config';
 import { logSystemEvent } from '@/lib/system-log';
 import { Resend } from 'resend';
 import LeaveRequestNotificationEmail from '@/emails/leave-request-notification';
 
-// Only initialize Resend if the API key is provided
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+// Initialize Resend only if API Key exists
+const resendApiKey = process.env.RESEND_API_KEY;
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
-// New helper function to calculate working days, excluding weekends and holidays
+// Calculate working days excluding weekends/holidays
 async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<number> {
   const utcStartDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
   const utcEndDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
@@ -31,8 +33,8 @@ async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<num
     const d = ts.toDate();
     return `${d.getUTCFullYear()}-${(d.getUTCMonth() + 1).toString().padStart(2, '0')}-${d.getUTCDate().toString().padStart(2, '0')}`;
   });
-  const holidaySet = new Set(holidayDates);
 
+  const holidaySet = new Set(holidayDates);
   const weekendDays = await getWeekendSettings();
   const weekendSet = new Set(weekendDays);
 
@@ -40,55 +42,35 @@ async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<num
   let currentDate = new Date(utcStartDate);
 
   while (currentDate <= utcEndDate) {
-    const dayOfWeek = currentDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
-    const isWeekend = weekendSet.has(dayOfWeek);
-
+    const dayOfWeek = currentDate.getUTCDay();
     const dateStr = `${currentDate.getUTCFullYear()}-${(currentDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${currentDate.getUTCDate().toString().padStart(2, '0')}`;
-    const isHoliday = holidaySet.has(dateStr);
-
-    if (!isWeekend && !isHoliday) {
+    
+    if (!weekendSet.has(dayOfWeek) && !holidaySet.has(dateStr)) {
       workingDays++;
     }
-
     currentDate.setUTCDate(currentDate.getUTCDate() + 1);
   }
 
   return workingDays;
 }
 
-
-// Schema for validating leave request form data
 const LeaveRequestFormSchema = z.object({
-  requestingEmployeeDocId: z.string().min(1, "Employee document ID is required."), 
-  leaveType: z.string().min(1, "Leave type is required."),
-  startDate: z.coerce.date({ required_error: "Start date is required." }),
-  endDate: z.coerce.date({ required_error: "End date is required." }),
-  reason: z.string().min(10, "Reason must be at least 10 characters.").max(500, "Reason must be at most 500 characters."),
-  attachmentURL: z.string().url().optional(), // Added for attachment
+  requestingEmployeeDocId: z.string().min(1),
+  leaveType: z.string().min(1),
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
+  reason: z.string().min(10).max(500),
+  attachmentURL: z.string().url().optional(),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
   path: ["endDate"],
 });
 
-export type SubmitLeaveRequestState = {
-  errors?: {
-    requestingEmployeeDocId?: string[];
-    leaveType?: string[];
-    startDate?: string[];
-    endDate?: string[];
-    reason?: string[];
-    attachmentURL?: string[];
-    form?: string[];
-  };
-  message?: string | null;
-  success?: boolean;
-};
-
 export async function submitLeaveRequestAction(
-  prevState: SubmitLeaveRequestState,
+  prevState: any,
   formData: FormData
-): Promise<SubmitLeaveRequestState> {
-  
+): Promise<any> {
+  console.log('dddddddddddddddddddddddddddddddd');
   const validatedFields = LeaveRequestFormSchema.safeParse({
     requestingEmployeeDocId: formData.get('requestingEmployeeDocId'),
     leaveType: formData.get('leaveType'),
@@ -101,7 +83,7 @@ export async function submitLeaveRequestAction(
   if (!validatedFields.success) {
     return {
       errors: validatedFields.error.flatten().fieldErrors,
-      message: 'Validation failed. Please check your input.',
+      message: 'Validation failed.',
       success: false,
     };
   }
@@ -111,395 +93,103 @@ export async function submitLeaveRequestAction(
   try {
     const employeeDocRef = doc(db, "employee", requestingEmployeeDocId);
     const employeeSnap = await getDoc(employeeDocRef);
-
     if (!employeeSnap.exists()) {
-        return { errors: { form: ["Employee record not found."] }, success: false };
+      return { errors: { form: ["Employee record not found."] }, success: false };
     }
+
     const employeeData = employeeSnap.data();
-    const employeeName = employeeData.name || "Unknown Employee";
+    const employeeName = employeeData.name ?? "Unknown Employee";
 
     const numberOfDays = await calculateWorkingDays(startDate, endDate);
 
     const newRequestRef = await addDoc(collection(db, "leaveRequests"), {
       requestingEmployeeDocId,
-      employeeName, 
-      employeeStage: employeeData.stage || null,
-      employeeCampus: employeeData.campus || null,
-      reportLine1: employeeData.reportLine1 || null, // Store for reference
+      employeeName,
+      employeeStage: employeeData.stage ?? null,
+      employeeCampus: employeeData.campus ?? null,
+      reportLine1: employeeData.reportLine1 ?? null,
       leaveType,
       startDate: Timestamp.fromDate(startDate),
       endDate: Timestamp.fromDate(endDate),
       reason,
-      attachmentURL: attachmentURL || null,
+      attachmentURL: attachmentURL ?? null,
       numberOfDays,
       status: "Pending",
       submittedAt: serverTimestamp(),
-      managerNotes: "", 
+      managerNotes: "",
     });
 
     await logSystemEvent("Submit Leave Request", {
-        actorId: employeeData.userId,
-        actorEmail: employeeData.email,
-        actorRole: employeeData.role,
-        leaveRequestId: newRequestRef.id,
-        leaveType: leaveType,
-        employeeName: employeeName,
+      actorId: employeeData.userId,
+      actorEmail: employeeData.email,
+      actorRole: employeeData.role,
+      leaveRequestId: newRequestRef.id,
+      leaveType,
+      employeeName,
     });
 
-    // --- Start Notification Logic ---
-    
-    // 1. Create a single notification in the top-level 'notifications' collection for HR/Admin
-    const hrNotificationMessage = `New leave request from ${employeeName} for ${leaveType}.`;
+    // Send HR Notification
     await addDoc(collection(db, "notifications"), {
-      message: hrNotificationMessage,
+      message: `New leave request from ${employeeName} for ${leaveType}.`,
       link: `/leave/all-requests`,
       createdAt: serverTimestamp(),
-      readBy: [], 
+      readBy: [],
     });
-
-    // 2. Notify the direct manager in reportLine1
-    const managerName = employeeData.reportLine1;
-    if (managerName) {
+    console.log("Resend available:", !!resend);
+    // Notify Manager
+    if (employeeData.reportLine1) {
       const managerQuery = query(
         collection(db, "employee"),
-        where("name", "==", managerName),
+        where("name", "==", employeeData.reportLine1),
         limit(1)
       );
-      const managerSnapshot = await getDocs(managerQuery);
 
+      const managerSnapshot = await getDocs(managerQuery);
       if (!managerSnapshot.empty) {
         const managerDoc = managerSnapshot.docs[0];
         const managerData = managerDoc.data();
-        const managerAuthId = managerData.userId; 
-        
+        const managerAuthId = managerData.userId;
+        console.log("Manager Email:", managerData.personalEmail);
+
         if (managerAuthId) {
-            // Create a personal notification for the manager
-            await addDoc(collection(db, `users/${managerAuthId}/notifications`), {
-                message: `New leave request from your subordinate, ${employeeName}.`,
-                link: `/leave/all-requests`,
-                createdAt: serverTimestamp(),
-                isRead: false,
-            });
-            
-            // Send email notification to manager's personal email if Resend is configured
-            if (managerData.personalEmail && resend) {
-                const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-                const leaveRequestLink = `${appUrl}/leave/all-requests`;
+          await addDoc(collection(db, `users/${managerAuthId}/notifications`), {
+            message: `New leave request from your subordinate, ${employeeName}.`,
+            link: `/leave/all-requests`,
+            createdAt: serverTimestamp(),
+            isRead: false,
+          });
 
-                try {
-                  await resend.emails.send({
-                    from: 'HR System <onboarding@resend.dev>',
-                    to: managerData.personalEmail, // Explicitly using personalEmail
-                    subject: `New Leave Request from ${employeeName}`,
-                    react: LeaveRequestNotificationEmail({
-                      managerName: managerData.name,
-                      employeeName: employeeName,
-                      leaveType: leaveType,
-                      startDate: startDate.toLocaleDateString(),
-                      endDate: endDate.toLocaleDateString(),
-                      reason: reason,
-                      leaveRequestLink: leaveRequestLink,
-                    }),
-                  });
-                } catch (emailError) {
-                    console.error("Resend email failed:", emailError);
-                    // Don't fail the whole action, just log the error
-                }
+          // Send Email if Resend is available
+          if (resend && managerData.personalEmail) {
+            try {
+              const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+              await resend.emails.send({
+                from: 'HR System <onboarding@resend.dev>',
+                to: managerData.personalEmail,
+                subject: `New Leave Request from ${employeeName}`,
+                react: LeaveRequestNotificationEmail({
+                  managerName: managerData.name,
+                  employeeName,
+                  leaveType,
+                  startDate: startDate.toLocaleDateString(),
+                  endDate: endDate.toLocaleDateString(),
+                  reason,
+                  leaveRequestLink: `${appUrl}/leave/all-requests`,
+                }),
+              });
+            } catch (err) {
+              console.error("Resend email failed:", err);
             }
-
-
-            // Send a push notification if the manager has an FCM token
-            if (adminMessaging) {
-              const tokensQuery = query(collection(db, "fcmTokens"), where('userId', '==', managerAuthId), limit(1));
-              const tokensSnapshot = await getDocs(tokensQuery);
-              if (!tokensSnapshot.empty) {
-                const token = tokensSnapshot.docs[0].data().token;
-                const managerMessage = {
-                  notification: {
-                    title: 'New Subordinate Leave Request',
-                    body: `New leave request from ${employeeName}.`
-                  },
-                  webpush: { fcm_options: { link: '/leave/all-requests' } },
-                  token: token,
-                };
-                try {
-                  await adminMessaging.send(managerMessage);
-                } catch (error) {
-                  console.error(`Error sending push notification to manager ${managerData.name}:`, error);
-                }
-              }
-            }
+          }
         }
       }
     }
-    
-    // 3. Send Push Notifications to HR/Admin if FCM is configured
-    if (adminMessaging) {
-        const hrUsersQuery = query(collection(db, "employee"), where("role", "in", ["hr", "admin"]));
-        const hrSnapshot = await getDocs(hrUsersQuery);
-        
-        const recipientAuthIds = hrSnapshot.docs
-            .map(doc => doc.data().userId)
-            .filter(Boolean); // Filter out employees without a linked auth account
 
-        if (recipientAuthIds.length > 0) {
-            const tokensQuery = query(collection(db, "fcmTokens"), where('userId', 'in', recipientAuthIds));
-            const tokensSnapshot = await getDocs(tokensQuery);
-            const tokens = tokensSnapshot.docs.map(doc => doc.data().token).filter(Boolean);
-            
-            if (tokens.length > 0) {
-                const message = {
-                    notification: {
-                        title: 'New Leave Request',
-                        body: hrNotificationMessage
-                    },
-                    webpush: {
-                        fcm_options: {
-                          link: '/leave/all-requests'
-                        }
-                    },
-                    tokens: tokens,
-                };
-                try {
-                  await adminMessaging.sendEachForMulticast(message);
-                } catch (error) {
-                  console.error("Error sending push notifications:", error);
-                }
-            }
-        }
-    }
-    // --- End Notification Logic ---
-        
-    return { message: "Leave request submitted successfully and is pending approval.", success: true };
-  } catch (error: any) {
-    console.error('Firestore Submit Leave Request Error:', error);
+    return { message: "Leave request submitted successfully.", success: true };
+  } catch (error) {
+    console.error("Submit Leave Request Error:", error);
     return {
-      errors: { form: ["Failed to submit leave request. An unexpected error occurred."] },
-      message: 'Failed to submit leave request.',
-      success: false,
-    };
-  }
-}
-
-
-// Schema for updating leave request status
-const UpdateLeaveStatusSchema = z.object({
-  requestId: z.string().min(1, "Request ID is required."),
-  newStatus: z.enum(["Approved", "Rejected"], { required_error: "New status is required." }),
-  managerNotes: z.string().optional(),
-  actorId: z.string().optional(),
-  actorEmail: z.string().optional(),
-  actorRole: z.string().optional(),
-});
-
-
-export type UpdateLeaveStatusState = {
-  errors?: {
-    requestId?: string[];
-    newStatus?: string[];
-    managerNotes?: string[];
-    form?: string[];
-  };
-  message?: string | null;
-  success?: boolean;
-};
-
-export async function updateLeaveRequestStatusAction(
-  prevState: UpdateLeaveStatusState,
-  formData: FormData,
-): Promise<UpdateLeaveStatusState> {
-  const validatedFields = UpdateLeaveStatusSchema.safeParse({
-    requestId: formData.get('requestId'),
-    newStatus: formData.get('newStatus'),
-    managerNotes: formData.get('managerNotes'),
-    actorId: formData.get('actorId'),
-    actorEmail: formData.get('actorEmail'),
-    actorRole: formData.get('actorRole'),
-  });
-
-  if (!validatedFields.success) {
-    return {
-      errors: validatedFields.error.flatten().fieldErrors,
-      message: 'Validation failed.',
-      success: false,
-    };
-  }
-  
-  const { requestId, newStatus, managerNotes, actorId, actorEmail, actorRole } = validatedFields.data;
-
-  try {
-    const requestRef = doc(db, "leaveRequests", requestId);
-    await updateDoc(requestRef, {
-      status: newStatus,
-      managerNotes: managerNotes || "", 
-      updatedAt: serverTimestamp(), 
-    });
-
-    await logSystemEvent("Update Leave Request Status", {
-        actorId,
-        actorEmail,
-        actorRole,
-        leaveRequestId: requestId,
-        newStatus,
-    });
-
-    return { message: `Leave request status updated to ${newStatus}.`, success: true };
-  } catch (error: any) {
-    console.error("Error updating leave request status:", error);
-    return {
-      errors: { form: [`Failed to update status: ${error.message}`] },
-      message: "Failed to update leave request status.",
-      success: false,
-    };
-  }
-}
-
-// Schema for editing a leave request
-const EditLeaveRequestFormSchema = z.object({
-  requestId: z.string().min(1, "Request ID is required."),
-  leaveType: z.string().min(1, "Leave type is required."),
-  startDate: z.date({ required_error: "Start date is required." }),
-  endDate: z.date({ required_error: "End date is required." }),
-  reason: z.string().min(10, "Reason must be at least 10 characters.").max(500, "Reason must be at most 500 characters."),
-  status: z.enum(["Pending", "Approved", "Rejected"], { required_error: "Status is required." }),
-  actorId: z.string().optional(),
-  actorEmail: z.string().optional(),
-  actorRole: z.string().optional(),
-}).refine(data => data.endDate >= data.startDate, {
-  message: "End date cannot be before start date.",
-  path: ["endDate"],
-});
-
-export type EditLeaveRequestState = {
-  errors?: {
-    requestId?: string[];
-    leaveType?: string[];
-    startDate?: string[];
-    endDate?: string[];
-    reason?: string[];
-    status?: string[];
-    form?: string[];
-  };
-  message?: string | null;
-  success?: boolean;
-};
-
-export async function editLeaveRequestAction(
-  prevState: EditLeaveRequestState,
-  formData: FormData
-): Promise<EditLeaveRequestState> {
-  const rawFormData = {
-    requestId: formData.get('requestId'),
-    leaveType: formData.get('leaveType'),
-    startDate: formData.get('startDate') ? new Date(formData.get('startDate') as string) : undefined,
-    endDate: formData.get('endDate') ? new Date(formData.get('endDate') as string) : undefined,
-    reason: formData.get('reason'),
-    status: formData.get('status'),
-    actorId: formData.get('actorId'),
-    actorEmail: formData.get('actorEmail'),
-    actorRole: formData.get('actorRole'),
-  };
-
-  const validatedFields = EditLeaveRequestFormSchema.safeParse(rawFormData);
-
-  if (!validatedFields.success) {
-    return {
-      errors: validatedFields.error.flatten().fieldErrors,
-      message: 'Validation failed. Please check your input.',
-      success: false,
-    };
-  }
-
-  const { requestId, leaveType, startDate, endDate, reason, status, actorId, actorEmail, actorRole } = validatedFields.data;
-
-  try {
-    const numberOfDays = await calculateWorkingDays(startDate, endDate);
-
-    const requestRef = doc(db, "leaveRequests", requestId);
-    await updateDoc(requestRef, {
-      leaveType,
-      startDate: Timestamp.fromDate(startDate),
-      endDate: Timestamp.fromDate(endDate),
-      reason,
-      status,
-      numberOfDays, // Recalculate and update working days
-      updatedAt: serverTimestamp(),
-    });
-
-    await logSystemEvent("Edit Leave Request", {
-        actorId,
-        actorEmail,
-        actorRole,
-        leaveRequestId: requestId,
-    });
-
-    return { message: "Leave request updated successfully.", success: true };
-  } catch (error: any) {
-    console.error('Firestore Edit Leave Request Error:', error);
-    return {
-      errors: { form: ["Failed to update leave request. An unexpected error occurred."] },
-      message: 'Failed to update leave request.',
-      success: false,
-    };
-  }
-}
-
-// Schema for deleting a leave request (only needs ID)
-const DeleteLeaveRequestSchema = z.object({
-  requestId: z.string().min(1, "Request ID is required."),
-  actorId: z.string().optional(),
-  actorEmail: z.string().optional(),
-  actorRole: z.string().optional(),
-});
-
-export type DeleteLeaveRequestState = {
-  errors?: {
-    requestId?: string[];
-    form?: string[];
-  };
-  message?: string | null;
-  success?: boolean;
-};
-
-// Server action for deleting a leave request
-export async function deleteLeaveRequestAction(
-  prevState: DeleteLeaveRequestState,
-  formData: FormData,
-): Promise<DeleteLeaveRequestState> {
-  const validatedFields = DeleteLeaveRequestSchema.safeParse({
-    requestId: formData.get('requestId'),
-    actorId: formData.get('actorId'),
-    actorEmail: formData.get('actorEmail'),
-    actorRole: formData.get('actorRole'),
-  });
-
-  if (!validatedFields.success) {
-    return {
-      errors: validatedFields.error.flatten().fieldErrors,
-      message: 'Validation failed.',
-      success: false,
-    };
-  }
-
-  const { requestId, actorId, actorEmail, actorRole } = validatedFields.data;
-
-  try {
-    const requestRef = doc(db, "leaveRequests", requestId);
-    await deleteDoc(requestRef);
-
-    await logSystemEvent("Delete Leave Request", {
-        actorId,
-        actorEmail,
-        actorRole,
-        leaveRequestId: requestId,
-    });
-
-    return { message: "Leave request deleted successfully.", success: true };
-  } catch (error: any) {
-    console.error("Error deleting leave request:", error);
-    return {
-      errors: { form: [`Failed to delete request: ${error.message}`] },
-      message: "Failed to delete leave request.",
+      errors: { form: ["Failed to submit leave request."] },
       success: false,
     };
   }
