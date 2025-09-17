@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useActionState } from 'react';
+import React, { useState, useEffect, useActionState, useMemo } from 'react';
 import { AppLayout, useUserProfile } from '@/components/layout/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { db } from '@/lib/firebase/config';
@@ -257,4 +257,3 @@ export default function LeaveRequestDetailPage() {
         </AppLayout>
     );
 }
-
