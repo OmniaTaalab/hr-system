@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -488,7 +487,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                           <SelectValue placeholder={isLoadingDirectors ? "Loading..." : "Select a Campus Director"} />
                       </SelectTrigger>
                       <SelectContent>
-                          {directors.map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
+                          {directors.map(d => <SelectItem key={d.id} value={d.name}>{d.name} ({d.email})</SelectItem>)}
                       </SelectContent>
                     </Select>
                   {serverState?.errors?.reportLine2 && <p className="text-sm text-destructive">{serverState.errors.reportLine2.join(', ')}</p>}
@@ -1560,7 +1559,7 @@ function EmployeeManagementContent() {
                 paginatedEmployees.map((employee) => (
                   <TableRow key={employee.id}>
                     <TableCell className="font-medium">
-                      <Link href={`/employees/${employee.id}`} className="flex items-center gap-3 hover:underline">
+                      <Link href={`/employees/${encodeURIComponent(employee.employeeId)}`} className="flex items-center gap-3 hover:underline">
                         <Avatar>
                             <AvatarImage src={employee.photoURL || undefined} alt={employee.name || ''} />
                             <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
@@ -1590,7 +1589,7 @@ function EmployeeManagementContent() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                           <DropdownMenuItem onSelect={() => router.push(`/employees/${employee.id}`)}>
+                           <DropdownMenuItem onSelect={() => router.push(`/employees/${encodeURIComponent(employee.employeeId)}`)}>
                               <Eye className="mr-2 h-4 w-4" />
                               View Full Profile
                             </DropdownMenuItem>

@@ -5,7 +5,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from 'next/navigation';
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
-import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity } from 'lucide-react';
@@ -66,10 +66,9 @@ interface Employee {
 
 interface AttendanceLog {
   id: string;
-  email: string;
-  name: string;
-  check_time: string;
-  type: string;
+  check_in: string | null;
+  check_out: string | null;
+  date: string;
 }
 
 interface LeaveRequest {
@@ -129,13 +128,15 @@ function EmployeeProfileContent() {
         setLoading(true);
         setError(null);
         try {
-          const docRef = doc(db, 'employee', id);
-          const docSnap = await getDoc(docRef);
+          const decodedId = decodeURIComponent(id);
+          const q = query(collection(db, 'employee'), where('employeeId', '==', decodedId), limit(1));
+          const querySnapshot = await getDocs(q);
 
-          if (docSnap.exists()) {
-            const employeeData = { id: docSnap.id, ...docSnap.data() } as Employee;
+          if (!querySnapshot.empty) {
+            const employeeDoc = querySnapshot.docs[0];
+            const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
             setEmployee(employeeData);
-            fetchAttendanceLogs(employeeData.email);
+            fetchAttendanceLogs(employeeData.employeeId);
             fetchLeaveRequests(employeeData.id);
           } else {
             setError('Employee not found.');
@@ -148,20 +149,16 @@ function EmployeeProfileContent() {
         }
       };
 
-      const fetchAttendanceLogs = async (employeeEmail: string) => {
+      const fetchAttendanceLogs = async (employeeId: string) => {
         setLoadingLogs(true);
         try {
-          // Remove orderBy from the query to avoid needing a composite index
           const logsQuery = query(
             collection(db, 'attendance_log'),
-            where('email', '==', employeeEmail)
+            where('userId', '==', Number(employeeId)),
+            orderBy('date', 'desc')
           );
           const querySnapshot = await getDocs(logsQuery);
           let logs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
-          
-          // Sort logs on the client-side
-          logs.sort((a, b) => b.check_time.localeCompare(a.check_time));
-
           setAttendanceLogs(logs);
         } catch (e) {
           console.error("Error fetching attendance logs:", e);
@@ -180,13 +177,11 @@ function EmployeeProfileContent() {
         try {
           const leavesQuery = query(
             collection(db, 'leaveRequests'),
-            where('requestingEmployeeDocId', '==', employeeDocId)
+            where('requestingEmployeeDocId', '==', employeeDocId),
+            orderBy('startDate', 'desc')
           );
           const querySnapshot = await getDocs(leavesQuery);
           const leaves = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequest));
-          
-          leaves.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
-
           setLeaveRequests(leaves);
         } catch(e) {
           console.error("Error fetching leave requests:", e);
@@ -498,27 +493,17 @@ function EmployeeProfileContent() {
                   <Table>
                       <TableHeader>
                           <TableRow>
-                              <TableHead>Timestamp</TableHead>
-                              <TableHead className="text-right">Event Type</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Check-In</TableHead>
+                              <TableHead>Check-Out</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
                           {attendanceLogs.map((record) => (
                               <TableRow key={record.id}>
-                                  <TableCell>{record.check_time}</TableCell>
-                                  <TableCell className="text-right">
-                                    {record.type === 'I' ? (
-                                      <Badge variant="secondary" className="bg-green-100 text-green-800">
-                                        <LogIn className="mr-1 h-3 w-3"/>
-                                        Check-In
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="outline">
-                                        <LogOut className="mr-1 h-3 w-3"/>
-                                        Check-Out
-                                      </Badge>
-                                    )}
-                                  </TableCell>
+                                  <TableCell>{record.date}</TableCell>
+                                  <TableCell>{record.check_in || '-'}</TableCell>
+                                  <TableCell>{record.check_out || '-'}</TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
@@ -539,3 +524,5 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
+    
