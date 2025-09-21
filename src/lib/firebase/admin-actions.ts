@@ -719,17 +719,14 @@ export async function batchCreateEmployeesAction(
   }
   
   const recordsToProcess = validationResult.data;
-  const batch = writeBatch(db);
   const employeeCollectionRef = collection(db, "employee");
   
   const results = { created: 0, failed: 0, failedEmails: [] as string[] };
-  
+  const emailsInThisBatch = new Set<string>();
+
   try {
     const countSnapshot = await getCountFromServer(employeeCollectionRef);
     let currentEmployeeCount = countSnapshot.data().count;
-
-    const allExistingEmailsQuery = await getDocs(query(employeeCollectionRef, where('email', '!=', null)));
-    const existingEmails = new Set(allExistingEmailsQuery.docs.map(doc => doc.data().email));
 
     for (const record of recordsToProcess) {
       const nisEmail = String(record.nisEmail || '').trim();
@@ -737,16 +734,28 @@ export async function batchCreateEmployeesAction(
 
       if (!nisEmail || !z.string().email().safeParse(nisEmail).success || !name) {
         results.failed++;
-        results.failedEmails.push(nisEmail || 'N/A');
+        results.failedEmails.push(nisEmail || name || 'N/A');
         continue;
       }
 
-      if (existingEmails.has(nisEmail)) {
+      // Check for duplicates within the current processing batch
+      if (emailsInThisBatch.has(nisEmail)) {
         results.failed++;
         results.failedEmails.push(nisEmail);
-        continue; // Skip this record
+        continue;
       }
 
+      // Check for duplicates in the database
+      const existingEmailQuery = query(employeeCollectionRef, where('email', '==', nisEmail), limit(1));
+      const existingEmailSnapshot = await getDocs(existingEmailQuery);
+
+      if (!existingEmailSnapshot.empty) {
+        results.failed++;
+        results.failedEmails.push(nisEmail);
+        continue;
+      }
+
+      const batch = writeBatch(db);
       currentEmployeeCount++;
       const newEmployeeRef = doc(employeeCollectionRef);
       const nameParts = name.trim().split(/\s+/);
@@ -799,11 +808,10 @@ export async function batchCreateEmployeesAction(
       };
 
       batch.set(newEmployeeRef, newEmployeeData);
-      existingEmails.add(nisEmail); // Add to set to prevent duplicates within the same batch
+      await batch.commit(); // Commit one by one
+      emailsInThisBatch.add(nisEmail);
       results.created++;
     }
-
-    await batch.commit();
 
     let message = `Successfully created ${results.created} employee(s).`;
     if (results.failed > 0) {
