@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { adminAuth, adminStorage } from '@/lib/firebase/admin-config';
 import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc, getDoc, writeBatch } from 'firebase/firestore';
-import { isValid, parse as parseDate } from 'date-fns';
 import { logSystemEvent } from '../system-log';
 
 export async function getAllAuthUsers() {
@@ -252,17 +251,17 @@ const UpdateEmployeeFormSchema = z.object({
   dateOfBirth: z.preprocess((arg) => {
     if (!arg || typeof arg !== "string" || arg === "") return undefined;
     const date = new Date(arg);
-    return isValid(date) ? date : undefined;
+    return date instanceof Date && !isNaN(date.valueOf()) ? date : undefined;
   }, z.date().optional()),
   joiningDate: z.preprocess((arg) => {
     if (!arg || typeof arg !== "string" || arg === "") return undefined;
     const date = new Date(arg);
-    return isValid(date) ? date : undefined;
+    return date instanceof Date && !isNaN(date.valueOf()) ? date : undefined;
   }, z.date().optional()),
     leavingDate: z.preprocess((arg) => {
     if (!arg || typeof arg !== "string" || arg === "") return null; // Handle empty string as null
     const date = new Date(arg);
-    return isValid(date) ? date : null;
+    return date instanceof Date && !isNaN(date.valueOf()) ? date : null;
   }, z.date().nullable().optional()),
   gender: z.string().optional(),
   nationalId: z.string().optional(),
@@ -686,46 +685,36 @@ export type BatchCreateEmployeesState = {
     success?: boolean;
 };
 
-// More robust date parser
+// More robust date parser that doesn't rely on external libraries
 const parseFlexibleDate = (val: any): Date | null => {
   if (!val) return null;
 
-  // If it's already a date, return it
-  if (val instanceof Date && isValid(val)) {
+  if (val instanceof Date && !isNaN(val.valueOf())) {
     return val;
   }
 
-  // If it's an Excel serial number
+  // Handle Excel serial numbers
   if (typeof val === 'number' && val > 0) {
     // Excel's epoch starts on 1899-12-30 for compatibility with Lotus 1-2-3 bug
-    const excelEpoch = new Date(1899, 11, 30);
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
     const date = new Date(excelEpoch.getTime() + val * 86400000); // 86400000 ms in a day
-    return isValid(date) ? date : null;
+    return !isNaN(date.valueOf()) ? date : null;
   }
   
-  // If it's a string, try different formats
   if (typeof val === 'string') {
-    const formats = [
-      'dd-MM-yyyy',
-      'MM/dd/yyyy',
-      'yyyy-MM-dd',
-      'dd/MM/yyyy',
-      'M/d/yy',
-      'M/d/yyyy',
-      'yyyy/MM/dd',
-    ];
-    for (const format of formats) {
-      const parsedDate = parseDate(val, format, new Date());
-      if (isValid(parsedDate)) {
-        return parsedDate;
-      }
+    // Attempt to parse common formats, this is less robust than a dedicated library
+    const date = new Date(val);
+    if (!isNaN(date.valueOf())) return date;
+    
+    // Try to handle DD-MM-YYYY or DD/MM/YYYY
+    const parts = val.match(/(\d+)[-/](\d+)[-/](\d+)/);
+    if (parts) {
+      // Assuming DD-MM-YYYY
+      const d = new Date(parseInt(parts[3]), parseInt(parts[2]) - 1, parseInt(parts[1]));
+      if (!isNaN(d.valueOf())) return d;
     }
   }
-
-  // Final attempt with native parser for ISO strings etc.
-  const nativeParsed = new Date(val);
-  if(isValid(nativeParsed)) return nativeParsed;
-
+  
   return null;
 };
 
@@ -874,12 +863,12 @@ export async function batchCreateEmployeesAction(
                 relationship: validatedRecord.emergencyContactRelationship || '-',
                 number: validatedRecord.emergencyContactNumber || '-',
             },
-            dateOfBirth: validatedRecord.dateOfBirth ? Timestamp.fromDate(validatedRecord.dateOfBirth) : null,
+            dateOfBirth: validatedRecord.dateOfBirth, // Can be null now
             gender: validatedRecord.gender || '-',
             nationalId: validatedRecord.nationalId || '-',
             religion: validatedRecord.religion || '-',
             email: nisEmail,
-            joiningDate: validatedRecord.joiningDate ? Timestamp.fromDate(validatedRecord.joiningDate) : serverTimestamp(),
+            joiningDate: validatedRecord.joiningDate, // Can be null now
             title: validatedRecord.title || '-',
             department: validatedRecord.department || '-',
             role: validatedRecord.role || '-',
