@@ -274,7 +274,7 @@ export async function getWorkdaySettings(): Promise<{ standardHours: number }> {
 
 // --- ORGANIZATION LISTS (DEPARTMENTS, ROLES, ETC.) ---
 
-const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes", "stage", "subjects", "machineNames", "reportLines1"]);
+const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes", "stage", "subjects", "machineNames"]);
 
 const ManageItemSchema = z.object({
   collectionName: collectionNames,
@@ -492,8 +492,4 @@ export async function syncSubjectsFromEmployeesAction(prevState: SyncState, form
 
 export async function syncMachineNamesFromAttendanceLogsAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
     return runSync(formData, (actorDetails) => syncListFromSource("attendance_log", "machine", "machineNames", actorDetails));
-}
-
-export async function syncReportLines1FromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
-    return runSync(formData, (actorDetails) => syncListFromSource("employee", "reportLine1", "reportLines1", actorDetails));
 }
