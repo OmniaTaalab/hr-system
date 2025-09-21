@@ -98,9 +98,9 @@ export interface Employee {
   hourlyRate?: number;
   userId?: string | null;
   photoURL?: string | null;
-  dateOfBirth?: Timestamp;
-  joiningDate?: Timestamp;
-  leavingDate?: Timestamp | null;
+  dateOfBirth?: Timestamp | Date; // Can be either
+  joiningDate?: Timestamp | Date; // Can be either
+  leavingDate?: Timestamp | Date | null; // Can be either
   leaveBalances?: { [key: string]: number };
   documents?: EmployeeFile[];
   createdAt?: Timestamp; 
@@ -162,6 +162,18 @@ const initialBatchCreateState: BatchCreateEmployeesState = {
 
 
 const PAGE_SIZE = 15;
+
+// Utility to safely convert Firestore Timestamp or serialized object to JS Date
+function safeToDate(timestamp: Timestamp | Date | { seconds: number; nanoseconds: number } | null | undefined): Date | undefined {
+    if (!timestamp) return undefined;
+    if (timestamp instanceof Date) return timestamp;
+    if (timestamp instanceof Timestamp) return timestamp.toDate();
+    // Handle serialized Timestamp object
+    if (typeof timestamp === 'object' && 'seconds' in timestamp) {
+        return new Date(timestamp.seconds * 1000);
+    }
+    return undefined;
+}
 
 
 // Internal component for Add Employee Form
@@ -545,9 +557,9 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   const [gender, setGender] = useState(employee.gender || "");
   const [stage, setStage] = useState(employee.stage || "");
   const [subject, setSubject] = useState(employee.subject || "");
-  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(employee.dateOfBirth?.toDate());
-  const [joiningDate, setJoiningDate] = useState<Date | undefined>(employee.joiningDate?.toDate());
-  const [leavingDate, setLeavingDate] = useState<Date | undefined | null>(employee.leavingDate?.toDate());
+  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(safeToDate(employee.dateOfBirth));
+  const [joiningDate, setJoiningDate] = useState<Date | undefined>(safeToDate(employee.joiningDate));
+  const [leavingDate, setLeavingDate] = useState<Date | undefined | null>(safeToDate(employee.leavingDate));
 
   useEffect(() => {
     if (!serverState) return;
@@ -1116,7 +1128,22 @@ function EmployeeManagementContent() {
     let q = query(employeeCollection, orderBy("name"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const employeeData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        const employeeData = snapshot.docs.map(doc => {
+            const data = doc.data();
+            // Convert Firestore Timestamps to JS Dates
+            const convertedData: Partial<Employee> = {};
+            if (data.dateOfBirth instanceof Timestamp) {
+                convertedData.dateOfBirth = data.dateOfBirth.toDate();
+            }
+            if (data.joiningDate instanceof Timestamp) {
+                convertedData.joiningDate = data.joiningDate.toDate();
+            }
+             if (data.leavingDate instanceof Timestamp) {
+                convertedData.leavingDate = data.leavingDate.toDate();
+            }
+
+            return { id: doc.id, ...data, ...convertedData } as Employee;
+        });
         setAllEmployees(employeeData);
         setIsLoading(false);
     }, (error) => {
@@ -1355,12 +1382,12 @@ function EmployeeManagementContent() {
       emergencyContactName: emp.emergencyContact?.name || "-",
       emergencyContactRelationship: emp.emergencyContact?.relationship || "-",
       emergencyContactNumber: emp.emergencyContact?.number || "-",
-      dateOfBirth: emp.dateOfBirth ? format(emp.dateOfBirth.toDate(), 'yyyy-MM-dd') : "-",
+      dateOfBirth: emp.dateOfBirth ? format(safeToDate(emp.dateOfBirth)!, 'yyyy-MM-dd') : "-",
       gender: emp.gender || "-",
       nationalId: emp.nationalId || "-",
       religion: emp.religion || "-",
       "Work email": emp.email || "-",
-      joiningDate: emp.joiningDate ? format(emp.joiningDate.toDate(), 'yyyy-MM-dd') : "-",
+      joiningDate: emp.joiningDate ? format(safeToDate(emp.joiningDate)!, 'yyyy-MM-dd') : "-",
       title: emp.title || "-",
       department: emp.department || "-",
       role: emp.role || "-",
