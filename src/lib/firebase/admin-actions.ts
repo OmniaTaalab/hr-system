@@ -1,11 +1,12 @@
 
+
 'use server';
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { adminAuth, adminStorage } from '@/lib/firebase/admin-config';
 import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc, getDoc, writeBatch } from 'firebase/firestore';
-import { isValid } from 'date-fns';
+import { isValid, parse as parseDate } from 'date-fns';
 import { logSystemEvent } from '../system-log';
 
 export async function getAllAuthUsers() {
@@ -685,31 +686,73 @@ export type BatchCreateEmployeesState = {
     success?: boolean;
 };
 
-// This schema maps to the user's provided Excel file headers.
-// It is intentionally flexible with optional and nullable fields.
+// More robust date parser
+const parseFlexibleDate = (val: any): Date | null => {
+  if (!val) return null;
+
+  // If it's already a date, return it
+  if (val instanceof Date && isValid(val)) {
+    return val;
+  }
+
+  // If it's an Excel serial number
+  if (typeof val === 'number' && val > 0) {
+    // Excel's epoch starts on 1899-12-30 for compatibility with Lotus 1-2-3 bug
+    const excelEpoch = new Date(1899, 11, 30);
+    const date = new Date(excelEpoch.getTime() + val * 86400000); // 86400000 ms in a day
+    return isValid(date) ? date : null;
+  }
+  
+  // If it's a string, try different formats
+  if (typeof val === 'string') {
+    const formats = [
+      'dd-MM-yyyy',
+      'MM/dd/yyyy',
+      'yyyy-MM-dd',
+      'dd/MM/yyyy',
+      'M/d/yy',
+      'M/d/yyyy',
+      'yyyy/MM/dd',
+    ];
+    for (const format of formats) {
+      const parsedDate = parseDate(val, format, new Date());
+      if (isValid(parsedDate)) {
+        return parsedDate;
+      }
+    }
+  }
+
+  // Final attempt with native parser for ISO strings etc.
+  const nativeParsed = new Date(val);
+  if(isValid(nativeParsed)) return nativeParsed;
+
+  return null;
+};
+
+
 const BatchEmployeeSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  personalEmail: z.string().email().optional().nullable(),
-  phone: z.union([z.string(), z.number()]).transform(val => String(val)).optional().nullable(),
-  emergencyContactName: z.string().optional().nullable(),
-  emergencyContactRelationship: z.string().optional().nullable(),
-  emergencyContactNumber: z.union([z.string(), z.number()]).transform(val => String(val)).optional().nullable(),
-  dateOfBirth: z.coerce.date().optional().nullable(),
-  gender: z.string().optional().nullable(),
-  nationalId: z.union([z.string(), z.number()]).transform(val => String(val)).optional().nullable(),
-  religion: z.string().optional().nullable(),
-  nisEmail: z.string().email('A valid Work Email is required'),
-  joiningDate: z.coerce.date().optional().nullable(),
-  title: z.string().optional().nullable(),
-  department: z.string().optional().nullable(),
-  role: z.string().optional().nullable(),
-  stage: z.string().optional().nullable(),
-  campus: z.string().optional().nullable(),
-  reportLine1: z.string().optional().nullable(),
-  reportLine2: z.string().optional().nullable(),
-  subject: z.string().optional().nullable(),
-  employeeId: z.union([z.string(), z.number()]).transform(val => String(val)).optional().nullable(),
-});
+    name: z.string().min(1, "Name is required."),
+    personalEmail: z.string().optional().nullable(),
+    phone: z.string().optional().nullable(),
+    emergencyContactName: z.string().optional().nullable(),
+    emergencyContactRelationship: z.string().optional().nullable(),
+    emergencyContactNumber: z.string().optional().nullable(),
+    dateOfBirth: z.any().transform(parseFlexibleDate).nullable(),
+    gender: z.string().optional().nullable(),
+    nationalId: z.string().optional().nullable(),
+    religion: z.string().optional().nullable(),
+    nisEmail: z.string().email("Invalid work email format."),
+    joiningDate: z.any().transform(parseFlexibleDate).nullable(),
+    title: z.string().optional().nullable(),
+    department: z.string().optional().nullable(),
+    role: z.string().optional().nullable(),
+    stage: z.string().optional().nullable(),
+    campus: z.string().optional().nullable(),
+    reportLine1: z.string().optional().nullable(),
+    reportLine2: z.string().optional().nullable(),
+    subject: z.string().optional().nullable(),
+    employeeId: z.string().optional().nullable(),
+  });
 
 function findKey(obj: any, possibleKeys: string[]): any {
     for (const key of possibleKeys) {
@@ -736,41 +779,48 @@ export async function batchCreateEmployeesAction(
 
     let rawRecords;
     try {
-        rawRecords = JSON.parse(recordsJson);
+      rawRecords = JSON.parse(recordsJson);
     } catch (e) {
-        return { success: false, errors: { file: ["Failed to parse file data."] } };
+      return {
+        success: false,
+        errors: { file: ["Failed to parse file data."] }
+      };
     }
 
-    const mappedRecords = rawRecords.map((record: any) => ({
-      name: record.name,
-      personalEmail: record.personalEmail,
-      phone: record.phone,
-      emergencyContactName: record.emergencyContactName,
-      emergencyContactRelationship: record.emergencyContactRelationship,
-      emergencyContactNumber: record.emergencyContactNumber,
-      dateOfBirth: record.dateOfBirth,
-      gender: record.gender,
-      nationalId: record.nationalId,
-      religion: record.religion,
-      nisEmail: findKey(record, ["Work email", "work email", "WorkEmail", "work_email", "nisEmail"]),
-      joiningDate: record.joiningDate,
-      title: record.title,
-      department: record.department,
-      role: record.role,
-      stage: record.stage,
-      campus: record.campus,
-      reportLine1: record.reportLine1,
-      reportLine2: record.reportLine2,
-      subject: record.subject,
-      employeeId: findKey(record, ["ID Portal / Employee Number", "employee id", "employeeId"]),
-    }));
+    const nonEmptyRecords = rawRecords.filter(
+      (r: any) => r && Object.values(r).some((v) => v !== null && v !== "")
+    );
 
-    const validatedRecords = z.array(BatchEmployeeSchema).safeParse(mappedRecords);
+    const mappedRecords = nonEmptyRecords.map((record: any) => {
+        const mapped: {[key: string]: any} = {};
+        for (const key in record) {
+            mapped[key.trim()] = record[key];
+        }
 
-    if (!validatedRecords.success) {
-        console.error("Zod Validation Error:", validatedRecords.error.flatten());
-        return { success: false, errors: { file: ["The data format in the file is invalid. Please check column values and ensure required fields are not empty."] } };
-    }
+        return {
+            name: findKey(mapped, ["name", "Name", "employeeName"]),
+            personalEmail: findKey(mapped, ["personalEmail", "Personal Email"]),
+            phone: String(findKey(mapped, ["phone", "Phone", "Mobile"]) ?? ''),
+            emergencyContactName: mapped.emergencyContactName,
+            emergencyContactRelationship: mapped.emergencyContactRelationship,
+            emergencyContactNumber: String(mapped.emergencyContactNumber ?? ''),
+            dateOfBirth: findKey(mapped, ["dateOfBirth", "Date of Birth", "DOB"]),
+            gender: mapped.gender,
+            nationalId: String(mapped.nationalId ?? ''),
+            religion: mapped.religion,
+            nisEmail: findKey(mapped, ["Work email", "work email", "WorkEmail", "work_email", "nisEmail"]),
+            joiningDate: findKey(mapped, ["joiningDate", "Joining Date", "Start Date"]),
+            title: mapped.title,
+            department: mapped.department,
+            role: mapped.role,
+            stage: mapped.stage,
+            campus: mapped.campus,
+            reportLine1: mapped.reportLine1,
+            reportLine2: mapped.reportLine2,
+            subject: mapped.subject,
+            employeeId: String(findKey(mapped, ["ID Portal / Employee Number", "employee id", "employeeId"]) ?? ''),
+        }
+    });
 
     const employeeCollectionRef = collection(db, "employee");
     const employeeBatch = writeBatch(db);
@@ -781,13 +831,18 @@ export async function batchCreateEmployeesAction(
     const countSnapshot = await getCountFromServer(employeeCollectionRef);
     let employeeCounter = countSnapshot.data().count;
 
-    for (const record of validatedRecords.data) {
-        const { name, nisEmail } = record;
-        
-        if (!name || !nisEmail) {
-            failedRecordsInfo.push(`A record was skipped due to a missing name or work email.`);
+    for (const record of mappedRecords) {
+        const validation = BatchEmployeeSchema.safeParse(record);
+
+        if (!validation.success) {
+            const issues = validation.error.issues;
+            const name = record.name || 'Unknown record';
+            failedRecordsInfo.push(`${name}: ${issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ')}`);
             continue;
         }
+
+        const { data: validatedRecord } = validation;
+        const { nisEmail, name } = validatedRecord;
 
         if (emailsInThisBatch.has(nisEmail)) {
             failedRecordsInfo.push(`${name}: Duplicate Work email found in this file.`);
@@ -803,7 +858,7 @@ export async function batchCreateEmployeesAction(
         }
 
         employeeCounter++;
-        const newEmployeeId = record.employeeId || (1001 + employeeCounter).toString();
+        const newEmployeeId = validatedRecord.employeeId || (1001 + employeeCounter).toString();
         
         const nameParts = name.trim().split(/\s+/);
         
@@ -812,27 +867,27 @@ export async function batchCreateEmployeesAction(
             name: name,
             firstName: nameParts[0] || '-',
             lastName: nameParts.slice(1).join(' ') || '-',
-            personalEmail: record.personalEmail || '-',
-            phone: record.phone || '-',
+            personalEmail: validatedRecord.personalEmail || '-',
+            phone: validatedRecord.phone || '-',
             emergencyContact: {
-                name: record.emergencyContactName || '-',
-                relationship: record.emergencyContactRelationship || '-',
-                number: record.emergencyContactNumber || '-',
+                name: validatedRecord.emergencyContactName || '-',
+                relationship: validatedRecord.emergencyContactRelationship || '-',
+                number: validatedRecord.emergencyContactNumber || '-',
             },
-            dateOfBirth: record.dateOfBirth ? Timestamp.fromDate(record.dateOfBirth) : null,
-            gender: record.gender || '-',
-            nationalId: record.nationalId || '-',
-            religion: record.religion || '-',
+            dateOfBirth: validatedRecord.dateOfBirth ? Timestamp.fromDate(validatedRecord.dateOfBirth) : null,
+            gender: validatedRecord.gender || '-',
+            nationalId: validatedRecord.nationalId || '-',
+            religion: validatedRecord.religion || '-',
             email: nisEmail,
-            joiningDate: record.joiningDate ? Timestamp.fromDate(record.joiningDate) : serverTimestamp(),
-            title: record.title || '-',
-            department: record.department || '-',
-            role: record.role || '-',
-            stage: record.stage || '-',
-            campus: record.campus || '-',
-            reportLine1: record.reportLine1 || '-',
-            reportLine2: record.reportLine2 || '-',
-            subject: record.subject || '-',
+            joiningDate: validatedRecord.joiningDate ? Timestamp.fromDate(validatedRecord.joiningDate) : serverTimestamp(),
+            title: validatedRecord.title || '-',
+            department: validatedRecord.department || '-',
+            role: validatedRecord.role || '-',
+            stage: validatedRecord.stage || '-',
+            campus: validatedRecord.campus || '-',
+            reportLine1: validatedRecord.reportLine1 || '-',
+            reportLine2: validatedRecord.reportLine2 || '-',
+            subject: validatedRecord.subject || '-',
             employeeId: newEmployeeId,
             status: "Active",
             system: "Unassigned",
