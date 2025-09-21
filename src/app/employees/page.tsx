@@ -627,12 +627,12 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="edit-firstName">First Name</Label>
-                    <Input id="edit-firstName" name="firstName" defaultValue={employee.firstName || employee.name.split(' ')[0] || ''}  />
+                    <Input id="edit-firstName" name="firstName" defaultValue={employee.firstName || (typeof employee.name === 'string' ? employee.name.split(' ')[0] : '') || ''}  />
                     {serverState?.errors?.firstName && <p className="text-sm text-destructive">{serverState.errors.firstName.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="edit-lastName">Last Name</Label>
-                    <Input id="edit-lastName" name="lastName" defaultValue={employee.lastName || employee.name.split(' ').slice(1).join(' ') || ''}  />
+                    <Input id="edit-lastName" name="lastName" defaultValue={employee.lastName || (typeof employee.name === 'string' ? employee.name.split(' ').slice(1).join(' ') : '') || ''}  />
                     {serverState?.errors?.lastName && <p className="text-sm text-destructive">{serverState.errors.lastName.join(', ')}</p>}
                 </div>
             </div>
@@ -1962,3 +1962,5 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
+    
