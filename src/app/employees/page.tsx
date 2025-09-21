@@ -1066,7 +1066,6 @@ function EmployeeManagementContent() {
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [paginatedEmployees, setPaginatedEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const { toast } = useToast();
   const { campuses, stage: stages, subjects, isLoading: isLoadingLists } = useOrganizationLists();
   const [campusFilter, setCampusFilter] = useState("All");
@@ -1105,10 +1104,7 @@ function EmployeeManagementContent() {
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false);
   
   // Pagination State
-  const [firstVisible, setFirstVisible] = useState<DocumentSnapshot | null>(null);
-  const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLastPage, setIsLastPage] = useState(false);
 
   const canManageEmployees = useMemo(() => {
     if (!profile) return false;
@@ -1122,146 +1118,34 @@ function EmployeeManagementContent() {
     return userRole === 'admin' || userRole === 'hr' || userRole === 'principal';
   }, [profile]);
 
-  const isPrincipalView = useMemo(() => profile?.role?.toLowerCase() === 'principal', [profile]);
-  const isFiltered = useMemo(() => campusFilter !== "All" || stageFilter !== "All" || subjectFilter !== "All" || genderFilter !== "All" || religionFilter !== "All", [campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
-  
-  const isSearching = useMemo(() => searchTerm.trim() !== '', [searchTerm]);
-
-  const fetchEmployees = useCallback(async (page: 'first' | 'next' | 'prev' = 'first') => {
-    if (!hasFullView) {
-        setIsLoading(false);
-        setPaginatedEmployees([]);
-        return;
+  useEffect(() => {
+    if (isLoadingProfile || !hasFullView) {
+      if(!isLoadingProfile) setIsLoading(false);
+      return;
     }
     
     setIsLoading(true);
-    try {
-        const employeeCollection = collection(db, "employee");
-        let queryConstraints: QueryConstraint[] = [];
-        const userRole = profile?.role?.toLowerCase();
 
-        // Role-based filtering logic
-        if (userRole === 'principal' && profile?.name) {
-            queryConstraints.push(where("reportLine1", "==", profile.name));
-        } else {
-            // Admin and HR filters
-            if (campusFilter !== "All") queryConstraints.push(where("campus", "==", campusFilter));
-            if (stageFilter !== "All") queryConstraints.push(where("stage", "==", stageFilter));
-            if (subjectFilter !== "All") queryConstraints.push(where("subject", "==", subjectFilter));
-            if (genderFilter !== "All") queryConstraints.push(where("gender", "==", genderFilter));
-            if (religionFilter !== "All") queryConstraints.push(where("religion", "==", religionFilter));
-        }
+    const employeeCollection = collection(db, "employee");
+    let q = query(employeeCollection, orderBy("name"));
 
-        const isFilteredOrPrincipalView = isFiltered || userRole === 'principal';
-        
-        if (!isFilteredOrPrincipalView) {
-            queryConstraints.push(orderBy("name"));
-        }
-        
-        let q;
-        if (!isFilteredOrPrincipalView && !isSearching) { // Paginate only for full, unfiltered view
-            if (page === 'first') {
-                q = query(employeeCollection, ...queryConstraints, limit(PAGE_SIZE));
-            } else if (page === 'next' && lastVisible) {
-                q = query(employeeCollection, ...queryConstraints, startAfter(lastVisible), limit(PAGE_SIZE));
-            } else if (page === 'prev' && firstVisible) {
-                q = query(employeeCollection, ...queryConstraints, endBefore(firstVisible), limitToLast(PAGE_SIZE));
-            } else {
-                setIsLoading(false);
-                return;
-            }
-        } else {
-            q = query(employeeCollection, ...queryConstraints);
-        }
-
-        const documentSnapshots = await getDocs(q);
-        let employeeData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-        
-        // Sort client-side if we didn't order by name in the query
-        if (isFilteredOrPrincipalView) {
-            employeeData.sort((a, b) => a.name.localeCompare(b.name));
-        }
-
-        if (isSearching) {
-            setAllEmployees(employeeData);
-            setPaginatedEmployees([]);
-        } else {
-            setPaginatedEmployees(employeeData);
-            setAllEmployees([]);
-        }
-
-        if (!documentSnapshots.empty && !isFilteredOrPrincipalView && !isSearching) {
-            setFirstVisible(documentSnapshots.docs[0]);
-            setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
-            const nextPageQuery = query(employeeCollection, ...queryConstraints, startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1));
-            const nextSnapshot = await getDocs(nextPageQuery);
-            setIsLastPage(nextSnapshot.empty);
-        } else {
-            setIsLastPage(true);
-        }
-
-    } catch (error) {
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const employeeData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        setAllEmployees(employeeData);
+        setIsLoading(false);
+    }, (error) => {
         console.error("Error fetching employees:", error);
         toast({
             variant: "destructive",
             title: "Error",
-            description: "Could not load employees. A Firestore index might be required for this filter combination.",
+            description: "Could not load employees.",
         });
-    } finally {
         setIsLoading(false);
-    }
-  }, [hasFullView, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, isFiltered, firstVisible, lastVisible, toast, isSearching]);
-  
-  useEffect(() => {
-    if(isLoadingProfile || !hasFullView) return;
+    });
 
-    setCurrentPage(1);
-    setFirstVisible(null);
-    setLastVisible(null);
-    fetchEmployees('first');
-    
-  }, [hasFullView, isLoadingProfile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, fetchEmployees, isSearching]);
+    return () => unsubscribe();
+  }, [hasFullView, isLoadingProfile, toast]);
 
-
-  useEffect(() => {
-    if (isLoadingProfile || !hasFullView) return;
-    
-    const employeeCollection = collection(db, "employee");
-    let countQuery;
-    let countFilters: QueryConstraint[] = [];
-    
-    const userRole = profile?.role?.toLowerCase();
-
-    if (userRole === 'principal' && profile?.name) {
-        countFilters.push(where("reportLine1", "==", profile.name));
-    } else {
-         if (campusFilter !== 'All') countFilters.push(where("campus", "==", campusFilter));
-         if (stageFilter !== 'All') countFilters.push(where("stage", "==", stageFilter));
-         if (subjectFilter !== 'All') countFilters.push(where("subject", "==", subjectFilter));
-         if (genderFilter !== 'All') countFilters.push(where("gender", "==", genderFilter));
-         if (religionFilter !== "All") countFilters.push(where("religion", "==", religionFilter));
-    }
-    
-    countQuery = query(employeeCollection, ...countFilters);
-    
-    getCountFromServer(countQuery).then(snapshot => {
-        setTotalEmployees(snapshot.data().count);
-    }).catch(() => setTotalEmployees(0));
-
-  }, [isLoadingProfile, hasFullView, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
-  
-  
-  const goToNextPage = () => {
-    if (isLastPage) return;
-    setCurrentPage(prev => prev + 1);
-    fetchEmployees('next');
-  };
-
-  const goToPrevPage = () => {
-    if (currentPage === 1) return;
-    setCurrentPage(prev => prev - 1);
-    fetchEmployees('prev');
-  };
   
   useEffect(() => {
     if (createLoginServerState?.message) {
@@ -1336,30 +1220,65 @@ function EmployeeManagementContent() {
   }, [changePasswordServerState, toast]);
   
   const filteredEmployees = useMemo(() => {
-    let listToFilter = isSearching ? allEmployees : paginatedEmployees;
+    let listToFilter = allEmployees;
+    const userRole = profile?.role?.toLowerCase();
     
-    const lowercasedFilter = searchTerm.toLowerCase();
-    if (!searchTerm.trim()) {
-      return listToFilter;
+    // Server-side equivalent filtering now on client
+    if (userRole === 'principal' && profile?.name) {
+        listToFilter = listToFilter.filter(emp => emp.reportLine1 === profile.name);
     }
     
-    return listToFilter.filter(employee => {
-        const searchableFields = [
-            employee.name,
-            employee.department,
-            employee.role,
-            employee.stage,
-            employee.campus,
-            employee.email,
-            employee.phone,
-            employee.subject
-        ];
-        return searchableFields.some(field =>
-            typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
-        );
-    });
-  }, [allEmployees, paginatedEmployees, searchTerm, isSearching]);
+    if (campusFilter !== "All") listToFilter = listToFilter.filter(emp => emp.campus === campusFilter);
+    if (stageFilter !== "All") listToFilter = listToFilter.filter(emp => emp.stage === stageFilter);
+    if (subjectFilter !== "All") listToFilter = listToFilter.filter(emp => emp.subject === subjectFilter);
+    if (genderFilter !== "All") listToFilter = listToFilter.filter(emp => emp.gender === genderFilter);
+    if (religionFilter !== "All") listToFilter = listToFilter.filter(emp => emp.religion === religionFilter);
+    
+    const lowercasedFilter = searchTerm.toLowerCase();
+    if (searchTerm.trim()) {
+      listToFilter = listToFilter.filter(employee => {
+          const searchableFields = [
+              employee.name,
+              employee.department,
+              employee.role,
+              employee.stage,
+              employee.campus,
+              employee.email,
+              employee.phone,
+              employee.subject
+          ];
+          return searchableFields.some(field =>
+              typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
+          );
+      });
+    }
+    
+    return listToFilter;
+  }, [allEmployees, searchTerm, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
 
+  const paginatedEmployees = useMemo(() => {
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    const endIndex = startIndex + PAGE_SIZE;
+    return filteredEmployees.slice(startIndex, endIndex);
+  }, [filteredEmployees, currentPage]);
+  
+  const totalPages = useMemo(() => Math.ceil(filteredEmployees.length / PAGE_SIZE), [filteredEmployees]);
+  const isLastPage = currentPage >= totalPages;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
+
+
+  const goToNextPage = () => {
+    if (isLastPage) return;
+    setCurrentPage(prev => prev + 1);
+  };
+
+  const goToPrevPage = () => {
+    if (currentPage === 1) return;
+    setCurrentPage(prev => prev - 1);
+  };
 
   const openEditDialog = (employee: Employee) => {
     setEditingEmployee(employee);
@@ -1502,7 +1421,7 @@ function EmployeeManagementContent() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent className="p-3 pt-0">
-              <div className="text-lg font-bold sm:text-2xl">{isLoadingProfile || totalEmployees === null ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : totalEmployees}</div>
+              <div className="text-lg font-bold sm:text-2xl">{isLoading || isLoadingProfile ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : filteredEmployees.length}</div>
             </CardContent>
           </Card>
         </div>
@@ -1623,8 +1542,8 @@ function EmployeeManagementContent() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredEmployees.length > 0 ? (
-                filteredEmployees.map((employee) => (
+              {paginatedEmployees.length > 0 ? (
+                paginatedEmployees.map((employee) => (
                   <TableRow key={employee.id}>
                     <TableCell className="font-medium">
                       <Link href={`/employees/${employee.id}`} className="flex items-center gap-3 hover:underline">
@@ -1706,7 +1625,7 @@ function EmployeeManagementContent() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={canManageEmployees ? 7 : 6} className="h-24 text-center">
-                    {isSearching ? "No employees found matching your search." : (isFiltered || isPrincipalView) ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
+                    {searchTerm ? "No employees found matching your search." : `No employees found matching your filters.`}
                   </TableCell>
                 </TableRow>
               )}
@@ -1714,7 +1633,7 @@ function EmployeeManagementContent() {
           </Table>
           )}
         </CardContent>
-        {(!isFiltered && !isPrincipalView && !isSearching) && (
+        {totalPages > 1 && (
             <CardContent>
             <div className="flex items-center justify-end space-x-2 py-4">
                 <Button
@@ -1726,7 +1645,7 @@ function EmployeeManagementContent() {
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Previous
                 </Button>
-                <span className="text-sm font-medium">Page {currentPage}</span>
+                <span className="text-sm font-medium">Page {currentPage} of {totalPages}</span>
                 <Button
                     variant="outline"
                     size="sm"
@@ -2029,5 +1948,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
-    
