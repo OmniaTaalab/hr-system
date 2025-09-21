@@ -1356,9 +1356,9 @@ function EmployeeManagementContent() {
     const headers = [
       "name", "personalEmail", "phone", "emergencyContactName", 
       "emergencyContactRelationship", "emergencyContactNumber", "dateOfBirth",
-      "gender", "nationalId", "religion", "email", "joiningDate",
+      "gender", "nationalId", "religion", "Work email", "joiningDate",
       "title", "department", "role", "stage", "campus", "reportLine1",
-      "reportLine2", "subject"
+      "reportLine2", "subject","ID Portal / Employee Number"
     ];
     
     const data = dataToExport.map(emp => ({
@@ -1381,7 +1381,9 @@ function EmployeeManagementContent() {
       campus: emp.campus || "-",
       reportLine1: emp.reportLine1 || "-",
       reportLine2: emp.reportLine2 || "-",
-      subject: emp.subject || "-"
+      subject: emp.subject || "-",
+      id: emp.id || "-"
+
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(data, { header: headers });

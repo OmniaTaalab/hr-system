@@ -729,19 +729,25 @@ export async function batchCreateEmployeesAction(
     let currentEmployeeCount = countSnapshot.data().count;
 
     for (const record of recordsToProcess) {
-      const nisEmail = String(record.nisEmail || '').trim();
+      const nisEmail = String(record['nisEmail'] || '').trim();
       const name = String(record.name || '').trim();
 
-      if (!nisEmail || !z.string().email().safeParse(nisEmail).success || !name) {
+      if (!name) {
         results.failed++;
-        results.failedEmails.push(nisEmail || name || 'N/A');
+        results.failedEmails.push(`Record with email ${nisEmail || '(missing)'} failed: Missing Name.`);
+        continue;
+      }
+
+      if (!nisEmail || !z.string().email().safeParse(nisEmail).success) {
+        results.failed++;
+        results.failedEmails.push(`Record for ${name} failed: Invalid or missing Email.`);
         continue;
       }
 
       // Check for duplicates within the current processing batch
       if (emailsInThisBatch.has(nisEmail)) {
         results.failed++;
-        results.failedEmails.push(nisEmail);
+        results.failedEmails.push(`${nisEmail} (duplicate in file)`);
         continue;
       }
 
@@ -751,7 +757,7 @@ export async function batchCreateEmployeesAction(
 
       if (!existingEmailSnapshot.empty) {
         results.failed++;
-        results.failedEmails.push(nisEmail);
+        results.failedEmails.push(`${nisEmail} (already exists in database)`);
         continue;
       }
 
@@ -815,7 +821,7 @@ export async function batchCreateEmployeesAction(
 
     let message = `Successfully created ${results.created} employee(s).`;
     if (results.failed > 0) {
-      message += ` Failed to create ${results.failed} employee(s) due to duplicate or invalid emails/names: ${results.failedEmails.slice(0, 5).join(", ")}${results.failed > 5 ? '...' : ''}`;
+      message += ` Failed to create ${results.failed} employee(s) due to duplicate or invalid data: ${results.failedEmails.slice(0, 3).join(", ")}${results.failed > 3 ? '...' : ''}`;
     }
 
     await logSystemEvent("Batch Create Employees", { actorId, actorEmail, actorRole, createdCount: results.created, failedCount: results.failed });
