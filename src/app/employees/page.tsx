@@ -1064,7 +1064,6 @@ function EmployeeManagementContent() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
-  const [paginatedEmployees, setPaginatedEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { campuses, stage: stages, subjects, isLoading: isLoadingLists } = useOrganizationLists();
@@ -1255,15 +1254,15 @@ function EmployeeManagementContent() {
     
     return listToFilter;
   }, [allEmployees, searchTerm, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
+  
+  const totalPages = useMemo(() => Math.ceil(filteredEmployees.length / PAGE_SIZE), [filteredEmployees]);
+  const isLastPage = currentPage >= totalPages;
 
   const paginatedEmployees = useMemo(() => {
     const startIndex = (currentPage - 1) * PAGE_SIZE;
     const endIndex = startIndex + PAGE_SIZE;
     return filteredEmployees.slice(startIndex, endIndex);
   }, [filteredEmployees, currentPage]);
-  
-  const totalPages = useMemo(() => Math.ceil(filteredEmployees.length / PAGE_SIZE), [filteredEmployees]);
-  const isLastPage = currentPage >= totalPages;
 
   useEffect(() => {
     setCurrentPage(1);
