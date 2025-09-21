@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -1522,7 +1523,7 @@ function EmployeeManagementContent() {
                 />
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Button onClick={handleExportExcel} variant="outline" className="w-full">
+                <Button onClick={handleExportExcel} variant="outline" className="w-full" disabled={isLoading}>
                   <FileDown className="mr-2 h-4 w-4" />
                   Export Excel
                 </Button>
