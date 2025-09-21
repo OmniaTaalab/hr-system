@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { z } from 'zod';
@@ -687,8 +686,9 @@ export type BatchCreateEmployeesState = {
 };
 
 // This schema maps to the user's provided Excel file headers.
+// It is intentionally flexible with optional and nullable fields.
 const BatchEmployeeSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1, 'Name is required'),
   personalEmail: z.string().email().optional().nullable(),
   phone: z.union([z.string(), z.number()]).transform(val => String(val)).optional().nullable(),
   emergencyContactName: z.string().optional().nullable(),
@@ -698,7 +698,7 @@ const BatchEmployeeSchema = z.object({
   gender: z.string().optional().nullable(),
   nationalId: z.union([z.string(), z.number()]).transform(val => String(val)).optional().nullable(),
   religion: z.string().optional().nullable(),
-  nisEmail: z.string().email(),
+  nisEmail: z.string().email('A valid Work Email is required'),
   joiningDate: z.coerce.date().optional().nullable(),
   title: z.string().optional().nullable(),
   department: z.string().optional().nullable(),
