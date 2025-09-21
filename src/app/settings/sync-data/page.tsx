@@ -18,6 +18,8 @@ import {
   type SyncState
 } from "@/app/actions/settings-actions";
 import { useToast } from "@/hooks/use-toast";
+import { useUserProfile } from "@/components/layout/app-layout";
+
 
 const initialSyncState: SyncState = { success: false, message: null };
 
@@ -26,11 +28,13 @@ function SyncButton({
   action,
   isPending,
   state,
+  actorDetails
 }: {
   label: string;
-  action: () => void;
+  action: (formData: FormData) => void;
   isPending: boolean;
   state: SyncState;
+  actorDetails: { id?: string, email?: string, role?: string }
 }) {
   const { toast } = useToast();
   
@@ -43,11 +47,19 @@ function SyncButton({
       });
     }
   }, [state, toast]);
+  
+  const handleAction = () => {
+    const formData = new FormData();
+    if(actorDetails.id) formData.append('actorId', actorDetails.id);
+    if(actorDetails.email) formData.append('actorEmail', actorDetails.email);
+    if(actorDetails.role) formData.append('actorRole', actorDetails.role);
+    action(formData);
+  }
 
   return (
     <div className="flex items-center justify-between p-4 border rounded-lg">
       <p className="font-medium">{label}</p>
-      <form action={action}>
+      <form action={handleAction}>
         <Button size="sm" variant="secondary" disabled={isPending}>
           {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
           Sync Now
@@ -59,6 +71,9 @@ function SyncButton({
 
 
 export default function SyncDataPage() {
+  const { profile } = useUserProfile();
+  const actorDetails = { id: profile?.id, email: profile?.email, role: profile?.role };
+
   const [syncGroupState, syncGroupAction, isSyncGroupPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
   const [syncRoleState, syncRoleAction, isSyncRolePending] = useActionState(syncRolesFromEmployeesAction, initialSyncState);
   const [syncCampusState, syncCampusAction, isSyncCampusPending] = useActionState(syncCampusesFromEmployeesAction, initialSyncState);
@@ -93,42 +108,49 @@ export default function SyncDataPage() {
                     action={syncRoleAction}
                     isPending={isSyncRolePending}
                     state={syncRoleState}
+                    actorDetails={actorDetails}
                 />
                  <SyncButton 
                     label="Sync Campuses from Employees"
                     action={syncCampusAction}
                     isPending={isSyncCampusPending}
                     state={syncCampusState}
+                    actorDetails={actorDetails}
                 />
                  <SyncButton 
                     label="Sync Stages from Employees"
                     action={syncStageAction}
                     isPending={isSyncStagePending}
                     state={syncStageState}
+                    actorDetails={actorDetails}
                 />
                  <SyncButton 
                     label="Sync Subjects from Employees"
                     action={syncSubjectAction}
                     isPending={isSyncSubjectPending}
                     state={syncSubjectState}
+                    actorDetails={actorDetails}
                 />
                  <SyncButton 
                     label="Sync Group Names from Employees"
                     action={syncGroupAction}
                     isPending={isSyncGroupPending}
                     state={syncGroupState}
+                    actorDetails={actorDetails}
                 />
                  <SyncButton 
                     label="Sync Machine Names from Attendance Logs"
                     action={syncMachineAction}
                     isPending={isSyncMachinePending}
                     state={syncMachineState}
+                    actorDetails={actorDetails}
                 />
                 <SyncButton
                     label="Sync Report Lines from Employees"
                     action={syncReportLine1Action}
                     isPending={isSyncReportLine1Pending}
                     state={syncReportLine1State}
+                    actorDetails={actorDetails}
                 />
             </CardContent>
           </Card>
