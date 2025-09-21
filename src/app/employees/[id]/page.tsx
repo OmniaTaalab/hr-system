@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserCircle2, MailWarning, PhoneCall, FileDown, Download, UserMinus, Activity } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity } from 'lucide-react';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -355,8 +355,6 @@ function EmployeeProfileContent() {
                    <DetailItem icon={MapPin} label="Campus" value={employee.campus} />
                    <DetailItem icon={CalendarDays} label="Joining Date" value={employee.joiningDate ? format(employee.joiningDate.toDate(), 'PPP') : undefined} />
                    <DetailItem icon={Stethoscope} label="Subject" value={employee.subject} />
-                   <DetailItem icon={UserCircle2} label="Reports to (Line 1)" value={employee.reportLine1} />
-                   <DetailItem icon={UserCircle2} label="Reports to (Line 2)" value={employee.reportLine2} />
                    <DetailItem icon={Activity} label="Status">
                      <Badge variant={employee.status === "Terminated" ? "destructive" : "secondary"} className={employee.status === 'Active' ? 'bg-green-100 text-green-800' : ''}>
                        {employee.status || "Active"}
@@ -368,7 +366,7 @@ function EmployeeProfileContent() {
 
                 <h3 className="text-lg font-semibold flex items-center mb-4"><UserCircle className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                   <DetailItem icon={MailWarning} label="Personal Email" value={employee.personalEmail} />
+                   <DetailItem icon={Mail} label="Personal Email" value={employee.personalEmail} />
                    <DetailItem icon={Phone} label="Personal Phone" value={employee.phone} />
                    <DetailItem icon={Cake} label="Birthday" value={employee.dateOfBirth ? format(employee.dateOfBirth.toDate(), 'PPP') : undefined} />
                    <DetailItem icon={User} label="Gender" value={employee.gender} />
@@ -378,7 +376,7 @@ function EmployeeProfileContent() {
 
                 <Separator className="my-6" />
                 
-                <h3 className="text-lg font-semibold flex items-center mb-4"><PhoneCall className="mr-2 h-5 w-5 text-primary" />Emergency Contact</h3>
+                <h3 className="text-lg font-semibold flex items-center mb-4"><Phone className="mr-2 h-5 w-5 text-primary" />Emergency Contact</h3>
                 {employee.emergencyContact ? (
                    <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-4">
                      <DetailItem icon={User} label="Name" value={employee.emergencyContact.name} />
@@ -398,7 +396,7 @@ function EmployeeProfileContent() {
                 </CardHeader>
                 <CardContent>
                     <Button onClick={handleExportPDF}>
-                        <FileDown className="mr-2 h-4 w-4" />
+                        <FileText className="mr-2 h-4 w-4" />
                         Export Profile to PDF
                     </Button>
                 </CardContent>
@@ -408,7 +406,7 @@ function EmployeeProfileContent() {
               <Card className="shadow-lg">
                 <CardHeader>
                     <CardTitle className="flex items-center">
-                      <FileDown className="mr-2 h-6 w-6 text-primary" />
+                      <FileText className="mr-2 h-6 w-6 text-primary" />
                       Attached Documents
                     </CardTitle>
                     <CardDescription>
@@ -422,7 +420,7 @@ function EmployeeProfileContent() {
                         <span className="font-medium text-sm">{file.name}</span>
                         <Button asChild variant="secondary" size="sm">
                           <a href={file.url} target="_blank" rel="noopener noreferrer">
-                            <Download className="mr-2 h-4 w-4" />
+                            <FileText className="mr-2 h-4 w-4" />
                             Download
                           </a>
                         </Button>
