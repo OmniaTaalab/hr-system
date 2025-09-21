@@ -689,32 +689,27 @@ export type BatchCreateEmployeesState = {
 const parseFlexibleDate = (val: any): Date | null => {
   if (!val) return null;
 
-  if (val instanceof Date && !isNaN(val.valueOf())) {
-    return val;
+  // If it's already a date object
+  if (val instanceof Date) {
+    return !isNaN(val.valueOf()) ? val : null;
   }
-
-  // Handle Excel serial numbers
+  
+  // Handle Excel serial numbers (numbers)
   if (typeof val === 'number' && val > 0) {
     // Excel's epoch starts on 1899-12-30 for compatibility with Lotus 1-2-3 bug
     const excelEpoch = new Date(Date.UTC(1899, 11, 30));
     const date = new Date(excelEpoch.getTime() + val * 86400000); // 86400000 ms in a day
     return !isNaN(date.valueOf()) ? date : null;
   }
-  
+
+  // Handle date strings
   if (typeof val === 'string') {
-    // Attempt to parse common formats, this is less robust than a dedicated library
     const date = new Date(val);
-    if (!isNaN(date.valueOf())) return date;
-    
-    // Try to handle DD-MM-YYYY or DD/MM/YYYY
-    const parts = val.match(/(\d+)[-/](\d+)[-/](\d+)/);
-    if (parts) {
-      // Assuming DD-MM-YYYY
-      const d = new Date(parseInt(parts[3]), parseInt(parts[2]) - 1, parseInt(parts[1]));
-      if (!isNaN(d.valueOf())) return d;
+    if (!isNaN(date.valueOf())) {
+      return date;
     }
   }
-  
+
   return null;
 };
 
@@ -863,12 +858,12 @@ export async function batchCreateEmployeesAction(
                 relationship: validatedRecord.emergencyContactRelationship || '-',
                 number: validatedRecord.emergencyContactNumber || '-',
             },
-            dateOfBirth: validatedRecord.dateOfBirth, // Can be null now
+            dateOfBirth: validatedRecord.dateOfBirth instanceof Date ? Timestamp.fromDate(validatedRecord.dateOfBirth) : null,
             gender: validatedRecord.gender || '-',
             nationalId: validatedRecord.nationalId || '-',
             religion: validatedRecord.religion || '-',
             email: nisEmail,
-            joiningDate: validatedRecord.joiningDate, // Can be null now
+            joiningDate: validatedRecord.joiningDate instanceof Date ? Timestamp.fromDate(validatedRecord.joiningDate) : null,
             title: validatedRecord.title || '-',
             department: validatedRecord.department || '-',
             role: validatedRecord.role || '-',
@@ -910,3 +905,5 @@ export async function batchCreateEmployeesAction(
         return { success: false, errors: { form: [`An error occurred during the final save: ${error.message}`] } };
     }
 }
+
+    
