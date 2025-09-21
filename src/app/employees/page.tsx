@@ -931,9 +931,10 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
     const { profile } = useUserProfile();
     const [file, setFile] = useState<File | null>(null);
     const [isParsing, setIsParsing] = useState(false);
-    const [batchState, batchAction, isTransitioning] = useActionState(batchCreateEmployeesAction, initialBatchCreateState);
+    const [batchState, batchAction, isBatchPending] = useActionState(batchCreateEmployeesAction, initialBatchCreateState);
+    const [isTransitionPending, startTransition] = useTransition();
 
-    const isActionPending = isParsing || isTransitioning;
+    const isActionPending = isParsing || isBatchPending;
 
     useEffect(() => {
         if (batchState.message) {
@@ -997,7 +998,9 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
                 formData.set('actorEmail', profile?.email || '');
                 formData.set('actorRole', profile?.role || '');
 
-                batchAction(formData);
+                startTransition(() => {
+                  batchAction(formData);
+                });
 
             } catch (error) {
                  toast({ variant: "destructive", title: "Error", description: "Failed to read the file." });
