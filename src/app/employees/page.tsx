@@ -1220,7 +1220,7 @@ function EmployeeManagementContent() {
     setLastVisible(null);
     fetchEmployees('first');
     
-  }, [hasFullView, isLoadingProfile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, fetchEmployees]);
+  }, [hasFullView, isLoadingProfile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, fetchEmployees, isSearching]);
 
 
   useEffect(() => {
@@ -1706,7 +1706,7 @@ function EmployeeManagementContent() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={canManageEmployees ? 7 : 6} className="h-24 text-center">
-                    {searchTerm ? "No employees found matching your search." : (isFiltered || isPrincipalView) ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
+                    {isSearching ? "No employees found matching your search." : (isFiltered || isPrincipalView) ? `No employees found matching your filters.` : "No employees found. Try adding some!"}
                   </TableCell>
                 </TableRow>
               )}
@@ -2029,3 +2029,5 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
+    
