@@ -34,7 +34,8 @@ import {
   updateEmployeeAction, type UpdateEmployeeState, 
   deleteEmployeeAction, type DeleteEmployeeState,
   createEmployeeAction, type CreateEmployeeState,
-  deactivateEmployeeAction, type DeactivateEmployeeState
+  deactivateEmployeeAction, type DeactivateEmployeeState,
+  batchCreateEmployeesAction, type BatchCreateEmployeesState
 } from "@/lib/firebase/admin-actions";
 import { 
   createAuthUserForEmployeeAction, type CreateAuthUserState,
@@ -147,6 +148,12 @@ const initialUpdatePasswordState: UpdateAuthPasswordState = {
 };
 
 const initialDeactivateState: DeactivateEmployeeState = {
+    message: null,
+    errors: {},
+    success: false,
+};
+
+const initialBatchCreateState: BatchCreateEmployeesState = {
     message: null,
     errors: {},
     success: false,
@@ -917,6 +924,117 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
     );
 }
 
+// New Component for Batch Import
+function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
+    const { toast } = useToast();
+    const { profile } = useUserProfile();
+    const [file, setFile] = useState<File | null>(null);
+    const [isParsing, setIsParsing] = useState(false);
+    const [batchState, batchAction, isBatchPending] = useActionState(batchCreateEmployeesAction, initialBatchCreateState);
+
+    useEffect(() => {
+        if (batchState.message) {
+            toast({
+                title: batchState.success ? "Import Complete" : "Import Failed",
+                description: batchState.message,
+                variant: batchState.success ? "default" : "destructive",
+                duration: batchState.success ? 5000 : 10000,
+            });
+            if (batchState.success) {
+                onOpenChange(false);
+            }
+        }
+    }, [batchState, toast, onOpenChange]);
+    
+     useEffect(() => {
+        if (!open) {
+            setFile(null);
+        }
+    }, [open]);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const f = e.target.files?.[0];
+        if (f) {
+            if (f.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || f.type === 'application/vnd.ms-excel') {
+                setFile(f);
+            } else {
+                toast({ variant: 'destructive', title: 'Invalid File Type', description: 'Please upload an Excel file (.xlsx).' });
+                setFile(null);
+            }
+        }
+    };
+    
+    const handleDownloadTemplate = () => {
+        const headers = ["name", "personalEmail", "phone", "emergencyContactName", "emergencyContactRelationship", "emergencyContactNumber", "dateOfBirth", "gender", "nationalId", "religion", "nisEmail", "joiningDate", "title", "department", "role", "stage", "campus", "reportLine1", "reportLine2", "subject"];
+        const ws = XLSX.utils.aoa_to_sheet([headers]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Employees");
+        XLSX.writeFile(wb, "Employee_Import_Template.xlsx");
+    };
+
+    const handleImport = () => {
+        if (!file) {
+            toast({ variant: "destructive", title: "No File", description: "Please select a file to import." });
+            return;
+        }
+
+        setIsParsing(true);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const data = e.target?.result;
+            const workbook = XLSX.read(data, { type: 'binary', cellDates: true });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet);
+            
+            const formData = new FormData();
+            formData.set('recordsJson', JSON.stringify(json));
+            formData.set('actorId', profile?.id || '');
+            formData.set('actorEmail', profile?.email || '');
+            formData.set('actorRole', profile?.role || '');
+
+            batchAction(formData);
+            setIsParsing(false);
+        };
+        reader.onerror = () => {
+            toast({ variant: "destructive", title: "Error", description: "Failed to read the file." });
+            setIsParsing(false);
+        };
+        reader.readAsBinaryString(file);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Import Employees from Excel</DialogTitle>
+                    <DialogDescription>
+                        Upload an XLSX file with employee data. A new employee ID will be generated for each record.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    <Button variant="secondary" onClick={handleDownloadTemplate} className="w-full">
+                        <Download className="mr-2 h-4 w-4" /> Download Excel Template
+                    </Button>
+                     <div className="space-y-2">
+                        <Label htmlFor="import-file">Upload File</Label>
+                        <Input id="import-file" type="file" accept=".xlsx, .xls" onChange={handleFileChange} />
+                    </div>
+                     {batchState?.errors?.file && <p className="text-sm text-destructive">{batchState.errors.file.join(', ')}</p>}
+                     {batchState?.errors?.form && <p className="text-sm text-destructive">{batchState.errors.form.join(', ')}</p>}
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                    <Button onClick={handleImport} disabled={!file || isParsing || isBatchPending}>
+                        {(isParsing || isBatchPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Import
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 
 function EmployeeManagementContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
@@ -960,6 +1078,8 @@ function EmployeeManagementContent() {
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null);
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false);
   
+  const [isBatchImportOpen, setIsBatchImportOpen] = useState(false);
+  
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -976,10 +1096,7 @@ function EmployeeManagementContent() {
   }, [profile]);
 
   useEffect(() => {
-    if (isLoadingProfile || !hasFullView) {
-      if(!isLoadingProfile) setIsLoading(false);
-      return;
-    }
+    if (isLoadingProfile) return;
     
     setIsLoading(true);
 
@@ -1309,6 +1426,10 @@ function EmployeeManagementContent() {
                     <Skeleton className="h-10 w-[190px]" />
                 ) : canManageEmployees && (
                     <div className="flex gap-2 w-full sm:w-auto">
+                        <Button variant="secondary" onClick={() => setIsBatchImportOpen(true)} className="w-full">
+                            <UploadCloud className="mr-2 h-4 w-4" />
+                            Import Excel
+                        </Button>
                         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                           <DialogTrigger asChild>
                             <Button className="w-full sm:w-auto">
@@ -1527,6 +1648,11 @@ function EmployeeManagementContent() {
         employee={employeeToDeactivate}
         open={isDeactivateDialogOpen}
         onOpenChange={setIsDeactivateDialogOpen}
+      />
+      
+      <BatchImportDialog 
+        open={isBatchImportOpen}
+        onOpenChange={setIsBatchImportOpen}
       />
       
       {isDeleteDialogOpen && employeeToDelete && (
@@ -1798,3 +1924,5 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
+  

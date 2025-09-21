@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { adminAuth, adminStorage } from '@/lib/firebase/admin-config';
-import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc, getDoc, writeBatch } from 'firebase/firestore';
 import { isValid } from 'date-fns';
 import { logSystemEvent } from '../system-log';
 
@@ -674,3 +674,173 @@ export async function createEmployeeProfileAction(
     };
   }
 }
+
+// --- NEW BATCH CREATE EMPLOYEES ACTION ---
+
+export type BatchCreateEmployeesState = {
+    errors?: {
+        file?: string[];
+        form?: string[];
+    };
+    message?: string | null;
+    success?: boolean;
+};
+
+// Simplified schema for what's coming from Excel
+const BatchEmployeeSchema = z.object({
+    name: z.string().min(1, "Name is required."),
+    personalEmail: z.string().email().optional(),
+    phone: z.string().optional(),
+    emergencyContactName: z.string().optional(),
+    emergencyContactRelationship: z.string().optional(),
+    emergencyContactNumber: z.string().optional(),
+    dateOfBirth: z.coerce.date().optional(),
+    gender: z.string().optional(),
+    nationalId: z.string().optional(),
+    religion: z.string().optional(),
+    nisEmail: z.string().email({ message: 'A valid NIS email is required.' }),
+    joiningDate: z.coerce.date().optional(),
+    title: z.string().optional(),
+    department: z.string().optional(),
+    role: z.string().optional(),
+    stage: z.string().optional(),
+    campus: z.string().optional(),
+    reportLine1: z.string().optional(),
+    reportLine2: z.string().optional(),
+    subject: z.string().optional(),
+});
+
+export async function batchCreateEmployeesAction(
+  prevState: BatchCreateEmployeesState,
+  formData: FormData
+): Promise<BatchCreateEmployeesState> {
+    const recordsJson = formData.get('recordsJson');
+    const actorId = formData.get('actorId') as string;
+    const actorEmail = formData.get('actorEmail') as string;
+    const actorRole = formData.get('actorRole') as string;
+
+    if (!recordsJson || typeof recordsJson !== 'string') {
+        return { success: false, errors: { file: ["No data received from file."] } };
+    }
+
+    let records;
+    try {
+        records = JSON.parse(recordsJson);
+    } catch (e) {
+        return { success: false, errors: { file: ["Failed to parse file data."] } };
+    }
+
+    const validatedRecords = z.array(BatchEmployeeSchema.partial()).safeParse(records);
+
+    if (!validatedRecords.success) {
+        console.error(validatedRecords.error);
+        return { success: false, errors: { file: ["The data format in the file is invalid. Please check column values."] } };
+    }
+
+    const employeeCollectionRef = collection(db, "employee");
+    const employeeBatch = writeBatch(db);
+    let successfulCreates = 0;
+    let failedRecordsInfo: string[] = [];
+    const emailsInThisBatch = new Set<string>();
+
+    const countSnapshot = await getCountFromServer(employeeCollectionRef);
+    let employeeCounter = countSnapshot.data().count;
+
+    for (const record of validatedRecords.data) {
+        const name = record.name;
+        const email = record.nisEmail;
+        
+        // Basic validation
+        if (!name || !email) {
+            failedRecordsInfo.push(`${name || 'N/A'}: Missing Name or NIS Email`);
+            continue;
+        }
+
+        // Validate email format
+        const emailValidation = z.string().email().safeParse(email);
+        if (!emailValidation.success) {
+            failedRecordsInfo.push(`${name}: Invalid NIS Email format`);
+            continue;
+        }
+
+        // Check for duplicates within the current upload
+        if (emailsInThisBatch.has(email)) {
+            failedRecordsInfo.push(`${name}: Duplicate NIS Email found in this file.`);
+            continue;
+        }
+        emailsInThisBatch.add(email);
+
+        // Check for existing employee with the same email in the database
+        const q = query(employeeCollectionRef, where("email", "==", email), limit(1));
+        const existingEmployee = await getDocs(q);
+        if (!existingEmployee.empty) {
+            failedRecordsInfo.push(`${name}: An employee with this NIS Email already exists.`);
+            continue;
+        }
+
+        // All checks passed, prepare the document for batch write
+        employeeCounter++;
+        const newEmployeeId = (1001 + employeeCounter).toString();
+        
+        const nameParts = name.trim().split(/\s+/);
+        
+        const employeeDocRef = doc(employeeCollectionRef);
+        employeeBatch.set(employeeDocRef, {
+            name: name,
+            firstName: nameParts[0] || '-',
+            lastName: nameParts.slice(1).join(' ') || '-',
+            personalEmail: record.personalEmail || '-',
+            phone: record.phone || '-',
+            emergencyContact: {
+                name: record.emergencyContactName || '-',
+                relationship: record.emergencyContactRelationship || '-',
+                number: record.emergencyContactNumber || '-',
+            },
+            dateOfBirth: record.dateOfBirth ? Timestamp.fromDate(record.dateOfBirth) : null,
+            gender: record.gender || '-',
+            nationalId: record.nationalId || '-',
+            religion: record.religion || '-',
+            email: email,
+            joiningDate: record.joiningDate ? Timestamp.fromDate(record.joiningDate) : serverTimestamp(),
+            title: record.title || '-',
+            department: record.department || '-',
+            role: record.role || '-',
+            stage: record.stage || '-',
+            campus: record.campus || '-',
+            reportLine1: record.reportLine1 || '-',
+            reportLine2: record.reportLine2 || '-',
+            subject: record.subject || '-',
+            employeeId: newEmployeeId,
+            status: "Active",
+            system: "Unassigned",
+            hourlyRate: 0,
+            leavingDate: null,
+            documents: [],
+            photoURL: null,
+            createdAt: serverTimestamp(),
+        });
+        successfulCreates++;
+    }
+
+    if (successfulCreates === 0) {
+        return {
+            success: false,
+            message: `No employees were imported. Errors: ${failedRecordsInfo.join('; ')}`,
+        };
+    }
+
+    try {
+        await employeeBatch.commit();
+        let message = `${successfulCreates} employees were successfully imported.`;
+        if (failedRecordsInfo.length > 0) {
+            message += ` ${failedRecordsInfo.length} records failed. Failures: ${failedRecordsInfo.join('; ')}`;
+        }
+        await logSystemEvent("Batch Create Employees", { actorId, actorEmail, actorRole, successfulCreates, failedCount: failedRecordsInfo.length });
+        return { success: true, message };
+    } catch (error: any) {
+        console.error("Error committing batch:", error);
+        return { success: false, errors: { form: [`An error occurred during the final save: ${error.message}`] } };
+    }
+}
+
+  
