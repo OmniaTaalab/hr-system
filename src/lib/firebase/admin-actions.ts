@@ -688,7 +688,7 @@ export type BatchCreateEmployeesState = {
 
 // This schema maps to the user's provided Excel file headers.
 const BatchEmployeeSchema = z.object({
-  name: z.string().min(1, "Name is required."),
+  name: z.string().min(1),
   personalEmail: z.string().email().optional().nullable(),
   phone: z.union([z.string(), z.number()]).transform(val => String(val)).optional().nullable(),
   emergencyContactName: z.string().optional().nullable(),
@@ -698,7 +698,7 @@ const BatchEmployeeSchema = z.object({
   gender: z.string().optional().nullable(),
   nationalId: z.union([z.string(), z.number()]).transform(val => String(val)).optional().nullable(),
   religion: z.string().optional().nullable(),
-  "Work email": z.string().email({ message: 'A valid Work email is required.' }),
+  nisEmail: z.string().email(),
   joiningDate: z.coerce.date().optional().nullable(),
   title: z.string().optional().nullable(),
   department: z.string().optional().nullable(),
@@ -708,8 +708,18 @@ const BatchEmployeeSchema = z.object({
   reportLine1: z.string().optional().nullable(),
   reportLine2: z.string().optional().nullable(),
   subject: z.string().optional().nullable(),
-  "ID Portal / Employee Number": z.union([z.string(), z.number()]).transform(val => String(val)).optional().nullable(),
+  employeeId: z.union([z.string(), z.number()]).transform(val => String(val)).optional().nullable(),
 });
+
+function findKey(obj: any, possibleKeys: string[]): any {
+    for (const key of possibleKeys) {
+        if (obj.hasOwnProperty(key)) {
+            return obj[key];
+        }
+    }
+    return undefined;
+}
+
 
 export async function batchCreateEmployeesAction(
   prevState: BatchCreateEmployeesState,
@@ -724,17 +734,41 @@ export async function batchCreateEmployeesAction(
         return { success: false, errors: { file: ["No data received from file."] } };
     }
 
-    let records;
+    let rawRecords;
     try {
-        records = JSON.parse(recordsJson);
+        rawRecords = JSON.parse(recordsJson);
     } catch (e) {
         return { success: false, errors: { file: ["Failed to parse file data."] } };
     }
 
-    const validatedRecords = z.array(BatchEmployeeSchema).safeParse(records);
+    const mappedRecords = rawRecords.map((record: any) => ({
+      name: record.name,
+      personalEmail: record.personalEmail,
+      phone: record.phone,
+      emergencyContactName: record.emergencyContactName,
+      emergencyContactRelationship: record.emergencyContactRelationship,
+      emergencyContactNumber: record.emergencyContactNumber,
+      dateOfBirth: record.dateOfBirth,
+      gender: record.gender,
+      nationalId: record.nationalId,
+      religion: record.religion,
+      nisEmail: findKey(record, ["Work email", "work email", "WorkEmail", "work_email", "nisEmail"]),
+      joiningDate: record.joiningDate,
+      title: record.title,
+      department: record.department,
+      role: record.role,
+      stage: record.stage,
+      campus: record.campus,
+      reportLine1: record.reportLine1,
+      reportLine2: record.reportLine2,
+      subject: record.subject,
+      employeeId: findKey(record, ["ID Portal / Employee Number", "employee id", "employeeId"]),
+    }));
+
+    const validatedRecords = z.array(BatchEmployeeSchema).safeParse(mappedRecords);
 
     if (!validatedRecords.success) {
-        console.error(validatedRecords.error);
+        console.error("Zod Validation Error:", validatedRecords.error.flatten());
         return { success: false, errors: { file: ["The data format in the file is invalid. Please check column values and ensure required fields are not empty."] } };
     }
 
@@ -748,21 +782,20 @@ export async function batchCreateEmployeesAction(
     let employeeCounter = countSnapshot.data().count;
 
     for (const record of validatedRecords.data) {
-        const { name } = record;
-        const email = record["Work email"];
+        const { name, nisEmail } = record;
         
-        if (!name || !email) {
+        if (!name || !nisEmail) {
             failedRecordsInfo.push(`A record was skipped due to a missing name or work email.`);
             continue;
         }
 
-        if (emailsInThisBatch.has(email)) {
+        if (emailsInThisBatch.has(nisEmail)) {
             failedRecordsInfo.push(`${name}: Duplicate Work email found in this file.`);
             continue;
         }
-        emailsInThisBatch.add(email);
+        emailsInThisBatch.add(nisEmail);
 
-        const q = query(employeeCollectionRef, where("email", "==", email), limit(1));
+        const q = query(employeeCollectionRef, where("email", "==", nisEmail), limit(1));
         const existingEmployee = await getDocs(q);
         if (!existingEmployee.empty) {
             failedRecordsInfo.push(`${name}: An employee with this Work email already exists.`);
@@ -770,7 +803,7 @@ export async function batchCreateEmployeesAction(
         }
 
         employeeCounter++;
-        const newEmployeeId = record["ID Portal / Employee Number"] || (1001 + employeeCounter).toString();
+        const newEmployeeId = record.employeeId || (1001 + employeeCounter).toString();
         
         const nameParts = name.trim().split(/\s+/);
         
@@ -790,7 +823,7 @@ export async function batchCreateEmployeesAction(
             gender: record.gender || '-',
             nationalId: record.nationalId || '-',
             religion: record.religion || '-',
-            email: email,
+            email: nisEmail,
             joiningDate: record.joiningDate ? Timestamp.fromDate(record.joiningDate) : serverTimestamp(),
             title: record.title || '-',
             department: record.department || '-',
