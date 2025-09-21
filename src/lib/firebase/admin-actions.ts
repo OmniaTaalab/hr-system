@@ -689,25 +689,25 @@ export type BatchCreateEmployeesState = {
 // Simplified schema for what's coming from Excel
 const BatchEmployeeSchema = z.object({
     name: z.string().min(1, "Name is required."),
-    personalEmail: z.string().email().optional(),
-    phone: z.string().optional(),
-    emergencyContactName: z.string().optional(),
-    emergencyContactRelationship: z.string().optional(),
-    emergencyContactNumber: z.string().optional(),
-    dateOfBirth: z.coerce.date().optional(),
-    gender: z.string().optional(),
-    nationalId: z.string().optional(),
-    religion: z.string().optional(),
+    personalEmail: z.string().email().optional().nullable(),
+    phone: z.string().optional().nullable(),
+    emergencyContactName: z.string().optional().nullable(),
+    emergencyContactRelationship: z.string().optional().nullable(),
+    emergencyContactNumber: z.string().optional().nullable(),
+    dateOfBirth: z.coerce.date().optional().nullable(),
+    gender: z.string().optional().nullable(),
+    nationalId: z.string().optional().nullable(),
+    religion: z.string().optional().nullable(),
     nisEmail: z.string().email({ message: 'A valid NIS email is required.' }),
-    joiningDate: z.coerce.date().optional(),
-    title: z.string().optional(),
-    department: z.string().optional(),
-    role: z.string().optional(),
-    stage: z.string().optional(),
-    campus: z.string().optional(),
-    reportLine1: z.string().optional(),
-    reportLine2: z.string().optional(),
-    subject: z.string().optional(),
+    joiningDate: z.coerce.date().optional().nullable(),
+    title: z.string().optional().nullable(),
+    department: z.string().optional().nullable(),
+    role: z.string().optional().nullable(),
+    stage: z.string().optional().nullable(),
+    campus: z.string().optional().nullable(),
+    reportLine1: z.string().optional().nullable(),
+    reportLine2: z.string().optional().nullable(),
+    subject: z.string().optional().nullable(),
 });
 
 export async function batchCreateEmployeesAction(
@@ -730,7 +730,12 @@ export async function batchCreateEmployeesAction(
         return { success: false, errors: { file: ["Failed to parse file data."] } };
     }
 
-    const validatedRecords = z.array(BatchEmployeeSchema.partial()).safeParse(records);
+    const transformedRecords = records.map((record: any) => ({
+      ...record,
+      nisEmail: record['work Email'] || record.nisEmail,
+    }));
+    
+    const validatedRecords = z.array(BatchEmployeeSchema).safeParse(transformedRecords);
 
     if (!validatedRecords.success) {
         console.error(validatedRecords.error);
@@ -747,21 +752,7 @@ export async function batchCreateEmployeesAction(
     let employeeCounter = countSnapshot.data().count;
 
     for (const record of validatedRecords.data) {
-        const name = record.name;
-        const email = record.nisEmail;
-        
-        // Basic validation
-        if (!name || !email) {
-            failedRecordsInfo.push(`${name || 'N/A'}: Missing Name or NIS Email`);
-            continue;
-        }
-
-        // Validate email format
-        const emailValidation = z.string().email().safeParse(email);
-        if (!emailValidation.success) {
-            failedRecordsInfo.push(`${name}: Invalid NIS Email format`);
-            continue;
-        }
+        const { name, nisEmail: email } = record;
 
         // Check for duplicates within the current upload
         if (emailsInThisBatch.has(email)) {
@@ -842,5 +833,3 @@ export async function batchCreateEmployeesAction(
         return { success: false, errors: { form: [`An error occurred during the final save: ${error.message}`] } };
     }
 }
-
-  

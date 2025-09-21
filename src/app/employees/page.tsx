@@ -965,7 +965,7 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
     };
     
     const handleDownloadTemplate = () => {
-        const headers = ["name", "personalEmail", "phone", "emergencyContactName", "emergencyContactRelationship", "emergencyContactNumber", "dateOfBirth", "gender", "nationalId", "religion", "nisEmail", "joiningDate", "title", "department", "role", "stage", "campus", "reportLine1", "reportLine2", "subject"];
+        const headers = ["name", "personalEmail", "phone", "emergencyContactName", "emergencyContactRelationship", "emergencyContactNumber", "dateOfBirth", "gender", "nationalId", "religion", "work Email", "joiningDate", "title", "department", "role", "stage", "campus", "reportLine1", "reportLine2", "subject"];
         const ws = XLSX.utils.aoa_to_sheet([headers]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Employees");
