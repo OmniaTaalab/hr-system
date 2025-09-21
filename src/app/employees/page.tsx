@@ -931,10 +931,9 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
     const { profile } = useUserProfile();
     const [file, setFile] = useState<File | null>(null);
     const [isParsing, setIsParsing] = useState(false);
-    const [batchState, batchAction, isBatchPending] = useActionState(batchCreateEmployeesAction, initialBatchCreateState);
-    const [isTransitioning, startTransition] = useTransition();
+    const [batchState, batchAction, isTransitioning] = useActionState(batchCreateEmployeesAction, initialBatchCreateState);
 
-    const isActionPending = isBatchPending || isTransitioning;
+    const isActionPending = isParsing || isTransitioning;
 
     useEffect(() => {
         if (batchState.message) {
@@ -969,7 +968,7 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
     };
     
     const handleDownloadTemplate = () => {
-        const headers = ["name", "personalEmail", "phone", "emergencyContactName", "emergencyContactRelationship", "emergencyContactNumber", "dateOfBirth", "gender", "nationalId", "religion", "work Email", "joiningDate", "title", "department", "role", "stage", "campus", "reportLine1", "reportLine2", "subject"];
+        const headers = ["name", "personalEmail", "phone", "emergencyContactName", "emergencyContactRelationship", "emergencyContactNumber", "dateOfBirth", "gender", "nationalId", "religion", "Work email", "joiningDate", "title", "department", "role", "stage", "campus", "reportLine1", "reportLine2", "subject", "ID Portal / Employee Number"];
         const ws = XLSX.utils.aoa_to_sheet([headers]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Employees");
@@ -998,9 +997,8 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
                 formData.set('actorEmail', profile?.email || '');
                 formData.set('actorRole', profile?.role || '');
 
-                startTransition(() => {
-                    batchAction(formData);
-                });
+                batchAction(formData);
+
             } catch (error) {
                  toast({ variant: "destructive", title: "Error", description: "Failed to read the file." });
             } finally {
@@ -1036,8 +1034,8 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
                 </div>
                 <DialogFooter>
                     <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                    <Button onClick={handleImport} disabled={!file || isParsing || isActionPending}>
-                        {(isParsing || isActionPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    <Button onClick={handleImport} disabled={!file || isActionPending}>
+                        {isActionPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                         Import
                     </Button>
                 </DialogFooter>
@@ -1358,7 +1356,7 @@ function EmployeeManagementContent() {
       gender: emp.gender || "-",
       nationalId: emp.nationalId || "-",
       religion: emp.religion || "-",
-      email: emp.email || "-",
+      "Work email": emp.email || "-",
       joiningDate: emp.joiningDate ? format(emp.joiningDate.toDate(), 'yyyy-MM-dd') : "-",
       title: emp.title || "-",
       department: emp.department || "-",
@@ -1368,8 +1366,7 @@ function EmployeeManagementContent() {
       reportLine1: emp.reportLine1 || "-",
       reportLine2: emp.reportLine2 || "-",
       subject: emp.subject || "-",
-      id: emp.id || "-"
-
+      "ID Portal / Employee Number": emp.employeeId || "-"
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(data, { header: headers });

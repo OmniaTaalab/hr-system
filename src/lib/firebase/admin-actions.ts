@@ -686,28 +686,29 @@ export type BatchCreateEmployeesState = {
     success?: boolean;
 };
 
-// Simplified schema for what's coming from Excel
+// This schema maps to the user's provided Excel file headers.
 const BatchEmployeeSchema = z.object({
-    name: z.string().min(1, "Name is required."),
-    personalEmail: z.string().email().optional().nullable(),
-    phone: z.string().optional().nullable(),
-    emergencyContactName: z.string().optional().nullable(),
-    emergencyContactRelationship: z.string().optional().nullable(),
-    emergencyContactNumber: z.string().optional().nullable(),
-    dateOfBirth: z.coerce.date().optional().nullable(),
-    gender: z.string().optional().nullable(),
-    nationalId: z.string().optional().nullable(),
-    religion: z.string().optional().nullable(),
-    nisEmail: z.string().email({ message: 'A valid NIS email is required.' }),
-    joiningDate: z.coerce.date().optional().nullable(),
-    title: z.string().optional().nullable(),
-    department: z.string().optional().nullable(),
-    role: z.string().optional().nullable(),
-    stage: z.string().optional().nullable(),
-    campus: z.string().optional().nullable(),
-    reportLine1: z.string().optional().nullable(),
-    reportLine2: z.string().optional().nullable(),
-    subject: z.string().optional().nullable(),
+  name: z.string().min(1, "Name is required."),
+  personalEmail: z.string().email().optional().nullable(),
+  phone: z.union([z.string(), z.number()]).transform(val => String(val)).optional().nullable(),
+  emergencyContactName: z.string().optional().nullable(),
+  emergencyContactRelationship: z.string().optional().nullable(),
+  emergencyContactNumber: z.union([z.string(), z.number()]).transform(val => String(val)).optional().nullable(),
+  dateOfBirth: z.coerce.date().optional().nullable(),
+  gender: z.string().optional().nullable(),
+  nationalId: z.union([z.string(), z.number()]).transform(val => String(val)).optional().nullable(),
+  religion: z.string().optional().nullable(),
+  "Work email": z.string().email({ message: 'A valid Work email is required.' }),
+  joiningDate: z.coerce.date().optional().nullable(),
+  title: z.string().optional().nullable(),
+  department: z.string().optional().nullable(),
+  role: z.string().optional().nullable(),
+  stage: z.string().optional().nullable(),
+  campus: z.string().optional().nullable(),
+  reportLine1: z.string().optional().nullable(),
+  reportLine2: z.string().optional().nullable(),
+  subject: z.string().optional().nullable(),
+  "ID Portal / Employee Number": z.union([z.string(), z.number()]).transform(val => String(val)).optional().nullable(),
 });
 
 export async function batchCreateEmployeesAction(
@@ -730,16 +731,11 @@ export async function batchCreateEmployeesAction(
         return { success: false, errors: { file: ["Failed to parse file data."] } };
     }
 
-    const transformedRecords = records.map((record: any) => ({
-      ...record,
-      nisEmail: record['work Email'] || record.nisEmail,
-    }));
-    
-    const validatedRecords = z.array(BatchEmployeeSchema).safeParse(transformedRecords);
+    const validatedRecords = z.array(BatchEmployeeSchema).safeParse(records);
 
     if (!validatedRecords.success) {
         console.error(validatedRecords.error);
-        return { success: false, errors: { file: ["The data format in the file is invalid. Please check column values."] } };
+        return { success: false, errors: { file: ["The data format in the file is invalid. Please check column values and ensure required fields are not empty."] } };
     }
 
     const employeeCollectionRef = collection(db, "employee");
@@ -752,26 +748,29 @@ export async function batchCreateEmployeesAction(
     let employeeCounter = countSnapshot.data().count;
 
     for (const record of validatedRecords.data) {
-        const { name, nisEmail: email } = record;
+        const { name } = record;
+        const email = record["Work email"];
+        
+        if (!name || !email) {
+            failedRecordsInfo.push(`A record was skipped due to a missing name or work email.`);
+            continue;
+        }
 
-        // Check for duplicates within the current upload
         if (emailsInThisBatch.has(email)) {
-            failedRecordsInfo.push(`${name}: Duplicate NIS Email found in this file.`);
+            failedRecordsInfo.push(`${name}: Duplicate Work email found in this file.`);
             continue;
         }
         emailsInThisBatch.add(email);
 
-        // Check for existing employee with the same email in the database
         const q = query(employeeCollectionRef, where("email", "==", email), limit(1));
         const existingEmployee = await getDocs(q);
         if (!existingEmployee.empty) {
-            failedRecordsInfo.push(`${name}: An employee with this NIS Email already exists.`);
+            failedRecordsInfo.push(`${name}: An employee with this Work email already exists.`);
             continue;
         }
 
-        // All checks passed, prepare the document for batch write
         employeeCounter++;
-        const newEmployeeId = (1001 + employeeCounter).toString();
+        const newEmployeeId = record["ID Portal / Employee Number"] || (1001 + employeeCounter).toString();
         
         const nameParts = name.trim().split(/\s+/);
         
@@ -814,9 +813,10 @@ export async function batchCreateEmployeesAction(
     }
 
     if (successfulCreates === 0) {
+        const errorMessage = `No employees were imported. ${failedRecordsInfo.length > 0 ? `Errors: ${failedRecordsInfo.slice(0,5).join('; ')}` : 'Please check file format and content.'}`;
         return {
             success: false,
-            message: `No employees were imported. Errors: ${failedRecordsInfo.join('; ')}`,
+            message: errorMessage,
         };
     }
 
@@ -824,7 +824,7 @@ export async function batchCreateEmployeesAction(
         await employeeBatch.commit();
         let message = `${successfulCreates} employees were successfully imported.`;
         if (failedRecordsInfo.length > 0) {
-            message += ` ${failedRecordsInfo.length} records failed. Failures: ${failedRecordsInfo.join('; ')}`;
+            message += ` ${failedRecordsInfo.length} records failed.`;
         }
         await logSystemEvent("Batch Create Employees", { actorId, actorEmail, actorRole, successfulCreates, failedCount: failedRecordsInfo.length });
         return { success: true, message };
