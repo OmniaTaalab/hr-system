@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -28,7 +29,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall } from "lucide-react";
-import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback, useTransition } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
   updateEmployeeAction, type UpdateEmployeeState, 
@@ -931,6 +932,9 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
     const [file, setFile] = useState<File | null>(null);
     const [isParsing, setIsParsing] = useState(false);
     const [batchState, batchAction, isBatchPending] = useActionState(batchCreateEmployeesAction, initialBatchCreateState);
+    const [isTransitioning, startTransition] = useTransition();
+
+    const isActionPending = isBatchPending || isTransitioning;
 
     useEffect(() => {
         if (batchState.message) {
@@ -981,20 +985,27 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
         setIsParsing(true);
         const reader = new FileReader();
         reader.onload = (e) => {
-            const data = e.target?.result;
-            const workbook = XLSX.read(data, { type: 'binary', cellDates: true });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const json = XLSX.utils.sheet_to_json(worksheet);
-            
-            const formData = new FormData();
-            formData.set('recordsJson', JSON.stringify(json));
-            formData.set('actorId', profile?.id || '');
-            formData.set('actorEmail', profile?.email || '');
-            formData.set('actorRole', profile?.role || '');
+            try {
+                const data = e.target?.result;
+                const workbook = XLSX.read(data, { type: 'binary', cellDates: true });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+                
+                const formData = new FormData();
+                formData.set('recordsJson', JSON.stringify(json));
+                formData.set('actorId', profile?.id || '');
+                formData.set('actorEmail', profile?.email || '');
+                formData.set('actorRole', profile?.role || '');
 
-            batchAction(formData);
-            setIsParsing(false);
+                startTransition(() => {
+                    batchAction(formData);
+                });
+            } catch (error) {
+                 toast({ variant: "destructive", title: "Error", description: "Failed to read the file." });
+            } finally {
+                setIsParsing(false);
+            }
         };
         reader.onerror = () => {
             toast({ variant: "destructive", title: "Error", description: "Failed to read the file." });
@@ -1025,8 +1036,8 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
                 </div>
                 <DialogFooter>
                     <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                    <Button onClick={handleImport} disabled={!file || isParsing || isBatchPending}>
-                        {(isParsing || isBatchPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    <Button onClick={handleImport} disabled={!file || isParsing || isActionPending}>
+                        {(isParsing || isActionPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                         Import
                     </Button>
                 </DialogFooter>
@@ -1924,5 +1935,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
-  
