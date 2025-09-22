@@ -77,14 +77,14 @@ interface LeaveRequest {
 function safeToDate(timestamp: any): Date | undefined {
     if (!timestamp) return undefined;
     if (timestamp instanceof Date) return timestamp;
-    if (timestamp.toDate && typeof timestamp.toDate === 'function') return timestamp.toDate();
-    // Handle serialized Firestore Timestamps from server actions
-    if (typeof timestamp === 'object' && timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
-      return new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
+    if (timestamp instanceof Timestamp) return timestamp.toDate();
+    // Handle serialized Timestamp object
+    if (typeof timestamp === 'object' && 'seconds' in timestamp && 'nanoseconds' in timestamp) {
+        return new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
     }
-     // Handle serialized Firestore Timestamps from older server actions (less common)
-    if (typeof timestamp === 'object' && timestamp._seconds !== undefined && timestamp._nanoseconds !== undefined) {
-      return new Timestamp(timestamp._seconds, timestamp._nanoseconds).toDate();
+    // Handle older serialized Timestamps
+    if (typeof timestamp === 'object' && '_seconds' in timestamp && '_nanoseconds' in timestamp) {
+        return new Timestamp(timestamp._seconds, timestamp._nanoseconds).toDate();
     }
     return undefined;
 }

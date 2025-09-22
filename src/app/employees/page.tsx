@@ -156,13 +156,17 @@ const initialDeactivateState: DeactivateEmployeeState = {
 const PAGE_SIZE = 15;
 
 // Utility to safely convert Firestore Timestamp or serialized object to JS Date
-function safeToDate(timestamp: Timestamp | Date | { seconds: number; nanoseconds: number } | null | undefined): Date | undefined {
+function safeToDate(timestamp: any): Date | undefined {
     if (!timestamp) return undefined;
     if (timestamp instanceof Date) return timestamp;
     if (timestamp instanceof Timestamp) return timestamp.toDate();
     // Handle serialized Timestamp object
-    if (typeof timestamp === 'object' && 'seconds' in timestamp) {
-        return new Date(timestamp.seconds * 1000);
+    if (typeof timestamp === 'object' && 'seconds' in timestamp && 'nanoseconds' in timestamp) {
+        return new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
+    }
+    // Handle older serialized Timestamps
+    if (typeof timestamp === 'object' && '_seconds' in timestamp && '_nanoseconds' in timestamp) {
+        return new Timestamp(timestamp._seconds, timestamp._nanoseconds).toDate();
     }
     return undefined;
 }
@@ -1820,4 +1824,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
