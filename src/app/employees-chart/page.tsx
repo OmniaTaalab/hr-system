@@ -19,9 +19,13 @@ interface Employee {
   campus?: string;
 }
 
+interface DirectorPrincipalPair {
+    director: Employee;
+    principal?: Employee;
+}
 
 function EmployeesChartContent() {
-  const [directors, setDirectors] = useState<Employee[]>([]);
+  const [chartData, setChartData] = useState<DirectorPrincipalPair[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
@@ -36,17 +40,25 @@ function EmployeesChartContent() {
         return;
     }
 
-    const q = query(collection(db, "employee"), where("role", "==", "Director"));
+    const q = query(collection(db, "employee"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const fetchedDirectors = snapshot.docs.map(doc => ({
+        const allEmployees = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         } as Employee));
-        fetchedDirectors.sort((a,b) => a.name.localeCompare(b.name));
-        setDirectors(fetchedDirectors);
+        
+        const directors = allEmployees.filter(emp => emp.role === 'Campus Director').sort((a,b) => a.name.localeCompare(b.name));
+        const principals = allEmployees.filter(emp => emp.role === 'Principal');
+
+        const pairedData: DirectorPrincipalPair[] = directors.map(director => {
+            const principal = principals.find(p => p.campus === director.campus);
+            return { director, principal };
+        });
+
+        setChartData(pairedData);
         setIsLoading(false);
     }, (error) => {
-        console.error("Error fetching directors: ", error);
+        console.error("Error fetching employees for chart: ", error);
         setIsLoading(false);
     });
 
@@ -56,6 +68,20 @@ function EmployeesChartContent() {
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
+
+  const EmployeeCard = ({ employee }: { employee: Employee }) => (
+    <Card className="w-60 text-center shadow-lg hover:shadow-xl transition-shadow shrink-0">
+      <CardContent className="flex flex-col items-center pt-6">
+        <Avatar className="h-20 w-20 mb-2">
+          <AvatarImage src={employee.photoURL} alt={employee.name} />
+          <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
+        </Avatar>
+        <p className="text-md font-semibold">{employee.name}</p>
+        <p className="text-sm text-muted-foreground">{employee.role}</p>
+        <p className="text-xs text-muted-foreground">{employee.campus || 'No Campus'}</p>
+      </CardContent>
+    </Card>
+  );
 
   if (isLoading || isLoadingProfile) {
     return (
@@ -83,33 +109,32 @@ function EmployeesChartContent() {
                 Employees Chart
             </h1>
             <p className="text-muted-foreground">
-                Organizational chart displaying all Campus Directors.
+                Organizational chart displaying Campus Directors and their corresponding Principals.
             </p>
         </header>
 
         <Card>
             <CardHeader>
-                <CardTitle>Campus Directors</CardTitle>
+                <CardTitle>Leadership Structure</CardTitle>
             </CardHeader>
             <CardContent>
                 {isLoading ? (
                      <div className="flex justify-center items-center h-40">
                         <Loader2 className="h-10 w-10 animate-spin text-primary" />
                      </div>
-                ) : directors.length > 0 ? (
+                ) : chartData.length > 0 ? (
                     <ScrollArea className="w-full whitespace-nowrap">
-                        <div className="flex w-max space-x-4 p-4">
-                            {directors.map(director => (
-                                 <Card key={director.id} className="w-60 text-center shadow-lg hover:shadow-xl transition-shadow shrink-0">
-                                    <CardContent className="flex flex-col items-center pt-6">
-                                        <Avatar className="h-20 w-20 mb-2">
-                                            <AvatarImage src={director.photoURL} alt={director.name} />
-                                            <AvatarFallback>{getInitials(director.name)}</AvatarFallback>
-                                        </Avatar>
-                                        <p className="text-md font-semibold">{director.name}</p>
-                                        <p className="text-xs text-muted-foreground">{director.campus || 'No Campus'}</p>
-                                    </CardContent>
-                                </Card>
+                        <div className="flex w-max space-x-8 p-4">
+                            {chartData.map(({ director, principal }) => (
+                                 <div key={director.id} className="flex flex-col items-center gap-4">
+                                    <EmployeeCard employee={director} />
+                                    {principal && (
+                                      <>
+                                        <div className="h-8 w-px bg-muted-foreground"></div>
+                                        <EmployeeCard employee={principal} />
+                                      </>
+                                    )}
+                                 </div>
                             ))}
                         </div>
                         <ScrollBar orientation="horizontal" />
