@@ -5,8 +5,9 @@
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { adminAuth, adminStorage } from '@/lib/firebase/admin-config';
-import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc, getDoc, writeBatch } from 'firebase/firestore';
 import { logSystemEvent } from '../system-log';
+import { parse, isValid, format } from 'date-fns';
 
 export async function getAllAuthUsers() {
   if (!adminAuth) {
@@ -449,39 +450,11 @@ export async function deleteEmployeeAction(
 
   try {
     const docRef = doc(db, "employee", employeeDocId);
-    const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) {
-        return { success: false, errors: {form: ["Employee not found."]} };
-    }
-    const employeeData = docSnap.data();
+    await deleteDoc(docRef);
 
-    if (adminStorage) {
-      try {
-        const avatarPath = `employee-avatars/${employeeDocId}`;
-        await adminStorage.bucket().file(avatarPath).delete();
-        console.log(`Avatar for employee ${employeeDocId} deleted.`);
-      } catch (storageError: any) {
-        if (storageError.code !== 404) {
-          console.warn(`Could not delete avatar for employee ${employeeDocId}: ${storageError.message}`);
-        }
-      }
-
-      try {
-        const documentsPrefix = `employee-documents/${employeeDocId}/`;
-        await adminStorage.bucket().deleteFiles({ prefix: documentsPrefix });
-        console.log(`All documents for employee ${employeeDocId} deleted.`);
-      } catch (storageError: any) {
-        console.warn(`Could not delete documents for employee ${employeeDocId}: ${storageError.message}`);
-      }
-    } else {
-      console.warn("Firebase Admin Storage is not configured. Skipping file deletions.");
-    }
-
-    await deleteDoc(doc(db, "employee", employeeDocId));
-
-    await logSystemEvent("Delete Employee", { actorId, actorEmail, actorRole, changes: { oldData: employeeData } });
+    await logSystemEvent("Delete Employee", { actorId, actorEmail, actorRole });
     
-    return { success: true, message: `Employee and associated data deleted successfully.` };
+    return { success: true, message: `Employee deleted successfully.` };
   } catch (error: any) {
     console.error('Error deleting employee:', error);
     return { success: false, errors: {form: [`Failed to delete employee: ${error.message}`]} };
