@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -467,24 +468,30 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="add-reportLine1">Report Line 1</Label>
-                    <Select onValueChange={setReportLine1} value={reportLine1} disabled={isLoadingPrincipals}>
+                    <Select onValueChange={(selectedId) => {
+                        const selectedPrincipal = principals.find(p => p.id === selectedId);
+                        setReportLine1(selectedPrincipal?.name || "");
+                      }} value={principals.find(p => p.name === reportLine1)?.id} disabled={isLoadingPrincipals}>
                       <SelectTrigger>
                           <SelectValue placeholder={isLoadingPrincipals ? "Loading..." : "Select a Principal"} />
                       </SelectTrigger>
                       <SelectContent>
-                          {principals.map(p => <SelectItem key={p.id} value={p.name}>{p.name} ({p.email})</SelectItem>)}
+                          {principals.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.email})</SelectItem>)}
                       </SelectContent>
                     </Select>
                     {serverState?.errors?.reportLine1 && <p className="text-sm text-destructive">{serverState.errors.reportLine1.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="add-reportLine2">Report Line 2</Label>
-                  <Select onValueChange={setReportLine2} value={reportLine2} disabled={isLoadingDirectors}>
+                  <Select onValueChange={(selectedId) => {
+                        const selectedDirector = directors.find(d => d.id === selectedId);
+                        setReportLine2(selectedDirector?.name || "");
+                      }} value={directors.find(d => d.name === reportLine2)?.id} disabled={isLoadingDirectors}>
                       <SelectTrigger>
                           <SelectValue placeholder={isLoadingDirectors ? "Loading..." : "Select a Campus Director"} />
                       </SelectTrigger>
                       <SelectContent>
-                          {directors.map(d => <SelectItem key={d.id} value={d.name}>{d.name} ({d.email})</SelectItem>)}
+                          {directors.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({d.email})</SelectItem>)}
                       </SelectContent>
                     </Select>
                   {serverState?.errors?.reportLine2 && <p className="text-sm text-destructive">{serverState.errors.reportLine2.join(', ')}</p>}
@@ -1824,3 +1831,4 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
