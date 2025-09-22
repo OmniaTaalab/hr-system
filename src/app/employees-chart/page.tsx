@@ -89,19 +89,31 @@ const EmployeesChartContent = () => {
   const [zoomLevel, setZoomLevel] = useState(1);
   const chartRef = useRef<HTMLDivElement>(null);
   const ZOOM_STEP = 0.1;
-  const { campuses, isLoading: isLoadingCampuses } = useOrganizationLists();
-  const [selectedCampus, setSelectedCampus] = useState<string>("All");
+  
+  const [principals, setPrincipals] = useState<Employee[]>([]);
+  const [isLoadingPrincipals, setIsLoadingPrincipals] = useState(true);
+  const [selectedPrincipal, setSelectedPrincipal] = useState<string>("All");
 
   useEffect(() => {
     setIsLoading(true);
+    setIsLoadingPrincipals(true);
+
     const q = query(collection(db, 'employee'));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const fetchedEmployees = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Employee[];
+      
       setEmployees(fetchedEmployees);
+      
+      const fetchedPrincipals = fetchedEmployees
+        .filter(e => e.role?.toLowerCase() === 'principal')
+        .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+      setPrincipals(fetchedPrincipals);
+
       setIsLoading(false);
+      setIsLoadingPrincipals(false);
     }, (error) => {
         console.error("Error fetching employees for chart:", error);
         toast({
@@ -110,23 +122,31 @@ const EmployeesChartContent = () => {
             description: "Could not load employee data for the chart."
         })
         setIsLoading(false);
+        setIsLoadingPrincipals(false);
     });
     return () => unsubscribe();
   }, [toast]);
   
   const filteredEmployees = useMemo(() => {
-    if (selectedCampus === 'All') {
+    if (selectedPrincipal === 'All') {
       return employees;
     }
-    return employees.filter(e => e.campus === selectedCampus);
-  }, [employees, selectedCampus]);
+    const principal = principals.find(p => p.id === selectedPrincipal);
+    if (!principal) return employees;
+    
+    // Return the principal and all employees in their stage
+    return employees.filter(e => e.id === principal.id || e.stage === principal.stage);
+  }, [employees, principals, selectedPrincipal]);
 
   const tree = useMemo(() => {
-    const principals = filteredEmployees.filter(e => e.role?.toLowerCase() === 'principal' && e.stage);
+    const principalsToDisplay = selectedPrincipal === 'All' 
+        ? principals 
+        : principals.filter(p => p.id === selectedPrincipal);
+
     const otherEmployees = filteredEmployees.filter(e => e.role?.toLowerCase() !== 'principal');
     const roots: TreeNode[] = [];
 
-    principals.forEach(principal => {
+    principalsToDisplay.forEach(principal => {
       const children = otherEmployees
         .filter(emp => emp.stage === principal.stage)
         .map(emp => ({ employee: emp, children: [] }));
@@ -136,20 +156,24 @@ const EmployeesChartContent = () => {
         children: children.sort((a, b) => (a.employee.name || '').localeCompare(b.employee.name || ''))
       });
     });
-
-    const employeesInPrincipalStages = new Set(
-        otherEmployees.filter(e => principals.some(p => p.stage === e.stage)).map(e => e.id)
-    );
-    const unassignedEmployees = otherEmployees.filter(e => !employeesInPrincipalStages.has(e.id));
     
-    if (unassignedEmployees.length > 0 && roots.length > 0) {
-        roots[0].children.push(...unassignedEmployees.map(e => ({ employee: e, children: [] })));
-    } else if (unassignedEmployees.length > 0) {
-        roots.push(...unassignedEmployees.map(e => ({ employee: e, children: [] })));
+    // If filtering by a specific principal, we don't want to show unassigned employees
+    if(selectedPrincipal === 'All') {
+        const employeesInPrincipalStages = new Set(
+            otherEmployees.filter(e => principals.some(p => p.stage === e.stage)).map(e => e.id)
+        );
+        const unassignedEmployees = otherEmployees.filter(e => !employeesInPrincipalStages.has(e.id));
+        
+        if (unassignedEmployees.length > 0 && roots.length > 0) {
+            roots[0].children.push(...unassignedEmployees.map(e => ({ employee: e, children: [] })));
+        } else if (unassignedEmployees.length > 0) {
+            roots.push(...unassignedEmployees.map(e => ({ employee: e, children: [] })));
+        }
     }
 
+
     return roots;
-  }, [filteredEmployees]);
+  }, [filteredEmployees, principals, selectedPrincipal]);
 
   const handleExportToPDF = () => {
       toast({ title: 'Exporting...', description: 'Generating PDF, please wait.' });
@@ -169,7 +193,7 @@ const EmployeesChartContent = () => {
         traverseTree(tree, 0);
 
         doc.setFontSize(18);
-        doc.text(`Employee Organization List (${selectedCampus})`, 14, 22);
+        doc.text(`Employee Organization List (${selectedPrincipal === 'All' ? 'All Principals' : principals.find(p=>p.id === selectedPrincipal)?.name})`, 14, 22);
 
         autoTable(doc, {
             head: [['Name', 'Role', 'Campus']],
@@ -178,7 +202,7 @@ const EmployeesChartContent = () => {
             theme: 'grid',
         });
 
-        doc.save(`Employees_List_${selectedCampus}_${new Date().toISOString().split('T')[0]}.pdf`);
+        doc.save(`Employees_List_${selectedPrincipal}_${new Date().toISOString().split('T')[0]}.pdf`);
         toast({ title: 'Success', description: 'Employee list exported to PDF successfully.' });
       } catch(e) {
           console.error(e);
@@ -206,13 +230,13 @@ const EmployeesChartContent = () => {
                 <Button variant="outline" size="icon" onClick={() => setZoomLevel(z => Math.min(2, z + ZOOM_STEP))}><ZoomIn className="h-4 w-4"/><span className="sr-only">Zoom In</span></Button>
             </div>
              <div className="flex items-center gap-2 flex-wrap">
-                <Select onValueChange={setSelectedCampus} value={selectedCampus} disabled={isLoadingCampuses}>
+                <Select onValueChange={setSelectedPrincipal} value={selectedPrincipal} disabled={isLoadingPrincipals}>
                     <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder={isLoadingCampuses ? "Loading..." : "Filter by Campus..."} />
+                        <SelectValue placeholder={isLoadingPrincipals ? "Loading..." : "Filter by Principal..."} />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="All">All Campuses</SelectItem>
-                        {campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                        <SelectItem value="All">All Principals</SelectItem>
+                        {principals.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
                 <Button onClick={handleExportToPDF} variant="outline" disabled={isLoading}><FileDown className="mr-2 h-4 w-4"/>Export PDF</Button>
@@ -236,7 +260,7 @@ const EmployeesChartContent = () => {
                   </div>
               ) : (
                   <p className="text-center text-muted-foreground py-10">
-                    {selectedCampus !== 'All' ? "No employees found for the selected campus." : "No employees found to build the chart."}
+                    {selectedPrincipal !== 'All' ? "No data found for the selected principal." : "No employees found to build the chart."}
                   </p>
               )}
             </div>
