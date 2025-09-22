@@ -688,25 +688,17 @@ export type BatchCreateEmployeesState = {
 // More robust date parser that doesn't rely on external libraries
 const parseFlexibleDate = (val: any): Date | null => {
   if (!val) return null;
-
-  if (val instanceof Date && !isNaN(val.valueOf())) {
-    return val;
-  }
-  
+  if (val instanceof Date && !isNaN(val.valueOf())) return val;
   if (typeof val === 'number' && val > 0) {
     // Excel's epoch starts on 1899-12-30 for compatibility with Lotus 1-2-3 bug
     const excelEpoch = new Date(Date.UTC(1899, 11, 30));
     const date = new Date(excelEpoch.getTime() + val * 86400000);
     return !isNaN(date.valueOf()) ? date : null;
   }
-
   if (typeof val === 'string') {
     const date = new Date(val);
-    if (!isNaN(date.valueOf())) {
-      return date;
-    }
+    if (!isNaN(date.valueOf())) return date;
   }
-
   return null;
 };
 
