@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { z } from 'zod';
@@ -684,4 +685,154 @@ export async function createEmployeeProfileAction(
       errors: { form: [`Failed to create profile: ${error.message}`] },
     };
   }
+}
+
+// --- NEW ACTION FOR BATCH EMPLOYEE CREATION ---
+
+const BatchEmployeeSchema = z.object({
+  name: z.string().min(1),
+  personalEmail: z.string().email(),
+  phone: z.string(),
+  emergencyContactName: z.string().optional(),
+  emergencyContactRelationship: z.string().optional(),
+  emergencyContactNumber: z.string().optional(),
+  dateOfBirth: z.any().transform(val => parseFlexibleDate(val)),
+  gender: z.string().optional(),
+  nationalId: z.string().optional(),
+  religion: z.string().optional(),
+  email: z.string().email(), // NIS Email
+  joiningDate: z.any().transform(val => parseFlexibleDate(val)),
+  title: z.string().optional(),
+  department: z.string().optional(),
+  role: z.string().optional(),
+  stage: z.string().optional(),
+  campus: z.string().optional(),
+  reportLine1: z.string().optional(),
+  reportLine2: z.string().optional(),
+  subject: z.string().optional(),
+  hourlyRate: z.number().optional(),
+});
+
+
+export type BatchCreateEmployeesState = {
+  errors?: { form?: string[]; file?: string[]; };
+  message?: string | null;
+  success?: boolean;
+};
+
+
+export async function batchCreateEmployeesAction(
+  prevState: BatchCreateEmployeesState,
+  formData: FormData
+): Promise<BatchCreateEmployeesState> {
+
+  const recordsJson = formData.get('recordsJson');
+  const actorId = formData.get('actorId') as string;
+  const actorEmail = formData.get('actorEmail') as string;
+  const actorRole = formData.get('actorRole') as string;
+
+  if (!recordsJson || typeof recordsJson !== 'string') {
+    return { errors: { file: ["No data received from file."] }, success: false };
+  }
+
+  let parsedRecords;
+  try {
+    parsedRecords = JSON.parse(recordsJson);
+  } catch (e) {
+    return { errors: { file: ["Failed to parse file data."] }, success: false };
+  }
+
+  const validationResult = z.array(BatchEmployeeSchema).safeParse(parsedRecords);
+
+  if (!validationResult.success) {
+    console.error(validationResult.error);
+    return { errors: { file: ["The data format in the file is invalid. Check column names and data types."] }, success: false };
+  }
+  
+  const employeesToProcess = validationResult.data;
+  let createdCount = 0;
+  let replacedCount = 0;
+  let failedCount = 0;
+  const errorMessages: string[] = [];
+  const employeeCollectionRef = collection(db, "employee");
+
+  for (const [index, record] of employeesToProcess.entries()) {
+    const batch = writeBatch(db);
+    try {
+      // Check for existing employee by email
+      const q = query(employeeCollectionRef, where("email", "==", record.email), limit(1));
+      const existingSnapshot = await getDocs(q);
+
+      if (!existingSnapshot.empty) {
+        // Employee exists, delete them
+        const existingDoc = existingSnapshot.docs[0];
+        batch.delete(existingDoc.ref);
+        replacedCount++;
+      } else {
+        createdCount++;
+      }
+      
+      const countSnapshot = await getCountFromServer(employeeCollectionRef);
+      const employeeCount = countSnapshot.data().count + createdCount + replacedCount -1;
+      const employeeId = (1001 + employeeCount).toString();
+
+      const nameParts = record.name.trim().split(/\s+/);
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ');
+
+      const newEmployeeData = {
+          name: record.name,
+          firstName,
+          lastName,
+          personalEmail: record.personalEmail,
+          phone: record.phone.toString(),
+          emergencyContact: {
+              name: record.emergencyContactName || "",
+              relationship: record.emergencyContactRelationship || "",
+              number: record.emergencyContactNumber?.toString() || "",
+          },
+          dateOfBirth: record.dateOfBirth ? Timestamp.fromDate(record.dateOfBirth) : null,
+          gender: record.gender || "",
+          nationalId: record.nationalId?.toString() || "",
+          religion: record.religion || "",
+          email: record.email,
+          joiningDate: record.joiningDate ? Timestamp.fromDate(record.joiningDate) : serverTimestamp(),
+          title: record.title || "",
+          department: record.department || "",
+          role: record.role || "",
+          stage: record.stage || "",
+          campus: record.campus || "",
+          reportLine1: record.reportLine1 || "",
+          reportLine2: record.reportLine2 || "",
+          subject: record.subject || "",
+          system: "Unassigned",
+          employeeId: employeeId,
+          status: "Active",
+          hourlyRate: record.hourlyRate || 0,
+          leavingDate: null,
+          documents: [],
+          photoURL: null,
+          createdAt: serverTimestamp(),
+      };
+      
+      const newDocRef = doc(employeeCollectionRef);
+      batch.set(newDocRef, newEmployeeData);
+      
+      await batch.commit();
+
+    } catch (e: any) {
+        failedCount++;
+        errorMessages.push(`Row ${index + 2}: Failed to process ${record.name} - ${e.message}`);
+    }
+  }
+
+  await logSystemEvent("Batch Create Employees", { actorId, actorEmail, actorRole, createdCount, replacedCount, failedCount, errorMessages });
+
+  let message = `Import complete. Created: ${createdCount}, Replaced: ${replacedCount}.`;
+  if (failedCount > 0) {
+    message += ` Failed: ${failedCount}. First error: ${errorMessages[0]}`;
+    return { success: false, message, errors: { form: errorMessages }};
+  }
+
+  return { success: true, message };
 }

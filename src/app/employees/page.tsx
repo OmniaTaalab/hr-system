@@ -35,7 +35,8 @@ import {
   updateEmployeeAction, type UpdateEmployeeState, 
   deleteEmployeeAction, type DeleteEmployeeState,
   createEmployeeAction, type CreateEmployeeState,
-  deactivateEmployeeAction, type DeactivateEmployeeState
+  deactivateEmployeeAction, type DeactivateEmployeeState,
+  batchCreateEmployeesAction, type BatchCreateEmployeesState
 } from "@/lib/firebase/admin-actions";
 import { 
   createAuthUserForEmployeeAction, type CreateAuthUserState,
@@ -62,6 +63,7 @@ import { EmployeeFileManager } from "@/components/employee-file-manager";
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import * as XLSX from 'xlsx';
 
 
 export interface EmployeeFile {
@@ -147,6 +149,12 @@ const initialUpdatePasswordState: UpdateAuthPasswordState = {
 };
 
 const initialDeactivateState: DeactivateEmployeeState = {
+    message: null,
+    errors: {},
+    success: false,
+};
+
+const initialBatchCreateState: BatchCreateEmployeesState = {
     message: null,
     errors: {},
     success: false,
@@ -942,6 +950,105 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
     );
 }
 
+function BatchUploadDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
+    const { toast } = useToast();
+    const { profile } = useUserProfile();
+    const [state, formAction, isPending] = useActionState(batchCreateEmployeesAction, initialBatchCreateState);
+    const [file, setFile] = useState<File | null>(null);
+    const [isParsing, setIsParsing] = useState(false);
+
+    useEffect(() => {
+        if (state.message) {
+            toast({
+                title: state.success ? "Success" : "Error",
+                description: state.message,
+                variant: state.success ? "default" : "destructive",
+            });
+            if (state.success) {
+                onOpenChange(false);
+            }
+        }
+    }, [state, toast, onOpenChange]);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFile(e.target.files?.[0] ?? null);
+    };
+
+    const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!file) {
+            toast({ variant: 'destructive', title: "No File", description: "Please select an Excel file to upload." });
+            return;
+        }
+
+        setIsParsing(true);
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const data = event.target?.result;
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+
+                const formData = new FormData();
+                formData.append('recordsJson', JSON.stringify(json));
+                if (profile?.id) formData.append('actorId', profile.id);
+                if (profile?.email) formData.append('actorEmail', profile.email);
+                if (profile?.role) formData.append('actorRole', profile.role);
+                
+                formAction(formData);
+
+            } catch (error) {
+                toast({ variant: 'destructive', title: 'File Read Error', description: 'Could not parse the Excel file.' });
+            } finally {
+                setIsParsing(false);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <form onSubmit={handleFormSubmit}>
+                    <DialogHeader>
+                        <DialogTitle>Import Employees from Excel</DialogTitle>
+                        <DialogDescription>
+                           Upload an Excel file to batch create or replace employees. Existing employees with the same NIS Email will be replaced.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="excel-file">Excel File</Label>
+                            <Input id="excel-file" type="file" accept=".xlsx, .xls" onChange={handleFileChange} />
+                            <p className="text-xs text-muted-foreground">
+                                Ensure your Excel file has headers matching the employee fields (e.g., name, email, role, etc.).
+                            </p>
+                            {state.errors?.file && <p className="text-sm text-destructive">{state.errors.file.join(', ')}</p>}
+                        </div>
+                    </div>
+                    {state.errors?.form && (
+                        <div className="text-sm text-destructive bg-destructive/10 p-2 rounded-md mb-4">
+                            <h4 className="font-bold">Import Errors:</h4>
+                            <ul className="list-disc pl-5">
+                                {state.errors.form.slice(0, 5).map((err, i) => <li key={i}>{err}</li>)}
+                            </ul>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isPending || isParsing}>
+                            {isPending || isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
+                            {isParsing ? 'Parsing...' : 'Upload and Process'}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function EmployeeManagementContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
@@ -983,6 +1090,8 @@ function EmployeeManagementContent() {
   
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null);
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false);
+  
+  const [isBatchUploadOpen, setIsBatchUploadOpen] = useState(false);
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -1278,6 +1387,10 @@ function EmployeeManagementContent() {
                     <Skeleton className="h-10 w-[190px]" />
                 ) : canManageEmployees && (
                     <div className="flex gap-2 w-full sm:w-auto">
+                        <Button className="w-full sm:w-auto" onClick={() => setIsBatchUploadOpen(true)} variant="outline">
+                           <UploadCloud className="mr-2 h-4 w-4" />
+                            Import from Excel
+                        </Button>
                         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                           <DialogTrigger asChild>
                             <Button className="w-full sm:w-auto">
@@ -1385,7 +1498,7 @@ function EmployeeManagementContent() {
                     <TableCell>
                       <Badge variant={employee.status === "Terminated" ? "destructive" : "secondary"}
                              className={cn({
-                                'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100': employee.status === 'Active',
+                                'bg-green-100 text-green-800': employee.status === 'Active',
                               })}>
                         {employee.status || "Active"}
                       </Badge>
@@ -1497,6 +1610,8 @@ function EmployeeManagementContent() {
         open={isDeactivateDialogOpen}
         onOpenChange={setIsDeactivateDialogOpen}
       />
+
+       <BatchUploadDialog open={isBatchUploadOpen} onOpenChange={setIsBatchUploadOpen} />
       
       {isDeleteDialogOpen && employeeToDelete && (
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => { if(!open) closeDeleteConfirmDialog(); else setIsDeleteDialogOpen(true); }}>
@@ -1767,4 +1882,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
