@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { z } from 'zod';
@@ -580,7 +579,7 @@ const CreateProfileFormSchema = z.object({
   lastName: z.string().min(1, "Last name is required."),
   department: z.string().min(1, "Department is required."),
   role: z.string().min(1, "Role is required."),
-  stage: z.string().min(1, "Stage is required."),
+  stage: z.string().optional(),
   phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
   dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
 });
@@ -661,7 +660,7 @@ export async function createEmployeeProfileAction(
       dateOfBirth: Timestamp.fromDate(dateOfBirth),
       department,
       role,
-      stage,
+      stage: stage || "Unassigned",
       status: "Active",
       system: "Unassigned",
       campus: "Unassigned",
