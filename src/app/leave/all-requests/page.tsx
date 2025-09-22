@@ -119,7 +119,7 @@ function AllLeaveRequestsContent() {
         const userRole = profile?.role?.toLowerCase();
         
         if (userRole === 'admin' || userRole === 'hr') {
-            // No additional filters needed for query
+            // No additional filters needed for query, but we still need to sort later
         } 
         else if (profile?.name) {
             try {
@@ -150,10 +150,12 @@ function AllLeaveRequestsContent() {
              queryConstraints.push(where("requestingEmployeeDocId", "==", ""));
         }
 
+        // Removed orderBy('startDate', 'desc') to avoid needing a composite index.
         const finalQuery = query(collection(db, "leaveRequests"), ...queryConstraints);
         
         const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
             const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+            // Sort client-side instead
             requestsData.sort((a,b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
             setAllRequests(requestsData);
             setIsLoading(false);

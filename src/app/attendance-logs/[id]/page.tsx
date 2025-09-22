@@ -57,29 +57,25 @@ function UserAttendanceLogContent() {
     }
 
     setIsLoading(true);
-    let logsQuery;
     
-    if (selectedDate) {
-        const dateString = format(selectedDate, 'yyyy-MM-dd');
-        logsQuery = query(
-            collection(db, "attendance_log"), 
-            where("userId", "==", Number(userId)),
-            where("date", "==", dateString)
-        );
-    } else {
-        logsQuery = query(
-            collection(db, "attendance_log"), 
-            where("userId", "==", Number(userId))
-        );
-    }
-
+    // Simplified query to only filter by userId, avoiding the composite index.
+    const logsQuery = query(
+        collection(db, "attendance_log"), 
+        where("userId", "==", Number(userId))
+    );
 
     const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
-      const rawLogs = snapshot.docs.map(doc => ({
+      let rawLogs = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       } as AttendanceLog));
       
+      // Perform date filtering on the client side
+      if (selectedDate) {
+          const dateString = format(selectedDate, 'yyyy-MM-dd');
+          rawLogs = rawLogs.filter(log => log.date === dateString);
+      }
+
       // Group logs by date
       const groupedLogs: { [key: string]: { check_ins: string[], check_outs: string[] } } = {};
       rawLogs.forEach(log => {
@@ -114,6 +110,8 @@ function UserAttendanceLogContent() {
         // If no logs are found for the filter, we might not get the name.
         // Try fetching the employee document to get the name.
         const fetchEmployeeName = async () => {
+            // Note: The original code used a query on 'employeeId' field which might not match the `userId` from logs.
+            // Assuming `userId` in logs corresponds to `employeeId` in the employee collection.
             const employeeQuery = query(collection(db, "employee"), where("employeeId", "==", userId), limit(1));
             const employeeSnapshot = await getDocs(employeeQuery);
             if(!employeeSnapshot.empty) {

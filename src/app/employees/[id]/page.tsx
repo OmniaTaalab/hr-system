@@ -50,8 +50,8 @@ interface Employee {
   phone: string; // Personal Phone
   hourlyRate?: number;
   photoURL?: string | null;
-  dateOfBirth?: Timestamp;
-  joiningDate?: Timestamp;
+  dateOfBirth?: Timestamp | { _seconds: number; _nanoseconds: number; }; // Can be Timestamp or serialized object
+  joiningDate?: Timestamp | { _seconds: number; _nanoseconds: number; }; // Can be Timestamp or serialized object
   gender?: string;
   nationalId?: string;
   religion?: string;
@@ -60,7 +60,7 @@ interface Employee {
   title?: string;
   documents?: EmployeeFile[];
   status?: "Active" | "Terminated";
-  leavingDate?: Timestamp | null;
+  leavingDate?: Timestamp | { _seconds: number; _nanoseconds: number; } | null;
   reasonForLeaving?: string;
 }
 
@@ -84,8 +84,13 @@ function safeToDate(timestamp: any): Date | undefined {
     if (!timestamp) return undefined;
     if (timestamp instanceof Date) return timestamp;
     if (timestamp.toDate && typeof timestamp.toDate === 'function') return timestamp.toDate();
-    if (timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
+    // Handle serialized Firestore Timestamps from server actions
+    if (typeof timestamp === 'object' && timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
       return new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
+    }
+     // Handle serialized Firestore Timestamps from older server actions (less common)
+    if (typeof timestamp === 'object' && timestamp._seconds !== undefined && timestamp._nanoseconds !== undefined) {
+      return new Timestamp(timestamp._seconds, timestamp._nanoseconds).toDate();
     }
     return undefined;
 }
