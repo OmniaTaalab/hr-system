@@ -124,8 +124,8 @@ const EmployeesChartContent = () => {
     const principal = principals.find(p => p.id === selectedPrincipal);
     if (!principal) return employees;
     
-    // Return the principal and all employees in their stage
-    return employees.filter(e => e.id === principal.id || e.stage === principal.stage);
+    // Return the principal and all employees in their campus
+    return employees.filter(e => e.id === principal.id || e.campus === principal.campus);
   }, [employees, principals, selectedPrincipal]);
 
   const tree = useMemo(() => {
@@ -138,7 +138,7 @@ const EmployeesChartContent = () => {
 
     principalsToDisplay.forEach(principal => {
       const children = otherEmployees
-        .filter(emp => emp.stage === principal.stage)
+        .filter(emp => emp.campus === principal.campus)
         .map(emp => ({ employee: emp, children: [] }));
       
       roots.push({
@@ -147,12 +147,11 @@ const EmployeesChartContent = () => {
       });
     });
     
-    // If filtering by a specific principal, we don't want to show unassigned employees
     if(selectedPrincipal === 'All') {
-        const employeesInPrincipalStages = new Set(
-            otherEmployees.filter(e => principals.some(p => p.stage === e.stage)).map(e => e.id)
+        const employeesInPrincipalCampuses = new Set(
+            otherEmployees.filter(e => principals.some(p => p.campus === e.campus)).map(e => e.id)
         );
-        const unassignedEmployees = otherEmployees.filter(e => !employeesInPrincipalStages.has(e.id));
+        const unassignedEmployees = otherEmployees.filter(e => !employeesInPrincipalCampuses.has(e.id));
         
         if (unassignedEmployees.length > 0 && roots.length > 0) {
             roots[0].children.push(...unassignedEmployees.map(e => ({ employee: e, children: [] })));
@@ -208,7 +207,7 @@ const EmployeesChartContent = () => {
             Employees Chart
           </h1>
           <p className="text-muted-foreground">
-            Organizational structure based on stages under each principal.
+            Organizational structure based on campuses under each principal.
           </p>
       </header>
 
@@ -243,7 +242,7 @@ const EmployeesChartContent = () => {
                       <Loader2 className="h-12 w-12 animate-spin text-primary" />
                   </div>
               ) : tree.length > 0 ? (
-                  <div className="flex items-start justify-center space-x-8">
+                  <div className="flex flex-col items-center space-y-8">
                       {tree.map(rootNode => (
                           <EmployeeNode key={rootNode.employee.id} node={rootNode} />
                       ))}
