@@ -9,7 +9,7 @@ import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, lim
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity } from 'lucide-react';
-import { format, getYear, getMonth, getDate } from 'date-fns';
+import { format, getYear, getMonth, getDate, intervalToDuration, formatDistanceToNow } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -316,6 +316,19 @@ function EmployeeProfileContent() {
     return `${format(dob, "PPP")} (Age: ${age})`;
   }, [employee?.dateOfBirth]);
 
+  const formattedJoiningDateAndPeriod = useMemo(() => {
+    const joiningDate = safeToDate(employee?.joiningDate);
+    if (!joiningDate) return undefined;
+
+    const duration = intervalToDuration({ start: joiningDate, end: new Date() });
+    const periodParts = [];
+    if (duration.years && duration.years > 0) periodParts.push(`${duration.years} year${duration.years > 1 ? 's' : ''}`);
+    if (duration.months && duration.months > 0) periodParts.push(`${duration.months} month${duration.months > 1 ? 's' : ''}`);
+    const period = periodParts.length > 0 ? periodParts.join(', ') : 'Less than a month';
+
+    return `${format(joiningDate, "PPP")} (${period})`;
+  }, [employee?.joiningDate]);
+
 
   if (loading || profileLoading) {
     return (
@@ -399,7 +412,7 @@ function EmployeeProfileContent() {
                    <DetailItem icon={Users} label="Stage" value={employee.stage} />
                    <DetailItem icon={Code} label="System" value={employee.system} />
                    <DetailItem icon={MapPin} label="Campus" value={employee.campus} />
-                   <DetailItem icon={CalendarDays} label="Joining Date" value={safeToDate(employee.joiningDate) ? format(safeToDate(employee.joiningDate)!, 'PPP') : undefined} />
+                   <DetailItem icon={CalendarDays} label="Joining Date" value={formattedJoiningDateAndPeriod} />
                    <DetailItem icon={Stethoscope} label="Subject" value={employee.subject} />
                    <DetailItem icon={Activity} label="Status">
                      <Badge variant={employee.status === "Terminated" ? "destructive" : "secondary"} className={employee.status === 'Active' ? 'bg-green-100 text-green-800' : ''}>
@@ -575,3 +588,5 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
+    
