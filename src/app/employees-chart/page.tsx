@@ -79,8 +79,8 @@ function EmployeesChartContent() {
           <AvatarImage src={employee.photoURL} alt={employee.name} />
           <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
         </Avatar>
-        <p className="text-md font-semibold">{employee.name}</p>
-        <p className="text-sm text-muted-foreground">{employee.role}</p>
+        <p className="text-sm font-semibold">{employee.name}</p>
+        <p className="text-xs text-muted-foreground">{employee.role}</p>
         <p className="text-xs text-muted-foreground">{employee.campus || 'No Campus'}</p>
       </CardContent>
     </Card>
