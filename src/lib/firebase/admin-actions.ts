@@ -93,7 +93,7 @@ export async function getAllAuthUsers() {
 const CreateEmployeeFormSchema = z.object({
   // Personal Info
   name: z.string().min(1, "Full name is required.").refine(val => val.trim().includes(' '), "Please enter both first and last name."),
-  personalEmail: z.string().email({ message: 'A valid personal email is required.' }),
+  personalEmail: z.string().email({ message: 'A valid personal email is required.' }).optional().or(z.literal('')),
   personalPhone: z.string().min(1, "Personal phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
   emergencyContactName: z.string().min(1, "Emergency contact name is required."),
   emergencyContactRelationship: z.string().min(1, "Emergency contact relationship is required."),
@@ -267,14 +267,14 @@ export async function createEmployeeAction(
 // Schema for validating form data for updating an employee
 const UpdateEmployeeFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee document ID is required."),
-  firstName: z.string().min(1, "First name is required."),
-  lastName: z.string().min(1, "Last name is required."),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
   department: z.string().optional(),
   role: z.string().optional(),
   system: z.string().optional(),
   campus: z.string().optional(),
   email: z.string().email({ message: 'Invalid email address.' }).optional(),
-  personalEmail: z.string().email({ message: 'Invalid personal email address.' }).optional(),
+  personalEmail: z.string().email({ message: 'Invalid personal email address.' }).optional().or(z.literal('')),
   phone: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactRelationship: z.string().optional(),
