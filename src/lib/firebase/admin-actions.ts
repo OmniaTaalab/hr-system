@@ -696,6 +696,20 @@ const parseFlexibleDate = (val: any): Date | null => {
     return !isNaN(date.valueOf()) ? date : null;
   }
   if (typeof val === 'string') {
+    // Handle MM-DD-YYYY and M/D/YYYY
+    const parts = val.split(/[-/]/);
+    if (parts.length === 3) {
+      const [month, day, year] = parts.map(p => parseInt(p, 10));
+      if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
+        // Handle 2-digit years
+        const fullYear = year < 100 ? (year > 50 ? 1900 + year : 2000 + year) : year;
+        const date = new Date(Date.UTC(fullYear, month - 1, day));
+        if (!isNaN(date.valueOf())) {
+            return date;
+        }
+      }
+    }
+    // Fallback to default parsing
     const date = new Date(val);
     if (!isNaN(date.valueOf())) return date;
   }
@@ -704,7 +718,7 @@ const parseFlexibleDate = (val: any): Date | null => {
 
 
 const BatchEmployeeSchema = z.object({
-    name: z.string().min(1, "Name is required."),
+    name: z.string().optional().nullable(),
     personalEmail: z.string().optional().nullable(),
     phone: z.string().optional().nullable(),
     emergencyContactName: z.string().optional().nullable(),
@@ -801,6 +815,12 @@ export async function batchCreateEmployeesAction(
     let employeeCounter = countSnapshot.data().count;
 
     for (const record of mappedRecords) {
+        // Construct name from email if name is missing
+        if (!record.name && record.nisEmail) {
+            const emailNamePart = record.nisEmail.split('@')[0];
+            record.name = emailNamePart.replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+        
         const validation = BatchEmployeeSchema.safeParse(record);
 
         if (!validation.success) {
@@ -812,6 +832,12 @@ export async function batchCreateEmployeesAction(
 
         const { data: validatedRecord } = validation;
         const { nisEmail, name } = validatedRecord;
+
+        // The name check is now safe because we construct it if it's missing
+        if (!name) {
+             failedRecordsInfo.push(`A record was skipped because it was missing a name and a valid work email to construct one from.`);
+             continue;
+        }
 
         if (emailsInThisBatch.has(nisEmail)) {
             failedRecordsInfo.push(`${name}: Duplicate Work email found in this file.`);
