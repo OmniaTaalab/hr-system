@@ -48,7 +48,7 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
               <AvatarImage src={node.employee.photoURL || undefined} alt={node.employee.name} />
               <AvatarFallback>{getInitials(node.employee.name)}</AvatarFallback>
             </Avatar>
-            <div className="text-sm font-semibold mt-1">{node.employee.name}</div>
+            <div className="text-sm font-semibold mt-1">{node.employee.name || 'No Name'}</div>
             <div className="text-xs text-muted-foreground">{node.employee.role || 'No Role'}</div>
           </CardContent>
         </Card>
