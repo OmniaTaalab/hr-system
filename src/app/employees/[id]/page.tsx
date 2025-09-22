@@ -51,14 +51,7 @@ interface Employee {
   hourlyRate?: number;
   photoURL?: string | null;
   dateOfBirth?: Timestamp | { _seconds: number; _nanoseconds: number; }; // Can be Timestamp or serialized object
-  joiningDate?: Timestamp | { _seconds: number; _nanoseconds: number; }; // Can be Timestamp or serialized object
-  gender?: string;
-  nationalId?: string;
-  religion?: string;
-  stage?: string;
-  subject?: string;
-  title?: string;
-  documents?: EmployeeFile[];
+  joiningDate?: Timestamp | { _seconds: number;_nanoseconds: number; }; // Can be Timestamp or serialized object
   status?: "Active" | "Terminated";
   leavingDate?: Timestamp | { _seconds: number; _nanoseconds: number; } | null;
   reasonForLeaving?: string;
@@ -124,7 +117,7 @@ function DetailItem({ icon: Icon, label, value, children }: { icon: React.Elemen
 function EmployeeProfileContent() {
   const params = useParams();
   const router = useRouter();
-  const id = params.id as string;
+  const identifier = params.id as string;
   const { profile, loading: profileLoading } = useUserProfile();
   const { toast } = useToast();
 
@@ -139,31 +132,70 @@ function EmployeeProfileContent() {
   const [loadingLeaves, setLoadingLeaves] = useState(false);
 
   useEffect(() => {
-    if (id) {
-      const fetchEmployeeData = async () => {
+    if (!identifier) return;
+
+    const fetchEmployeeData = async () => {
         setLoading(true);
         setError(null);
         try {
-          const decodedId = decodeURIComponent(id);
-          const q = query(collection(db, 'employee'), where('employeeId', '==', decodedId), limit(1));
-          const querySnapshot = await getDocs(q);
+            const decodedId = decodeURIComponent(identifier);
+            const isEmail = decodedId.includes('@');
+            let q;
 
-          if (!querySnapshot.empty) {
-            const employeeDoc = querySnapshot.docs[0];
-            const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
-            setEmployee(employeeData);
-            fetchAttendanceLogs(employeeData.employeeId);
-            fetchLeaveRequests(employeeData.id);
-          } else {
-            setError('Employee not found.');
-          }
+            if (isEmail) {
+                // Query by work email or personal email
+                q = query(
+                    collection(db, 'employee'),
+                    where('email', '==', decodedId),
+                    limit(1)
+                );
+            } else {
+                // Query by employeeId
+                q = query(
+                    collection(db, 'employee'),
+                    where('employeeId', '==', decodedId),
+                    limit(1)
+                );
+            }
+
+            const querySnapshot = await getDocs(q);
+
+            if (!querySnapshot.empty) {
+                const employeeDoc = querySnapshot.docs[0];
+                const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
+                setEmployee(employeeData);
+                fetchAttendanceLogs(employeeData.employeeId);
+                fetchLeaveRequests(employeeData.id);
+            } else {
+                // If work email fails, try personal email if it's an email
+                if (isEmail) {
+                    const personalQ = query(
+                        collection(db, 'employee'),
+                        where('personalEmail', '==', decodedId),
+                        limit(1)
+                    );
+                    const personalSnapshot = await getDocs(personalQ);
+                    if (!personalSnapshot.empty) {
+                        const employeeDoc = personalSnapshot.docs[0];
+                        const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
+                        setEmployee(employeeData);
+                        fetchAttendanceLogs(employeeData.employeeId);
+                        fetchLeaveRequests(employeeData.id);
+                    } else {
+                        setError('Employee not found.');
+                    }
+                } else {
+                    setError('Employee not found.');
+                }
+            }
         } catch (e) {
-          console.error("Error fetching employee details:", e);
-          setError('Failed to load employee details.');
+            console.error("Error fetching employee details:", e);
+            setError('Failed to load employee details.');
         } finally {
-          setLoading(false);
+            setLoading(false);
         }
-      };
+    };
+
 
       const fetchAttendanceLogs = async (employeeId: string) => {
         setLoadingLogs(true);
@@ -207,8 +239,7 @@ function EmployeeProfileContent() {
       };
 
       fetchEmployeeData();
-    }
-  }, [id, toast]);
+  }, [identifier, toast]);
   
   const getInitials = (name?: string | null) => {
     if (!name) return "U";
