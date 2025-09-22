@@ -55,6 +55,7 @@ interface Employee {
   status?: "Active" | "Terminated";
   leavingDate?: Timestamp | { _seconds: number; _nanoseconds: number; } | null;
   reasonForLeaving?: string;
+  [key: string]: any; // Allow other properties
 }
 
 interface AttendanceLog {
@@ -133,76 +134,56 @@ function EmployeeProfileContent() {
 
   useEffect(() => {
     if (!identifier) return;
-
+    
     const fetchEmployeeData = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const decodedId = decodeURIComponent(identifier);
-            const isEmail = decodedId.includes('@');
-            let q;
+      setLoading(true);
+      setError(null);
+      try {
+        const decodedId = decodeURIComponent(identifier);
+        const isEmail = decodedId.includes('@');
+        let employeeDocSnapshot;
 
-            if (isEmail) {
-                // Query by work email or personal email
-                q = query(
-                    collection(db, 'employee'),
-                    where('email', '==', decodedId),
-                    limit(1)
-                );
-            } else {
-                // Query by employeeId
-                q = query(
-                    collection(db, 'employee'),
-                    where('employeeId', '==', decodedId),
-                    limit(1)
-                );
+        if (isEmail) {
+            // First, try querying by work email
+            const emailQuery = query(collection(db, 'employee'), where('email', '==', decodedId), limit(1));
+            employeeDocSnapshot = await getDocs(emailQuery);
+
+            // If not found, try personal email
+            if (employeeDocSnapshot.empty) {
+                const personalEmailQuery = query(collection(db, 'employee'), where('personalEmail', '==', decodedId), limit(1));
+                employeeDocSnapshot = await getDocs(personalEmailQuery);
             }
-
-            const querySnapshot = await getDocs(q);
-
-            if (!querySnapshot.empty) {
-                const employeeDoc = querySnapshot.docs[0];
-                const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
-                setEmployee(employeeData);
-                fetchAttendanceLogs(employeeData.employeeId);
-                fetchLeaveRequests(employeeData.id);
-            } else {
-                // If work email fails, try personal email if it's an email
-                if (isEmail) {
-                    const personalQ = query(
-                        collection(db, 'employee'),
-                        where('personalEmail', '==', decodedId),
-                        limit(1)
-                    );
-                    const personalSnapshot = await getDocs(personalQ);
-                    if (!personalSnapshot.empty) {
-                        const employeeDoc = personalSnapshot.docs[0];
-                        const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
-                        setEmployee(employeeData);
-                        fetchAttendanceLogs(employeeData.employeeId);
-                        fetchLeaveRequests(employeeData.id);
-                    } else {
-                        setError('Employee not found.');
-                    }
-                } else {
-                    setError('Employee not found.');
-                }
-            }
-        } catch (e) {
-            console.error("Error fetching employee details:", e);
-            setError('Failed to load employee details.');
-        } finally {
-            setLoading(false);
+        } else {
+            // Query by employeeId (which is the numeric ID)
+            const idQuery = query(collection(db, 'employee'), where('employeeId', '==', decodedId), limit(1));
+            employeeDocSnapshot = await getDocs(idQuery);
         }
+
+        if (!employeeDocSnapshot.empty) {
+            const employeeDoc = employeeDocSnapshot.docs[0];
+            const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
+            setEmployee(employeeData);
+            
+            // Now use the correct IDs for fetching related data
+            fetchAttendanceLogs(employeeData.employeeId); // Use numeric employeeId for logs
+            fetchLeaveRequests(employeeData.id);          // Use Firestore document id for leaves
+        } else {
+            setError('Employee not found.');
+        }
+      } catch (e) {
+        console.error("Error fetching employee details:", e);
+        setError('Failed to load employee details.');
+      } finally {
+        setLoading(false);
+      }
     };
-
-
-      const fetchAttendanceLogs = async (employeeId: string) => {
+    
+    const fetchAttendanceLogs = async (numericEmployeeId: string) => {
         setLoadingLogs(true);
         try {
           const logsQuery = query(
             collection(db, 'attendance_log'),
-            where('userId', '==', Number(employeeId)),
+            where('userId', '==', Number(numericEmployeeId)),
             orderBy('date', 'desc')
           );
           const querySnapshot = await getDocs(logsQuery);
@@ -218,27 +199,27 @@ function EmployeeProfileContent() {
         } finally {
           setLoadingLogs(false);
         }
-      };
+    };
       
-      const fetchLeaveRequests = async (employeeDocId: string) => {
+    const fetchLeaveRequests = async (employeeDocId: string) => {
         setLoadingLeaves(true);
         try {
-          const leavesQuery = query(
+            const leavesQuery = query(
             collection(db, 'leaveRequests'),
             where('requestingEmployeeDocId', '==', employeeDocId),
             orderBy('startDate', 'desc')
-          );
-          const querySnapshot = await getDocs(leavesQuery);
-          const leaves = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequest));
-          setLeaveRequests(leaves);
+            );
+            const querySnapshot = await getDocs(leavesQuery);
+            const leaves = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequest));
+            setLeaveRequests(leaves);
         } catch(e) {
-          console.error("Error fetching leave requests:", e);
+            console.error("Error fetching leave requests:", e);
         } finally {
-          setLoadingLeaves(false);
+            setLoadingLeaves(false);
         }
-      };
+    };
 
-      fetchEmployeeData();
+    fetchEmployeeData();
   }, [identifier, toast]);
   
   const getInitials = (name?: string | null) => {
@@ -574,3 +555,5 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
+    
