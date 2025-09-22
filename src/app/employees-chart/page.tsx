@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, AlertTriangle, Users, BarChartBig } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from 'next/navigation';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
 interface Employee {
   id: string;
@@ -35,7 +36,7 @@ function EmployeesChartContent() {
         return;
     }
 
-    const q = query(collection(db, "employee"), where("role", "==", "Campus Director"));
+    const q = query(collection(db, "employee"), where("role", "==", "Director"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const fetchedDirectors = snapshot.docs.map(doc => ({
             id: doc.id,
@@ -96,20 +97,23 @@ function EmployeesChartContent() {
                         <Loader2 className="h-10 w-10 animate-spin text-primary" />
                      </div>
                 ) : directors.length > 0 ? (
-                    <div className="flex flex-wrap gap-8 justify-center">
-                        {directors.map(director => (
-                             <Card key={director.id} className="w-60 text-center shadow-lg hover:shadow-xl transition-shadow">
-                                <CardContent className="flex flex-col items-center pt-6">
-                                    <Avatar className="h-20 w-20 mb-2">
-                                        <AvatarImage src={director.photoURL} alt={director.name} />
-                                        <AvatarFallback>{getInitials(director.name)}</AvatarFallback>
-                                    </Avatar>
-                                    <p className="text-md font-semibold">{director.name}</p>
-                                    <p className="text-xs text-muted-foreground">{director.campus || 'No Campus'}</p>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
+                    <ScrollArea className="w-full whitespace-nowrap">
+                        <div className="flex w-max space-x-4 p-4">
+                            {directors.map(director => (
+                                 <Card key={director.id} className="w-60 text-center shadow-lg hover:shadow-xl transition-shadow shrink-0">
+                                    <CardContent className="flex flex-col items-center pt-6">
+                                        <Avatar className="h-20 w-20 mb-2">
+                                            <AvatarImage src={director.photoURL} alt={director.name} />
+                                            <AvatarFallback>{getInitials(director.name)}</AvatarFallback>
+                                        </Avatar>
+                                        <p className="text-md font-semibold">{director.name}</p>
+                                        <p className="text-xs text-muted-foreground">{director.campus || 'No Campus'}</p>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                        <ScrollBar orientation="horizontal" />
+                    </ScrollArea>
                 ) : (
                     <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
                         <h3 className="text-xl font-semibold">No Directors Found</h3>
@@ -129,4 +133,3 @@ export default function EmployeesChartPage() {
         </AppLayout>
     );
 }
-
