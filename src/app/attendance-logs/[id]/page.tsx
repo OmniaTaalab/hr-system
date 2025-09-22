@@ -43,13 +43,13 @@ function UserAttendanceLogContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
   const params = useParams();
-  const userId = params.id as string;
+  const employeeIdentifier = params.id as string;
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
   
   useEffect(() => {
-    if (isLoadingProfile || !userId) return;
+    if (isLoadingProfile || !employeeIdentifier) return;
     
     if (!canViewPage) {
         router.replace('/');
@@ -57,82 +57,111 @@ function UserAttendanceLogContent() {
     }
 
     setIsLoading(true);
-    
-    // Simplified query to only filter by userId, avoiding the composite index.
-    const logsQuery = query(
-        collection(db, "attendance_log"), 
-        where("userId", "==", Number(userId))
-    );
 
-    const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
-      let rawLogs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as AttendanceLog));
-      
-      // Perform date filtering on the client side
-      if (selectedDate) {
-          const dateString = format(selectedDate, 'yyyy-MM-dd');
-          rawLogs = rawLogs.filter(log => log.date === dateString);
-      }
+    const getEmployeeIdAndFetchLogs = async () => {
+        let employeeId: number | null = null;
+        let fetchedEmployeeName: string | null = null;
 
-      // Group logs by date
-      const groupedLogs: { [key: string]: { check_ins: string[], check_outs: string[] } } = {};
-      rawLogs.forEach(log => {
-          if (!groupedLogs[log.date]) {
-              groupedLogs[log.date] = { check_ins: [], check_outs: [] };
-          }
-          if (log.check_in) groupedLogs[log.date].check_ins.push(log.check_in);
-          if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
-      });
-      
-      // Process grouped logs to find earliest check-in and latest check-out
-      const processedLogs: DailyAttendanceLog[] = Object.keys(groupedLogs).map(date => {
-          const { check_ins, check_outs } = groupedLogs[date];
-          // Sort to find the earliest and latest times
-          check_ins.sort();
-          check_outs.sort();
-          return {
-              date: date,
-              check_in: check_ins[0] || null, // Earliest check-in
-              check_out: check_outs.length > 0 ? check_outs[check_outs.length - 1] : null, // Latest check-out
-          };
-      });
-      
-      // Sort the final aggregated logs by date in descending order on the client
-      processedLogs.sort((a, b) => b.date.localeCompare(a.date));
-
-      setLogs(processedLogs);
-
-      if (rawLogs.length > 0) {
-        setEmployeeName(rawLogs[0].employeeName);
-      } else if (!employeeName) {
-        // If no logs are found for the filter, we might not get the name.
-        // Try fetching the employee document to get the name.
-        const fetchEmployeeName = async () => {
-            // Note: The original code used a query on 'employeeId' field which might not match the `userId` from logs.
-            // Assuming `userId` in logs corresponds to `employeeId` in the employee collection.
-            const employeeQuery = query(collection(db, "employee"), where("employeeId", "==", userId), limit(1));
-            const employeeSnapshot = await getDocs(employeeQuery);
-            if(!employeeSnapshot.empty) {
-                setEmployeeName(employeeSnapshot.docs[0].data().name);
+        // Check if identifier is an email
+        if (employeeIdentifier.includes('@')) {
+            try {
+                const employeeQuery = query(collection(db, "employee"), where("email", "==", employeeIdentifier), limit(1));
+                const employeeSnapshot = await getDocs(employeeQuery);
+                if (!employeeSnapshot.empty) {
+                    const employeeData = employeeSnapshot.docs[0].data();
+                    employeeId = Number(employeeData.employeeId);
+                    fetchedEmployeeName = employeeData.name;
+                    setEmployeeName(fetchedEmployeeName || '');
+                } else {
+                     toast({ variant: "destructive", title: "Not Found", description: `No employee found with email: ${employeeIdentifier}` });
+                     setIsLoading(false);
+                     return;
+                }
+            } catch (e) {
+                console.error("Error fetching employee by email:", e);
+                toast({ variant: "destructive", title: "Error", description: "Failed to look up employee by email." });
+                setIsLoading(false);
+                return;
             }
+        } else {
+            employeeId = Number(employeeIdentifier);
         }
-        fetchEmployeeName();
-      }
-      setIsLoading(false);
-    }, (error) => {
-      console.error("Error fetching user attendance logs:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Could not load user attendance logs. Check Firestore rules or query constraints.",
-      });
-      setIsLoading(false);
-    });
 
-    return () => unsubscribe();
-  }, [toast, canViewPage, isLoadingProfile, router, userId, selectedDate, employeeName]);
+        if (employeeId === null || isNaN(employeeId)) {
+            toast({ variant: "destructive", title: "Invalid Identifier", description: "The provided employee identifier is not valid." });
+            setIsLoading(false);
+            return;
+        }
+
+        const logsQuery = query(
+            collection(db, "attendance_log"), 
+            where("userId", "==", employeeId)
+        );
+
+        const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
+          let rawLogs = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as AttendanceLog));
+          
+          if (selectedDate) {
+              const dateString = format(selectedDate, 'yyyy-MM-dd');
+              rawLogs = rawLogs.filter(log => log.date === dateString);
+          }
+
+          const groupedLogs: { [key: string]: { check_ins: string[], check_outs: string[] } } = {};
+          rawLogs.forEach(log => {
+              if (!groupedLogs[log.date]) {
+                  groupedLogs[log.date] = { check_ins: [], check_outs: [] };
+              }
+              if (log.check_in) groupedLogs[log.date].check_ins.push(log.check_in);
+              if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
+          });
+          
+          const processedLogs: DailyAttendanceLog[] = Object.keys(groupedLogs).map(date => {
+              const { check_ins, check_outs } = groupedLogs[date];
+              check_ins.sort();
+              check_outs.sort();
+              return {
+                  date: date,
+                  check_in: check_ins[0] || null,
+                  check_out: check_outs.length > 0 ? check_outs[check_outs.length - 1] : null,
+              };
+          });
+          
+          processedLogs.sort((a, b) => b.date.localeCompare(a.date));
+
+          setLogs(processedLogs);
+
+          if (rawLogs.length > 0 && !fetchedEmployeeName) {
+            setEmployeeName(rawLogs[0].employeeName);
+          } else if (rawLogs.length === 0 && !fetchedEmployeeName) {
+             setEmployeeName(`ID: ${employeeId}`);
+          }
+          setIsLoading(false);
+        }, (error) => {
+          console.error("Error fetching user attendance logs:", error);
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not load user attendance logs. Check Firestore rules or query constraints.",
+          });
+          setIsLoading(false);
+        });
+
+        return unsubscribe;
+    };
+
+    let unsubscribePromise = getEmployeeIdAndFetchLogs();
+
+    return () => {
+        unsubscribePromise.then(unsubscribe => {
+            if (unsubscribe) {
+                unsubscribe();
+            }
+        });
+    };
+  }, [toast, canViewPage, isLoadingProfile, router, employeeIdentifier, selectedDate]);
 
   const handleExportExcel = () => {
     if (logs.length === 0) {
@@ -189,7 +218,7 @@ function UserAttendanceLogContent() {
       <header>
         <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
           <BookOpenCheck className="mr-3 h-8 w-8 text-primary" />
-          {`Attendance History for ${employeeName || `ID: ${userId}`}`}
+          {`Attendance History for ${employeeName || `ID: ${employeeIdentifier}`}`}
         </h1>
         <p className="text-muted-foreground">
             {selectedDate ? `Showing records for ${format(selectedDate, 'PPP')}.` : "Showing all check-in and check-out events for this employee."}
@@ -227,7 +256,7 @@ function UserAttendanceLogContent() {
                ) : logs.length === 0 ? (
                   <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
                       <h3 className="text-xl font-semibold">No Logs Found</h3>
-                      <p className="mt-2">{selectedDate ? `No records found for ${format(selectedDate, 'PPP')}.` : `No attendance records found for user ID ${userId}.`}</p>
+                      <p className="mt-2">{selectedDate ? `No records found for ${format(selectedDate, 'PPP')}.` : `No attendance records found for ${employeeName}.`}</p>
                   </div>
                ) : (
                   <Table>
@@ -262,3 +291,5 @@ export default function UserAttendanceLogPage() {
         </AppLayout>
     )
 }
+
+    
