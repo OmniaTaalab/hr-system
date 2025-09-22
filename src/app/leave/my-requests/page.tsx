@@ -214,8 +214,7 @@ function MyRequestsContent() {
           collection(db, "leaveRequests"),
           where("requestingEmployeeDocId", "==", currentEmployeeId),
           where("status", "==", "Approved"), 
-          where("startDate", "<=", Timestamp.fromDate(monthEnd)), 
-          orderBy("startDate", "desc") 
+          where("startDate", "<=", Timestamp.fromDate(monthEnd))
         );
         
         const leaveSnapshot = await getDocs(overlappingLeavesQuery);
