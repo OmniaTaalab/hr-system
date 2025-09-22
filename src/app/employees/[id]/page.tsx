@@ -190,11 +190,11 @@ function EmployeeProfileContent() {
         try {
           const logsQuery = query(
             collection(db, 'attendance_log'),
-            where('userId', '==', Number(numericEmployeeId)),
-            orderBy('date', 'desc')
+            where('userId', '==', Number(numericEmployeeId))
           );
           const querySnapshot = await getDocs(logsQuery);
           let logs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
+          logs.sort((a, b) => b.date.localeCompare(a.date));
           setAttendanceLogs(logs);
         } catch (e) {
           console.error("Error fetching attendance logs:", e);
@@ -213,11 +213,11 @@ function EmployeeProfileContent() {
         try {
             const leavesQuery = query(
             collection(db, 'leaveRequests'),
-            where('requestingEmployeeDocId', '==', employeeDocId),
-            orderBy('startDate', 'desc')
+            where('requestingEmployeeDocId', '==', employeeDocId)
             );
             const querySnapshot = await getDocs(leavesQuery);
             const leaves = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequest));
+            leaves.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
             setLeaveRequests(leaves);
         } catch(e) {
             console.error("Error fetching leave requests:", e);
@@ -588,5 +588,6 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
 
     
