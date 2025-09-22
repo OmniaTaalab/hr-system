@@ -6,7 +6,7 @@ import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Users, BarChartBig } from 'lucide-react';
+import { Loader2, AlertTriangle, Users, BarChartBig, ArrowDown } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from 'next/navigation';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -19,8 +19,13 @@ interface Employee {
   campus?: string;
 }
 
+interface CampusGroup {
+    principal: Employee;
+    employees: Employee[];
+}
+
 function EmployeesChartContent() {
-  const [principals, setPrincipals] = useState<Employee[]>([]);
+  const [campusGroups, setCampusGroups] = useState<CampusGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
@@ -35,14 +40,24 @@ function EmployeesChartContent() {
         return;
     }
 
-    const q = query(collection(db, "employee"), where("role", "==", "Principal"));
+    const q = query(collection(db, "employee"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const principalsData = snapshot.docs.map(doc => ({
+        const allEmployees = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
-        } as Employee)).sort((a, b) => a.name.localeCompare(b.name));
+        } as Employee));
+
+        const principals = allEmployees.filter(e => e.role === 'Principal').sort((a,b) => a.name.localeCompare(b.name));
+        const otherEmployees = allEmployees.filter(e => e.role !== 'Principal');
+
+        const groups: CampusGroup[] = principals.map(principal => {
+            const campusEmployees = otherEmployees
+                .filter(e => e.campus === principal.campus)
+                .sort((a,b) => a.name.localeCompare(b.name));
+            return { principal, employees: campusEmployees };
+        });
         
-        setPrincipals(principalsData);
+        setCampusGroups(groups);
         setIsLoading(false);
     }, (error) => {
         console.error("Error fetching employees for chart: ", error);
@@ -53,6 +68,7 @@ function EmployeesChartContent() {
   }, [isLoadingProfile, canViewPage, router]);
 
   const getInitials = (name: string) => {
+    if (!name) return "?";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
 
@@ -96,7 +112,7 @@ function EmployeesChartContent() {
                 Employees Chart
             </h1>
             <p className="text-muted-foreground">
-                Organizational chart displaying Principals.
+                Organizational chart displaying Principals and their employees by campus.
             </p>
         </header>
 
@@ -109,12 +125,22 @@ function EmployeesChartContent() {
                      <div className="flex justify-center items-center h-40">
                         <Loader2 className="h-10 w-10 animate-spin text-primary" />
                      </div>
-                ) : principals.length > 0 ? (
+                ) : campusGroups.length > 0 ? (
                     <ScrollArea className="w-full whitespace-nowrap">
                         <div className="flex w-max space-x-8 p-4">
-                            {principals.map((principal) => (
+                            {campusGroups.map(({ principal, employees }) => (
                                  <div key={principal.id} className="flex flex-col items-center gap-4">
                                     <EmployeeCard employee={principal} />
+                                     {employees.length > 0 && (
+                                        <>
+                                            <ArrowDown className="h-6 w-6 text-muted-foreground" />
+                                            <div className="flex flex-col items-center gap-4 pl-8 border-l-2 border-dashed">
+                                                {employees.map(employee => (
+                                                    <EmployeeCard key={employee.id} employee={employee} />
+                                                ))}
+                                            </div>
+                                        </>
+                                     )}
                                  </div>
                             ))}
                         </div>
@@ -123,7 +149,7 @@ function EmployeesChartContent() {
                 ) : (
                     <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
                         <h3 className="text-xl font-semibold">No Principals Found</h3>
-                        <p className="mt-2">There are no employees with the role of "Principal".</p>
+                        <p className="mt-2">There are no employees with the role of "Principal" to display on the chart.</p>
                     </div>
                 )}
             </CardContent>
