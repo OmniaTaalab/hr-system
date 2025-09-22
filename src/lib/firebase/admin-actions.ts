@@ -690,9 +690,9 @@ export async function createEmployeeProfileAction(
 // --- NEW ACTION FOR BATCH EMPLOYEE CREATION ---
 
 const BatchEmployeeSchema = z.object({
-  name: z.string().min(1),
-  personalEmail: z.string().email(),
-  phone: z.string(),
+  name: z.string().optional(),
+  personalEmail: z.string().optional(),
+  phone: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactRelationship: z.string().optional(),
   emergencyContactNumber: z.string().optional(),

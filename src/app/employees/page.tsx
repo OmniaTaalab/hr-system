@@ -1247,7 +1247,8 @@ function EmployeeManagementContent() {
               employee.campus,
               employee.email,
               employee.phone,
-              employee.subject
+              employee.subject,
+              employee.title
           ];
           return searchableFields.some(field =>
               typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
@@ -1376,7 +1377,7 @@ function EmployeeManagementContent() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Search employees by name, role, department, etc..."
+                  placeholder="Search by name, title, department..."
                   className="w-full pl-10"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -1470,7 +1471,7 @@ function EmployeeManagementContent() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Role</TableHead>
+                <TableHead>Title</TableHead>
                 <TableHead>Subject</TableHead>
                 <TableHead>Stage</TableHead>
                 <TableHead>Campus</TableHead>
@@ -1491,7 +1492,7 @@ function EmployeeManagementContent() {
                         {employee.name || '-'}
                       </Link>
                     </TableCell>
-                    <TableCell>{employee.role || '-'}</TableCell>
+                    <TableCell>{employee.title || '-'}</TableCell>
                     <TableCell>{employee.subject || '-'}</TableCell>
                     <TableCell>{employee.stage || '-'}</TableCell>
                     <TableCell>{employee.campus || '-'}</TableCell>
