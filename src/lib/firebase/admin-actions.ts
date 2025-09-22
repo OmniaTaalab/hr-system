@@ -207,7 +207,7 @@ export async function createEmployeeAction(
     const emailQuery = query(employeeCollectionRef, where("email", "==", nisEmail), limit(1));
     const emailSnapshot = await getDocs(emailQuery);
     if (!emailSnapshot.empty) {
-      return { errors: { nisEmail: ["An employee with this NIS email already exists."] } };
+      return { success: false, errors: { nisEmail: ["An employee with this NIS email already exists."] } };
     }
 
     const countSnapshot = await getCountFromServer(employeeCollectionRef);
