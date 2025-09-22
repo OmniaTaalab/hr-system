@@ -957,105 +957,6 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
     );
 }
 
-function BatchUploadDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
-    const { toast } = useToast();
-    const { profile } = useUserProfile();
-    const [state, formAction, isPending] = useActionState(batchCreateEmployeesAction, initialBatchCreateState);
-    const [file, setFile] = useState<File | null>(null);
-    const [isParsing, setIsParsing] = useState(false);
-
-    useEffect(() => {
-        if (state.message) {
-            toast({
-                title: state.success ? "Success" : "Error",
-                description: state.message,
-                variant: state.success ? "default" : "destructive",
-            });
-            if (state.success) {
-                onOpenChange(false);
-            }
-        }
-    }, [state, toast, onOpenChange]);
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFile(e.target.files?.[0] ?? null);
-    };
-
-    const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        if (!file) {
-            toast({ variant: 'destructive', title: "No File", description: "Please select an Excel file to upload." });
-            return;
-        }
-
-        setIsParsing(true);
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                const data = event.target?.result;
-                const workbook = XLSX.read(data, { type: 'array' });
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet);
-
-                const formData = new FormData();
-                formData.append('recordsJson', JSON.stringify(json));
-                if (profile?.id) formData.append('actorId', profile.id);
-                if (profile?.email) formData.append('actorEmail', profile.email);
-                if (profile?.role) formData.append('actorRole', profile.role);
-                
-                formAction(formData);
-
-            } catch (error) {
-                toast({ variant: 'destructive', title: 'File Read Error', description: 'Could not parse the Excel file.' });
-            } finally {
-                setIsParsing(false);
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
-                <form onSubmit={handleFormSubmit}>
-                    <DialogHeader>
-                        <DialogTitle>Import Employees from Excel</DialogTitle>
-                        <DialogDescription>
-                           Upload an Excel file to batch create or replace employees. Existing employees with the same NIS Email will be replaced.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="excel-file">Excel File</Label>
-                            <Input id="excel-file" type="file" accept=".xlsx, .xls" onChange={handleFileChange} />
-                            <p className="text-xs text-muted-foreground">
-                                Ensure your Excel file has headers matching the employee fields (e.g., name, email, role, etc.).
-                            </p>
-                            {state.errors?.file && <p className="text-sm text-destructive">{state.errors.file.join(', ')}</p>}
-                        </div>
-                    </div>
-                    {state.errors?.form && (
-                        <div className="text-sm text-destructive bg-destructive/10 p-2 rounded-md mb-4">
-                            <h4 className="font-bold">Import Errors:</h4>
-                            <ul className="list-disc pl-5">
-                                {state.errors.form.slice(0, 5).map((err, i) => <li key={i}>{err}</li>)}
-                            </ul>
-                        </div>
-                    )}
-                    <DialogFooter>
-                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit" disabled={isPending || isParsing}>
-                            {isPending || isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
-                            {isParsing ? 'Parsing...' : 'Upload and Process'}
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
 function EmployeeManagementContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
@@ -1097,8 +998,6 @@ function EmployeeManagementContent() {
   
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null);
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false);
-  
-  const [isBatchUploadOpen, setIsBatchUploadOpen] = useState(false);
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -1351,6 +1250,55 @@ function EmployeeManagementContent() {
     if (!name) return "U";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
+
+  const handleExportExcel = () => {
+    if (filteredEmployees.length === 0) {
+      toast({
+        title: "No Data",
+        description: "There are no employees to export in the current view.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const dataToExport = filteredEmployees.map(emp => {
+        const dob = safeToDate(emp.dateOfBirth);
+        const joined = safeToDate(emp.joiningDate);
+        return {
+            'Employee ID': emp.employeeId,
+            'Name': emp.name,
+            'Title': emp.title,
+            'Role': emp.role,
+            'Department': emp.department,
+            'Campus': emp.campus,
+            'Stage': emp.stage,
+            'Subject': emp.subject,
+            'NIS Email': emp.nisEmail,
+            'Personal Email': emp.personalEmail,
+            'Phone': emp.phone,
+            'Date of Birth': dob ? format(dob, 'yyyy-MM-dd') : '-',
+            'Joining Date': joined ? format(joined, 'yyyy-MM-dd') : '-',
+            'Gender': emp.gender,
+            'National ID': emp.nationalId,
+            'Religion': emp.religion,
+            'Hourly Rate': emp.hourlyRate,
+            'Status': emp.status || "Active",
+            'Emergency Contact Name': emp.emergencyContact?.name,
+            'Emergency Contact Relationship': emp.emergencyContact?.relationship,
+            'Emergency Contact Number': emp.emergencyContact?.number,
+        };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Employees");
+    XLSX.writeFile(workbook, `Employee_List_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+
+    toast({
+      title: "Export Successful",
+      description: "The employee list has been exported to Excel.",
+    });
+  };
   
   return (
     <div className="space-y-8">
@@ -1395,9 +1343,9 @@ function EmployeeManagementContent() {
                     <Skeleton className="h-10 w-[190px]" />
                 ) : canManageEmployees && (
                     <div className="flex gap-2 w-full sm:w-auto">
-                        <Button className="w-full sm:w-auto" onClick={() => setIsBatchUploadOpen(true)} variant="outline">
-                           <UploadCloud className="mr-2 h-4 w-4" />
-                            Import from Excel
+                        <Button className="w-full sm:w-auto" onClick={handleExportExcel} variant="outline">
+                           <FileDown className="mr-2 h-4 w-4" />
+                           Export to Excel
                         </Button>
                         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                           <DialogTrigger asChild>
@@ -1618,8 +1566,6 @@ function EmployeeManagementContent() {
         open={isDeactivateDialogOpen}
         onOpenChange={setIsDeactivateDialogOpen}
       />
-
-       <BatchUploadDialog open={isBatchUploadOpen} onOpenChange={setIsBatchUploadOpen} />
       
       {isDeleteDialogOpen && employeeToDelete && (
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => { if(!open) closeDeleteConfirmDialog(); else setIsDeleteDialogOpen(true); }}>
@@ -1853,7 +1799,7 @@ function EmployeeManagementContent() {
                       onClick={() => setShowPassword(prev => !prev)}
                       tabIndex={-1}
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4" />}
                       <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
                     </Button>
                   </div>

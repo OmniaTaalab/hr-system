@@ -325,7 +325,7 @@ export type UpdateEmployeeState = {
     role?: string[];
     system?: string[];
     campus?: string[];
-    email?: string[];
+    nisEmail?: string[];
     personalEmail?: string[];
     phone?: string[];
     emergencyContactName?: string[];
@@ -700,7 +700,7 @@ const BatchEmployeeSchema = z.object({
   gender: z.string().optional(),
   nationalId: z.string().optional(),
   religion: z.string().optional(),
-  email: z.string().email(), // NIS Email
+  nisEmail: z.string().email(), // NIS Email
   joiningDate: z.any().transform(val => parseFlexibleDate(val)),
   title: z.string().optional(),
   department: z.string().optional(),
