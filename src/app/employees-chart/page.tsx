@@ -56,21 +56,11 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
       {node.children.length > 0 && (
         <>
           <div className="w-px h-6 bg-gray-300" />
-          <div className="flex justify-center space-x-8">
+          <div className="flex flex-col items-center space-y-8">
             {node.children.map((child) => (
               <div key={child.employee.id} className="flex flex-col items-center relative">
                 {/* Vertical line going up */}
                 <div className="absolute bottom-full left-1/2 w-px h-6 bg-gray-300 transform -translate-x-1/2" />
-                {/* Horizontal line */}
-                <div 
-                  className="absolute bottom-full h-px bg-gray-300"
-                  style={{
-                    left: '50%',
-                    right: '50%',
-                    transform: 'translateX(-50%)',
-                    width: '0'
-                  }}
-                />
                 <EmployeeNode node={child} />
               </div>
             ))}
