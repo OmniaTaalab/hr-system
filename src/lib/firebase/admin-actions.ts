@@ -92,14 +92,14 @@ export async function getAllAuthUsers() {
 // Schema for validating form data for creating an employee
 const CreateEmployeeFormSchema = z.object({
   // Personal Info
-  name: z.string().min(3, "Full name must be at least 3 characters.").refine(val => val.includes(' '), "Please enter both first and last name."),
+  name: z.string().min(1, "Full name is required.").refine(val => val.trim().includes(' '), "Please enter both first and last name."),
   personalEmail: z.string().email({ message: 'A valid personal email is required.' }),
   personalPhone: z.string().min(1, "Personal phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
   emergencyContactName: z.string().min(1, "Emergency contact name is required."),
   emergencyContactRelationship: z.string().min(1, "Emergency contact relationship is required."),
   emergencyContactNumber: z.string().min(1, "Emergency contact number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
   dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
-  gender: z.string().optional(),
+  gender: z.string().min(1, "Gender is required."),
   nationalId: z.string().optional(),
   religion: z.string().optional(),
   
@@ -186,7 +186,7 @@ export async function createEmployeeAction(
     return {
       success: false,
       errors: validatedFields.error.flatten().fieldErrors,
-      message: 'Validation failed. Please check your input.',
+      message: 'Validation failed. Please check the fields with errors.',
     };
   }
 

@@ -59,7 +59,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { EmployeeFileManager } from "@/components/employee-file-manager";
-import * as XLSX from 'xlsx';
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -198,6 +197,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [nationalIdFile, setNationalIdFile] = useState<File | null>(null);
   const [otherFiles, setOtherFiles] = useState<File[]>([]);
+  const addFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     const fetchManagers = async () => {
@@ -276,22 +276,25 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   };
 
   useEffect(() => {
-    if (serverState?.message) {
-      if (serverState.success && serverState.employeeId) {
+    if (!serverState) return;
+
+    if (serverState.success && serverState.employeeId) {
         toast({ title: "Employee Added", description: serverState.message });
         handleFileUpload(serverState.employeeId).then(() => {
           onSuccess();
         });
-      } else if (!serverState.success) {
-        const description = Object.values(serverState.errors ?? {}).flat().join(' ') || serverState.message || "An unexpected error occurred.";
+        addFormRef.current?.reset();
+        setDateOfBirth(undefined);
+        setJoiningDate(undefined);
+    } else if (!serverState.success && serverState.message) {
         toast({
           variant: "destructive",
           title: "Failed to Add Employee",
-          description: description
+          description: serverState.message
         });
-      }
     }
   }, [serverState, toast, onSuccess]);
+
 
   return (
     <>
@@ -301,7 +304,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
           Enter the new employee's details. An employee ID will be generated automatically.
         </DialogDescription>
       </DialogHeader>
-      <form id="add-employee-form" action={formAction} className="flex flex-col overflow-hidden">
+      <form id="add-employee-form" ref={addFormRef} action={formAction} className="flex flex-col overflow-hidden">
         <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
         <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
         <input type="hidden" name="role" value={role} />
@@ -573,14 +576,13 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         description: serverState.message,
       });
       onSuccess();
-    } else if (serverState.errors) {
-       const errorMessage = Object.values(serverState.errors).flat().join(' ') || "An unexpected error occurred.";
+    } else if (serverState.message) {
         toast({
           variant: "destructive",
           title: "Update Failed",
-          description: errorMessage,
+          description: serverState.message,
         });
-        setFormClientError(errorMessage);
+        setFormClientError(serverState.message);
     }
   }, [serverState, toast, onSuccess]);
   
@@ -1232,68 +1234,6 @@ function EmployeeManagementContent() {
     if (!name) return "U";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
-
-  const handleExportExcel = () => {
-    const dataToExport = filteredEmployees;
-
-    if (dataToExport.length === 0) {
-        toast({
-            title: "No Data",
-            description: "There are no employees to export in the current view. Clear search/filters or wait for data to load.",
-            variant: "destructive",
-        });
-        return;
-    }
-
-    const headers = [
-      "name", "personalEmail", "phone", "emergencyContactName", 
-      "emergencyContactRelationship", "emergencyContactNumber", "dateOfBirth",
-      "gender", "nationalId", "religion", "Work email", "joiningDate",
-      "title", "department", "role", "stage", "campus", "reportLine1",
-      "reportLine2", "subject","ID Portal / Employee Number"
-    ];
-    
-    const data = dataToExport.map(emp => ({
-      name: emp.name || "-",
-      personalEmail: emp.personalEmail || "-",
-      phone: emp.phone || "-",
-      emergencyContactName: emp.emergencyContact?.name || "-",
-      emergencyContactRelationship: emp.emergencyContact?.relationship || "-",
-      emergencyContactNumber: emp.emergencyContact?.number || "-",
-      dateOfBirth: emp.dateOfBirth ? format(safeToDate(emp.dateOfBirth)!, 'yyyy-MM-dd') : "-",
-      gender: emp.gender || "-",
-      nationalId: emp.nationalId || "-",
-      religion: emp.religion || "-",
-      "Work email": emp.email || "-",
-      joiningDate: emp.joiningDate ? format(safeToDate(emp.joiningDate)!, 'yyyy-MM-dd') : "-",
-      title: emp.title || "-",
-      department: emp.department || "-",
-      role: emp.role || "-",
-      stage: emp.stage || "-",
-      campus: emp.campus || "-",
-      reportLine1: emp.reportLine1 || "-",
-      reportLine2: emp.reportLine2 || "-",
-      subject: emp.subject || "-",
-      "ID Portal / Employee Number": emp.employeeId || "-"
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(data, { header: headers });
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Employees");
-
-    // Adjust column widths
-    const columnWidths = headers.map(header => ({
-        wch: Math.max(header.length, ...data.map(row => String(row[header as keyof typeof row] ?? '').length)) + 2
-    }));
-    worksheet['!cols'] = columnWidths;
-
-    XLSX.writeFile(workbook, "Employee_List.xlsx");
-
-    toast({
-      title: "Export Successful",
-      description: "Employee list has been exported to Excel.",
-    });
-  };
   
   return (
     <div className="space-y-8">
@@ -1334,10 +1274,6 @@ function EmployeeManagementContent() {
                 />
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Button onClick={handleExportExcel} variant="outline" className="w-full" disabled={isLoading}>
-                  <FileDown className="mr-2 h-4 w-4" />
-                  Export Excel
-                </Button>
                 {isLoadingProfile ? (
                     <Skeleton className="h-10 w-[190px]" />
                 ) : canManageEmployees && (
