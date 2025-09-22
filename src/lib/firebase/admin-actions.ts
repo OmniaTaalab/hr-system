@@ -689,20 +689,17 @@ export type BatchCreateEmployeesState = {
 const parseFlexibleDate = (val: any): Date | null => {
   if (!val) return null;
 
-  // If it's already a date object
-  if (val instanceof Date) {
-    return !isNaN(val.valueOf()) ? val : null;
+  if (val instanceof Date && !isNaN(val.valueOf())) {
+    return val;
   }
   
-  // Handle Excel serial numbers (numbers)
   if (typeof val === 'number' && val > 0) {
     // Excel's epoch starts on 1899-12-30 for compatibility with Lotus 1-2-3 bug
     const excelEpoch = new Date(Date.UTC(1899, 11, 30));
-    const date = new Date(excelEpoch.getTime() + val * 86400000); // 86400000 ms in a day
+    const date = new Date(excelEpoch.getTime() + val * 86400000);
     return !isNaN(date.valueOf()) ? date : null;
   }
 
-  // Handle date strings
   if (typeof val === 'string') {
     const date = new Date(val);
     if (!isNaN(date.valueOf())) {
@@ -738,9 +735,12 @@ const BatchEmployeeSchema = z.object({
     employeeId: z.string().optional().nullable(),
   });
 
+// Helper to find a key in an object, ignoring case and spaces.
 function findKey(obj: any, possibleKeys: string[]): any {
-    for (const key of possibleKeys) {
-        if (obj.hasOwnProperty(key)) {
+    const lowerCaseKeys = possibleKeys.map(k => k.toLowerCase().replace(/\s+/g, ''));
+    for (const key in obj) {
+        const lowerKey = key.toLowerCase().replace(/\s+/g, '');
+        if (lowerCaseKeys.includes(lowerKey)) {
             return obj[key];
         }
     }
@@ -775,36 +775,29 @@ export async function batchCreateEmployeesAction(
       (r: any) => r && Object.values(r).some((v) => v !== null && v !== "")
     );
 
-    const mappedRecords = nonEmptyRecords.map((record: any) => {
-        const mapped: {[key: string]: any} = {};
-        for (const key in record) {
-            mapped[key.trim()] = record[key];
-        }
-
-        return {
-            name: findKey(mapped, ["name", "Name", "employeeName"]),
-            personalEmail: findKey(mapped, ["personalEmail", "Personal Email"]),
-            phone: String(findKey(mapped, ["phone", "Phone", "Mobile"]) ?? ''),
-            emergencyContactName: mapped.emergencyContactName,
-            emergencyContactRelationship: mapped.emergencyContactRelationship,
-            emergencyContactNumber: String(mapped.emergencyContactNumber ?? ''),
-            dateOfBirth: findKey(mapped, ["dateOfBirth", "Date of Birth", "DOB"]),
-            gender: mapped.gender,
-            nationalId: String(mapped.nationalId ?? ''),
-            religion: mapped.religion,
-            nisEmail: findKey(mapped, ["Work email", "work email", "WorkEmail", "work_email", "nisEmail"]),
-            joiningDate: findKey(mapped, ["joiningDate", "Joining Date", "Start Date"]),
-            title: mapped.title,
-            department: mapped.department,
-            role: mapped.role,
-            stage: mapped.stage,
-            campus: mapped.campus,
-            reportLine1: mapped.reportLine1,
-            reportLine2: mapped.reportLine2,
-            subject: mapped.subject,
-            employeeId: String(findKey(mapped, ["ID Portal / Employee Number", "employee id", "employeeId"]) ?? ''),
-        }
-    });
+    const mappedRecords = nonEmptyRecords.map((record: any) => ({
+        name: findKey(record, ["name", "Name", "employeeName"]),
+        personalEmail: findKey(record, ["personalEmail", "Personal Email"]),
+        phone: String(findKey(record, ["phone", "Phone", "Mobile"]) ?? ''),
+        emergencyContactName: findKey(record, ["emergencyContactName"]),
+        emergencyContactRelationship: findKey(record, ["emergencyContactRelationship"]),
+        emergencyContactNumber: String(findKey(record, ["emergencyContactNumber"]) ?? ''),
+        dateOfBirth: findKey(record, ["dateOfBirth", "Date of Birth", "DOB"]),
+        gender: findKey(record, ["gender"]),
+        nationalId: String(findKey(record, ["nationalId", "National ID"]) ?? ''),
+        religion: findKey(record, ["religion"]),
+        nisEmail: findKey(record, ["Work email", "work_email", "nisEmail"]),
+        joiningDate: findKey(record, ["joiningDate", "Joining Date", "Start Date"]),
+        title: findKey(record, ["title"]),
+        department: findKey(record, ["department"]),
+        role: findKey(record, ["role"]),
+        stage: findKey(record, ["stage"]),
+        campus: findKey(record, ["campus"]),
+        reportLine1: findKey(record, ["reportLine1"]),
+        reportLine2: findKey(record, ["reportLine2"]),
+        subject: findKey(record, ["subject"]),
+        employeeId: String(findKey(record, ["ID Portal / Employee Number", "employee id", "employeeId"]) ?? ''),
+    }));
 
     const employeeCollectionRef = collection(db, "employee");
     const employeeBatch = writeBatch(db);
@@ -905,5 +898,3 @@ export async function batchCreateEmployeesAction(
         return { success: false, errors: { form: [`An error occurred during the final save: ${error.message}`] } };
     }
 }
-
-    
