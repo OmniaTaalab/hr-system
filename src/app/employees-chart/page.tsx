@@ -126,44 +126,64 @@ const EmployeesChartContent = () => {
     if (!principal) return employees;
     
     // Return the principal and all employees in their campus
-    return employees.filter(e => e.id === principal.id || e.campus === principal.campus);
+    return employees.filter(e => e.campus === principal.campus);
   }, [employees, principals, selectedPrincipal]);
 
   const tree = useMemo(() => {
-    const principalsToDisplay = selectedPrincipal === 'All' 
-        ? principals 
-        : principals.filter(p => p.id === selectedPrincipal);
+    const directors = employees.filter(e => e.role?.toLowerCase() === 'campus director');
+    const principals = employees.filter(e => e.role?.toLowerCase() === 'principal');
+    const otherEmployees = employees.filter(e => e.role?.toLowerCase() !== 'campus director' && e.role?.toLowerCase() !== 'principal');
 
-    const otherEmployees = filteredEmployees.filter(e => e.role?.toLowerCase() !== 'principal');
-    const roots: TreeNode[] = [];
-
-    principalsToDisplay.forEach(principal => {
-      const children = otherEmployees
-        .filter(emp => emp.campus === principal.campus)
-        .map(emp => ({ employee: emp, children: [] }));
+    const roots: TreeNode[] = directors.map(director => {
+      const principal = principals.find(p => p.campus === director.campus);
+      let principalNode: TreeNode | null = null;
       
-      roots.push({
-        employee: principal,
-        children: children.sort((a, b) => (a.employee.name || '').localeCompare(b.employee.name || ''))
-      });
+      if (principal) {
+        const staff = otherEmployees
+          .filter(e => e.campus === principal.campus)
+          .map(e => ({ employee: e, children: [] }))
+          .sort((a,b) => (a.employee.name || '').localeCompare(b.employee.name || ''));
+
+        principalNode = {
+          employee: principal,
+          children: staff
+        };
+      }
+
+      return {
+        employee: director,
+        children: principalNode ? [principalNode] : []
+      };
     });
-    
-    if(selectedPrincipal === 'All') {
-        const employeesInPrincipalCampuses = new Set(
-            otherEmployees.filter(e => principals.some(p => p.campus === e.campus)).map(e => e.id)
-        );
-        const unassignedEmployees = otherEmployees.filter(e => !employeesInPrincipalCampuses.has(e.id));
-        
-        if (unassignedEmployees.length > 0 && roots.length > 0) {
-            roots[0].children.push(...unassignedEmployees.map(e => ({ employee: e, children: [] })));
-        } else if (unassignedEmployees.length > 0) {
-            roots.push(...unassignedEmployees.map(e => ({ employee: e, children: [] })));
-        }
+
+    // Handle principals and employees who don't have a director for their campus
+    const campusesWithDirectors = new Set(directors.map(d => d.campus));
+    const remainingPrincipals = principals.filter(p => !campusesWithDirectors.has(p.campus));
+
+    remainingPrincipals.forEach(principal => {
+       const staff = otherEmployees
+          .filter(e => e.campus === principal.campus)
+          .map(e => ({ employee: e, children: [] }))
+          .sort((a,b) => (a.employee.name || '').localeCompare(b.employee.name || ''));
+
+        roots.push({
+            employee: principal,
+            children: staff
+        });
+    });
+
+    const assignedCampuses = new Set([...directors.map(d => d.campus), ...principals.map(p => p.campus)]);
+    const unassignedEmployees = otherEmployees.filter(e => !assignedCampuses.has(e.campus));
+
+    if (unassignedEmployees.length > 0) {
+        roots.push({
+            employee: { id: 'unassigned', name: 'Unassigned Staff', role: 'Group', employeeId: '' },
+            children: unassignedEmployees.map(e => ({ employee: e, children: [] }))
+        });
     }
 
-
     return roots;
-  }, [filteredEmployees, principals, selectedPrincipal]);
+  }, [employees]);
 
   const handleExportToPDF = () => {
       toast({ title: 'Exporting...', description: 'Generating PDF, please wait.' });
@@ -243,7 +263,7 @@ const EmployeesChartContent = () => {
                       <Loader2 className="h-12 w-12 animate-spin text-primary" />
                   </div>
               ) : tree.length > 0 ? (
-                  <div className="flex flex-col items-center space-y-8">
+                  <div className="flex flex-wrap items-start justify-center gap-16">
                       {tree.map(rootNode => (
                           <EmployeeNode key={rootNode.employee.id} node={rootNode} />
                       ))}
@@ -267,5 +287,3 @@ export default function EmployeesChartPage() {
     </AppLayout>
   );
 }
-
-    
