@@ -19,13 +19,8 @@ interface Employee {
   campus?: string;
 }
 
-interface DirectorPrincipalPair {
-    director: Employee;
-    principal?: Employee;
-}
-
 function EmployeesChartContent() {
-  const [chartData, setChartData] = useState<DirectorPrincipalPair[]>([]);
+  const [principals, setPrincipals] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
@@ -40,22 +35,14 @@ function EmployeesChartContent() {
         return;
     }
 
-    const q = query(collection(db, "employee"));
+    const q = query(collection(db, "employee"), where("role", "==", "Principal"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const allEmployees = snapshot.docs.map(doc => ({
+        const principalsData = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
-        } as Employee));
+        } as Employee)).sort((a, b) => a.name.localeCompare(b.name));
         
-        const directors = allEmployees.filter(emp => emp.role === 'Campus Director').sort((a,b) => a.name.localeCompare(b.name));
-        const principals = allEmployees.filter(emp => emp.role === 'Principal');
-
-        const pairedData: DirectorPrincipalPair[] = directors.map(director => {
-            const principal = principals.find(p => p.campus === director.campus);
-            return { director, principal };
-        });
-
-        setChartData(pairedData);
+        setPrincipals(principalsData);
         setIsLoading(false);
     }, (error) => {
         console.error("Error fetching employees for chart: ", error);
@@ -109,7 +96,7 @@ function EmployeesChartContent() {
                 Employees Chart
             </h1>
             <p className="text-muted-foreground">
-                Organizational chart displaying Campus Directors and their corresponding Principals.
+                Organizational chart displaying Principals.
             </p>
         </header>
 
@@ -122,18 +109,12 @@ function EmployeesChartContent() {
                      <div className="flex justify-center items-center h-40">
                         <Loader2 className="h-10 w-10 animate-spin text-primary" />
                      </div>
-                ) : chartData.length > 0 ? (
+                ) : principals.length > 0 ? (
                     <ScrollArea className="w-full whitespace-nowrap">
                         <div className="flex w-max space-x-8 p-4">
-                            {chartData.map(({ director, principal }) => (
-                                 <div key={director.id} className="flex flex-col items-center gap-4">
-                                    <EmployeeCard employee={director} />
-                                    {principal && (
-                                      <>
-                                        <div className="h-8 w-px bg-muted-foreground"></div>
-                                        <EmployeeCard employee={principal} />
-                                      </>
-                                    )}
+                            {principals.map((principal) => (
+                                 <div key={principal.id} className="flex flex-col items-center gap-4">
+                                    <EmployeeCard employee={principal} />
                                  </div>
                             ))}
                         </div>
@@ -141,8 +122,8 @@ function EmployeesChartContent() {
                     </ScrollArea>
                 ) : (
                     <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
-                        <h3 className="text-xl font-semibold">No Directors Found</h3>
-                        <p className="mt-2">There are no employees with the role of "Campus Director".</p>
+                        <h3 className="text-xl font-semibold">No Principals Found</h3>
+                        <p className="mt-2">There are no employees with the role of "Principal".</p>
                     </div>
                 )}
             </CardContent>
