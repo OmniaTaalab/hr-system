@@ -1,10 +1,10 @@
 
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AppLayout } from '@/components/layout/app-layout';
 import { db } from '@/lib/firebase/config';
-import { collection, query, getDocs } from 'firebase/firestore';
+import { collection, query, getDocs, onSnapshot } from 'firebase/firestore';
 import { Loader2, Users, ZoomIn, ZoomOut, RotateCcw, FileDown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -22,8 +22,9 @@ interface Employee {
   name: string;
   role: string;
   photoURL?: string | null;
-  stage?: string; 
+  reportLine1?: string; // Reports to this person's name
   campus?: string;
+  employeeId: string;
 }
 
 interface TreeNode {
@@ -38,166 +39,132 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
   };
 
   return (
-    <div className="flex flex-col items-center relative">
-      <Link href={`/employees/${node.employee.id}`}>
-        <Card className="p-1 min-w-40 text-center shadow-md hover:shadow-lg transition-shadow cursor-pointer">
+    <div className="flex flex-col items-center">
+      <Link href={`/employees/${node.employee.employeeId}`}>
+        <Card className="p-2 min-w-40 text-center shadow-md hover:shadow-lg transition-shadow cursor-pointer">
           <CardContent className="p-1 flex flex-col items-center gap-1">
-            <Avatar className="h-10 w-10">
+            <Avatar className="h-12 w-12">
               <AvatarImage src={node.employee.photoURL || undefined} alt={node.employee.name} />
               <AvatarFallback>{getInitials(node.employee.name)}</AvatarFallback>
             </Avatar>
-            <div className="text-xs font-semibold">{node.employee.name}</div>
-            <div className="text-[10px] leading-tight text-muted-foreground">{node.employee.role || 'No Role'}</div>
-            {node.employee.campus && <div className="text-[10px] leading-tight text-blue-500 font-medium">{node.employee.campus}</div>}
+            <div className="text-sm font-semibold mt-1">{node.employee.name}</div>
+            <div className="text-xs text-muted-foreground">{node.employee.role || 'No Role'}</div>
           </CardContent>
         </Card>
       </Link>
       {node.children.length > 0 && (
-        <div className="flex flex-col items-center">
-          <div className="w-px h-6 bg-gray-400" />
-          <div className="flex flex-col items-center space-y-6">
-            {node.children.map((child) => (
-              <div key={child.employee.id} className="relative flex flex-col items-center">
-                <div className="absolute top-0 left-1/2 w-px h-6 bg-gray-400 -translate-x-1/2" />
+        <>
+          <div className="w-px h-6 bg-gray-300" />
+          <div className="flex justify-center space-x-8">
+            {node.children.map((child, index) => (
+              <div key={child.employee.id} className="flex flex-col items-center relative">
+                {/* Vertical line going up */}
+                <div className="absolute bottom-full left-1/2 w-px h-6 bg-gray-300 transform -translate-x-1/2" />
+                {/* Horizontal line */}
+                <div 
+                  className="absolute bottom-full h-px bg-gray-300"
+                  style={{
+                    left: index === 0 ? '50%' : `-${(node.children.length - 1) * 50 - 50}%`,
+                    right: index === node.children.length - 1 ? '50%' : `-${(node.children.length - 1) * 50 - 50}%`,
+                    width: node.children.length > 1 ? `${(node.children.length -1) * 100}%` : '0',
+                    transform: node.children.length > 1 && index !== 0 && index !== node.children.length - 1 ? 'translateX(-50%)' : 'none'
+                  }}
+                />
                 <EmployeeNode node={child} />
               </div>
             ))}
           </div>
-        </div>
+        </>
       )}
     </div>
   );
 };
 
+
 const EmployeesChartContent = () => {
   const { toast } = useToast();
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [tree, setTree] = useState<TreeNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(1);
   const chartRef = useRef<HTMLDivElement>(null);
   const ZOOM_STEP = 0.1;
-
-  const [principals, setPrincipals] = useState<Employee[]>([]);
-  const [selectedPrincipalId, setSelectedPrincipalId] = useState<string | null>(null);
-
   const { campuses, isLoading: isLoadingCampuses } = useOrganizationLists();
-  const [selectedCampus, setSelectedCampus] = useState<string | null>(null);
-
+  const [selectedCampus, setSelectedCampus] = useState<string>("All");
 
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      const q = query(collection(db, 'employee'));
-      const querySnapshot = await getDocs(q);
-      
+    setIsLoading(true);
+    const q = query(collection(db, 'employee'));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const fetchedEmployees = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Employee[];
       setEmployees(fetchedEmployees);
-
-      const principalList = fetchedEmployees
-        .filter(e => e.role === 'Principal')
-        .sort((a,b) => a.name.localeCompare(b.name));
-      setPrincipals(principalList);
-
       setIsLoading(false);
-    };
-    fetchData();
-  }, []);
-
-  const buildTree = (employeeList: Employee[], filterByPrincipalId: string | null, filterByCampus: string | null): TreeNode[] => {
-    let directors = employeeList.filter(e => e.role === 'Campus Director');
-    let currentPrincipals = employeeList.filter(e => e.role === 'Principal');
-    let otherStaff = employeeList.filter(e => e.role !== 'Campus Director' && e.role !== 'Principal');
-
-    if (filterByCampus) {
-        directors = directors.filter(d => d.campus === filterByCampus);
-        currentPrincipals = currentPrincipals.filter(p => p.campus === filterByCampus);
-        otherStaff = otherStaff.filter(s => s.campus === filterByCampus);
-    }
-    
-    if(filterByPrincipalId){
-      const selectedPrincipal = currentPrincipals.find(p => p.id === filterByPrincipalId);
-      if(selectedPrincipal){
-          currentPrincipals = [selectedPrincipal];
-          otherStaff = otherStaff.filter(s => s.stage === selectedPrincipal.stage);
-          // Also filter directors to only the one matching the principal's campus
-          directors = directors.filter(d => d.campus === selectedPrincipal.campus);
-      } else {
-        // If principal is selected but not found (e.g. after a campus filter), show nothing
-        return [];
-      }
-    }
-
-    const staffNodes = otherStaff.map(s => ({ employee: s, children: [] }));
-
-    const principalNodes = currentPrincipals.map(principal => {
-        const childrenNodes = staffNodes.filter(
-            sn => sn.employee.stage === principal.stage
-        );
-        return { employee: principal, children: childrenNodes };
+    }, (error) => {
+        console.error("Error fetching employees for chart:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not load employee data for the chart."
+        })
+        setIsLoading(false);
     });
-    
-    const directorNodes = directors.map(director => {
-        const childrenNodes = principalNodes.filter(
-            pn => pn.employee.campus === director.campus
-        );
-        return { employee: director, children: childrenNodes };
-    });
-
-    const rootNodes = directorNodes.length > 0 ? directorNodes : principalNodes;
-
-    if (filterByPrincipalId && directorNodes.length === 0) {
-        return principalNodes;
+    return () => unsubscribe();
+  }, [toast]);
+  
+  const filteredEmployees = useMemo(() => {
+    if (selectedCampus === 'All') {
+      return employees;
     }
+    return employees.filter(e => e.campus === selectedCampus);
+  }, [employees, selectedCampus]);
 
-    return rootNodes;
-  };
+  const tree = useMemo(() => {
+    const employeeMap = new Map(filteredEmployees.map(e => [e.name, { employee: e, children: [] } as TreeNode]));
+    const roots: TreeNode[] = [];
 
-  useEffect(() => {
-    if (employees.length === 0) return;
-    // When campus filter changes, reset principal filter if the principal is not in the new campus
-    if(selectedPrincipalId && selectedCampus) {
-        const principal = principals.find(p => p.id === selectedPrincipalId);
-        if(principal && principal.campus !== selectedCampus) {
-            setSelectedPrincipalId(null);
+    filteredEmployees.forEach(employee => {
+      const node = employeeMap.get(employee.name);
+      if (node) {
+        if (employee.reportLine1 && employeeMap.has(employee.reportLine1)) {
+          employeeMap.get(employee.reportLine1)!.children.push(node);
+        } else {
+          roots.push(node);
         }
-    }
-    setTree(buildTree(employees, selectedPrincipalId, selectedCampus));
-  }, [selectedPrincipalId, selectedCampus, employees, principals]);
+      }
+    });
+    return roots;
+  }, [filteredEmployees]);
 
   const handleExportToPDF = () => {
       toast({ title: 'Exporting...', description: 'Generating PDF, please wait.' });
       try {
         const doc = new jsPDF();
-        // Export the currently filtered tree
-        const exportTree = buildTree(employees, selectedPrincipalId, selectedCampus); 
         const employeeList: (string | null)[][] = [];
 
         function traverseTree(nodes: TreeNode[], level: number) {
             for (const node of nodes) {
-                employeeList.push([ ' '.repeat(level * 2) + node.employee.name, node.employee.role, node.employee.campus || '', node.employee.stage || '' ]);
+                employeeList.push([ ' '.repeat(level * 4) + node.employee.name, node.employee.role, node.employee.campus || '']);
                 if (node.children.length > 0) {
                     traverseTree(node.children, level + 1);
                 }
             }
         }
 
-        traverseTree(exportTree, 0);
+        traverseTree(tree, 0);
 
         doc.setFontSize(18);
-        doc.text("Employee Organization List", 14, 22);
+        doc.text(`Employee Organization List (${selectedCampus})`, 14, 22);
 
         autoTable(doc, {
-            head: [['Name', 'Role', 'Campus', 'Stage']],
+            head: [['Name', 'Role', 'Campus']],
             body: employeeList,
             startY: 30,
             theme: 'grid',
         });
 
-        doc.save(`Employees_List_${new Date().toISOString().split('T')[0]}.pdf`);
+        doc.save(`Employees_List_${selectedCampus}_${new Date().toISOString().split('T')[0]}.pdf`);
         toast({ title: 'Success', description: 'Employee list exported to PDF successfully.' });
       } catch(e) {
           console.error(e);
@@ -205,7 +172,6 @@ const EmployeesChartContent = () => {
       }
   };
   
-
   return (
     <div className="space-y-8">
       <header>
@@ -214,52 +180,34 @@ const EmployeesChartContent = () => {
             Employees Chart
           </h1>
           <p className="text-muted-foreground">
-            Organizational structure based on roles, campuses, and stages.
+            Organizational structure based on direct reporting lines.
           </p>
       </header>
 
       <Card className="shadow-lg overflow-hidden">
         <div className="p-4 border-b flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" onClick={() => setZoomLevel(z => Math.max(0.2, z - ZOOM_STEP))}>
-                    <ZoomOut className="h-4 w-4"/>
-                    <span className="sr-only">Zoom Out</span>
-                </Button>
-                <Button variant="outline" size="icon" onClick={() => setZoomLevel(1)}>
-                    <RotateCcw className="h-4 w-4"/>
-                    <span className="sr-only">Reset Zoom</span>
-                </Button>
-                <Button variant="outline" size="icon" onClick={() => setZoomLevel(z => Math.min(2, z + ZOOM_STEP))}>
-                    <ZoomIn className="h-4 w-4"/>
-                    <span className="sr-only">Zoom In</span>
-                </Button>
+                <Button variant="outline" size="icon" onClick={() => setZoomLevel(z => Math.max(0.2, z - ZOOM_STEP))}><ZoomOut className="h-4 w-4"/><span className="sr-only">Zoom Out</span></Button>
+                <Button variant="outline" size="icon" onClick={() => setZoomLevel(1)}><RotateCcw className="h-4 w-4"/><span className="sr-only">Reset Zoom</span></Button>
+                <Button variant="outline" size="icon" onClick={() => setZoomLevel(z => Math.min(2, z + ZOOM_STEP))}><ZoomIn className="h-4 w-4"/><span className="sr-only">Zoom In</span></Button>
             </div>
              <div className="flex items-center gap-2 flex-wrap">
-                <Select onValueChange={(value) => setSelectedCampus(value === "all" ? null : value)} disabled={isLoadingCampuses}>
+                <Select onValueChange={setSelectedCampus} value={selectedCampus} disabled={isLoadingCampuses}>
                     <SelectTrigger className="w-[200px]">
                         <SelectValue placeholder={isLoadingCampuses ? "Loading..." : "Filter by Campus..."} />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">All Campuses</SelectItem>
+                        <SelectItem value="All">All Campuses</SelectItem>
                         {campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
-                <Select onValueChange={(value) => setSelectedPrincipalId(value === "all" ? null : value)} value={selectedPrincipalId || 'all'}>
-                    <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder="Filter by Principal..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Principals</SelectItem>
-                        {principals.filter(p => !selectedCampus || p.campus === selectedCampus).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Button onClick={handleExportToPDF} variant="outline"><FileDown className="mr-2 h-4 w-4"/>Export PDF</Button>
+                <Button onClick={handleExportToPDF} variant="outline" disabled={isLoading}><FileDown className="mr-2 h-4 w-4"/>Export PDF</Button>
             </div>
         </div>
-        <ScrollArea className="h-[70vh] w-full bg-card">
+        <ScrollArea className="h-[70vh] w-full bg-muted/20">
             <div 
               ref={chartRef}
-              className="flex justify-center items-start p-8 transition-transform duration-300 min-w-max"
+              className="p-8 transition-transform duration-300"
               style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center' }}
             >
               {isLoading ? (
@@ -267,14 +215,14 @@ const EmployeesChartContent = () => {
                       <Loader2 className="h-12 w-12 animate-spin text-primary" />
                   </div>
               ) : tree.length > 0 ? (
-                  <div className="flex items-start space-x-8">
+                  <div className="flex items-start justify-center space-x-8">
                       {tree.map(rootNode => (
                           <EmployeeNode key={rootNode.employee.id} node={rootNode} />
                       ))}
                   </div>
               ) : (
                   <p className="text-center text-muted-foreground py-10">
-                    {selectedPrincipalId || selectedCampus ? "No employees found for the selected filter." : "No employees with roles Director/Principal found to build the chart."}
+                    {selectedCampus !== 'All' ? "No employees found for the selected campus." : "No employees found to build the chart."}
                   </p>
               )}
             </div>
