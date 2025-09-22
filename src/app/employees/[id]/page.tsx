@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from 'next/navigation';
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
@@ -9,7 +9,7 @@ import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, lim
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, getYear, getMonth, getDate } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -296,6 +296,19 @@ function EmployeeProfileContent() {
     doc.save(`Profile_${employee.name.replace(/\s/g, '_')}.pdf`);
   };
 
+  const formattedDobAndAge = useMemo(() => {
+    const dob = safeToDate(employee?.dateOfBirth);
+    if (!dob) return undefined;
+    
+    const today = new Date();
+    let age = getYear(today) - getYear(dob);
+    const m = getMonth(today) - getMonth(dob);
+    if (m < 0 || (m === 0 && getDate(today) < getDate(dob))) {
+        age--;
+    }
+    return `${format(dob, "PPP")} (Age: ${age})`;
+  }, [employee?.dateOfBirth]);
+
 
   if (loading || profileLoading) {
     return (
@@ -394,7 +407,7 @@ function EmployeeProfileContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                    <DetailItem icon={Mail} label="Personal Email" value={employee.personalEmail} />
                    <DetailItem icon={Phone} label="Personal Phone" value={employee.phone} />
-                   <DetailItem icon={Cake} label="Birthday" value={safeToDate(employee.dateOfBirth) ? format(safeToDate(employee.dateOfBirth)!, 'PPP') : undefined} />
+                   <DetailItem icon={Cake} label="Birthday" value={formattedDobAndAge} />
                    <DetailItem icon={User} label="Gender" value={employee.gender} />
                    <DetailItem icon={FileText} label="National ID" value={employee.nationalId} />
                    <DetailItem icon={Star} label="Religion" value={employee.religion} />
@@ -555,5 +568,3 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
-
-    
