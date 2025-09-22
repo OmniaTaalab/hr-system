@@ -38,16 +38,6 @@ export const navItems: NavItem[] = [
     iconName: 'ListChecks', 
   },
   {
-    i18nKey: 'sidebar.payroll_calculation',
-    href: '/payroll',
-    iconName: 'Calculator',
-  },
-  {
-    i18nKey: 'sidebar.annual_payroll_report',
-    href: '/reports/annual-payroll',
-    iconName: 'Sheet',
-  },
-  {
     i18nKey: 'sidebar.tpi',
     href: '/tpi',
     iconName: 'Trophy',

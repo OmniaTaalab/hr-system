@@ -73,7 +73,7 @@ function EmployeesChartContent() {
   };
 
   const EmployeeCard = ({ employee }: { employee: Employee }) => (
-    <Card className="w-52 text-center shadow-lg hover:shadow-xl transition-shadow shrink-0">
+    <Card className="w-30 text-center shadow-lg hover:shadow-xl transition-shadow shrink-0">
       <CardContent className="flex flex-col items-center pt-6">
         <Avatar className="h-20 w-20 mb-2">
           <AvatarImage src={employee.photoURL} alt={employee.name} />
