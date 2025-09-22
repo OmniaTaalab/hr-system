@@ -776,7 +776,7 @@ export async function batchCreateEmployeesAction(
       const employeeCount = countSnapshot.data().count + createdCount + replacedCount -1;
       const employeeId = (1001 + employeeCount).toString();
 
-      const nameParts = record.name.trim().split(/\s+/);
+      const nameParts = record.name!.trim().split(/\s+/);
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ');
 
@@ -785,7 +785,7 @@ export async function batchCreateEmployeesAction(
           firstName,
           lastName,
           personalEmail: record.personalEmail,
-          phone: record.phone.toString(),
+          phone: record.phone?.toString(),
           emergencyContact: {
               name: record.emergencyContactName || "",
               relationship: record.emergencyContactRelationship || "",
