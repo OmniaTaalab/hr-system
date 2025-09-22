@@ -45,7 +45,7 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
         <Card className="p-2 min-w-40 text-center shadow-md hover:shadow-lg transition-shadow cursor-pointer">
           <CardContent className="p-1 flex flex-col items-center gap-1">
             <Avatar className="h-12 w-12">
-              <AvatarImage src={node.employee.photoURL || undefined} alt={node.employee.name} />
+              <AvatarImage src={node.employee.photoURL || undefined} alt={node.employee.name || 'No Name'} />
               <AvatarFallback>{getInitials(node.employee.name)}</AvatarFallback>
             </Avatar>
             <div className="text-sm font-semibold mt-1">{node.employee.name || 'No Name'}</div>
@@ -130,50 +130,24 @@ const EmployeesChartContent = () => {
   }, [employees, principals, selectedPrincipal]);
 
   const tree = useMemo(() => {
-    const directors = employees.filter(e => e.role?.toLowerCase() === 'campus director');
-    const principals = employees.filter(e => e.role?.toLowerCase() === 'principal');
-    const otherEmployees = employees.filter(e => e.role?.toLowerCase() !== 'campus director' && e.role?.toLowerCase() !== 'principal');
+    const directors = filteredEmployees.filter(e => e.role?.toLowerCase() === 'campus director');
+    const otherEmployees = filteredEmployees.filter(e => e.role?.toLowerCase() !== 'campus director');
 
     const roots: TreeNode[] = directors.map(director => {
-      const principal = principals.find(p => p.campus === director.campus);
-      let principalNode: TreeNode | null = null;
-      
-      if (principal) {
-        const staff = otherEmployees
-          .filter(e => e.campus === principal.campus)
-          .map(e => ({ employee: e, children: [] }))
-          .sort((a,b) => (a.employee.name || '').localeCompare(b.employee.name || ''));
+      const campusStaff = otherEmployees
+        .filter(e => e.campus === director.campus)
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-        principalNode = {
-          employee: principal,
-          children: staff
-        };
-      }
+      const staffNodes = campusStaff.map(e => ({ employee: e, children: [] }));
 
       return {
         employee: director,
-        children: principalNode ? [principalNode] : []
+        children: staffNodes,
       };
     });
 
-    // Handle principals and employees who don't have a director for their campus
-    const campusesWithDirectors = new Set(directors.map(d => d.campus));
-    const remainingPrincipals = principals.filter(p => !campusesWithDirectors.has(p.campus));
-
-    remainingPrincipals.forEach(principal => {
-       const staff = otherEmployees
-          .filter(e => e.campus === principal.campus)
-          .map(e => ({ employee: e, children: [] }))
-          .sort((a,b) => (a.employee.name || '').localeCompare(b.employee.name || ''));
-
-        roots.push({
-            employee: principal,
-            children: staff
-        });
-    });
-
-    const assignedCampuses = new Set([...directors.map(d => d.campus), ...principals.map(p => p.campus)]);
-    const unassignedEmployees = otherEmployees.filter(e => !assignedCampuses.has(e.campus));
+    const assignedCampuses = new Set(directors.map(d => d.campus));
+    const unassignedEmployees = otherEmployees.filter(e => !assignedCampuses.has(e.campus) || !e.campus);
 
     if (unassignedEmployees.length > 0) {
         roots.push({
@@ -183,7 +157,7 @@ const EmployeesChartContent = () => {
     }
 
     return roots;
-  }, [employees]);
+  }, [filteredEmployees]);
 
   const handleExportToPDF = () => {
       toast({ title: 'Exporting...', description: 'Generating PDF, please wait.' });
@@ -193,7 +167,7 @@ const EmployeesChartContent = () => {
 
         function traverseTree(nodes: TreeNode[], level: number) {
             for (const node of nodes) {
-                employeeList.push([ ' '.repeat(level * 4) + node.employee.name, node.employee.role, node.employee.campus || '']);
+                employeeList.push([ ' '.repeat(level * 4) + (node.employee.name || 'No Name'), node.employee.role, node.employee.campus || '']);
                 if (node.children.length > 0) {
                     traverseTree(node.children, level + 1);
                 }
