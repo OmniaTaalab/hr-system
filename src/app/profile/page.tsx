@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
@@ -14,7 +15,7 @@ import {
   reauthenticateWithCredential,
   updatePassword 
 } from "firebase/auth";
-import { collection, query, where, getDocs, limit, type Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, type Timestamp } from 'firestore/lite';
 import { format, getYear, getMonth, getDate } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -95,7 +96,7 @@ function CreateProfileForm({ user }: { user: User }) {
   const { toast } = useToast();
   const [state, formAction, isPending] = useActionState(createEmployeeProfileAction, initialCreateProfileState);
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
-  const { roles, groupNames, isLoading: areListsLoading } = useOrganizationLists();
+  const { roles, stage, isLoading: areListsLoading } = useOrganizationLists();
 
   useEffect(() => {
     if (state.message) {
@@ -150,11 +151,11 @@ function CreateProfileForm({ user }: { user: User }) {
         </div>
         <div className="space-y-2">
           <Label htmlFor="stage">Stage</Label>
-          <Select name="stage" required disabled={areListsLoading}>
+          <Select name="stage" disabled={areListsLoading}>
             <SelectTrigger><SelectValue placeholder="Select a stage..." /></SelectTrigger>
-            <SelectContent>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
+            <SelectContent>{stage.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
           </Select>
-          {state.errors?.groupName && <p className="text-sm text-destructive">{state.errors.groupName.join(', ')}</p>}
+          {state.errors?.stage && <p className="text-sm text-destructive">{state.errors.stage.join(', ')}</p>}
         </div>
       </div>
 
