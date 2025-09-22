@@ -123,17 +123,45 @@ const EmployeesChartContent = () => {
   const tree = useMemo(() => {
     const employeeMap = new Map(filteredEmployees.map(e => [e.name, { employee: e, children: [] } as TreeNode]));
     const roots: TreeNode[] = [];
+    const children = new Set<string>();
 
+    // First pass: build the hierarchy based on reportLine1
     filteredEmployees.forEach(employee => {
       const node = employeeMap.get(employee.name);
       if (node) {
         if (employee.reportLine1 && employeeMap.has(employee.reportLine1)) {
-          employeeMap.get(employee.reportLine1)!.children.push(node);
-        } else {
-          roots.push(node);
+          const parentNode = employeeMap.get(employee.reportLine1)!;
+          parentNode.children.push(node);
+          children.add(employee.name);
         }
       }
     });
+
+    // Identify principals to be the primary roots
+    const principalRoots = filteredEmployees
+      .filter(e => e.role?.toLowerCase() === 'principal')
+      .map(e => employeeMap.get(e.name))
+      .filter((node): node is TreeNode => !!node);
+
+    // Identify any remaining employees who are not children and not principals
+    const otherRoots = filteredEmployees
+      .filter(e => !children.has(e.name) && e.role?.toLowerCase() !== 'principal')
+      .map(e => employeeMap.get(e.name))
+      .filter((node): node is TreeNode => !!node);
+
+    // If there are principals, they are the main roots.
+    // Attach any other non-reporting employees under them for a unified chart.
+    if (principalRoots.length > 0) {
+        roots.push(...principalRoots);
+        if (otherRoots.length > 0) {
+            // Attach other top-level members to the first principal, or distribute them
+            principalRoots[0].children.push(...otherRoots);
+        }
+    } else {
+        // If no principals, fall back to showing all non-reporting employees as roots
+        roots.push(...otherRoots);
+    }
+    
     return roots;
   }, [filteredEmployees]);
 
