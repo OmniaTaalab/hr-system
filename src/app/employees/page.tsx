@@ -98,8 +98,8 @@ export interface Employee {
   hourlyRate?: number;
   userId?: string | null;
   photoURL?: string | null;
-  dateOfBirth?: Timestamp | Date; // Can be either
-  joiningDate?: Timestamp | Date; // Can be either
+  dateOfBirth?:string; // Can be either
+  joiningDate?: string; // Can be either
   leavingDate?: Timestamp | Date | null; // Can be either
   leaveBalances?: { [key: string]: number };
   documents?: EmployeeFile[];

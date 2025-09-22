@@ -267,8 +267,8 @@ export async function createEmployeeAction(
 // Schema for validating form data for updating an employee
 const UpdateEmployeeFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee document ID is required."),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
+  firstName: z.string().min(1, "First name is required."),
+  lastName: z.string().min(1, "Last name is required."),
   department: z.string().optional(),
   role: z.string().optional(),
   system: z.string().optional(),
