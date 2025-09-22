@@ -15,7 +15,7 @@ import {
   reauthenticateWithCredential,
   updatePassword 
 } from "firebase/auth";
-import { collection, query, where, getDocs, limit, type Timestamp } from 'firestore/lite';
+import { collection, query, where, getDocs, limit, type Timestamp } from 'firebase/firestore';
 import { format, getYear, getMonth, getDate } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -447,3 +447,5 @@ export default function ProfilePage() {
     </AppLayout>
   );
 }
+
+    
