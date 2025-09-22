@@ -50,6 +50,7 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
             </Avatar>
             <div className="text-sm font-semibold mt-1">{node.employee.name || 'No Name'}</div>
             <div className="text-xs text-muted-foreground">{node.employee.role || 'No Role'}</div>
+            {node.employee.campus && <div className="text-xs text-blue-500 font-medium">{node.employee.campus}</div>}
           </CardContent>
         </Card>
       </Link>
@@ -266,3 +267,5 @@ export default function EmployeesChartPage() {
     </AppLayout>
   );
 }
+
+    
