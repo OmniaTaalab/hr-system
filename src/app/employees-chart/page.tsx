@@ -22,9 +22,10 @@ interface Employee {
   name: string;
   role: string;
   photoURL?: string | null;
-  reportLine1?: string; // Reports to this person's name
+  reportLine1?: string; 
   campus?: string;
   employeeId: string;
+  stage?: string;
 }
 
 interface TreeNode {
@@ -56,7 +57,7 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
         <>
           <div className="w-px h-6 bg-gray-300" />
           <div className="flex justify-center space-x-8">
-            {node.children.map((child, index) => (
+            {node.children.map((child) => (
               <div key={child.employee.id} className="flex flex-col items-center relative">
                 {/* Vertical line going up */}
                 <div className="absolute bottom-full left-1/2 w-px h-6 bg-gray-300 transform -translate-x-1/2" />
@@ -64,10 +65,10 @@ const EmployeeNode = ({ node }: { node: TreeNode }) => {
                 <div 
                   className="absolute bottom-full h-px bg-gray-300"
                   style={{
-                    left: index === 0 ? '50%' : `-${(node.children.length - 1) * 50 - 50}%`,
-                    right: index === node.children.length - 1 ? '50%' : `-${(node.children.length - 1) * 50 - 50}%`,
-                    width: node.children.length > 1 ? `${(node.children.length -1) * 100}%` : '0',
-                    transform: node.children.length > 1 && index !== 0 && index !== node.children.length - 1 ? 'translateX(-50%)' : 'none'
+                    left: '50%',
+                    right: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '0'
                   }}
                 />
                 <EmployeeNode node={child} />
@@ -121,47 +122,32 @@ const EmployeesChartContent = () => {
   }, [employees, selectedCampus]);
 
   const tree = useMemo(() => {
-    const employeeMap = new Map(filteredEmployees.map(e => [e.name, { employee: e, children: [] } as TreeNode]));
+    const principals = filteredEmployees.filter(e => e.role?.toLowerCase() === 'principal' && e.stage);
+    const otherEmployees = filteredEmployees.filter(e => e.role?.toLowerCase() !== 'principal');
     const roots: TreeNode[] = [];
-    const children = new Set<string>();
 
-    // First pass: build the hierarchy based on reportLine1
-    filteredEmployees.forEach(employee => {
-      const node = employeeMap.get(employee.name);
-      if (node) {
-        if (employee.reportLine1 && employeeMap.has(employee.reportLine1)) {
-          const parentNode = employeeMap.get(employee.reportLine1)!;
-          parentNode.children.push(node);
-          children.add(employee.name);
-        }
-      }
+    principals.forEach(principal => {
+      const children = otherEmployees
+        .filter(emp => emp.stage === principal.stage)
+        .map(emp => ({ employee: emp, children: [] }));
+      
+      roots.push({
+        employee: principal,
+        children: children.sort((a,b) => a.employee.name.localeCompare(b.employee.name))
+      });
     });
 
-    // Identify principals to be the primary roots
-    const principalRoots = filteredEmployees
-      .filter(e => e.role?.toLowerCase() === 'principal')
-      .map(e => employeeMap.get(e.name))
-      .filter((node): node is TreeNode => !!node);
-
-    // Identify any remaining employees who are not children and not principals
-    const otherRoots = filteredEmployees
-      .filter(e => !children.has(e.name) && e.role?.toLowerCase() !== 'principal')
-      .map(e => employeeMap.get(e.name))
-      .filter((node): node is TreeNode => !!node);
-
-    // If there are principals, they are the main roots.
-    // Attach any other non-reporting employees under them for a unified chart.
-    if (principalRoots.length > 0) {
-        roots.push(...principalRoots);
-        if (otherRoots.length > 0) {
-            // Attach other top-level members to the first principal, or distribute them
-            principalRoots[0].children.push(...otherRoots);
-        }
-    } else {
-        // If no principals, fall back to showing all non-reporting employees as roots
-        roots.push(...otherRoots);
-    }
+    const employeesInPrincipalStages = new Set(
+        otherEmployees.filter(e => principals.some(p => p.stage === e.stage)).map(e => e.id)
+    );
+    const unassignedEmployees = otherEmployees.filter(e => !employeesInPrincipalStages.has(e.id));
     
+    if (unassignedEmployees.length > 0 && roots.length > 0) {
+        roots[0].children.push(...unassignedEmployees.map(e => ({ employee: e, children: [] })));
+    } else if (unassignedEmployees.length > 0) {
+        roots.push(...unassignedEmployees.map(e => ({ employee: e, children: [] })));
+    }
+
     return roots;
   }, [filteredEmployees]);
 
@@ -208,7 +194,7 @@ const EmployeesChartContent = () => {
             Employees Chart
           </h1>
           <p className="text-muted-foreground">
-            Organizational structure based on direct reporting lines.
+            Organizational structure based on stages under each principal.
           </p>
       </header>
 
