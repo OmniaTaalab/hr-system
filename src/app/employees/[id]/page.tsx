@@ -80,6 +80,17 @@ interface LeaveRequest {
   status: "Pending" | "Approved" | "Rejected";
 }
 
+function safeToDate(timestamp: any): Date | undefined {
+    if (!timestamp) return undefined;
+    if (timestamp instanceof Date) return timestamp;
+    if (timestamp.toDate && typeof timestamp.toDate === 'function') return timestamp.toDate();
+    if (timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
+      return new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
+    }
+    return undefined;
+}
+
+
 function LeaveStatusBadge({ status }: { status: LeaveRequest["status"] }) {
   switch (status) {
     case "Approved":
@@ -235,6 +246,9 @@ function EmployeeProfileContent() {
     doc.setFontSize(12);
     doc.setTextColor(100);
     doc.text(employee.role, 65, 48);
+    
+    const joiningDate = safeToDate(employee.joiningDate);
+    const dob = safeToDate(employee.dateOfBirth);
 
     const tableData = [
       ['Employee ID', employee.employeeId],
@@ -245,8 +259,8 @@ function EmployeeProfileContent() {
       ['Campus', employee.campus],
       ['Stage', employee.stage || '-'],
       ['Subject', employee.subject || '-'],
-      ['Joining Date', employee.joiningDate ? format(employee.joiningDate.toDate(), 'PPP') : '-'],
-      ['Date of Birth', employee.dateOfBirth ? format(employee.dateOfBirth.toDate(), 'PPP') : '-'],
+      ['Joining Date', joiningDate ? format(joiningDate, 'PPP') : '-'],
+      ['Date of Birth', dob ? format(dob, 'PPP') : '-'],
       ['Gender', employee.gender || '-'],
       ['National ID', employee.nationalId || '-'],
       ['Religion', employee.religion || '-'],
@@ -324,7 +338,7 @@ function EmployeeProfileContent() {
                       <CardDescription className="text-lg text-primary">{employee.role}</CardDescription>
                        {employee.status === 'Terminated' && (
                           <Badge variant="destructive" className="mt-2">
-                              Terminated on {employee.leavingDate ? format(employee.leavingDate.toDate(), 'PPP') : 'N/A'}
+                              Terminated on {safeToDate(employee.leavingDate) ? format(safeToDate(employee.leavingDate)!, 'PPP') : 'N/A'}
                           </Badge>
                       )}
                   </div>
@@ -333,7 +347,7 @@ function EmployeeProfileContent() {
                 {employee.status === 'Terminated' && employee.reasonForLeaving && (
                     <div className="mb-6 p-4 bg-destructive/10 rounded-lg border border-destructive/20">
                          <h3 className="text-lg font-semibold flex items-center mb-2 text-destructive"><UserMinus className="mr-2 h-5 w-5" />Deactivation Information</h3>
-                         <DetailItem icon={CalendarDays} label="Leaving Date" value={employee.leavingDate ? format(employee.leavingDate.toDate(), 'PPP') : undefined} />
+                         <DetailItem icon={CalendarDays} label="Leaving Date" value={safeToDate(employee.leavingDate) ? format(safeToDate(employee.leavingDate)!, 'PPP') : undefined} />
                          <DetailItem icon={FileText} label="Reason" value={employee.reasonForLeaving} />
                     </div>
                 )}
@@ -348,7 +362,7 @@ function EmployeeProfileContent() {
                    <DetailItem icon={Users} label="Stage" value={employee.stage} />
                    <DetailItem icon={Code} label="System" value={employee.system} />
                    <DetailItem icon={MapPin} label="Campus" value={employee.campus} />
-                   <DetailItem icon={CalendarDays} label="Joining Date" value={employee.joiningDate ? format(employee.joiningDate.toDate(), 'PPP') : undefined} />
+                   <DetailItem icon={CalendarDays} label="Joining Date" value={safeToDate(employee.joiningDate) ? format(safeToDate(employee.joiningDate)!, 'PPP') : undefined} />
                    <DetailItem icon={Stethoscope} label="Subject" value={employee.subject} />
                    <DetailItem icon={Activity} label="Status">
                      <Badge variant={employee.status === "Terminated" ? "destructive" : "secondary"} className={employee.status === 'Active' ? 'bg-green-100 text-green-800' : ''}>
@@ -363,7 +377,7 @@ function EmployeeProfileContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                    <DetailItem icon={Mail} label="Personal Email" value={employee.personalEmail} />
                    <DetailItem icon={Phone} label="Personal Phone" value={employee.phone} />
-                   <DetailItem icon={Cake} label="Birthday" value={employee.dateOfBirth ? format(employee.dateOfBirth.toDate(), 'PPP') : undefined} />
+                   <DetailItem icon={Cake} label="Birthday" value={safeToDate(employee.dateOfBirth) ? format(safeToDate(employee.dateOfBirth)!, 'PPP') : undefined} />
                    <DetailItem icon={User} label="Gender" value={employee.gender} />
                    <DetailItem icon={FileText} label="National ID" value={employee.nationalId} />
                    <DetailItem icon={Star} label="Religion" value={employee.religion} />
@@ -524,5 +538,3 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
-
-    
