@@ -9,6 +9,46 @@ import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, 
 import { logSystemEvent } from '../system-log';
 import { parse, isValid, format } from 'date-fns';
 
+// Helper to parse dates from Excel which might be numbers or strings
+function parseFlexibleDate(dateValue: any): Date | null {
+  if (!dateValue) return null;
+
+  // If it's an Excel serial number (a number)
+  if (typeof dateValue === 'number') {
+    // Excel's epoch starts on 1900-01-01, but it has a bug where it thinks 1900 is a leap year.
+    // The workaround is to subtract 2 (for the non-existent Feb 29, 1900 and the 1-based index).
+    const excelEpoch = new Date(1899, 11, 30);
+    const date = new Date(excelEpoch.getTime() + dateValue * 24 * 60 * 60 * 1000);
+    return isValid(date) ? date : null;
+  }
+
+  // If it's a string
+  if (typeof dateValue === 'string') {
+    // Try parsing common formats
+    const formatsToTry = [
+      'MM/dd/yyyy',
+      'M/d/yyyy',
+      'MM-dd-yyyy',
+      'M-d-yyyy',
+      'yyyy-MM-dd',
+      'yyyy/MM/dd'
+    ];
+    for (const fmt of formatsToTry) {
+      const parsedDate = parse(dateValue, fmt, new Date());
+      if (isValid(parsedDate)) {
+        return parsedDate;
+      }
+    }
+  }
+
+  // If it's already a Date object (less likely from form data but good practice)
+  if (dateValue instanceof Date && isValid(dateValue)) {
+    return dateValue;
+  }
+
+  return null;
+}
+
 export async function getAllAuthUsers() {
   if (!adminAuth) {
     const errorMessage = "Firebase Admin SDK is not configured. Administrative actions require FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY to be set in the .env file.";

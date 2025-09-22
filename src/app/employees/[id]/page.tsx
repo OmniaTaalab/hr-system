@@ -78,13 +78,20 @@ function safeToDate(timestamp: any): Date | undefined {
     if (!timestamp) return undefined;
     if (timestamp instanceof Date) return timestamp;
     if (timestamp instanceof Timestamp) return timestamp.toDate();
-    // Handle serialized Timestamp object
-    if (typeof timestamp === 'object' && 'seconds' in timestamp && 'nanoseconds' in timestamp) {
+    // Handle serialized Timestamp object from server actions
+    if (typeof timestamp === 'object' && timestamp.seconds && timestamp.nanoseconds) {
         return new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
     }
-    // Handle older serialized Timestamps
-    if (typeof timestamp === 'object' && '_seconds' in timestamp && '_nanoseconds' in timestamp) {
+     // Handle older serialized Timestamps from Firestore
+    if (typeof timestamp === 'object' && timestamp._seconds && timestamp._nanoseconds) {
         return new Timestamp(timestamp._seconds, timestamp._nanoseconds).toDate();
+    }
+    // Handle ISO strings
+    if (typeof timestamp === 'string') {
+        const date = new Date(timestamp);
+        if (!isNaN(date.getTime())) {
+            return date;
+        }
     }
     return undefined;
 }
