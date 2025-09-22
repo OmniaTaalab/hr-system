@@ -6,10 +6,12 @@ import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Users, BarChartBig, ArrowDown } from 'lucide-react';
+import { Loader2, AlertTriangle, Users, BarChartBig, ArrowDown, Filter } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from 'next/navigation';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 
 interface Employee {
   id: string;
@@ -25,8 +27,10 @@ interface CampusGroup {
 }
 
 function EmployeesChartContent() {
-  const [campusGroups, setCampusGroups] = useState<CampusGroup[]>([]);
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
+  const [principals, setPrincipals] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedPrincipal, setSelectedPrincipal] = useState<string>("All");
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
 
@@ -42,22 +46,18 @@ function EmployeesChartContent() {
 
     const q = query(collection(db, "employee"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const allEmployees = snapshot.docs.map(doc => ({
+        const employeesData = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         } as Employee));
 
-        const principals = allEmployees.filter(e => e.role === 'Principal').sort((a,b) => a.name.localeCompare(b.name));
-        const otherEmployees = allEmployees.filter(e => e.role !== 'Principal');
-
-        const groups: CampusGroup[] = principals.map(principal => {
-            const campusEmployees = otherEmployees
-                .filter(e => e.campus === principal.campus)
-                .sort((a,b) => a.name.localeCompare(b.name));
-            return { principal, employees: campusEmployees };
-        });
+        setAllEmployees(employeesData);
         
-        setCampusGroups(groups);
+        const principalList = employeesData
+            .filter(e => e.role === 'Principal')
+            .sort((a,b) => a.name.localeCompare(b.name));
+        setPrincipals(principalList);
+
         setIsLoading(false);
     }, (error) => {
         console.error("Error fetching employees for chart: ", error);
@@ -67,21 +67,38 @@ function EmployeesChartContent() {
     return () => unsubscribe();
   }, [isLoadingProfile, canViewPage, router]);
 
+  const campusGroups = useMemo(() => {
+    const principalList = allEmployees.filter(e => e.role === 'Principal');
+    const otherEmployees = allEmployees.filter(e => e.role !== 'Principal');
+
+    let groups: CampusGroup[] = principalList.map(principal => {
+        const campusEmployees = otherEmployees
+            .filter(e => e.campus === principal.campus)
+            .sort((a,b) => a.name.localeCompare(b.name));
+        return { principal, employees: campusEmployees };
+    });
+
+    if (selectedPrincipal !== "All") {
+        groups = groups.filter(group => group.principal.id === selectedPrincipal);
+    }
+    
+    return groups.sort((a,b) => a.principal.name.localeCompare(b.principal.name));
+  }, [allEmployees, selectedPrincipal]);
+
   const getInitials = (name: string) => {
     if (!name) return "?";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
 
   const EmployeeCard = ({ employee }: { employee: Employee }) => (
-    <Card className="w-30 text-center shadow-lg hover:shadow-xl transition-shadow shrink-0">
+    <Card className="w-40 text-center shadow-lg hover:shadow-xl transition-shadow shrink-0">
       <CardContent className="flex flex-col items-center pt-6">
         <Avatar className="h-20 w-20 mb-2">
           <AvatarImage src={employee.photoURL} alt={employee.name} />
           <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
         </Avatar>
-        <p className="text-sm font-semibold w-full break-words">{employee.name}</p>
-        <p className="text-xs text-muted-foreground">{employee.role}</p>
-        <p className="text-xs text-muted-foreground">{employee.campus || 'No Campus'}</p>
+        <p className="w-full break-words text-sm font-semibold">{employee.name}</p>
+        <p className="w-full break-words text-xs text-muted-foreground">{employee.role}</p>
       </CardContent>
     </Card>
   );
@@ -119,6 +136,18 @@ function EmployeesChartContent() {
         <Card>
             <CardHeader>
                 <CardTitle>Campus Structure</CardTitle>
+                 <div className="flex items-center gap-4 pt-2">
+                    <Filter className="h-4 w-4 text-muted-foreground"/>
+                    <Select value={selectedPrincipal} onValueChange={setSelectedPrincipal} disabled={isLoading}>
+                      <SelectTrigger className="w-full sm:w-[300px]">
+                          <SelectValue placeholder="Filter by Principal..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="All">All Principals</SelectItem>
+                          {principals.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.campus})</SelectItem>)}
+                      </SelectContent>
+                  </Select>
+                </div>
             </CardHeader>
             <CardContent>
                 {isLoading ? (
@@ -149,7 +178,7 @@ function EmployeesChartContent() {
                 ) : (
                     <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
                         <h3 className="text-xl font-semibold">No Principals Found</h3>
-                        <p className="mt-2">There are no employees with the role of "Principal" to display on the chart.</p>
+                        <p className="mt-2">{selectedPrincipal === "All" ? "There are no employees with the role of 'Principal' to display on the chart." : "The selected principal was not found or has no direct reports to display."}</p>
                     </div>
                 )}
             </CardContent>
