@@ -133,7 +133,7 @@ const EmployeesChartContent = () => {
       
       roots.push({
         employee: principal,
-        children: children.sort((a,b) => a.employee.name.localeCompare(b.employee.name))
+        children: children.sort((a, b) => (a.employee.name || '').localeCompare(b.employee.name || ''))
       });
     });
 
