@@ -93,7 +93,7 @@ export interface Employee {
   stage: string;
   system: string;
   campus: string;
-  email: string; // This is NIS Email
+  nisEmail: string; // This is NIS Email
   phone: string; // This is Personal Phone
   hourlyRate?: number;
   userId?: string | null;
@@ -175,6 +175,13 @@ function safeToDate(timestamp: any): Date | undefined {
     // Handle older serialized Timestamps
     if (typeof timestamp === 'object' && '_seconds' in timestamp && '_nanoseconds' in timestamp) {
         return new Timestamp(timestamp._seconds, timestamp._nanoseconds).toDate();
+    }
+    // Handle ISO strings
+    if (typeof timestamp === 'string') {
+        const date = new Date(timestamp);
+        if (!isNaN(date.getTime())) {
+            return date;
+        }
     }
     return undefined;
 }
@@ -487,7 +494,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                           <SelectValue placeholder={isLoadingPrincipals ? "Loading..." : "Select a Principal"} />
                       </SelectTrigger>
                       <SelectContent>
-                          {principals.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.email})</SelectItem>)}
+                          {principals.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.nisEmail})</SelectItem>)}
                       </SelectContent>
                     </Select>
                     {serverState?.errors?.reportLine1 && <p className="text-sm text-destructive">{serverState.errors.reportLine1.join(', ')}</p>}
@@ -502,7 +509,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                           <SelectValue placeholder={isLoadingDirectors ? "Loading..." : "Select a Campus Director"} />
                       </SelectTrigger>
                       <SelectContent>
-                          {directors.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({d.email})</SelectItem>)}
+                          {directors.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({d.nisEmail})</SelectItem>)}
                       </SelectContent>
                     </Select>
                   {serverState?.errors?.reportLine2 && <p className="text-sm text-destructive">{serverState.errors.reportLine2.join(', ')}</p>}
@@ -730,7 +737,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-email">NIS Email</Label>
-                  <Input id="edit-email" name="email" type="email" defaultValue={employee.email}  />
+                  <Input id="edit-email" name="email" type="email" defaultValue={employee.nisEmail}  />
                   {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
@@ -1245,7 +1252,7 @@ function EmployeeManagementContent() {
               employee.role,
               employee.stage,
               employee.campus,
-              employee.email,
+              employee.nisEmail,
               employee.phone,
               employee.subject,
               employee.title
@@ -1672,7 +1679,7 @@ function EmployeeManagementContent() {
                       <RadioGroupItem value="work" id="emailType-work" className="peer sr-only" />
                       <Label htmlFor="emailType-work" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
                         Work Email
-                        <span className="font-normal text-xs mt-1 truncate">{employeeToCreateLogin.email}</span>
+                        <span className="font-normal text-xs mt-1 truncate">{employeeToCreateLogin.nisEmail}</span>
                       </Label>
                     </div>
                     <div>
@@ -1793,7 +1800,7 @@ function EmployeeManagementContent() {
               <DialogHeader>
                 <DialogTitle>Change Password for {employeeToChangePassword.name}</DialogTitle>
                 <DialogDescription>
-                  Enter a new secure password for <strong>{employeeToChangePassword.email}</strong>.
+                  Enter a new secure password for <strong>{employeeToChangePassword.nisEmail}</strong>.
                 </DialogDescription>
               </DialogHeader>
               
