@@ -1,0 +1,132 @@
+
+"use client";
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
+import { db } from '@/lib/firebase/config';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Loader2, AlertTriangle, Users, BarChartBig } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useRouter } from 'next/navigation';
+
+interface Employee {
+  id: string;
+  name: string;
+  role: string;
+  photoURL?: string;
+  campus?: string;
+}
+
+
+function EmployeesChartContent() {
+  const [directors, setDirectors] = useState<Employee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { profile, loading: isLoadingProfile } = useUserProfile();
+  const router = useRouter();
+
+  const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
+
+  useEffect(() => {
+    if (isLoadingProfile) return;
+
+    if (!canViewPage) {
+        router.replace('/');
+        return;
+    }
+
+    const q = query(collection(db, "employee"), where("role", "==", "Campus Director"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const fetchedDirectors = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as Employee));
+        fetchedDirectors.sort((a,b) => a.name.localeCompare(b.name));
+        setDirectors(fetchedDirectors);
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching directors: ", error);
+        setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [isLoadingProfile, canViewPage, router]);
+
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  };
+
+  if (isLoading || isLoadingProfile) {
+    return (
+        <div className="flex justify-center items-center h-full">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+    );
+  }
+
+  if (!canViewPage) {
+     return (
+        <div className="flex justify-center items-center h-full flex-col gap-4">
+            <AlertTriangle className="h-12 w-12 text-destructive" />
+            <h2 className="text-xl font-semibold">Access Denied</h2>
+            <p className="text-muted-foreground">You do not have permission to view this page.</p>
+        </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+        <header>
+            <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
+                <BarChartBig className="mr-3 h-8 w-8 text-primary" />
+                Employees Chart
+            </h1>
+            <p className="text-muted-foreground">
+                Organizational chart displaying all Campus Directors.
+            </p>
+        </header>
+
+        <Card>
+            <CardHeader>
+                <CardTitle>Campus Directors</CardTitle>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                     <div className="flex justify-center items-center h-40">
+                        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                     </div>
+                ) : directors.length > 0 ? (
+                    <div className="flex flex-wrap gap-8 justify-center">
+                        {directors.map(director => (
+                             <Card key={director.id} className="w-60 text-center shadow-lg hover:shadow-xl transition-shadow">
+                                <CardContent className="flex flex-col items-center pt-6">
+                                    <Avatar className="h-20 w-20 mb-2">
+                                        <AvatarImage src={director.photoURL} alt={director.name} />
+                                        <AvatarFallback>{getInitials(director.name)}</AvatarFallback>
+                                    </Avatar>
+                                    <p className="text-md font-semibold">{director.name}</p>
+                                    <p className="text-xs text-muted-foreground">{director.campus || 'No Campus'}</p>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
+                        <h3 className="text-xl font-semibold">No Directors Found</h3>
+                        <p className="mt-2">There are no employees with the role of "Campus Director".</p>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    </div>
+  );
+}
+
+export default function EmployeesChartPage() {
+    return (
+        <AppLayout>
+            <EmployeesChartContent />
+        </AppLayout>
+    );
+}
+
