@@ -6,7 +6,7 @@ import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Users, BarChartBig, ArrowRight } from 'lucide-react';
+import { Loader2, AlertTriangle, Users, BarChartBig, ArrowDown } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from 'next/navigation';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -118,7 +118,7 @@ function EmployeesChartContent() {
 
         <Card>
             <CardHeader>
-                <CardTitle>Leadership Structure</CardTitle>
+                <CardTitle>Campus Structure</CardTitle>
             </CardHeader>
             <CardContent>
                 {isLoading ? (
@@ -129,12 +129,12 @@ function EmployeesChartContent() {
                     <ScrollArea className="w-full whitespace-nowrap">
                         <div className="flex w-max space-x-8 p-4">
                             {campusGroups.map(({ principal, employees }) => (
-                                 <div key={principal.id} className="flex items-center gap-4">
+                                 <div key={principal.id} className="flex flex-col items-center gap-4">
                                     <EmployeeCard employee={principal} />
                                      {employees.length > 0 && (
                                         <>
-                                            <ArrowRight className="h-6 w-6 text-muted-foreground shrink-0" />
-                                            <div className="flex items-center gap-4">
+                                            <ArrowDown className="h-6 w-6 text-muted-foreground shrink-0" />
+                                            <div className="flex flex-col items-center gap-4">
                                                 {employees.map(employee => (
                                                     <EmployeeCard key={employee.id} employee={employee} />
                                                 ))}
