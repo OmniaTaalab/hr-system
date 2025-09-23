@@ -7,13 +7,16 @@ import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Users, BarChartBig, ArrowDown, Filter, GitBranch, ZoomIn, ZoomOut } from 'lucide-react';
+import { Loader2, AlertTriangle, Users, BarChartBig, ArrowDown, Filter, GitBranch, ZoomIn, ZoomOut, FileDown } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useRouter } from 'next/navigation';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { useToast } from "@/hooks/use-toast";
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 // Enhanced Employee interface to support the tree structure
 interface Employee {
@@ -35,7 +38,7 @@ function getInitials(name: string) {
 
 function EmployeeCard({ employee }: { employee: Employee }) {
   return (
-    <Card className="w-48 text-center shadow-md hover:shadow-lg transition-shadow shrink-0">
+    <Card className="w-48 text-center shadow-md hover:shadow-lg transition-shadow shrink-0 bg-card">
       <CardContent className="flex flex-col items-center pt-6">
         <Avatar className="h-20 w-20 mb-2">
           <AvatarImage src={employee.photoURL} alt={employee.name} />
@@ -208,6 +211,7 @@ function EmployeesChartContent() {
   const [isLoading, setIsLoading] = useState(true);
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
+  const { toast } = useToast();
 
   const [campusFilter, setCampusFilter] = useState("");
   const [titleFilter, setTitleFilter] = useState("");
@@ -215,6 +219,7 @@ function EmployeesChartContent() {
   const [titleList, setTitleList] = useState<string[]>([]);
   
   const [zoom, setZoom] = useState(1);
+  const [isExporting, setIsExporting] = useState(false);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -292,6 +297,47 @@ function EmployeesChartContent() {
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.1, 2));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.1, 0.2));
 
+  const handleExportPDF = async () => {
+    if (!contentRef.current || rootEmployees.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Nothing to Export",
+        description: "Please select a campus and title to generate a chart first.",
+      });
+      return;
+    }
+
+    setIsExporting(true);
+    toast({ title: "Generating PDF...", description: "This may take a moment." });
+
+    try {
+        const canvas = await html2canvas(contentRef.current, {
+            scale: 2, // Increase resolution
+            backgroundColor: null, // Use transparent background
+        });
+
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF({
+            orientation: 'landscape',
+            unit: 'px',
+            format: [canvas.width, canvas.height]
+        });
+
+        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+        pdf.save(`Org_Chart_${campusFilter}_${titleFilter}.pdf`);
+
+    } catch (error) {
+        console.error("Error generating PDF:", error);
+        toast({
+            variant: "destructive",
+            title: "PDF Generation Failed",
+            description: "An error occurred while creating the PDF.",
+        });
+    } finally {
+        setIsExporting(false);
+    }
+  };
+
 
   if (isLoading || isLoadingProfile) {
     return (
@@ -361,6 +407,10 @@ function EmployeesChartContent() {
                <div className="flex items-center gap-2 ml-auto">
                     <Button variant="outline" size="icon" onClick={handleZoomOut}><ZoomOut className="h-4 w-4"/></Button>
                     <Button variant="outline" size="icon" onClick={handleZoomIn}><ZoomIn className="h-4 w-4"/></Button>
+                     <Button variant="outline" onClick={handleExportPDF} disabled={isExporting}>
+                      {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <FileDown className="mr-2 h-4 w-4"/>}
+                      Export PDF
+                    </Button>
                 </div>
             </div>
         </CardHeader>
@@ -371,7 +421,7 @@ function EmployeesChartContent() {
             </div>
           ) : rootEmployees.length > 0 ? (
             <div className="relative">
-              <ScrollArea className="w-full whitespace-nowrap" viewportRef={viewportRef}>
+              <ScrollArea className="w-full whitespace-nowrap bg-background" viewportRef={viewportRef}>
                 <div 
                     className="p-4 w-max origin-top-left" 
                     ref={contentRef}
@@ -420,4 +470,3 @@ export default function EmployeesChartPage() {
     </AppLayout>
   );
 }
-
