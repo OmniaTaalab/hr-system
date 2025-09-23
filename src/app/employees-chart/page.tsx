@@ -71,8 +71,7 @@ function EmployeesChartContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
 
-  const [managerFilter, setManagerFilter] = useState("All");
-  const [campusFilter, setCampusFilter] = useState("All");
+  const [campusFilter, setCampusFilter] = useState(""); // Default to no selection
 
   const canViewPage = !isLoadingProfile && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
 
@@ -101,54 +100,43 @@ function EmployeesChartContent() {
     return () => unsubscribe();
   }, [isLoadingProfile, canViewPage, router]);
 
-  const { rootEmployees, managerList, campusList } = useMemo(() => {
-    if (!allEmployees.length) return { rootEmployees: [], managerList: [], campusList: [] };
+  const { rootEmployees, campusList } = useMemo(() => {
+    if (!allEmployees.length) return { rootEmployees: [], campusList: [] };
 
     // Derive unique campuses from all employees
     const derivedCampuses = [...new Set(allEmployees.map(e => e.campus).filter(Boolean))].sort();
 
-    // Determine which employees to process based on campus filter
-    let employeesToProcess = allEmployees;
-    if (campusFilter !== "All") {
-        employeesToProcess = allEmployees.filter(emp => emp.campus === campusFilter);
+    // If no campus is selected, return empty chart data
+    if (!campusFilter) {
+        return { rootEmployees: [], campusList: derivedCampuses };
     }
+
+    // Filter employees by selected campus
+    const employeesToProcess = allEmployees.filter(emp => emp.campus === campusFilter);
     
     // Create a map for quick lookups
     const emailMap: Map<string, Employee> = new Map();
     employeesToProcess.forEach(emp => {
-      emp.subordinates = []; // Reset subordinates for correct filtering
+      emp.subordinates = []; // Reset subordinates
       if (emp.nisEmail) {
         emailMap.set(emp.nisEmail, emp);
       }
     });
     
-    // Link subordinates to their managers
-    const potentialManagers: { [key: string]: Employee } = {};
+    // Link subordinates to their managers within the filtered group
     employeesToProcess.forEach(employee => {
       if (employee.reportLine1 && emailMap.has(employee.reportLine1)) {
         const manager = emailMap.get(employee.reportLine1)!;
         manager.subordinates.push(employee);
-        if (!potentialManagers[manager.id]) {
-            potentialManagers[manager.id] = manager;
-        }
       }
     });
 
-    // Determine the root employees for the chart
+    // Determine the root employees for the chart (those with no manager in the current filtered view)
     let roots = employeesToProcess.filter(employee => !employee.reportLine1 || !emailMap.has(employee.reportLine1));
     
-    // If a manager is selected, they become the sole root
-    if (managerFilter !== "All") {
-      const selectedManager = emailMap.get(managerFilter);
-      roots = selectedManager ? [selectedManager] : [];
-    }
+    return { rootEmployees: roots, campusList: derivedCampuses };
 
-    // Sort the list of managers for the dropdown
-    const sortedManagerList = Object.values(potentialManagers).sort((a,b)=> a.name.localeCompare(b.name));
-    
-    return { rootEmployees: roots, managerList: sortedManagerList, campusList: derivedCampuses };
-
-  }, [allEmployees, managerFilter, campusFilter]);
+  }, [allEmployees, campusFilter]);
 
 
   if (isLoading || isLoadingProfile) {
@@ -185,24 +173,9 @@ function EmployeesChartContent() {
         <CardHeader>
           <CardTitle>Reporting Hierarchy</CardTitle>
           <CardDescription>
-            This chart is generated based on the "Report Line 1" field for each employee. Use the filters to narrow down the view.
+            This chart is generated based on the "Report Line 1" field for each employee. Select a campus to view its structure.
           </CardDescription>
            <div className="flex flex-col sm:flex-row gap-4 pt-2">
-              <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <Label htmlFor="manager-filter">Filter by Manager</Label>
-              </div>
-              <Select onValueChange={setManagerFilter} value={managerFilter}>
-                <SelectTrigger id="manager-filter" className="w-full sm:w-[250px]">
-                  <SelectValue placeholder="Select a manager..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All Top-Level Managers</SelectItem>
-                  {managerList.map(manager => (
-                    <SelectItem key={manager.id} value={manager.nisEmail}>{manager.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
                <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-muted-foreground" />
                   <Label htmlFor="campus-filter">Filter by Campus</Label>
@@ -212,7 +185,6 @@ function EmployeesChartContent() {
                   <SelectValue placeholder="Select a campus..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="All">All Campuses</SelectItem>
                   {campusList.map(campus => (
                     <SelectItem key={campus} value={campus}>{campus}</SelectItem>
                   ))}
@@ -236,8 +208,8 @@ function EmployeesChartContent() {
             </ScrollArea>
           ) : (
             <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
-              <h3 className="text-xl font-semibold">No Chart Data</h3>
-              <p className="mt-2">No reporting structure found for the selected filters. Please check employee 'reportLine1' values or adjust your filters.</p>
+              <h3 className="text-xl font-semibold">{campusFilter ? "No Chart Data" : "Select a Campus"}</h3>
+              <p className="mt-2">{campusFilter ? "No reporting structure found for the selected campus." : "Please select a campus from the dropdown to display the organizational chart."}</p>
             </div>
           )}
         </CardContent>
