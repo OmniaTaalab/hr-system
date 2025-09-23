@@ -91,6 +91,48 @@ function Minimap({ contentRef, viewportRef, roots }: { contentRef: React.RefObje
     const minimapViewportRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
 
+    const moveViewport = useCallback((e: MouseEvent) => {
+        const minimap = minimapRef.current;
+        const viewport = viewportRef.current;
+        const content = contentRef.current;
+
+        if (!minimap || !viewport || !content) return;
+        
+        const rect = minimap.getBoundingClientRect();
+        const scale = minimap.offsetWidth / content.scrollWidth;
+
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        viewport.scrollLeft = (x / scale) - (viewport.offsetWidth / 2);
+        viewport.scrollTop = (y / scale) - (viewport.offsetHeight / 2);
+    }, [contentRef, viewportRef]);
+
+
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+        setIsDragging(true);
+        moveViewport(e.nativeEvent);
+    }, [moveViewport]);
+
+    useEffect(() => {
+        const handleMouseUp = () => setIsDragging(false);
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDragging) return;
+            moveViewport(e);
+        };
+
+        if (isDragging) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging, moveViewport]);
+
     useEffect(() => {
         const viewport = viewportRef.current;
         const content = contentRef.current;
@@ -139,47 +181,11 @@ function Minimap({ contentRef, viewportRef, roots }: { contentRef: React.RefObje
         return () => resizeObserver.disconnect();
     }, [roots, contentRef, viewportRef]);
 
-    const handleMouseDown = useCallback((e: React.MouseEvent) => {
-        setIsDragging(true);
-        const minimap = minimapRef.current;
-        if (!minimap) return;
-        moveViewport(e);
-    }, []);
-
-    const handleMouseUp = useCallback(() => {
-        setIsDragging(false);
-    }, []);
-    
-    const handleMouseMove = useCallback((e: React.MouseEvent) => {
-        if (!isDragging) return;
-        moveViewport(e);
-    }, [isDragging]);
-
-    const moveViewport = (e: React.MouseEvent) => {
-        const minimap = minimapRef.current;
-        const viewport = viewportRef.current;
-        const content = contentRef.current;
-
-        if (!minimap || !viewport || !content) return;
-        
-        const rect = minimap.getBoundingClientRect();
-        const scale = minimap.offsetWidth / content.scrollWidth;
-
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
-        viewport.scrollLeft = (x / scale) - (viewport.offsetWidth / 2);
-        viewport.scrollTop = (y / scale) - (viewport.offsetHeight / 2);
-    };
-
     return (
         <div 
             ref={minimapRef} 
             className="fixed bottom-4 right-4 bg-card/70 border border-border backdrop-blur-sm rounded-lg shadow-lg w-64 z-50 cursor-pointer"
             onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
         >
             <div className="absolute top-0 left-0 p-2 scale-[0.08] origin-top-left">
                 <div className="flex space-x-8">
