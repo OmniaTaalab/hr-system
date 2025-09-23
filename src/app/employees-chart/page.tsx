@@ -110,16 +110,18 @@ function Minimap({ contentRef, viewportRef, roots }: { contentRef: React.RefObje
 
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
         setIsDragging(true);
         moveViewport(e.nativeEvent);
     }, [moveViewport]);
 
     useEffect(() => {
-        const handleMouseUp = () => setIsDragging(false);
-
         const handleMouseMove = (e: MouseEvent) => {
             if (!isDragging) return;
             moveViewport(e);
+        };
+        const handleMouseUp = () => {
+            setIsDragging(false);
         };
 
         if (isDragging) {
@@ -187,7 +189,7 @@ function Minimap({ contentRef, viewportRef, roots }: { contentRef: React.RefObje
             className="fixed bottom-4 right-4 bg-card/70 border border-border backdrop-blur-sm rounded-lg shadow-lg w-64 z-50 cursor-pointer"
             onMouseDown={handleMouseDown}
         >
-            <div className="absolute top-0 left-0 p-2 scale-[0.08] origin-top-left">
+            <div className="absolute top-0 left-0 p-2 scale-[0.08] origin-top-left pointer-events-none">
                 <div className="flex space-x-8">
                 {roots.map(root => (
                     <MinimapNode key={root.id} employee={root} />
