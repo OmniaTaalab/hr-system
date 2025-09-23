@@ -44,8 +44,8 @@ function EmployeeCard({ employee }: { employee: Employee }) {
           <AvatarImage src={employee.photoURL} alt={employee.name} />
           <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
         </Avatar>
-        <p className="w-full break-words text-xs font-semibold">{employee.name}</p>
-        <p className="w-full break-words text-xs text-muted-foreground">{employee.title || employee.role}</p>
+        <p className="w-full break-words text-[11px] leading-tight font-semibold">{employee.name}</p>
+        <p className="w-full break-words text-[10px] leading-tight text-muted-foreground">{employee.title || employee.role}</p>
       </CardContent>
     </Card>
   );
@@ -100,7 +100,7 @@ function Minimap({ contentRef, viewportRef, roots, zoom }: { contentRef: React.R
         const viewport = viewportRef.current;
         const content = contentRef.current;
 
-        if (!minimap || !viewport || !content) return;
+        if (!minimap || !viewport || !content || !isDragging) return;
         
         const rect = minimap.getBoundingClientRect();
         const scaleX = minimap.offsetWidth / (content.scrollWidth * zoom);
@@ -108,7 +108,7 @@ function Minimap({ contentRef, viewportRef, roots, zoom }: { contentRef: React.R
         const x = e.clientX - rect.left;
         
         viewport.scrollLeft = (x / scaleX) - (viewport.offsetWidth / 2);
-    }, [contentRef, viewportRef, zoom]);
+    }, [contentRef, viewportRef, zoom, isDragging]);
 
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -268,9 +268,11 @@ function EmployeesChartContent() {
   }, [campusFilter, allEmployees]);
 
   const rootEmployees = useMemo(() => {
+    if (!allEmployees.length) return [];
+
     const emailMap = new Map<string, Employee>();
     allEmployees.forEach(employee => {
-        employee.subordinates = [];
+        employee.subordinates = []; // Reset subordinates
         if (employee.nisEmail) {
             emailMap.set(employee.nisEmail, employee);
         }
@@ -285,7 +287,7 @@ function EmployeesChartContent() {
       }
     });
     
-    if (!allEmployees.length || !campusFilter || !titleFilter) {
+    if (!campusFilter || !titleFilter) {
       return [];
     }
 
