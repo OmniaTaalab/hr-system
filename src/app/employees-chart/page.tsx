@@ -18,23 +18,23 @@ interface Employee {
   name: string;
   role: string;
   photoURL?: string;
-  campus?: string;
+  reportLine1?: string;
 }
 
-interface CampusGroup {
-    principal: Employee;
+interface ManagerGroup {
+    manager: Employee;
     employees: Employee[];
 }
 
 function EmployeesChartContent() {
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
-  const [principals, setPrincipals] = useState<Employee[]>([]);
+  const [managers, setManagers] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedPrincipal, setSelectedPrincipal] = useState<string>("All");
+  const [selectedManager, setSelectedManager] = useState<string>("All");
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
 
-  const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
+  const canViewPage = !isLoadingProfile && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
 
   useEffect(() => {
     if (isLoadingProfile) return;
@@ -53,11 +53,13 @@ function EmployeesChartContent() {
 
         setAllEmployees(employeesData);
         
-        const principalList = employeesData
-            .filter(e => e.role === 'Principal')
+        // Identify managers: anyone who is a reportLine1 for someone else
+        const managerNames = new Set(employeesData.map(e => e.reportLine1).filter(Boolean));
+        const managerList = employeesData
+            .filter(e => managerNames.has(e.name))
             .sort((a,b) => a.name.localeCompare(b.name));
-        setPrincipals(principalList);
 
+        setManagers(managerList);
         setIsLoading(false);
     }, (error) => {
         console.error("Error fetching employees for chart: ", error);
@@ -67,23 +69,22 @@ function EmployeesChartContent() {
     return () => unsubscribe();
   }, [isLoadingProfile, canViewPage, router]);
 
-  const campusGroups = useMemo(() => {
-    const principalList = allEmployees.filter(e => e.role === 'Principal');
-    const otherEmployees = allEmployees.filter(e => e.role !== 'Principal');
-
-    let groups: CampusGroup[] = principalList.map(principal => {
-        const campusEmployees = otherEmployees
-            .filter(e => e.campus === principal.campus)
+  const reportLineGroups = useMemo(() => {
+    if (managers.length === 0) return [];
+    
+    let groups: ManagerGroup[] = managers.map(manager => {
+        const directReports = allEmployees
+            .filter(e => e.reportLine1 === manager.name && e.id !== manager.id)
             .sort((a,b) => a.name.localeCompare(b.name));
-        return { principal, employees: campusEmployees };
+        return { manager, employees: directReports };
     });
 
-    if (selectedPrincipal !== "All") {
-        groups = groups.filter(group => group.principal.id === selectedPrincipal);
+    if (selectedManager !== "All") {
+        groups = groups.filter(group => group.manager.id === selectedManager);
     }
     
-    return groups.sort((a,b) => a.principal.name.localeCompare(b.principal.name));
-  }, [allEmployees, selectedPrincipal]);
+    return groups.sort((a,b) => a.manager.name.localeCompare(b.manager.name));
+  }, [allEmployees, managers, selectedManager]);
 
   const getInitials = (name: string) => {
     if (!name) return "?";
@@ -129,22 +130,22 @@ function EmployeesChartContent() {
                 Employees Chart
             </h1>
             <p className="text-muted-foreground">
-                Organizational chart displaying Principals and their employees by campus.
+                Organizational chart displaying managers and their direct reports.
             </p>
         </header>
 
         <Card>
             <CardHeader>
-                <CardTitle>Campus Structure</CardTitle>
+                <CardTitle>Reporting Structure</CardTitle>
                  <div className="flex items-center gap-4 pt-2">
                     <Filter className="h-4 w-4 text-muted-foreground"/>
-                    <Select value={selectedPrincipal} onValueChange={setSelectedPrincipal} disabled={isLoading}>
+                    <Select value={selectedManager} onValueChange={setSelectedManager} disabled={isLoading}>
                       <SelectTrigger className="w-full sm:w-[300px]">
-                          <SelectValue placeholder="Filter by Principal..." />
+                          <SelectValue placeholder="Filter by Manager..." />
                       </SelectTrigger>
                       <SelectContent>
-                          <SelectItem value="All">All Principals</SelectItem>
-                          {principals.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.campus})</SelectItem>)}
+                          <SelectItem value="All">All Managers</SelectItem>
+                          {managers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                       </SelectContent>
                   </Select>
                 </div>
@@ -154,12 +155,12 @@ function EmployeesChartContent() {
                      <div className="flex justify-center items-center h-40">
                         <Loader2 className="h-10 w-10 animate-spin text-primary" />
                      </div>
-                ) : campusGroups.length > 0 ? (
+                ) : reportLineGroups.length > 0 ? (
                     <ScrollArea className="w-full whitespace-nowrap">
                         <div className="flex w-max space-x-8 p-4">
-                            {campusGroups.map(({ principal, employees }) => (
-                                 <div key={principal.id} className="flex flex-col items-center gap-4">
-                                    <EmployeeCard employee={principal} />
+                            {reportLineGroups.map(({ manager, employees }) => (
+                                 <div key={manager.id} className="flex flex-col items-center gap-4">
+                                    <EmployeeCard employee={manager} />
                                      {employees.length > 0 && (
                                         <>
                                             <ArrowDown className="h-6 w-6 text-muted-foreground shrink-0" />
@@ -177,8 +178,8 @@ function EmployeesChartContent() {
                     </ScrollArea>
                 ) : (
                     <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
-                        <h3 className="text-xl font-semibold">No Principals Found</h3>
-                        <p className="mt-2">{selectedPrincipal === "All" ? "There are no employees with the role of 'Principal' to display on the chart." : "The selected principal was not found or has no direct reports to display."}</p>
+                        <h3 className="text-xl font-semibold">No Reporting Data Found</h3>
+                        <p className="mt-2">{selectedManager === "All" ? "No employees are assigned a manager in their 'reportLine1' field." : "The selected manager has no direct reports."}</p>
                     </div>
                 )}
             </CardContent>
