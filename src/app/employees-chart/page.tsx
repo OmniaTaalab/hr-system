@@ -306,35 +306,45 @@ function EmployeesChartContent() {
       });
       return;
     }
-
+  
     setIsExporting(true);
     toast({ title: "Generating PDF...", description: "This may take a moment." });
-
+  
+    const originalScale = contentRef.current.style.transform;
+    // Temporarily reset scale for accurate capture
+    contentRef.current.style.transform = 'scale(1)';
+  
     try {
-        const canvas = await html2canvas(contentRef.current, {
-            scale: 2, // Increase resolution
-            backgroundColor: null, // Use transparent background
-        });
-
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF({
-            orientation: 'landscape',
-            unit: 'px',
-            format: [canvas.width, canvas.height]
-        });
-
-        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-        pdf.save(`Org_Chart_${campusFilter}_${titleFilter}.pdf`);
-
+      const canvas = await html2canvas(contentRef.current, {
+        scale: 2,
+        allowTaint: true,
+        useCORS: true,
+        backgroundColor: null,
+      });
+  
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'px',
+        format: [canvas.width, canvas.height],
+      });
+  
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      pdf.save(`Org_Chart_${campusFilter}_${titleFilter}.pdf`);
+  
     } catch (error) {
-        console.error("Error generating PDF:", error);
-        toast({
-            variant: "destructive",
-            title: "PDF Generation Failed",
-            description: "An error occurred while creating the PDF.",
-        });
+      console.error("Error generating PDF:", error);
+      toast({
+        variant: "destructive",
+        title: "PDF Generation Failed",
+        description: "An error occurred while creating the PDF.",
+      });
     } finally {
-        setIsExporting(false);
+      // Restore the original scale
+      if (contentRef.current) {
+        contentRef.current.style.transform = originalScale;
+      }
+      setIsExporting(false);
     }
   };
 
