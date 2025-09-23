@@ -126,27 +126,35 @@ function EmployeesChartContent() {
       return [];
     }
 
-    // Filter employees by selected campus and title first
-    const employeesToProcess = allEmployees.filter(emp => emp.campus === campusFilter && emp.title === titleFilter);
+    const campusEmployees = allEmployees.filter(emp => emp.campus === campusFilter);
+    const directors = campusEmployees.filter(emp => emp.title === titleFilter);
+    const directorEmails = new Set(directors.map(d => d.nisEmail));
+
+    if (directors.length === 0) {
+        return [];
+    }
     
-    const emailMap: Map<string, Employee> = new Map();
-    employeesToProcess.forEach(emp => {
-      emp.subordinates = []; // Reset subordinates
-      if (emp.nisEmail) {
-        emailMap.set(emp.nisEmail, emp);
-      }
-    });
-    
-    employeesToProcess.forEach(employee => {
-      if (employee.reportLine1 && emailMap.has(employee.reportLine1)) {
-        const manager = emailMap.get(employee.reportLine1)!;
-        manager.subordinates.push(employee);
-      }
+    // Reset subordinates for all directors before rebuilding
+    directors.forEach(d => d.subordinates = []);
+
+    // Find employees who report to these directors
+    const subordinates = campusEmployees.filter(emp => emp.reportLine1 && directorEmails.has(emp.reportLine1));
+
+    // Create a map for quick director lookup
+    const directorMap: Map<string, Employee> = new Map();
+    directors.forEach(d => directorMap.set(d.nisEmail, d));
+
+    // Assign subordinates to their respective directors
+    subordinates.forEach(sub => {
+        if (sub.reportLine1) {
+            const manager = directorMap.get(sub.reportLine1);
+            if (manager) {
+                manager.subordinates.push(sub);
+            }
+        }
     });
 
-    let roots = employeesToProcess.filter(employee => !employee.reportLine1 || !emailMap.has(employee.reportLine1));
-    
-    return roots;
+    return directors;
 
   }, [allEmployees, campusFilter, titleFilter]);
 
