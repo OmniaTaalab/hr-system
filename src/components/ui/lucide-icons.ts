@@ -36,4 +36,7 @@ import {
   Mail,
   MailWarning,
   PhoneCall,
+  GitBranch,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";

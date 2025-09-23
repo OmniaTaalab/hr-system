@@ -1,4 +1,5 @@
 
+
 import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard,
@@ -37,6 +38,9 @@ import {
   Settings, // Added Settings icon
   Trophy, // Added Trophy Icon
   Bell, // Added Bell icon
+  GitBranch, // Added GitBranch icon
+  ZoomIn, // Added ZoomIn icon
+  ZoomOut, // Added ZoomOut icon
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -76,6 +80,9 @@ export const iconMap: { [key: string]: LucideIcon } = {
   Settings, // Added Settings icon
   Trophy, // Added Trophy Icon
   Bell, // Added Bell icon
+  GitBranch, // Added GitBranch icon
+  ZoomIn, // Added ZoomIn icon
+  ZoomOut, // Added ZoomOut icon
 };
 
     

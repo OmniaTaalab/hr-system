@@ -7,12 +7,13 @@ import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Users, BarChartBig, ArrowDown, Filter, GitBranch } from 'lucide-react';
+import { Loader2, AlertTriangle, Users, BarChartBig, ArrowDown, Filter, GitBranch, ZoomIn, ZoomOut } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useRouter } from 'next/navigation';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 
 // Enhanced Employee interface to support the tree structure
 interface Employee {
@@ -86,7 +87,7 @@ function MinimapNode({ employee }: { employee: Employee }) {
 }
 
 // Minimap component
-function Minimap({ contentRef, viewportRef, roots }: { contentRef: React.RefObject<HTMLDivElement>, viewportRef: React.RefObject<HTMLDivElement>, roots: Employee[] }) {
+function Minimap({ contentRef, viewportRef, roots, zoom }: { contentRef: React.RefObject<HTMLDivElement>, viewportRef: React.RefObject<HTMLDivElement>, roots: Employee[], zoom: number }) {
     const minimapRef = useRef<HTMLDivElement>(null);
     const minimapViewportRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
@@ -99,14 +100,12 @@ function Minimap({ contentRef, viewportRef, roots }: { contentRef: React.RefObje
         if (!minimap || !viewport || !content) return;
         
         const rect = minimap.getBoundingClientRect();
-        const scale = minimap.offsetWidth / content.scrollWidth;
+        const scaleX = minimap.offsetWidth / (content.scrollWidth * zoom);
 
         const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
-        viewport.scrollLeft = (x / scale) - (viewport.offsetWidth / 2);
-        viewport.scrollTop = (y / scale) - (viewport.offsetHeight / 2);
-    }, [contentRef, viewportRef]);
+        
+        viewport.scrollLeft = (x / scaleX) - (viewport.offsetWidth / 2);
+    }, [contentRef, viewportRef, zoom]);
 
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -146,8 +145,8 @@ function Minimap({ contentRef, viewportRef, roots }: { contentRef: React.RefObje
         if (!viewport || !content || !minimap || !minimapViewport) return;
 
         const updateMinimap = () => {
-            const contentWidth = content.scrollWidth;
-            const contentHeight = content.scrollHeight;
+            const contentWidth = content.scrollWidth * zoom;
+            const contentHeight = content.scrollHeight * zoom;
             const viewportWidth = viewport.offsetWidth;
             const viewportHeight = viewport.offsetHeight;
 
@@ -161,7 +160,7 @@ function Minimap({ contentRef, viewportRef, roots }: { contentRef: React.RefObje
             const scale = minimapWidth / contentWidth;
             const minimapHeight = contentHeight * scale;
             minimap.style.height = `${minimapHeight}px`;
-
+            
             minimapViewport.style.width = `${viewportWidth * scale}px`;
             minimapViewport.style.height = `${viewportHeight * scale}px`;
 
@@ -172,7 +171,7 @@ function Minimap({ contentRef, viewportRef, roots }: { contentRef: React.RefObje
                 minimapViewport.style.left = `${scrollLeft * scale}px`;
             };
 
-            viewport.addEventListener('scroll', onScroll);
+            viewport.addEventListener('scroll', onScroll, { passive: true });
             onScroll();
             return () => viewport.removeEventListener('scroll', onScroll);
         };
@@ -183,7 +182,7 @@ function Minimap({ contentRef, viewportRef, roots }: { contentRef: React.RefObje
         updateMinimap();
 
         return () => resizeObserver.disconnect();
-    }, [roots, contentRef, viewportRef]);
+    }, [roots, contentRef, viewportRef, zoom]);
 
     return (
         <div 
@@ -214,6 +213,8 @@ function EmployeesChartContent() {
   const [titleFilter, setTitleFilter] = useState("");
   const [campusList, setCampusList] = useState<string[]>([]);
   const [titleList, setTitleList] = useState<string[]>([]);
+  
+  const [zoom, setZoom] = useState(1);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -262,20 +263,14 @@ function EmployeesChartContent() {
   }, [campusFilter, allEmployees]);
 
   const rootEmployees = useMemo(() => {
-    if (!allEmployees.length || !campusFilter || !titleFilter) {
-      return [];
-    }
-    
-    // Create a map for quick lookups using all employees from Firestore
     const emailMap = new Map<string, Employee>();
     allEmployees.forEach(employee => {
-      employee.subordinates = []; // Reset subordinates for each calculation
-      if (employee.nisEmail) {
-         emailMap.set(employee.nisEmail, employee);
-      }
+        employee.subordinates = [];
+        if (employee.nisEmail) {
+            emailMap.set(employee.nisEmail, employee);
+        }
     });
 
-    // Build the full hierarchy for all employees
     allEmployees.forEach(employee => {
       if (employee.reportLine1) {
         const manager = emailMap.get(employee.reportLine1);
@@ -284,17 +279,18 @@ function EmployeesChartContent() {
         }
       }
     });
-
-    // Determine the root employees for the chart based on filters
-    let employeesInCampus = allEmployees;
-    if (campusFilter) {
-      employeesInCampus = allEmployees.filter(emp => emp.campus === campusFilter);
+    
+    if (!allEmployees.length || !campusFilter || !titleFilter) {
+      return [];
     }
-    const rootsForChart = employeesInCampus.filter(emp => emp.title === titleFilter);
 
-    return rootsForChart;
+    const employeesInCampus = allEmployees.filter(emp => emp.campus === campusFilter);
+    return employeesInCampus.filter(emp => emp.title === titleFilter);
 
   }, [allEmployees, campusFilter, titleFilter]);
+
+  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.1, 2));
+  const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.1, 0.2));
 
 
   if (isLoading || isLoadingProfile) {
@@ -362,6 +358,10 @@ function EmployeesChartContent() {
                   ))}
                 </SelectContent>
               </Select>
+               <div className="flex items-center gap-2 ml-auto">
+                    <Button variant="outline" size="icon" onClick={handleZoomOut}><ZoomOut className="h-4 w-4"/></Button>
+                    <Button variant="outline" size="icon" onClick={handleZoomIn}><ZoomIn className="h-4 w-4"/></Button>
+                </div>
             </div>
         </CardHeader>
         <CardContent>
@@ -372,14 +372,20 @@ function EmployeesChartContent() {
           ) : rootEmployees.length > 0 ? (
             <div className="relative">
               <ScrollArea className="w-full whitespace-nowrap" viewportRef={viewportRef}>
-                <div className="flex w-max space-x-8 p-4" ref={contentRef}>
-                  {rootEmployees.map(root => (
-                    <EmployeeNode key={root.id} employee={root} />
-                  ))}
+                <div 
+                    className="p-4 w-max origin-top-left" 
+                    ref={contentRef}
+                    style={{ transform: `scale(${zoom})` }}
+                >
+                    <div className="flex space-x-8">
+                    {rootEmployees.map(root => (
+                        <EmployeeNode key={root.id} employee={root} />
+                    ))}
+                    </div>
                 </div>
                 <ScrollBar orientation="horizontal" />
               </ScrollArea>
-              <Minimap contentRef={contentRef} viewportRef={viewportRef} roots={rootEmployees} />
+              <Minimap contentRef={contentRef} viewportRef={viewportRef} roots={rootEmployees} zoom={zoom} />
             </div>
           ) : (
             <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
@@ -414,3 +420,4 @@ export default function EmployeesChartPage() {
     </AppLayout>
   );
 }
+
