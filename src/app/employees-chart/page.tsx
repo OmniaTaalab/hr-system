@@ -44,7 +44,7 @@ function EmployeeCard({ employee }: { employee: Employee }) {
           <AvatarImage src={employee.photoURL} alt={employee.name} />
           <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
         </Avatar>
-        <p className="w-full break-words text-sm font-semibold">{employee.name}</p>
+        <p className="w-full break-words text-xs font-semibold">{employee.name}</p>
         <p className="w-full break-words text-xs text-muted-foreground">{employee.title || employee.role}</p>
       </CardContent>
     </Card>
