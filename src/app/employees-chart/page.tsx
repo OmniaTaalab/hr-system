@@ -124,20 +124,17 @@ function EmployeesChartContent() {
     if (!allEmployees.length || !campusFilter || !titleFilter) {
       return [];
     }
-
-    // Filter employees by the selected campus first
-    const employeesInScope = allEmployees.filter(emp => emp.campus === campusFilter);
     
-    // Reset subordinates for all employees in scope before rebuilding the tree
-    employeesInScope.forEach(e => e.subordinates = []);
-
-    // Create a lookup map for employees within the scope
+    const employeesInScope = allEmployees.filter(emp => emp.campus === campusFilter);
     const emailMap = new Map<string, Employee>();
+    
+    // Reset subordinates and populate map
     employeesInScope.forEach(employee => {
+      employee.subordinates = [];
       emailMap.set(employee.nisEmail, employee);
     });
 
-    // Link subordinates to their managers within the scope
+    // Build the hierarchy within the scope
     employeesInScope.forEach(employee => {
       if (employee.reportLine1) {
         const manager = emailMap.get(employee.reportLine1);
