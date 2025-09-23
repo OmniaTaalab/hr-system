@@ -12,8 +12,6 @@ import { useRouter } from 'next/navigation';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { useOrganizationLists } from '@/hooks/use-organization-lists';
-
 
 // Enhanced Employee interface to support the tree structure
 interface Employee {
@@ -75,8 +73,6 @@ function EmployeesChartContent() {
 
   const [managerFilter, setManagerFilter] = useState("All");
   const [campusFilter, setCampusFilter] = useState("All");
-  const { campuses, isLoading: isLoadingLists } = useOrganizationLists();
-
 
   const canViewPage = !isLoadingProfile && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
 
@@ -105,16 +101,19 @@ function EmployeesChartContent() {
     return () => unsubscribe();
   }, [isLoadingProfile, canViewPage, router]);
 
-  const { rootEmployees, managerList } = useMemo(() => {
-    if (!allEmployees.length) return { rootEmployees: [], managerList: [] };
+  const { rootEmployees, managerList, campusList } = useMemo(() => {
+    if (!allEmployees.length) return { rootEmployees: [], managerList: [], campusList: [] };
 
+    // Derive unique campuses from all employees
+    const derivedCampuses = [...new Set(allEmployees.map(e => e.campus).filter(Boolean))].sort();
+
+    // Determine which employees to process based on campus filter
     let employeesToProcess = allEmployees;
-
-    // Filter by campus first if a specific campus is selected
     if (campusFilter !== "All") {
         employeesToProcess = allEmployees.filter(emp => emp.campus === campusFilter);
     }
     
+    // Create a map for quick lookups
     const emailMap: Map<string, Employee> = new Map();
     employeesToProcess.forEach(emp => {
       emp.subordinates = []; // Reset subordinates for correct filtering
@@ -122,17 +121,13 @@ function EmployeesChartContent() {
         emailMap.set(emp.nisEmail, emp);
       }
     });
-
-    const potentialManagers: { [key: string]: Employee } = {};
     
+    // Link subordinates to their managers
+    const potentialManagers: { [key: string]: Employee } = {};
     employeesToProcess.forEach(employee => {
       if (employee.reportLine1 && emailMap.has(employee.reportLine1)) {
         const manager = emailMap.get(employee.reportLine1)!;
-        if(manager.subordinates) {
-            manager.subordinates.push(employee);
-        } else {
-            manager.subordinates = [employee];
-        }
+        manager.subordinates.push(employee);
         if (!potentialManagers[manager.id]) {
             potentialManagers[manager.id] = manager;
         }
@@ -151,7 +146,7 @@ function EmployeesChartContent() {
     // Sort the list of managers for the dropdown
     const sortedManagerList = Object.values(potentialManagers).sort((a,b)=> a.name.localeCompare(b.name));
     
-    return { rootEmployees: roots, managerList: sortedManagerList };
+    return { rootEmployees: roots, managerList: sortedManagerList, campusList: derivedCampuses };
 
   }, [allEmployees, managerFilter, campusFilter]);
 
@@ -212,14 +207,14 @@ function EmployeesChartContent() {
                   <Filter className="h-4 w-4 text-muted-foreground" />
                   <Label htmlFor="campus-filter">Filter by Campus</Label>
               </div>
-              <Select onValueChange={setCampusFilter} value={campusFilter} disabled={isLoadingLists}>
+              <Select onValueChange={setCampusFilter} value={campusFilter}>
                 <SelectTrigger id="campus-filter" className="w-full sm:w-[250px]">
                   <SelectValue placeholder="Select a campus..." />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="All">All Campuses</SelectItem>
-                  {campuses.map(campus => (
-                    <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>
+                  {campusList.map(campus => (
+                    <SelectItem key={campus} value={campus}>{campus}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
