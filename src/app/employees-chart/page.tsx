@@ -1,7 +1,8 @@
 
+
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query } from 'firebase/firestore';
@@ -65,6 +66,133 @@ function EmployeeNode({ employee }: { employee: Employee }) {
   );
 }
 
+// Minimap Node for the minimap
+function MinimapNode({ employee }: { employee: Employee }) {
+    return (
+        <div className="flex flex-col items-center">
+            <div className="w-2 h-2 bg-primary rounded-full"></div>
+            {employee.subordinates && employee.subordinates.length > 0 && (
+                <>
+                    <div className="w-px h-2 bg-muted-foreground"></div>
+                    <div className="flex flex-row gap-2 pl-2 border-l border-muted-foreground">
+                        {employee.subordinates.map(subordinate => (
+                            <MinimapNode key={subordinate.id} employee={subordinate} />
+                        ))}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+// Minimap component
+function Minimap({ contentRef, viewportRef, roots }: { contentRef: React.RefObject<HTMLDivElement>, viewportRef: React.RefObject<HTMLDivElement>, roots: Employee[] }) {
+    const minimapRef = useRef<HTMLDivElement>(null);
+    const minimapViewportRef = useRef<HTMLDivElement>(null);
+    const [isDragging, setIsDragging] = useState(false);
+
+    useEffect(() => {
+        const viewport = viewportRef.current;
+        const content = contentRef.current;
+        const minimap = minimapRef.current;
+        const minimapViewport = minimapViewportRef.current;
+
+        if (!viewport || !content || !minimap || !minimapViewport) return;
+
+        const updateMinimap = () => {
+            const contentWidth = content.scrollWidth;
+            const contentHeight = content.scrollHeight;
+            const viewportWidth = viewport.offsetWidth;
+            const viewportHeight = viewport.offsetHeight;
+
+            if (contentWidth <= viewportWidth && contentHeight <= viewportHeight) {
+                minimap.style.display = 'none';
+                return;
+            }
+            minimap.style.display = 'block';
+
+            const minimapWidth = minimap.offsetWidth;
+            const scale = minimapWidth / contentWidth;
+            const minimapHeight = contentHeight * scale;
+            minimap.style.height = `${minimapHeight}px`;
+
+            minimapViewport.style.width = `${viewportWidth * scale}px`;
+            minimapViewport.style.height = `${viewportHeight * scale}px`;
+
+            const onScroll = () => {
+                const scrollTop = viewport.scrollTop;
+                const scrollLeft = viewport.scrollLeft;
+                minimapViewport.style.top = `${scrollTop * scale}px`;
+                minimapViewport.style.left = `${scrollLeft * scale}px`;
+            };
+
+            viewport.addEventListener('scroll', onScroll);
+            onScroll();
+            return () => viewport.removeEventListener('scroll', onScroll);
+        };
+
+        const resizeObserver = new ResizeObserver(updateMinimap);
+        resizeObserver.observe(content);
+        resizeObserver.observe(viewport);
+        updateMinimap();
+
+        return () => resizeObserver.disconnect();
+    }, [roots, contentRef, viewportRef]);
+
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+        setIsDragging(true);
+        const minimap = minimapRef.current;
+        if (!minimap) return;
+        moveViewport(e);
+    }, []);
+
+    const handleMouseUp = useCallback(() => {
+        setIsDragging(false);
+    }, []);
+    
+    const handleMouseMove = useCallback((e: React.MouseEvent) => {
+        if (!isDragging) return;
+        moveViewport(e);
+    }, [isDragging]);
+
+    const moveViewport = (e: React.MouseEvent) => {
+        const minimap = minimapRef.current;
+        const viewport = viewportRef.current;
+        const content = contentRef.current;
+
+        if (!minimap || !viewport || !content) return;
+        
+        const rect = minimap.getBoundingClientRect();
+        const scale = minimap.offsetWidth / content.scrollWidth;
+
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        viewport.scrollLeft = (x / scale) - (viewport.offsetWidth / 2);
+        viewport.scrollTop = (y / scale) - (viewport.offsetHeight / 2);
+    };
+
+    return (
+        <div 
+            ref={minimapRef} 
+            className="fixed bottom-4 right-4 bg-card/70 border border-border backdrop-blur-sm rounded-lg shadow-lg w-64 z-50 cursor-pointer"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+        >
+            <div className="absolute top-0 left-0 p-2 scale-[0.08] origin-top-left">
+                <div className="flex space-x-8">
+                {roots.map(root => (
+                    <MinimapNode key={root.id} employee={root} />
+                ))}
+                </div>
+            </div>
+            <div ref={minimapViewportRef} className="absolute bg-primary/30 border border-primary rounded" style={{ pointerEvents: 'none' }}></div>
+        </div>
+    );
+}
+
 
 function EmployeesChartContent() {
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
@@ -76,6 +204,9 @@ function EmployeesChartContent() {
   const [titleFilter, setTitleFilter] = useState("");
   const [campusList, setCampusList] = useState<string[]>([]);
   const [titleList, setTitleList] = useState<string[]>([]);
+
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const canViewPage = !isLoadingProfile && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
 
@@ -143,7 +274,10 @@ function EmployeesChartContent() {
     });
 
     // Determine the root employees for the chart based on filters
-    const employeesInCampus = allEmployees.filter(emp => emp.campus === campusFilter);
+    let employeesInCampus = allEmployees;
+    if (campusFilter) {
+      employeesInCampus = allEmployees.filter(emp => emp.campus === campusFilter);
+    }
     const rootsForChart = employeesInCampus.filter(emp => emp.title === titleFilter);
 
     return rootsForChart;
@@ -224,14 +358,17 @@ function EmployeesChartContent() {
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
             </div>
           ) : rootEmployees.length > 0 ? (
-            <ScrollArea className="w-full whitespace-nowrap">
-              <div className="flex w-max space-x-8 p-4">
-                {rootEmployees.map(root => (
-                  <EmployeeNode key={root.id} employee={root} />
-                ))}
-              </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+            <div className="relative">
+              <ScrollArea className="w-full whitespace-nowrap" viewportRef={viewportRef}>
+                <div className="flex w-max space-x-8 p-4" ref={contentRef}>
+                  {rootEmployees.map(root => (
+                    <EmployeeNode key={root.id} employee={root} />
+                  ))}
+                </div>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+              <Minimap contentRef={contentRef} viewportRef={viewportRef} roots={rootEmployees} />
+            </div>
           ) : (
             <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
               <h3 className="text-xl font-semibold">
