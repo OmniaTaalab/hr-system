@@ -125,17 +125,15 @@ function EmployeesChartContent() {
       return [];
     }
     
-    const employeesInScope = allEmployees.filter(emp => emp.campus === campusFilter);
+    // Create a map for quick lookups using all employees from Firestore
     const emailMap = new Map<string, Employee>();
-    
-    // Reset subordinates and populate map
-    employeesInScope.forEach(employee => {
-      employee.subordinates = [];
+    allEmployees.forEach(employee => {
+      employee.subordinates = []; // Reset subordinates for each calculation
       emailMap.set(employee.nisEmail, employee);
     });
 
-    // Build the hierarchy within the scope
-    employeesInScope.forEach(employee => {
+    // Build the full hierarchy for all employees
+    allEmployees.forEach(employee => {
       if (employee.reportLine1) {
         const manager = emailMap.get(employee.reportLine1);
         if (manager) {
@@ -144,8 +142,11 @@ function EmployeesChartContent() {
       }
     });
 
-    // The roots for the chart are the employees with the selected title
-    return employeesInScope.filter(emp => emp.title === titleFilter);
+    // Determine the root employees for the chart based on filters
+    const employeesInCampus = allEmployees.filter(emp => emp.campus === campusFilter);
+    const rootsForChart = employeesInCampus.filter(emp => emp.title === titleFilter);
+
+    return rootsForChart;
 
   }, [allEmployees, campusFilter, titleFilter]);
 
