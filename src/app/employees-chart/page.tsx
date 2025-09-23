@@ -40,7 +40,7 @@ function EmployeeCard({ employee }: { employee: Employee }) {
           <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
         </Avatar>
         <p className="w-full break-words text-sm font-semibold">{employee.name}</p>
-        <p className="w-full break-words text-xs text-muted-foreground">{employee.role}</p>
+        <p className="w-full break-words text-xs text-muted-foreground">{employee.title || employee.role}</p>
       </CardContent>
     </Card>
   );
@@ -121,40 +121,34 @@ function EmployeesChartContent() {
   }, [campusFilter, allEmployees]);
 
   const rootEmployees = useMemo(() => {
-    // Only proceed if both filters are selected
-    if (!campusFilter || !titleFilter || !allEmployees.length) {
+    if (!allEmployees.length || !campusFilter || !titleFilter) {
       return [];
     }
 
-    const campusEmployees = allEmployees.filter(emp => emp.campus === campusFilter);
-    const directors = campusEmployees.filter(emp => emp.title === titleFilter);
-    const directorEmails = new Set(directors.map(d => d.nisEmail));
-
-    if (directors.length === 0) {
-        return [];
-    }
+    // Filter employees by the selected campus first
+    const employeesInScope = allEmployees.filter(emp => emp.campus === campusFilter);
     
-    // Reset subordinates for all directors before rebuilding
-    directors.forEach(d => d.subordinates = []);
+    // Reset subordinates for all employees in scope before rebuilding the tree
+    employeesInScope.forEach(e => e.subordinates = []);
 
-    // Find employees who report to these directors
-    const subordinates = campusEmployees.filter(emp => emp.reportLine1 && directorEmails.has(emp.reportLine1));
-
-    // Create a map for quick director lookup
-    const directorMap: Map<string, Employee> = new Map();
-    directors.forEach(d => directorMap.set(d.nisEmail, d));
-
-    // Assign subordinates to their respective directors
-    subordinates.forEach(sub => {
-        if (sub.reportLine1) {
-            const manager = directorMap.get(sub.reportLine1);
-            if (manager) {
-                manager.subordinates.push(sub);
-            }
-        }
+    // Create a lookup map for employees within the scope
+    const emailMap = new Map<string, Employee>();
+    employeesInScope.forEach(employee => {
+      emailMap.set(employee.nisEmail, employee);
     });
 
-    return directors;
+    // Link subordinates to their managers within the scope
+    employeesInScope.forEach(employee => {
+      if (employee.reportLine1) {
+        const manager = emailMap.get(employee.reportLine1);
+        if (manager) {
+          manager.subordinates.push(employee);
+        }
+      }
+    });
+
+    // The roots for the chart are the employees with the selected title
+    return employeesInScope.filter(emp => emp.title === titleFilter);
 
   }, [allEmployees, campusFilter, titleFilter]);
 
