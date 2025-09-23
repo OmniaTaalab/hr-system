@@ -111,14 +111,16 @@ function Minimap({ contentRef, viewportRef, roots }: { contentRef: React.RefObje
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
+        e.stopPropagation();
         setIsDragging(true);
         moveViewport(e.nativeEvent);
     }, [moveViewport]);
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
-            if (!isDragging) return;
-            moveViewport(e);
+            if (isDragging) {
+              moveViewport(e);
+            }
         };
         const handleMouseUp = () => {
             setIsDragging(false);
@@ -268,7 +270,9 @@ function EmployeesChartContent() {
     const emailMap = new Map<string, Employee>();
     allEmployees.forEach(employee => {
       employee.subordinates = []; // Reset subordinates for each calculation
-      emailMap.set(employee.nisEmail, employee);
+      if (employee.nisEmail) {
+         emailMap.set(employee.nisEmail, employee);
+      }
     });
 
     // Build the full hierarchy for all employees
