@@ -22,6 +22,7 @@ interface Employee {
   photoURL?: string;
   reportLine1?: string | null;
   campus?: string;
+  title?: string;
   subordinates: Employee[];
 }
 
@@ -71,7 +72,10 @@ function EmployeesChartContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
 
-  const [campusFilter, setCampusFilter] = useState(""); // Default to no selection
+  const [campusFilter, setCampusFilter] = useState("");
+  const [titleFilter, setTitleFilter] = useState("");
+  const [campusList, setCampusList] = useState<string[]>([]);
+  const [titleList, setTitleList] = useState<string[]>([]);
 
   const canViewPage = !isLoadingProfile && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
 
@@ -87,10 +91,14 @@ function EmployeesChartContent() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const employeesData = snapshot.docs.map(doc => ({
         id: doc.id,
-        subordinates: [], // Initialize subordinates
+        subordinates: [],
         ...doc.data()
       } as Employee));
       setAllEmployees(employeesData);
+      
+      const derivedCampuses = [...new Set(employeesData.map(e => e.campus).filter(Boolean))].sort();
+      setCampusList(derivedCampuses);
+      
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching employees for chart: ", error);
@@ -100,21 +108,27 @@ function EmployeesChartContent() {
     return () => unsubscribe();
   }, [isLoadingProfile, canViewPage, router]);
 
-  const { rootEmployees, campusList } = useMemo(() => {
-    if (!allEmployees.length) return { rootEmployees: [], campusList: [] };
+  useEffect(() => {
+    // When campus changes, update the available titles and reset title filter
+    if (campusFilter && allEmployees.length > 0) {
+      const titlesInCampus = [...new Set(allEmployees.filter(e => e.campus === campusFilter).map(e => e.title).filter(Boolean))].sort();
+      setTitleList(titlesInCampus);
+      setTitleFilter(""); // Reset title filter
+    } else {
+      setTitleList([]);
+      setTitleFilter("");
+    }
+  }, [campusFilter, allEmployees]);
 
-    // Derive unique campuses from all employees
-    const derivedCampuses = [...new Set(allEmployees.map(e => e.campus).filter(Boolean))].sort();
-
-    // If no campus is selected, return empty chart data
-    if (!campusFilter) {
-        return { rootEmployees: [], campusList: derivedCampuses };
+  const rootEmployees = useMemo(() => {
+    // Only proceed if both filters are selected
+    if (!campusFilter || !titleFilter || !allEmployees.length) {
+      return [];
     }
 
-    // Filter employees by selected campus
-    const employeesToProcess = allEmployees.filter(emp => emp.campus === campusFilter);
+    // Filter employees by selected campus and title first
+    const employeesToProcess = allEmployees.filter(emp => emp.campus === campusFilter && emp.title === titleFilter);
     
-    // Create a map for quick lookups
     const emailMap: Map<string, Employee> = new Map();
     employeesToProcess.forEach(emp => {
       emp.subordinates = []; // Reset subordinates
@@ -123,7 +137,6 @@ function EmployeesChartContent() {
       }
     });
     
-    // Link subordinates to their managers within the filtered group
     employeesToProcess.forEach(employee => {
       if (employee.reportLine1 && emailMap.has(employee.reportLine1)) {
         const manager = emailMap.get(employee.reportLine1)!;
@@ -131,12 +144,11 @@ function EmployeesChartContent() {
       }
     });
 
-    // Determine the root employees for the chart (those with no manager in the current filtered view)
     let roots = employeesToProcess.filter(employee => !employee.reportLine1 || !emailMap.has(employee.reportLine1));
     
-    return { rootEmployees: roots, campusList: derivedCampuses };
+    return roots;
 
-  }, [allEmployees, campusFilter]);
+  }, [allEmployees, campusFilter, titleFilter]);
 
 
   if (isLoading || isLoadingProfile) {
@@ -173,7 +185,7 @@ function EmployeesChartContent() {
         <CardHeader>
           <CardTitle>Reporting Hierarchy</CardTitle>
           <CardDescription>
-            This chart is generated based on the "Report Line 1" field for each employee. Select a campus to view its structure.
+            This chart is generated based on the "Report Line 1" field for each employee. Select a campus then a title to view its structure.
           </CardDescription>
            <div className="flex flex-col sm:flex-row gap-4 pt-2">
                <div className="flex items-center gap-2">
@@ -187,6 +199,20 @@ function EmployeesChartContent() {
                 <SelectContent>
                   {campusList.map(campus => (
                     <SelectItem key={campus} value={campus}>{campus}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+               <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="title-filter">Filter by Title</Label>
+              </div>
+              <Select onValueChange={setTitleFilter} value={titleFilter} disabled={!campusFilter}>
+                <SelectTrigger id="title-filter" className="w-full sm:w-[250px]">
+                  <SelectValue placeholder={!campusFilter ? "Select campus first" : "Select a title..."} />
+                </SelectTrigger>
+                <SelectContent>
+                  {titleList.map(title => (
+                    <SelectItem key={title} value={title}>{title}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -208,8 +234,22 @@ function EmployeesChartContent() {
             </ScrollArea>
           ) : (
             <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
-              <h3 className="text-xl font-semibold">{campusFilter ? "No Chart Data" : "Select a Campus"}</h3>
-              <p className="mt-2">{campusFilter ? "No reporting structure found for the selected campus." : "Please select a campus from the dropdown to display the organizational chart."}</p>
+              <h3 className="text-xl font-semibold">
+                {!campusFilter 
+                    ? "Select a Campus" 
+                    : !titleFilter 
+                        ? "Select a Title" 
+                        : "No Chart Data"
+                }
+              </h3>
+              <p className="mt-2">
+                {!campusFilter 
+                    ? "Please select a campus from the dropdown to begin." 
+                    : !titleFilter 
+                        ? "Please select a title to view the hierarchy." 
+                        : "No reporting structure found for the selected filters."
+                }
+              </p>
             </div>
           )}
         </CardContent>
