@@ -11,6 +11,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useRouter } from 'next/navigation';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { useOrganizationLists } from '@/hooks/use-organization-lists';
 
 
@@ -107,22 +108,24 @@ function EmployeesChartContent() {
   const { rootEmployees, managerList } = useMemo(() => {
     if (!allEmployees.length) return { rootEmployees: [], managerList: [] };
 
-    let filteredByCampus = allEmployees;
+    let employeesToProcess = allEmployees;
+
+    // Filter by campus first if a specific campus is selected
     if (campusFilter !== "All") {
-      filteredByCampus = allEmployees.filter(emp => emp.campus === campusFilter);
+        employeesToProcess = allEmployees.filter(emp => emp.campus === campusFilter);
     }
     
     const emailMap: Map<string, Employee> = new Map();
-    filteredByCampus.forEach(emp => {
-      emp.subordinates = [];
+    employeesToProcess.forEach(emp => {
+      emp.subordinates = []; // Reset subordinates for correct filtering
       if (emp.nisEmail) {
         emailMap.set(emp.nisEmail, emp);
       }
     });
+
+    const potentialManagers: { [key: string]: Employee } = {};
     
-    const allPossibleManagers: Employee[] = [];
-    
-    filteredByCampus.forEach(employee => {
+    employeesToProcess.forEach(employee => {
       if (employee.reportLine1 && emailMap.has(employee.reportLine1)) {
         const manager = emailMap.get(employee.reportLine1)!;
         if(manager.subordinates) {
@@ -130,22 +133,25 @@ function EmployeesChartContent() {
         } else {
             manager.subordinates = [employee];
         }
-        if (!allPossibleManagers.some(m => m.id === manager.id)) {
-          allPossibleManagers.push(manager);
+        if (!potentialManagers[manager.id]) {
+            potentialManagers[manager.id] = manager;
         }
       }
     });
 
-    let roots = filteredByCampus.filter(employee => !employee.reportLine1 || !emailMap.has(employee.reportLine1));
+    // Determine the root employees for the chart
+    let roots = employeesToProcess.filter(employee => !employee.reportLine1 || !emailMap.has(employee.reportLine1));
     
+    // If a manager is selected, they become the sole root
     if (managerFilter !== "All") {
       const selectedManager = emailMap.get(managerFilter);
       roots = selectedManager ? [selectedManager] : [];
     }
+
+    // Sort the list of managers for the dropdown
+    const sortedManagerList = Object.values(potentialManagers).sort((a,b)=> a.name.localeCompare(b.name));
     
-    allPossibleManagers.sort((a,b)=> a.name.localeCompare(b.name));
-    
-    return { rootEmployees: roots, managerList: allPossibleManagers };
+    return { rootEmployees: roots, managerList: sortedManagerList };
 
   }, [allEmployees, managerFilter, campusFilter]);
 
@@ -196,7 +202,7 @@ function EmployeesChartContent() {
                   <SelectValue placeholder="Select a manager..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="All">All Managers</SelectItem>
+                  <SelectItem value="All">All Top-Level Managers</SelectItem>
                   {managerList.map(manager => (
                     <SelectItem key={manager.id} value={manager.nisEmail}>{manager.name}</SelectItem>
                   ))}
