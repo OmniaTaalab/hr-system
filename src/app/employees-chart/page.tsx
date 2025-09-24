@@ -44,7 +44,7 @@ function EmployeeCard({ employee }: { employee: Employee }) {
           <AvatarImage src={employee.photoURL} alt={employee.name} />
           <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
         </Avatar>
-        <p className="w-full break-words text-[11px] leading-tight font-semibold">{employee.name}</p>
+        <p className="w-full break-words text-[6px] leading-tight font-semibold">{employee.name}</p>
         <p className="w-full break-words text-[10px] leading-tight text-muted-foreground">{employee.title || employee.role}</p>
       </CardContent>
     </Card>
@@ -240,7 +240,7 @@ function EmployeesChartContent() {
         id: doc.id,
         subordinates: [],
         ...doc.data()
-      } as Employee));
+      } as unknown as Employee));
       setAllEmployees(employeesData);
       
       const derivedCampuses = [...new Set(employeesData.map(e => e.campus).filter(Boolean))].sort();
