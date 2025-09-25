@@ -332,36 +332,36 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="add-name">Full Name</Label>
-                  <Input id="add-name" name="name" required placeholder="e.g., John Doe" />
+                  <Input id="add-name" name="name" placeholder="e.g., John Doe" />
                   {serverState?.errors?.name && <p className="text-sm text-destructive">{serverState.errors.name.join(', ')}</p>}
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="add-personalEmail">Personal Email</Label>
-                  <Input id="add-personalEmail" name="personalEmail" type="email" required />
+                  <Input id="add-personalEmail" name="personalEmail" type="email" />
                   {serverState?.errors?.personalEmail && <p className="text-sm text-destructive">{serverState.errors.personalEmail.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="add-personalPhone">Personal Phone</Label>
-                  <Input id="add-personalPhone" name="personalPhone" required placeholder="Numbers only" />
+                  <Input id="add-personalPhone" name="personalPhone" placeholder="Numbers only" />
                   {serverState?.errors?.personalPhone && <p className="text-sm text-destructive">{serverState.errors.personalPhone.join(', ')}</p>}
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="add-emergencyContactName">Emergency Contact Name</Label>
-                  <Input id="add-emergencyContactName" name="emergencyContactName" required />
+                  <Input id="add-emergencyContactName" name="emergencyContactName" />
                   {serverState?.errors?.emergencyContactName && <p className="text-sm text-destructive">{serverState.errors.emergencyContactName.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
                   <Label htmlFor="add-emergencyContactRelationship">Relationship</Label>
-                  <Input id="add-emergencyContactRelationship" name="emergencyContactRelationship" required />
+                  <Input id="add-emergencyContactRelationship" name="emergencyContactRelationship" />
                   {serverState?.errors?.emergencyContactRelationship && <p className="text-sm text-destructive">{serverState.errors.emergencyContactRelationship.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="add-emergencyContactNumber">Contact Number</Label>
-                  <Input id="add-emergencyContactNumber" name="emergencyContactNumber" required placeholder="Numbers only" />
+                  <Input id="add-emergencyContactNumber" name="emergencyContactNumber" placeholder="Numbers only" />
                   {serverState?.errors?.emergencyContactNumber && <p className="text-sm text-destructive">{serverState.errors.emergencyContactNumber.join(', ')}</p>}
                 </div>
               </div>
@@ -415,7 +415,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="add-nisEmail">NIS Email</Label>
-                  <Input id="add-nisEmail" name="nisEmail" type="email" required />
+                  <Input id="add-nisEmail" name="nisEmail" type="email" />
                   {serverState?.errors?.nisEmail && <p className="text-sm text-destructive">{serverState.errors.nisEmail.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
@@ -435,7 +435,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="add-title">Title</Label>
-                  <Input id="add-title" name="title" required />
+                  <Input id="add-title" name="title" />
                   {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
@@ -445,7 +445,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="add-department">Department</Label>
-                    <Input id="add-department" name="department" required />
+                    <Input id="add-department" name="department" />
                     {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">

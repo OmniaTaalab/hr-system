@@ -92,25 +92,25 @@ export async function getAllAuthUsers() {
 // Schema for validating form data for creating an employee
 const CreateEmployeeFormSchema = z.object({
   // Personal Info
-  name: z.string().min(1, "Full name is required.").refine(val => val.trim().includes(' '), "Please enter both first and last name."),
+  name: z.string().optional(),
   personalEmail: z.string().email({ message: 'A valid personal email is required.' }).optional().or(z.literal('')),
-  personalPhone: z.string().min(1, "Personal phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
-  emergencyContactName: z.string().min(1, "Emergency contact name is required."),
-  emergencyContactRelationship: z.string().min(1, "Emergency contact relationship is required."),
-  emergencyContactNumber: z.string().min(1, "Emergency contact number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
-  dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
-  gender: z.string().min(1, "Gender is required."),
+  personalPhone: z.string().optional(),
+  emergencyContactName: z.string().optional(),
+  emergencyContactRelationship: z.string().optional(),
+  emergencyContactNumber: z.string().optional(),
+  dateOfBirth: z.coerce.date().optional(),
+  gender: z.string().optional(),
   nationalId: z.string().optional(),
   religion: z.string().optional(),
   
   // Work Info
-  nisEmail: z.string().email({ message: 'A valid NIS email is required.' }),
+  nisEmail: z.string().email({ message: 'A valid NIS email is required.' }).optional(),
   joiningDate: z.coerce.date().optional(),
-  title: z.string().min(1, "Title is required."),
-  department: z.string().min(1, "Department is required."),
-  role: z.string().min(1, "Role is required."),
-  stage: z.string().min(1, "Stage is required."),
-  campus: z.string().min(1, "Campus is required."),
+  title: z.string().optional(),
+  department: z.string().optional(),
+  role: z.string().optional(),
+  stage: z.string().optional(),
+  campus: z.string().optional(),
   reportLine1: z.string().optional(),
   reportLine2: z.string().optional(),
   subject: z.string().optional(),
@@ -161,7 +161,7 @@ export async function createEmployeeAction(
     emergencyContactName: formData.get('emergencyContactName'),
     emergencyContactRelationship: formData.get('emergencyContactRelationship'),
     emergencyContactNumber: formData.get('emergencyContactNumber'),
-    dateOfBirth: formData.get('dateOfBirth'),
+    dateOfBirth: formData.get('dateOfBirth') || undefined,
     gender: formData.get('gender'),
     nationalId: formData.get('nationalId'),
     religion: formData.get('religion'),
@@ -197,46 +197,49 @@ export async function createEmployeeAction(
     reportLine1, reportLine2, subject, actorId, actorEmail, actorRole
   } = validatedFields.data;
   
-  const nameParts = name.trim().split(/\s+/);
-  const firstName = nameParts[0];
+  const nameParts = (name || '').trim().split(/\s+/);
+  const firstName = nameParts[0] || '';
   const lastName = nameParts.slice(1).join(' ');
 
   try {
     const employeeCollectionRef = collection(db, "employee");
 
-    const emailQuery = query(employeeCollectionRef, where("email", "==", nisEmail), limit(1));
-    const emailSnapshot = await getDocs(emailQuery);
-    if (!emailSnapshot.empty) {
-      return { success: false, errors: { nisEmail: ["An employee with this NIS email already exists."] } };
+    if (nisEmail) {
+        const emailQuery = query(employeeCollectionRef, where("email", "==", nisEmail), limit(1));
+        const emailSnapshot = await getDocs(emailQuery);
+        if (!emailSnapshot.empty) {
+        return { success: false, errors: { nisEmail: ["An employee with this NIS email already exists."] } };
+        }
     }
+
 
     const countSnapshot = await getCountFromServer(employeeCollectionRef);
     const employeeCount = countSnapshot.data().count;
     const employeeId = (1001 + employeeCount).toString();
 
     const employeeData = {
-      name,
+      name: name || `Employee ${employeeId}`,
       firstName,
       lastName,
-      personalEmail,
-      phone: personalPhone, // Storing personalPhone in 'phone' field
+      personalEmail: personalEmail || "",
+      phone: personalPhone || "", // Storing personalPhone in 'phone' field
       emergencyContact: {
-        name: emergencyContactName,
-        relationship: emergencyContactRelationship,
-        number: emergencyContactNumber,
+        name: emergencyContactName || "",
+        relationship: emergencyContactRelationship || "",
+        number: emergencyContactNumber || "",
       },
-      dateOfBirth: Timestamp.fromDate(dateOfBirth),
+      dateOfBirth: dateOfBirth ? Timestamp.fromDate(dateOfBirth) : null,
       gender: gender || "",
       nationalId: nationalId || "",
       religion: religion || "",
       
-      email: nisEmail, // Storing nisEmail in 'email' field
+      email: nisEmail || "", // Storing nisEmail in 'email' field
       joiningDate: joiningDate ? Timestamp.fromDate(joiningDate) : serverTimestamp(),
-      title,
-      department,
-      role,
-      stage,
-      campus,
+      title: title || "",
+      department: department || "",
+      role: role || "",
+      stage: stage || "",
+      campus: campus || "",
       reportLine1: reportLine1 || "",
       reportLine2: reportLine2 || "",
       subject: subject || "",
@@ -254,7 +257,7 @@ export async function createEmployeeAction(
     
     await logSystemEvent("Create Employee", { actorId, actorEmail, actorRole, newEmployeeId: newEmployeeDoc.id, newEmployeeName: name, changes: { newData: employeeData } });
 
-    return { success: true, message: `Employee "${name}" created successfully.`, employeeId: newEmployeeDoc.id };
+    return { success: true, message: `Employee "${name || employeeId}" created successfully.`, employeeId: newEmployeeDoc.id };
 
   } catch (error: any) {
     return {
