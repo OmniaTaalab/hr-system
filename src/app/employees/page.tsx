@@ -955,6 +955,7 @@ function EmployeeManagementContent() {
   const [genderFilter, setGenderFilter] = useState("All");
   const [religionFilter, setReligionFilter] = useState("All");
   const [campusFilter, setCampusFilter] = useState("All");
+  const [titleFilter, setTitleFilter] = useState("All");
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -1112,6 +1113,11 @@ function EmployeeManagementContent() {
     }
   }, [changePasswordServerState, toast]);
   
+  const uniqueTitles = useMemo(() => {
+    const titles = allEmployees.map(emp => emp.title).filter(Boolean);
+    return [...new Set(titles)].sort();
+  }, [allEmployees]);
+  
   const filteredEmployees = useMemo(() => {
     let listToFilter = allEmployees;
     const userRole = profile?.role?.toLowerCase();
@@ -1126,6 +1132,7 @@ function EmployeeManagementContent() {
     if (subjectFilter !== "All") listToFilter = listToFilter.filter(emp => emp.subject === subjectFilter);
     if (genderFilter !== "All") listToFilter = listToFilter.filter(emp => emp.gender === genderFilter);
     if (religionFilter !== "All") listToFilter = listToFilter.filter(emp => emp.religion === religionFilter);
+    if (titleFilter !== "All") listToFilter = listToFilter.filter(emp => emp.title === titleFilter);
     
     const lowercasedFilter = searchTerm.toLowerCase();
     if (searchTerm.trim()) {
@@ -1148,7 +1155,7 @@ function EmployeeManagementContent() {
     }
     
     return listToFilter;
-  }, [allEmployees, searchTerm, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
+  }, [allEmployees, searchTerm, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter]);
   
   const totalPages = useMemo(() => Math.ceil(filteredEmployees.length / PAGE_SIZE), [filteredEmployees]);
   const isLastPage = currentPage >= totalPages;
@@ -1161,7 +1168,7 @@ function EmployeeManagementContent() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
+  }, [searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter]);
 
 
   const goToNextPage = () => {
@@ -1356,6 +1363,15 @@ function EmployeeManagementContent() {
                       <SelectContent>
                           <SelectItem value="All">All Campuses</SelectItem>
                           {campuses.map(campus => <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>)}
+                      </SelectContent>
+                  </Select>
+                  <Select value={titleFilter} onValueChange={setTitleFilter} disabled={isLoading}>
+                      <SelectTrigger className="w-full sm:w-auto flex-1">
+                          <SelectValue placeholder="Filter by title..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="All">All Titles</SelectItem>
+                          {uniqueTitles.map(title => <SelectItem key={title} value={title}>{title}</SelectItem>)}
                       </SelectContent>
                   </Select>
                     <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists}>
