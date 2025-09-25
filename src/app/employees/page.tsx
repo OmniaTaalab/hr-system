@@ -201,13 +201,11 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [gender, setGender] = useState("");
   const [stage, setStage] = useState("");
 
-  const [principals, setPrincipals] = useState<Employee[]>([]);
-  const [isLoadingPrincipals, setIsLoadingPrincipals] = useState(true);
   const [reportLine1, setReportLine1] = useState("");
-  
-  const [directors, setDirectors] = useState<Employee[]>([]);
-  const [isLoadingDirectors, setIsLoadingDirectors] = useState(true);
+  const [reportLine1Options, setReportLine1Options] = useState<string[]>([]);
   const [reportLine2, setReportLine2] = useState("");
+  const [reportLine2Options, setReportLine2Options] = useState<string[]>([]);
+  const [isLoadingManagers, setIsLoadingManagers] = useState(true);
 
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [nationalIdFile, setNationalIdFile] = useState<File | null>(null);
@@ -215,40 +213,33 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const addFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    const fetchManagers = async () => {
-        setIsLoadingPrincipals(true);
-        setIsLoadingDirectors(true);
+    const fetchReportLines = async () => {
+        setIsLoadingManagers(true);
         try {
-            const principalQuery = query(collection(db, "employee"), where("role", "==", "Principal"));
-            const directorQuery = query(collection(db, "employee"), where("role", "==", "Campus Director"));
-
-            const [principalSnapshot, directorSnapshot] = await Promise.all([
-                getDocs(principalQuery),
-                getDocs(directorQuery)
-            ]);
+            const employeeSnapshot = await getDocs(collection(db, "employee"));
+            const employees = employeeSnapshot.docs.map(doc => doc.data() as Employee);
             
-            const principalList = principalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-            principalList.sort((a, b) => a.name.localeCompare(b.name));
-            setPrincipals(principalList);
-
-            const directorList = directorSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-            directorList.sort((a, b) => a.name.localeCompare(b.name));
-            setDirectors(directorList);
+            const line1Emails = employees.map(e => e.reportLine1).filter(Boolean);
+            const uniqueLine1Emails = [...new Set(line1Emails)].sort();
+            setReportLine1Options(uniqueLine1Emails as string[]);
+            
+            const line2Emails = employees.map(e => e.reportLine2).filter(Boolean);
+            const uniqueLine2Emails = [...new Set(line2Emails)].sort();
+            setReportLine2Options(uniqueLine2Emails as string[]);
 
         } catch (error) {
-            console.error("Error fetching managers:", error);
+            console.error("Error fetching report lines:", error);
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: "Could not load the list of principals or campus directors.",
+                description: "Could not load the list of managers for report lines.",
             });
         } finally {
-            setIsLoadingPrincipals(false);
-            setIsLoadingDirectors(false);
+            setIsLoadingManagers(false);
         }
     };
 
-    fetchManagers();
+    fetchReportLines();
   }, [toast]);
 
   const handleFileUpload = async (employeeId: string) => {
@@ -486,30 +477,24 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="add-reportLine1">Report Line 1</Label>
-                    <Select onValueChange={(selectedId) => {
-                        const selectedPrincipal = principals.find(p => p.id === selectedId);
-                        setReportLine1(selectedPrincipal?.name || "");
-                      }} value={principals.find(p => p.name === reportLine1)?.id} disabled={isLoadingPrincipals}>
+                    <Select onValueChange={setReportLine1} value={reportLine1} disabled={isLoadingManagers}>
                       <SelectTrigger>
-                          <SelectValue placeholder={isLoadingPrincipals ? "Loading..." : "Select a Principal"} />
+                          <SelectValue placeholder={isLoadingManagers ? "Loading..." : "Select a Manager"} />
                       </SelectTrigger>
                       <SelectContent>
-                          {principals.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.nisEmail})</SelectItem>)}
+                          {reportLine1Options.map(email => <SelectItem key={email} value={email}>{email}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     {serverState?.errors?.reportLine1 && <p className="text-sm text-destructive">{serverState.errors.reportLine1.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="add-reportLine2">Report Line 2</Label>
-                  <Select onValueChange={(selectedId) => {
-                        const selectedDirector = directors.find(d => d.id === selectedId);
-                        setReportLine2(selectedDirector?.name || "");
-                      }} value={directors.find(d => d.name === reportLine2)?.id} disabled={isLoadingDirectors}>
+                    <Select onValueChange={setReportLine2} value={reportLine2} disabled={isLoadingManagers}>
                       <SelectTrigger>
-                          <SelectValue placeholder={isLoadingDirectors ? "Loading..." : "Select a Campus Director"} />
+                          <SelectValue placeholder={isLoadingManagers ? "Loading..." : "Select a Manager"} />
                       </SelectTrigger>
                       <SelectContent>
-                          {directors.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({d.nisEmail})</SelectItem>)}
+                          {reportLine2Options.map(email => <SelectItem key={email} value={email}>{email}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   {serverState?.errors?.reportLine2 && <p className="text-sm text-destructive">{serverState.errors.reportLine2.join(', ')}</p>}
@@ -1671,7 +1656,7 @@ function EmployeeManagementContent() {
                       onClick={() => setShowPassword(prev => !prev)}
                       tabIndex={-1}
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4" />}
                       <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
                     </Button>
                   </div>
@@ -1825,5 +1810,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
-    
