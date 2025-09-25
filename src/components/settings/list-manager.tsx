@@ -7,6 +7,7 @@ import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { 
     manageListItemAction, type ManageListItemState, 
+    syncCampusesFromEmployeesAction,
     syncGroupNamesFromEmployeesAction, type SyncState 
 } from "@/actions/settings-actions";
 
@@ -27,7 +28,7 @@ interface ListItem {
 
 interface ListManagerProps {
   title: string;
-  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes";
+  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage" | "subjects";
 }
 
 const initialManageState: ManageListItemState = { success: false, message: null, errors: {} };
@@ -49,7 +50,8 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   const [editState, editAction, isEditPending] = useActionState(manageListItemAction, initialManageState);
   const [deleteState, deleteAction, isDeletePending] = useActionState(manageListItemAction, initialManageState);
   
-  const [syncState, syncAction, isSyncPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
+  const [syncGroupState, syncGroupAction, isSyncGroupPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
+  const [syncCampusState, syncCampusAction, isSyncCampusPending] = useActionState(syncCampusesFromEmployeesAction, initialSyncState);
 
   const addFormRef = useRef<HTMLFormElement>(null);
   const editFormRef = useRef<HTMLFormElement>(null);
@@ -99,14 +101,24 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   }, [deleteState, toast]);
 
   useEffect(() => {
-    if (syncState?.message) {
+    if (syncGroupState?.message) {
         toast({
-            title: syncState.success ? "Sync Complete" : "Sync Failed",
-            description: syncState.message,
-            variant: syncState.success ? "default" : "destructive"
+            title: syncGroupState.success ? "Sync Complete" : "Sync Failed",
+            description: syncGroupState.message,
+            variant: syncGroupState.success ? "default" : "destructive"
         });
     }
-  }, [syncState, toast]);
+  }, [syncGroupState, toast]);
+
+  useEffect(() => {
+    if (syncCampusState?.message) {
+        toast({
+            title: syncCampusState.success ? "Sync Complete" : "Sync Failed",
+            description: syncCampusState.message,
+            variant: syncCampusState.success ? "default" : "destructive"
+        });
+    }
+  }, [syncCampusState, toast]);
 
   const filteredItems = useMemo(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
@@ -125,9 +137,17 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
           {title}
           <div className="flex items-center gap-2">
             {collectionName === 'groupNames' && (
-              <form action={syncAction}>
-                  <Button size="sm" variant="secondary" disabled={isSyncPending}>
-                      {isSyncPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+              <form action={syncGroupAction}>
+                  <Button size="sm" variant="secondary" disabled={isSyncGroupPending}>
+                      {isSyncGroupPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Sync from Employees
+                  </Button>
+              </form>
+            )}
+            {collectionName === 'campuses' && (
+              <form action={syncCampusAction}>
+                  <Button size="sm" variant="secondary" disabled={isSyncCampusPending}>
+                      {isSyncCampusPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
                       Sync from Employees
                   </Button>
               </form>
