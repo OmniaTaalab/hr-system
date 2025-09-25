@@ -949,11 +949,12 @@ function EmployeeManagementContent() {
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { stage: stages, subjects, isLoading: isLoadingLists } = useOrganizationLists();
+  const { campuses, stage: stages, subjects, isLoading: isLoadingLists } = useOrganizationLists();
   const [stageFilter, setStageFilter] = useState("All");
   const [subjectFilter, setSubjectFilter] = useState("All");
   const [genderFilter, setGenderFilter] = useState("All");
   const [religionFilter, setReligionFilter] = useState("All");
+  const [campusFilter, setCampusFilter] = useState("All");
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -1120,6 +1121,7 @@ function EmployeeManagementContent() {
         listToFilter = listToFilter.filter(emp => emp.reportLine1 === profile.name);
     }
     
+    if (campusFilter !== "All") listToFilter = listToFilter.filter(emp => emp.campus === campusFilter);
     if (stageFilter !== "All") listToFilter = listToFilter.filter(emp => emp.stage === stageFilter);
     if (subjectFilter !== "All") listToFilter = listToFilter.filter(emp => emp.subject === subjectFilter);
     if (genderFilter !== "All") listToFilter = listToFilter.filter(emp => emp.gender === genderFilter);
@@ -1146,7 +1148,7 @@ function EmployeeManagementContent() {
     }
     
     return listToFilter;
-  }, [allEmployees, searchTerm, profile, stageFilter, subjectFilter, genderFilter, religionFilter]);
+  }, [allEmployees, searchTerm, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
   
   const totalPages = useMemo(() => Math.ceil(filteredEmployees.length / PAGE_SIZE), [filteredEmployees]);
   const isLastPage = currentPage >= totalPages;
@@ -1159,7 +1161,7 @@ function EmployeeManagementContent() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, stageFilter, subjectFilter, genderFilter, religionFilter]);
+  }, [searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter]);
 
 
   const goToNextPage = () => {
@@ -1347,6 +1349,15 @@ function EmployeeManagementContent() {
             </div>
              <div className="flex flex-col sm:flex-row items-center gap-2">
                   <Filter className="h-4 w-4 text-muted-foreground hidden sm:block"/>
+                    <Select value={campusFilter} onValueChange={setCampusFilter} disabled={isLoadingLists}>
+                      <SelectTrigger className="w-full sm:w-auto flex-1">
+                          <SelectValue placeholder="Filter by campus..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="All">All Campuses</SelectItem>
+                          {campuses.map(campus => <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>)}
+                      </SelectContent>
+                  </Select>
                     <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists}>
                       <SelectTrigger className="w-full sm:w-auto flex-1">
                           <SelectValue placeholder="Filter by stage..." />
