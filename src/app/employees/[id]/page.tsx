@@ -414,6 +414,8 @@ function EmployeeProfileContent() {
                    <DetailItem icon={MapPin} label="Campus" value={employee.campus} />
                    <DetailItem icon={CalendarDays} label="Joining Date" value={formattedJoiningDateAndPeriod} />
                    <DetailItem icon={Stethoscope} label="Subject" value={employee.subject} />
+                   <DetailItem icon={Users} label="Report Line 1" value={employee.reportLine1} />
+                   <DetailItem icon={Users} label="Report Line 2" value={employee.reportLine2} />
                    <DetailItem icon={Activity} label="Status">
                      <Badge variant={employee.status === "Terminated" ? "destructive" : "secondary"} className={employee.status === 'Active' ? 'bg-green-100 text-green-800' : ''}>
                        {employee.status || "Active"}
