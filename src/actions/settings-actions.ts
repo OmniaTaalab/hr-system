@@ -281,7 +281,7 @@ const ManageItemSchema = z.object({
   operation: z.enum(['add', 'update', 'delete']),
   name: z.preprocess(
     (val) => (val === null || val === '' ? undefined : val),
-    z.string().min(1, "Name cannot be empty.").optional()
+    z.string().optional() // Optional at this stage, will be validated below
   ),
   id: z.preprocess(
     (val) => (val === null ? undefined : val),
@@ -305,7 +305,8 @@ export async function manageListItemAction(
   prevState: ManageListItemState,
   formData: FormData
 ): Promise<ManageListItemState> {
-  const validatedFields = ManageItemSchema.safeParse({
+  
+  const rawData = {
     collectionName: formData.get('collectionName'),
     operation: formData.get('operation'),
     name: formData.get('name'),
@@ -313,16 +314,39 @@ export async function manageListItemAction(
     actorId: formData.get('actorId'),
     actorEmail: formData.get('actorEmail'),
     actorRole: formData.get('actorRole'),
+  };
+  
+  const baseValidation = ManageItemSchema.safeParse(rawData);
+  if (!baseValidation.success) {
+    return { errors: { form: ["Invalid data submitted."] }, success: false };
+  }
+
+  const { collectionName } = baseValidation.data;
+
+  // Apply conditional validation based on collection name
+  const isEmailCollection = collectionName === 'reportLines1';
+  const nameValidation = isEmailCollection
+    ? z.string().email("Must be a valid email.").min(1, "Email cannot be empty.")
+    : z.string().min(1, "Name cannot be empty.");
+
+  const FinalSchema = ManageItemSchema.extend({
+      name: z.preprocess(
+        (val) => (val === null || val === '' ? undefined : val),
+        nameValidation.optional() // Keep it optional here to handle delete operations
+      ),
   });
+
+  const validatedFields = FinalSchema.safeParse(rawData);
 
   if (!validatedFields.success) {
     return {
-      errors: { form: ["Invalid data received."] },
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "Validation failed.",
       success: false,
     };
   }
 
-  const { collectionName, operation, name, id, actorId, actorEmail, actorRole } = validatedFields.data;
+  const { operation, name, id, actorId, actorEmail, actorRole } = validatedFields.data;
   const collectionRef = collection(db, collectionName);
 
   try {
@@ -495,5 +519,5 @@ export async function syncMachineNamesFromAttendanceLogsAction(prevState: SyncSt
 }
 
 export async function syncReportLine1FromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
-    return runSync(formData, (actorDetails) => syncListFromSource("employee", "reportLine1", "reportLine1", actorDetails));
+    return runSync(formData, (actorDetails) => syncListFromSource("employee", "reportLine1", "reportLines1", actorDetails));
 }
