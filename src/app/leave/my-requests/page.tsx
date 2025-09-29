@@ -210,18 +210,17 @@ function MyRequestsContent() {
       }
 
       try {
-        // Simplified query to get all requests for the year to avoid composite index.
         const yearStart = startOfYear(currentMonthDate);
         const yearEnd = endOfYear(currentMonthDate);
 
-        const overlappingLeavesQuery = query(
-          collection(db, "leaveRequests"),
-          where("requestingEmployeeDocId", "==", currentEmployeeId),
-          where("startDate", "<=", Timestamp.fromDate(yearEnd)),
-          where("endDate", ">=", Timestamp.fromDate(yearStart))
+        const leavesInYearQuery = query(
+            collection(db, "leaveRequests"),
+            where("requestingEmployeeDocId", "==", currentEmployeeId),
+            where("startDate", ">=", Timestamp.fromDate(yearStart)),
+            where("startDate", "<=", Timestamp.fromDate(yearEnd))
         );
         
-        const leaveSnapshot = await getDocs(overlappingLeavesQuery);
+        const leaveSnapshot = await getDocs(leavesInYearQuery);
         let totalLeaveDaysInMonth = 0;
         const approvedLeaveApplicationsInMonth = new Set<string>();
         const filteredLeaveRequestsForTable: LeaveRequestEntry[] = [];
@@ -231,7 +230,7 @@ function MyRequestsContent() {
           const leaveStartDate = leave.startDate.toDate();
           const leaveEndDate = leave.endDate.toDate();
 
-          // Check for overlap with the specific month
+          // Check for overlap with the specific month client-side
           if (leaveEndDate >= monthStart && leaveStartDate <= monthEnd) {
              const daysInMonth = calculateLeaveDaysInMonth(
               leaveStartDate,
