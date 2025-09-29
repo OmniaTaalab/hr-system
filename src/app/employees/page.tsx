@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -92,7 +93,7 @@ export interface Employee {
   stage: string;
   system: string;
   campus: string;
-  nisEmail: string; // This is NIS Email
+  email: string; // This is NIS Email
   phone: string; // This is Personal Phone
   hourlyRate?: number;
   userId?: string | null;
@@ -191,7 +192,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const { profile } = useUserProfile();
   const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialAddEmployeeState);
-  const { roles, stage: stages, systems, campuses, reportLines1: reportLines, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, stage: stages, systems, campuses, reportLines1, isLoading: isLoadingLists } = useOrganizationLists();
   
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
   const [joiningDate, setJoiningDate] = useState<Date | undefined>();
@@ -737,7 +738,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-email">NIS Email</Label>
-                  <Input id="edit-email" name="email" type="email" defaultValue={employee.nisEmail}  />
+                  <Input id="edit-email" name="email" type="email" defaultValue={employee.email}  />
                   {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
@@ -1158,7 +1159,8 @@ function EmployeeManagementContent() {
               employee.role,
               employee.stage,
               employee.campus,
-              employee.nisEmail,
+              employee.email,
+              employee.personalEmail,
               employee.phone,
               employee.subject,
               employee.title
@@ -1280,7 +1282,7 @@ function EmployeeManagementContent() {
             'Campus': emp.campus,
             'Stage': emp.stage,
             'Subject': emp.subject,
-            'NIS Email': emp.nisEmail,
+            'NIS Email': emp.email,
             'Personal Email': emp.personalEmail,
             'Phone': emp.phone,
             'Date of Birth': dob ? format(dob, 'yyyy-MM-dd') : '-',
@@ -1339,7 +1341,7 @@ function EmployeeManagementContent() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Search by name, title, department..."
+                  placeholder="Search by name, email, title, department..."
                   className="w-full pl-10"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -1641,7 +1643,7 @@ function EmployeeManagementContent() {
                       <RadioGroupItem value="work" id="emailType-work" className="peer sr-only" />
                       <Label htmlFor="emailType-work" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
                         Work Email
-                        <span className="font-normal text-xs mt-1 truncate">{employeeToCreateLogin.nisEmail}</span>
+                        <span className="font-normal text-xs mt-1 truncate">{employeeToCreateLogin.email}</span>
                       </Label>
                     </div>
                     <div>
@@ -1762,7 +1764,7 @@ function EmployeeManagementContent() {
               <DialogHeader>
                 <DialogTitle>Change Password for {employeeToChangePassword.name}</DialogTitle>
                 <DialogDescription>
-                  Enter a new secure password for <strong>{employeeToChangePassword.nisEmail}</strong>.
+                  Enter a new secure password for <strong>{employeeToChangePassword.email}</strong>.
                 </DialogDescription>
               </DialogHeader>
               
