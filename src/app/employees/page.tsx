@@ -1163,7 +1163,8 @@ function EmployeeManagementContent() {
               employee.personalEmail,
               employee.phone,
               employee.subject,
-              employee.title
+              employee.title,
+              employee.religion,
           ];
           return searchableFields.some(field =>
               typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
@@ -1854,3 +1855,5 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
+    

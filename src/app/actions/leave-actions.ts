@@ -146,7 +146,7 @@ export async function submitLeaveRequestAction(
       
       const notificationMessage = `New leave request from ${employeeName} for ${leaveType}.`;
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-      const requestLink = `${appUrl}/leave/all-requests/${newRequestRef.id}`;
+      const requestLink = `${appUrl}leave/all-requests/${newRequestRef.id}`;
       
       if (!managerSnapshot.empty) {
         const managerDoc = managerSnapshot.docs[0];
@@ -292,7 +292,7 @@ export async function updateLeaveRequestStatusAction(
 
           const notificationMessage = `Your leave request for ${requestData.leaveType} has been ${newStatus.toLowerCase()}.`;
           const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-          const requestLink = `${appUrl}/leave/my-requests`;
+          const requestLink = `${appUrl}leave/all-requests/${requestId}`;
 
           // 1. Send in-app notification to the user's personal notifications subcollection
           if (employeeUserId) {
