@@ -153,7 +153,7 @@ export async function submitLeaveRequestAction(
       const emailHtml = render(
         LeaveRequestNotificationEmail({
           managerName: employeeData.reportLine1, // أو لو عندك اسم المدير منفصل استبدليه هنا
-          employeeName,
+          employeeName ,
           leaveType,
           startDate: startDate.toLocaleDateString(),
           endDate: endDate.toLocaleDateString(),
@@ -166,6 +166,8 @@ export async function submitLeaveRequestAction(
 
     
             await addDoc(collection(db, "mail"), {
+              from: employeeData.email,
+      
               to: employeeData.reportLine1,
               message: {
                 subject: `New Leave Request from ${employeeName}`,
@@ -178,7 +180,7 @@ export async function submitLeaveRequestAction(
 
         
 
-    return { message: "Leave request submitted successfully.", success: true };
+    return { message: 'Leave request submitted successfully.', success: true };
   } catch (error: any) {
     console.error("Submit Leave Request Error:", error);
     return {
