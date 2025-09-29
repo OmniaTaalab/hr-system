@@ -64,6 +64,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import * as XLSX from 'xlsx';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 
 export interface EmployeeFile {
@@ -202,9 +203,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [stage, setStage] = useState("");
 
   const [reportLine1, setReportLine1] = useState("");
-  const [reportLine1Options, setReportLine1Options] = useState<string[]>([]);
   const [reportLine2, setReportLine2] = useState("");
-  const [reportLine2Options, setReportLine2Options] = useState<string[]>([]);
+  const [allEmployeeEmails, setAllEmployeeEmails] = useState<string[]>([]);
   const [isLoadingManagers, setIsLoadingManagers] = useState(true);
 
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -213,33 +213,25 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const addFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    const fetchReportLines = async () => {
+    const fetchManagers = async () => {
         setIsLoadingManagers(true);
         try {
             const employeeSnapshot = await getDocs(collection(db, "employee"));
             const employees = employeeSnapshot.docs.map(doc => doc.data() as Employee);
-            
-            const line1Emails = employees.map(e => e.reportLine1).filter(Boolean);
-            const uniqueLine1Emails = [...new Set(line1Emails)].sort();
-            setReportLine1Options(uniqueLine1Emails as string[]);
-            
-            const line2Emails = employees.map(e => e.reportLine2).filter(Boolean);
-            const uniqueLine2Emails = [...new Set(line2Emails)].sort();
-            setReportLine2Options(uniqueLine2Emails as string[]);
-
+            const emails = employees.map(e => e.nisEmail).filter(Boolean);
+            setAllEmployeeEmails([...new Set(emails)].sort());
         } catch (error) {
-            console.error("Error fetching report lines:", error);
+            console.error("Error fetching employees for report lines:", error);
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: "Could not load the list of managers for report lines.",
+                description: "Could not load the list of managers.",
             });
         } finally {
             setIsLoadingManagers(false);
         }
     };
-
-    fetchReportLines();
+    fetchManagers();
   }, [toast]);
 
   const handleFileUpload = async (employeeId: string) => {
@@ -300,6 +292,55 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         });
     }
   }, [serverState, toast, onSuccess]);
+
+  // Combobox component for report lines
+  const ReportLineCombobox = ({ value, setValue, options, isLoading, placeholder }: { value: string, setValue: (val: string) => void, options: string[], isLoading: boolean, placeholder: string }) => {
+    const [open, setOpen] = useState(false);
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between font-normal"
+            disabled={isLoading}
+          >
+            {value ? value : isLoading ? "Loading..." : placeholder}
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+          <Command shouldFilter={false}>
+             <CommandInput placeholder="Search or type email..." onValueChange={setValue} value={value} />
+            <CommandList>
+                <CommandEmpty>No manager found.</CommandEmpty>
+                <CommandGroup>
+                  {options.filter(email => email.toLowerCase().includes(value.toLowerCase())).map((email) => (
+                    <CommandItem
+                      key={email}
+                      value={email}
+                      onSelect={(currentValue) => {
+                        setValue(currentValue === value ? "" : currentValue);
+                        setOpen(false);
+                      }}
+                    >
+                      <CheckIcon
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          value === email ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {email}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
+  };
 
 
   return (
@@ -474,30 +515,28 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                   </div>
                  
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="add-reportLine1">Report Line 1</Label>
-                    <Select onValueChange={setReportLine1} value={reportLine1} disabled={isLoadingManagers}>
-                      <SelectTrigger>
-                          <SelectValue placeholder={isLoadingManagers ? "Loading..." : "Select a Manager"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                          {reportLine1Options.map(email => <SelectItem key={email} value={email}>{email}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <ReportLineCombobox
+                      value={reportLine1}
+                      setValue={setReportLine1}
+                      options={allEmployeeEmails}
+                      isLoading={isLoadingManagers}
+                      placeholder="Select a Manager"
+                    />
                     {serverState?.errors?.reportLine1 && <p className="text-sm text-destructive">{serverState.errors.reportLine1.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="add-reportLine2">Report Line 2</Label>
-                    <Select onValueChange={setReportLine2} value={reportLine2} disabled={isLoadingManagers}>
-                      <SelectTrigger>
-                          <SelectValue placeholder={isLoadingManagers ? "Loading..." : "Select a Manager"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                          {reportLine2Options.map(email => <SelectItem key={email} value={email}>{email}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  {serverState?.errors?.reportLine2 && <p className="text-sm text-destructive">{serverState.errors.reportLine2.join(', ')}</p>}
+                    <Label htmlFor="add-reportLine2">Report Line 2</Label>
+                    <ReportLineCombobox
+                      value={reportLine2}
+                      setValue={setReportLine2}
+                      options={allEmployeeEmails}
+                      isLoading={isLoadingManagers}
+                      placeholder="Select a Manager"
+                    />
+                    {serverState?.errors?.reportLine2 && <p className="text-sm text-destructive">{serverState.errors.reportLine2.join(', ')}</p>}
                 </div>
               </div>
             </div>
