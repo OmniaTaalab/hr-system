@@ -6,7 +6,7 @@ import React, { useState, useEffect, useMemo, useActionState, useRef } from "rea
 import { AppLayout } from "@/components/layout/app-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown } from "lucide-react";
+import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users } from "lucide-react";
 import { auth, db } from "@/lib/firebase/config";
 import { 
   onAuthStateChanged, 
@@ -54,6 +54,8 @@ interface EmployeeProfile {
   employeeId: string;
   phone: string;
   status: "Active" | "On Leave" | "Terminated";
+  reportLine1?: string;
+  reportLine2?: string;
   photoURL?: string | null;
   dateOfBirth?: Timestamp;
   joiningDate?: Timestamp;
@@ -63,12 +65,16 @@ interface ProfileDetailItemProps {
   label: string;
   value: string | null | undefined;
   isLoading?: boolean;
+  icon?: React.ElementType;
 }
 
-function ProfileDetailItem({ label, value, isLoading }: ProfileDetailItemProps) {
+function ProfileDetailItem({ label, value, isLoading, icon: Icon }: ProfileDetailItemProps) {
   return (
     <div className="grid grid-cols-3 gap-2 py-3">
-      <dt className="font-medium text-muted-foreground">{label}</dt>
+      <dt className="font-medium text-muted-foreground flex items-center">
+        {Icon && <Icon className="h-4 w-4 mr-2" />}
+        {label}
+      </dt>
       <dd className="col-span-2 text-foreground">
         {isLoading ? <Skeleton className="h-5 w-3/4" /> : value || '-'}
       </dd>
@@ -408,6 +414,8 @@ export default function ProfilePage() {
                       <ProfileDetailItem label="Phone" value={employeeProfile?.phone} isLoading={loading} />
                       <ProfileDetailItem label="Role" value={employeeProfile?.role} isLoading={loading} />
                       <ProfileDetailItem label="Department" value={employeeProfile?.department} isLoading={loading} />
+                      <ProfileDetailItem label="Report Line 1" value={employeeProfile?.reportLine1} isLoading={loading} icon={Users} />
+                      <ProfileDetailItem label="Report Line 2" value={employeeProfile?.reportLine2} isLoading={loading} icon={Users} />
                       <ProfileDetailItem label="Date of Birth" value={formattedDob} isLoading={loading} />
                       <ProfileDetailItem label="Joined Date" value={formattedJoiningDate} isLoading={loading} />
                       </dl>
@@ -447,5 +455,3 @@ export default function ProfilePage() {
     </AppLayout>
   );
 }
-
-    

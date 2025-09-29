@@ -158,7 +158,7 @@ export async function submitLeaveRequestAction(
           startDate: startDate.toLocaleDateString(),
           endDate: endDate.toLocaleDateString(),
           reason,
-          leaveRequestLink: `${appUrl}/leave/all-requests/${newRequestRef.id}`,
+          leaveRequestLink: `${appUrl}leave/all-requests/${newRequestRef.id}`,
         })
       );
     
