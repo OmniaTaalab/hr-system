@@ -41,6 +41,7 @@ import {
   GitBranch, // Added GitBranch icon
   ZoomIn, // Added ZoomIn icon
   ZoomOut, // Added ZoomOut icon
+  FileText, // Added FileText icon
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -83,6 +84,7 @@ export const iconMap: { [key: string]: LucideIcon } = {
   GitBranch, // Added GitBranch icon
   ZoomIn, // Added ZoomIn icon
   ZoomOut, // Added ZoomOut icon
+  FileText, // Added FileText icon
 };
 
     

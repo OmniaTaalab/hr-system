@@ -6,7 +6,7 @@ import React, { useState, useEffect, useMemo, useActionState, useRef } from "rea
 import { AppLayout } from "@/components/layout/app-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users } from "lucide-react";
+import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users, FileText } from "lucide-react";
 import { auth, db } from "@/lib/firebase/config";
 import { 
   onAuthStateChanged, 
@@ -345,6 +345,45 @@ export default function ProfilePage() {
     doc.save(`Profile_${employeeProfile.name.replace(/\s/g, '_')}.pdf`);
   };
 
+  const handleGenerateHrLetter = async () => {
+    if (!employeeProfile) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    let currentY = 20;
+
+    // Header with Logo
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("HR Confirmation Letter", pageWidth / 2, currentY, { align: "center" });
+    currentY += 20;
+    
+    // Date
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Date: ${format(new Date(), "PPP")}`, pageWidth - margin, currentY, { align: "right" });
+    currentY += 15;
+
+    // Body
+    doc.text("To Whom It May Concern,", margin, currentY);
+    currentY += 10;
+
+    const letterBody = `This letter is to confirm that ${employeeProfile.name} (Employee ID: ${employeeProfile.employeeId}) has been employed at our organization since ${formattedJoiningDate}.\n\nCurrently, they hold the position of ${employeeProfile.role} in the ${employeeProfile.department} department.\n\nThis letter is issued upon the request of the employee for whatever legal purpose it may serve.`;
+    const splitBody = doc.splitTextToSize(letterBody, pageWidth - margin * 2);
+    doc.text(splitBody, margin, currentY);
+    currentY += (splitBody.length * 5) + 15; // Adjust Y based on lines
+
+    // Signature
+    doc.text("Sincerely,", margin, currentY);
+    currentY += 20;
+    doc.text("________________________", margin, currentY);
+    currentY += 7;
+    doc.text("HR Department", margin, currentY);
+
+    doc.save(`HR_Letter_${employeeProfile.name.replace(/\s/g, '_')}.pdf`);
+  };
+
 
   return (
     <AppLayout>
@@ -426,12 +465,16 @@ export default function ProfilePage() {
             <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle>Actions</CardTitle>
-                <CardDescription>Download your profile information.</CardDescription>
+                <CardDescription>Download your profile information or generate documents.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex flex-wrap gap-4">
                 <Button onClick={handleExportProfileToPdf}>
                   <FileDown className="mr-2 h-4 w-4" />
                   Export Profile to PDF
+                </Button>
+                 <Button onClick={handleGenerateHrLetter}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Generate HR Letter
                 </Button>
               </CardContent>
             </Card>
