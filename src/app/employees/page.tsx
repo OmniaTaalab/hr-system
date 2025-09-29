@@ -1,4 +1,3 @@
-
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -192,7 +191,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const { profile } = useUserProfile();
   const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialAddEmployeeState);
-  const { roles, stage: stages, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, stage: stages, systems, campuses, reportLines1: reportLines, isLoading: isLoadingLists } = useOrganizationLists();
   
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
   const [joiningDate, setJoiningDate] = useState<Date | undefined>();
@@ -203,35 +202,13 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 
   const [reportLine1, setReportLine1] = useState("");
   const [reportLine2, setReportLine2] = useState("");
-  const [allEmployeeEmails, setAllEmployeeEmails] = useState<string[]>([]);
-  const [isLoadingManagers, setIsLoadingManagers] = useState(true);
 
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [nationalIdFile, setNationalIdFile] = useState<File | null>(null);
   const [otherFiles, setOtherFiles] = useState<File[]>([]);
   const addFormRef = useRef<HTMLFormElement>(null);
 
-  useEffect(() => {
-    const fetchManagers = async () => {
-        setIsLoadingManagers(true);
-        try {
-            const employeeSnapshot = await getDocs(collection(db, "employee"));
-            const employees = employeeSnapshot.docs.map(doc => doc.data() as Employee);
-            const emails = employees.map(e => e.nisEmail).filter(Boolean);
-            setAllEmployeeEmails([...new Set(emails)].sort());
-        } catch (error) {
-            console.error("Error fetching employees for report lines:", error);
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Could not load the list of managers.",
-            });
-        } finally {
-            setIsLoadingManagers(false);
-        }
-    };
-    fetchManagers();
-  }, [toast]);
+  const reportLineOptions = useMemo(() => reportLines.map(item => item.name), [reportLines]);
 
   const handleFileUpload = async (employeeId: string) => {
     const allFiles = [cvFile, nationalIdFile, ...otherFiles].filter((file): file is File => file !== null);
@@ -310,12 +287,12 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-          <Command shouldFilter={false}>
-             <CommandInput placeholder="Search or type email..." onValueChange={setValue} value={value} />
+          <Command>
+             <CommandInput placeholder="Search or type email..." />
             <CommandList>
                 <CommandEmpty>No manager found.</CommandEmpty>
                 <CommandGroup>
-                  {options.filter(email => email.toLowerCase().includes(value.toLowerCase())).map((email) => (
+                  {options.map((email) => (
                     <CommandItem
                       key={email}
                       value={email}
@@ -520,8 +497,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                     <ReportLineCombobox
                       value={reportLine1}
                       setValue={setReportLine1}
-                      options={allEmployeeEmails}
-                      isLoading={isLoadingManagers}
+                      options={reportLineOptions}
+                      isLoading={isLoadingLists}
                       placeholder="Select a Manager"
                     />
                     {serverState?.errors?.reportLine1 && <p className="text-sm text-destructive">{serverState.errors.reportLine1.join(', ')}</p>}
@@ -531,8 +508,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                     <ReportLineCombobox
                       value={reportLine2}
                       setValue={setReportLine2}
-                      options={allEmployeeEmails}
-                      isLoading={isLoadingManagers}
+                      options={reportLineOptions}
+                      isLoading={isLoadingLists}
                       placeholder="Select a Manager"
                     />
                     {serverState?.errors?.reportLine2 && <p className="text-sm text-destructive">{serverState.errors.reportLine2.join(', ')}</p>}
