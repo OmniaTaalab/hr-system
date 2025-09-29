@@ -150,7 +150,7 @@ function LeaveRequestDetailContent() {
       if (!profile || !request) return false;
       const userRole = profile.role?.toLowerCase();
       if (userRole === 'admin' || userRole === 'hr') return true;
-      if (profile.name === request.reportLine1 && request.status === 'Pending') return true;
+      if (profile.email === request.reportLine1 && request.status === 'Pending') return true;
       return false;
   }, [profile, request]);
 
