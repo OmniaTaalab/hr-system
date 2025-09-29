@@ -209,7 +209,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [otherFiles, setOtherFiles] = useState<File[]>([]);
   const addFormRef = useRef<HTMLFormElement>(null);
 
-  const reportLineOptions = useMemo(() => reportLines.map(item => item.name), [reportLines]);
+  const reportLineOptions = useMemo(() => reportLines1.map(item => item.name), [reportLines1]);
 
   const handleFileUpload = async (employeeId: string) => {
     const allFiles = [cvFile, nationalIdFile, ...otherFiles].filter((file): file is File => file !== null);
