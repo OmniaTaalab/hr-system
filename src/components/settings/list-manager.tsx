@@ -10,6 +10,9 @@ import {
     syncCampusesFromEmployeesAction,
     syncGroupNamesFromEmployeesAction, 
     syncReportLine1FromEmployeesAction,
+    syncRolesFromEmployeesAction,
+    syncStagesFromEmployeesAction,
+    syncSubjectsFromEmployeesAction,
     type SyncState 
 } from "@/actions/settings-actions";
 
@@ -55,9 +58,17 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   const [syncGroupState, syncGroupAction, isSyncGroupPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
   const [syncCampusState, syncCampusAction, isSyncCampusPending] = useActionState(syncCampusesFromEmployeesAction, initialSyncState);
   const [syncReportLine1State, syncReportLine1Action, isSyncReportLine1Pending] = useActionState(syncReportLine1FromEmployeesAction, initialSyncState);
+  const [syncRolesState, syncRolesAction, isSyncRolesPending] = useActionState(syncRolesFromEmployeesAction, initialSyncState);
+  const [syncStagesState, syncStagesAction, isSyncStagesPending] = useActionState(syncStagesFromEmployeesAction, initialSyncState);
+  const [syncSubjectsState, syncSubjectsAction, isSyncSubjectsPending] = useActionState(syncSubjectsFromEmployeesAction, initialSyncState);
+
 
   const addFormRef = useRef<HTMLFormElement>(null);
   const editFormRef = useRef<HTMLFormElement>(null);
+  
+  const isReportLine = title === "Report Line 1";
+  const fieldLabel = isReportLine ? "Email" : "Name";
+  const fieldType = isReportLine ? "email" : "text";
 
   useEffect(() => {
     setIsLoading(true);
@@ -104,34 +115,18 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   }, [deleteState, toast]);
 
   useEffect(() => {
-    if (syncGroupState?.message) {
-        toast({
-            title: syncGroupState.success ? "Sync Complete" : "Sync Failed",
-            description: syncGroupState.message,
-            variant: syncGroupState.success ? "default" : "destructive"
-        });
-    }
-  }, [syncGroupState, toast]);
+    const states = [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState];
+    states.forEach(state => {
+        if (state?.message) {
+            toast({
+                title: state.success ? "Sync Complete" : "Sync Failed",
+                description: state.message,
+                variant: state.success ? "default" : "destructive"
+            });
+        }
+    });
+  }, [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, toast]);
 
-  useEffect(() => {
-    if (syncCampusState?.message) {
-        toast({
-            title: syncCampusState.success ? "Sync Complete" : "Sync Failed",
-            description: syncCampusState.message,
-            variant: syncCampusState.success ? "default" : "destructive"
-        });
-    }
-  }, [syncCampusState, toast]);
-
-  useEffect(() => {
-    if (syncReportLine1State?.message) {
-        toast({
-            title: syncReportLine1State.success ? "Sync Complete" : "Sync Failed",
-            description: syncReportLine1State.message,
-            variant: syncReportLine1State.success ? "default" : "destructive"
-        });
-    }
-  }, [syncReportLine1State, toast]);
 
   const filteredItems = useMemo(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
@@ -153,7 +148,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
               <form action={syncGroupAction}>
                   <Button size="sm" variant="secondary" disabled={isSyncGroupPending}>
                       {isSyncGroupPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync from Employees
+                      Sync
                   </Button>
               </form>
             )}
@@ -161,7 +156,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
               <form action={syncCampusAction}>
                   <Button size="sm" variant="secondary" disabled={isSyncCampusPending}>
                       {isSyncCampusPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync from Employees
+                      Sync
                   </Button>
               </form>
             )}
@@ -169,7 +164,31 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
               <form action={syncReportLine1Action}>
                   <Button size="sm" variant="secondary" disabled={isSyncReportLine1Pending}>
                       {isSyncReportLine1Pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync from Employees
+                      Sync
+                  </Button>
+              </form>
+            )}
+             {collectionName === 'roles' && (
+              <form action={syncRolesAction}>
+                  <Button size="sm" variant="secondary" disabled={isSyncRolesPending}>
+                      {isSyncRolesPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Sync
+                  </Button>
+              </form>
+            )}
+             {collectionName === 'stage' && (
+              <form action={syncStagesAction}>
+                  <Button size="sm" variant="secondary" disabled={isSyncStagesPending}>
+                      {isSyncStagesPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Sync
+                  </Button>
+              </form>
+            )}
+             {collectionName === 'subjects' && (
+              <form action={syncSubjectsAction}>
+                  <Button size="sm" variant="secondary" disabled={isSyncSubjectsPending}>
+                      {isSyncSubjectsPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Sync
                   </Button>
               </form>
             )}
@@ -181,13 +200,13 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
                     <form ref={addFormRef} action={addAction}>
                         <DialogHeader>
                             <DialogTitle>Add New {title.slice(0, -1)}</DialogTitle>
-                            <DialogDescription>Enter the name for the new item.</DialogDescription>
+                            <DialogDescription>Enter the {fieldLabel.toLowerCase()} for the new item.</DialogDescription>
                         </DialogHeader>
                         <div className="py-4">
                             <input type="hidden" name="collectionName" value={collectionName} />
                             <input type="hidden" name="operation" value="add" />
-                            <Label htmlFor={`add-name-${collectionName}`}>Name</Label>
-                            <Input id={`add-name-${collectionName}`} name="name" required/>
+                            <Label htmlFor={`add-name-${collectionName}`}>{fieldLabel}</Label>
+                            <Input id={`add-name-${collectionName}`} name="name" type={fieldType} required/>
                             {addState?.errors?.name && <p className="text-sm text-destructive mt-1">{addState.errors.name.join(', ')}</p>}
                             {addState?.errors?.form && <p className="text-sm text-destructive mt-1">{addState.errors.form.join(', ')}</p>}
                         </div>
@@ -237,14 +256,14 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
                              <form ref={editFormRef} action={editAction}>
                                 <DialogHeader>
                                     <DialogTitle>Edit {title.slice(0, -1)}</DialogTitle>
-                                    <DialogDescription>Update the name of this item.</DialogDescription>
+                                    <DialogDescription>Update the {fieldLabel.toLowerCase()} of this item.</DialogDescription>
                                 </DialogHeader>
                                 <div className="py-4">
                                     <input type="hidden" name="collectionName" value={collectionName} />
                                     <input type="hidden" name="operation" value="update" />
                                     <input type="hidden" name="id" value={item.id} />
-                                    <Label htmlFor={`edit-name-${collectionName}`}>Name</Label>
-                                    <Input id={`edit-name-${collectionName}`} name="name" defaultValue={item.name} required />
+                                    <Label htmlFor={`edit-name-${collectionName}`}>{fieldLabel}</Label>
+                                    <Input id={`edit-name-${collectionName}`} name="name" type={fieldType} defaultValue={item.name} required />
                                     {editState?.errors?.name && <p className="text-sm text-destructive mt-1">{editState.errors.name.join(', ')}</p>}
                                     {editState?.errors?.form && <p className="text-sm text-destructive mt-1">{editState.errors.form.join(', ')}</p>}
                                 </div>
