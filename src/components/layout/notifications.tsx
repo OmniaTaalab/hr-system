@@ -46,7 +46,7 @@ export function Notifications() {
     
     const unsubscribes: (() => void)[] = [];
 
-    // 1. Fetch global notifications for privileged users
+    // 1. Fetch global notifications only for privileged users
     if (isPrivilegedUser) {
       const globalQuery = query(collection(db, "notifications"), orderBy("createdAt", "desc"));
       const unsubGlobal = onSnapshot(globalQuery, (snapshot) => {
