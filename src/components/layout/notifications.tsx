@@ -60,7 +60,7 @@ export function Notifications() {
       setGlobalNotifications([]);
     }
     
-    // 2. Fetch personal notifications for the current user.
+    // 2. Fetch personal notifications for the current user. ALL users get this.
     const personalQuery = query(
       collection(db, `users/${user.uid}/notifications`), 
       orderBy("createdAt", "desc")
@@ -68,7 +68,7 @@ export function Notifications() {
     const unsubPersonal = onSnapshot(personalQuery, (snapshot) => {
         const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
         setPersonalNotifications(notifs);
-        setIsLoading(false); // Set loading to false after personal notifs are fetched
+        setIsLoading(false); // Set loading to false after personal notifs are fetched for everyone
     }, (error) => {
         console.error("Error fetching personal notifications:", error);
         setIsLoading(false);
