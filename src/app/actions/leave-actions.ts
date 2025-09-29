@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { z } from 'zod';
@@ -152,7 +151,7 @@ export async function submitLeaveRequestAction(
     
       const emailHtml = render(
         LeaveRequestNotificationEmail({
-          managerName: employeeData.reportLine1, // أو لو عندك اسم المدير منفصل استبدليه هنا
+          managerName: employeeData.reportLine1, // The email is TO the manager
           employeeName,
           leaveType,
           startDate: startDate.toLocaleDateString(),
@@ -162,21 +161,17 @@ export async function submitLeaveRequestAction(
         })
       );
     
-   
-
-    
-            await addDoc(collection(db, "mail"), {
-              to: employeeData.reportLine1,
-              message: {
-                subject: `New Leave Request from ${employeeName}`,
-                html: emailHtml,
-              },
-              status: "pending",
-              createdAt: serverTimestamp(),
-            });
-          }
-
-        
+      // Send the email to the manager (reportLine1)
+      await addDoc(collection(db, "mail"), {
+        to: employeeData.reportLine1,
+        message: {
+          subject: `New Leave Request from ${employeeName}`,
+          html: emailHtml,
+        },
+        status: "pending",
+        createdAt: serverTimestamp(),
+      });
+    }
 
     return { message: 'Leave request submitted successfully.', success: true };
   } catch (error: any) {
