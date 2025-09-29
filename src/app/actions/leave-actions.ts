@@ -148,44 +148,25 @@ export async function submitLeaveRequestAction(
 
     // Notify Manager
     if (employeeData.reportLine1) {
-      const managerQuery = query(
-        collection(db, "employee"),
-        where("name", "==", employeeData.reportLine1),
-        limit(1)
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    
+      const emailHtml = render(
+        LeaveRequestNotificationEmail({
+          managerName: employeeData.reportLine1, // أو لو عندك اسم المدير منفصل استبدليه هنا
+          employeeName,
+          leaveType,
+          startDate: startDate.toLocaleDateString(),
+          endDate: endDate.toLocaleDateString(),
+          reason,
+          leaveRequestLink: `${appUrl}/leave/all-requests/${newRequestRef.id}`,
+        })
       );
+    
+   
 
-      const managerSnapshot = await getDocs(managerQuery);
-      if (!managerSnapshot.empty) {
-        const managerDoc = managerSnapshot.docs[0];
-        const managerData = managerDoc.data();
-        const managerAuthId = managerData.userId;
-
-        if (managerAuthId) {
-          await addDoc(collection(db, `users/${managerAuthId}/notifications`), {
-            message: `New leave request from your subordinate, ${employeeName}.`,
-            link: `/leave/all-requests/${newRequestRef.id}`,
-            createdAt: serverTimestamp(),
-            isRead: false,
-          });
-
-          // Add Email to mail_queue for Firebase Email Extension
-          if (managerData.personalEmail) {
-            const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-            
-            const emailHtml = render(
-              LeaveRequestNotificationEmail({
-                managerName: managerData.name,
-                employeeName,
-                leaveType,
-                startDate: startDate.toLocaleDateString(),
-                endDate: endDate.toLocaleDateString(),
-                reason,
-                leaveRequestLink: `${appUrl}/leave/all-requests/${newRequestRef.id}`,
-              })
-            );
-
+    
             await addDoc(collection(db, "mail"), {
-              to: managerData.personalEmail,
+              to: employeeData.reportLine1,
               message: {
                 subject: `New Leave Request from ${employeeName}`,
                 html: emailHtml,
@@ -194,9 +175,8 @@ export async function submitLeaveRequestAction(
               createdAt: serverTimestamp(),
             });
           }
-        }
-      }
-    }
+
+        
 
     return { message: "Leave request submitted successfully.", success: true };
   } catch (error) {
