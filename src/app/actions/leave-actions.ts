@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { z } from 'zod';
@@ -139,7 +140,7 @@ export async function submitLeaveRequestAction(
 
     // Notify Manager via personal notification and email
     if (employeeData.reportLine1) {
-      // Find the manager's user record to get their UID
+      // Find the manager's user record to get their UID and Email
       const managerQuery = query(collection(db, "employee"), where("email", "==", employeeData.reportLine1), limit(1));
       const managerSnapshot = await getDocs(managerQuery);
       
@@ -150,47 +151,51 @@ export async function submitLeaveRequestAction(
       if (!managerSnapshot.empty) {
         const managerDoc = managerSnapshot.docs[0];
         const managerData = managerDoc.data();
+        const managerUserId = managerData.userId;
+        const managerEmail = managerData.email; // The manager's actual email address
+
         // Send personal in-app notification if manager has a userId
-        if (managerData.userId) {
-          await addDoc(collection(db, `users/${managerData.userId}/notifications`), {
+        if (managerUserId) {
+          await addDoc(collection(db, `users/${managerUserId}/notifications`), {
             message: notificationMessage,
             link: requestLink,
             createdAt: serverTimestamp(),
             isRead: false,
           });
         }
+        
+        // Send email to manager's actual email address
+        if (managerEmail) {
+            const emailHtml = render(
+                LeaveRequestNotificationEmail({
+                managerName: managerData.name, // Use manager's name for greeting
+                employeeName,
+                leaveType,
+                startDate: startDate.toLocaleDateString(),
+                endDate: endDate.toLocaleDateString(),
+                reason,
+                leaveRequestLink: requestLink,
+                })
+            );
+            await addDoc(collection(db, "mail"), {
+                to: managerEmail,
+                message: {
+                    subject: `New Leave Request from ${employeeName}`,
+                    html: emailHtml,
+                },
+                status: "pending",
+                createdAt: serverTimestamp(),
+            });
+        }
       } else {
         // If manager not found as employee, send to global notifications as fallback for HR/Admin
          await addDoc(collection(db, "notifications"), {
-            message: notificationMessage,
+            message: `New leave request from ${employeeName} (Manager '${employeeData.reportLine1}' not found).`,
             link: requestLink,
             createdAt: serverTimestamp(),
             readBy: [],
         });
       }
-
-      // Send email to manager
-      const emailHtml = render(
-        LeaveRequestNotificationEmail({
-          managerName: employeeData.reportLine1, // The email is TO the manager
-          employeeName,
-          leaveType,
-          startDate: startDate.toLocaleDateString(),
-          endDate: endDate.toLocaleDateString(),
-          reason,
-          leaveRequestLink: requestLink,
-        })
-      );
-    
-      await addDoc(collection(db, "mail"), {
-        to: employeeData.reportLine1,
-        message: {
-          subject: `New Leave Request from ${employeeName}`,
-          html: emailHtml,
-        },
-        status: "pending",
-        createdAt: serverTimestamp(),
-      });
     } else {
         // No report line, send a global notification for HR/Admin
          await addDoc(collection(db, "notifications"), {
@@ -283,7 +288,7 @@ export async function updateLeaveRequestStatusAction(
         if (employeeDoc.exists()) {
           const employeeData = employeeDoc.data();
           const employeeUserId = employeeData.userId;
-          const employeeEmail = employeeData.email; // Assuming this is the NIS email
+          const employeeUserEmail = employeeData.email; // Employee's actual email address
 
           const notificationMessage = `Your leave request for ${requestData.leaveType} has been ${newStatus.toLowerCase()}.`;
           const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
@@ -299,8 +304,8 @@ export async function updateLeaveRequestStatusAction(
             });
           }
 
-          // 2. Send email notification
-          if (employeeEmail) {
+          // 2. Send email notification to the employee's actual email
+          if (employeeUserEmail) {
             const emailHtml = render(
               LeaveRequestNotificationEmail({
                 managerName: employeeData.name, // The email is TO the employee
@@ -314,7 +319,7 @@ export async function updateLeaveRequestStatusAction(
             );
 
             await addDoc(collection(db, "mail"), {
-              to: employeeEmail,
+              to: employeeUserEmail,
               message: {
                 subject: `Update on Your Leave Request: ${newStatus}`,
                 html: emailHtml,
