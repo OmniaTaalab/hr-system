@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -309,12 +310,12 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-          <Command>
-             <CommandInput placeholder="Search or type email..." />
+          <Command shouldFilter={false}>
+             <CommandInput placeholder="Search or type email..." onValueChange={setValue} value={value} />
             <CommandList>
                 <CommandEmpty>No manager found.</CommandEmpty>
                 <CommandGroup>
-                  {options.map((email) => (
+                  {options.filter(email => email.toLowerCase().includes(value.toLowerCase())).map((email) => (
                     <CommandItem
                       key={email}
                       value={email}
@@ -371,7 +372,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="add-name">Full Name</Label>
-                  <Input id="add-name" name="name" placeholder="e.g., John Doe" />
+                  <Input id="add-name" name="name" placeholder="e.g., John Doe" required />
                   {serverState?.errors?.name && <p className="text-sm text-destructive">{serverState.errors.name.join(', ')}</p>}
                 </div>
               </div>

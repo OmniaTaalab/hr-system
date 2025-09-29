@@ -92,7 +92,7 @@ export async function getAllAuthUsers() {
 // Schema for validating form data for creating an employee
 const CreateEmployeeFormSchema = z.object({
   // Personal Info
-  name: z.string().optional(),
+  name: z.string().min(1, "Full name is required."),
   personalEmail: z.string().email({ message: 'A valid personal email is required.' }).optional().or(z.literal('')),
   personalPhone: z.string().optional(),
   emergencyContactName: z.string().optional(),
@@ -197,7 +197,7 @@ export async function createEmployeeAction(
     reportLine1, reportLine2, subject, actorId, actorEmail, actorRole
   } = validatedFields.data;
   
-  const nameParts = (name || '').trim().split(/\s+/);
+  const nameParts = name.trim().split(/\s+/);
   const firstName = nameParts[0] || '';
   const lastName = nameParts.slice(1).join(' ');
 
@@ -218,7 +218,7 @@ export async function createEmployeeAction(
     const employeeId = (1001 + employeeCount).toString();
 
     const employeeData = {
-      name: name || `Employee ${employeeId}`,
+      name: name,
       firstName,
       lastName,
       personalEmail: personalEmail || "",
