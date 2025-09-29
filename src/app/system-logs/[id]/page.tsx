@@ -87,7 +87,7 @@ function SystemLogDetailContent() {
   const params = useParams();
   const logId = params.id as string;
 
-  const canViewPage = !isLoadingProfile && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
+  const canViewPage = !isLoadingProfile && profile && profile.role?.toLowerCase() === 'hr';
 
   useEffect(() => {
     if (!logId) return;

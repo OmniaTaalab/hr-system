@@ -59,7 +59,7 @@ function SystemLogContent() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [actionFilter, setActionFilter] = useState("All");
 
-  const canViewPage = !isLoadingProfile && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
+  const canViewPage = !isLoadingProfile && profile && profile.role?.toLowerCase() === 'hr';
   
   const isDateFiltered = !!selectedDate;
   const isActionFiltered = actionFilter !== "All";

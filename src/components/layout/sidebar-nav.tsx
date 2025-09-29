@@ -40,6 +40,7 @@ export function SidebarNav() {
                 item.href?.startsWith('/payroll') ||
                 item.href?.startsWith('/jobs/applications') ||
                 item.href?.startsWith('/tpi') ||
+                item.href?.startsWith('/system-logs') ||
                 item.href?.startsWith('/omnia');
             return !isProtected;
         });
@@ -48,23 +49,25 @@ export function SidebarNav() {
     const userRole = profile.role?.toLowerCase();
     const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
     
-    if (isPrivilegedUser) {
-        return siteConfig.navItems; // Admins/HR can see everything
-    }
-
-    // Filter for regular users
     return siteConfig.navItems.filter(item => {
-      const isProtected = 
-        item.href?.startsWith('/leave/all-requests') ||
-        item.href?.startsWith('/settings') ||
-        item.href?.startsWith('/career-advisor') ||
-        item.href?.startsWith('/attendance') ||
-        item.href?.startsWith('/payroll') ||
-        item.href?.startsWith('/jobs/applications') ||
-        item.href?.startsWith('/tpi') ||
-        item.href?.startsWith('/omnia');
-      
-      return !isProtected;
+        if (item.href?.startsWith('/system-logs')) {
+            return userRole === 'hr';
+        }
+        if (isPrivilegedUser) {
+            return true;
+        }
+
+        const isProtected = 
+            item.href?.startsWith('/leave/all-requests') ||
+            item.href?.startsWith('/settings') ||
+            item.href?.startsWith('/career-advisor') ||
+            item.href?.startsWith('/attendance') ||
+            item.href?.startsWith('/payroll') ||
+            item.href?.startsWith('/jobs/applications') ||
+            item.href?.startsWith('/tpi') ||
+            item.href?.startsWith('/omnia');
+        
+        return !isProtected;
     });
   }, [profile]);
 
