@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -518,13 +517,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="add-reportLine1">Report Line 1</Label>
-                    <ReportLineCombobox
-                      value={reportLine1}
-                      setValue={setReportLine1}
-                      options={allEmployeeEmails}
-                      isLoading={isLoadingManagers}
-                      placeholder="Select a Manager"
-                    />
+                    <Input id="add-reportLine1" name="reportLine1" value={reportLine1} onChange={(e) => setReportLine1(e.target.value)} placeholder="Enter manager's name" />
                     {serverState?.errors?.reportLine1 && <p className="text-sm text-destructive">{serverState.errors.reportLine1.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">

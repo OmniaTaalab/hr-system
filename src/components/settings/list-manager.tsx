@@ -30,7 +30,7 @@ interface ListItem {
 
 interface ListManagerProps {
   title: string;
-  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage" | "subjects" | "reportLine1";
+  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage" | "subjects" | "reportLines1";
 }
 
 const initialManageState: ManageListItemState = { success: false, message: null, errors: {} };
@@ -165,7 +165,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
                   </Button>
               </form>
             )}
-             {collectionName === 'reportLine1' && (
+             {collectionName === 'reportLines1' && (
               <form action={syncReportLine1Action}>
                   <Button size="sm" variant="secondary" disabled={isSyncReportLine1Pending}>
                       {isSyncReportLine1Pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}

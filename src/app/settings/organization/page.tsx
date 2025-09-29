@@ -33,7 +33,7 @@ export default function OrganizationSettingsPage() {
               <ListManager title="Campuses" collectionName="campuses" />
               <ListManager title="Subjects" collectionName="subjects" />
               <ListManager title="Leave Types" collectionName="leaveTypes" />
-              <ListManager title="Report Line 1" collectionName="reportLine1" />
+              <ListManager title="Report Line 1" collectionName="reportLines1" />
             </CardContent>
           </Card>
         </div>
