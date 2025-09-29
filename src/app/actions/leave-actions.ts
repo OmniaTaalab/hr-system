@@ -137,18 +137,39 @@ export async function submitLeaveRequestAction(
       employeeName,
     });
 
-    // Send HR Notification
-    await addDoc(collection(db, "notifications"), {
-      message: `New leave request from ${employeeName} for ${leaveType}.`,
-      link: `/leave/all-requests/${newRequestRef.id}`,
-      createdAt: serverTimestamp(),
-      readBy: [],
-    });
-
-    // Notify Manager
+    // Notify Manager via personal notification and email
     if (employeeData.reportLine1) {
+      // Find the manager's user record to get their UID
+      const managerQuery = query(collection(db, "employee"), where("email", "==", employeeData.reportLine1), limit(1));
+      const managerSnapshot = await getDocs(managerQuery);
+      
+      const notificationMessage = `New leave request from ${employeeName} for ${leaveType}.`;
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-    
+      const requestLink = `${appUrl}/leave/all-requests/${newRequestRef.id}`;
+      
+      if (!managerSnapshot.empty) {
+        const managerDoc = managerSnapshot.docs[0];
+        const managerData = managerDoc.data();
+        // Send personal in-app notification if manager has a userId
+        if (managerData.userId) {
+          await addDoc(collection(db, `users/${managerData.userId}/notifications`), {
+            message: notificationMessage,
+            link: requestLink,
+            createdAt: serverTimestamp(),
+            isRead: false,
+          });
+        }
+      } else {
+        // If manager not found as employee, send to global notifications as fallback for HR/Admin
+         await addDoc(collection(db, "notifications"), {
+            message: notificationMessage,
+            link: requestLink,
+            createdAt: serverTimestamp(),
+            readBy: [],
+        });
+      }
+
+      // Send email to manager
       const emailHtml = render(
         LeaveRequestNotificationEmail({
           managerName: employeeData.reportLine1, // The email is TO the manager
@@ -157,11 +178,10 @@ export async function submitLeaveRequestAction(
           startDate: startDate.toLocaleDateString(),
           endDate: endDate.toLocaleDateString(),
           reason,
-          leaveRequestLink: `${appUrl}/leave/all-requests/${newRequestRef.id}`,
+          leaveRequestLink: requestLink,
         })
       );
     
-      // Send the email to the manager (reportLine1)
       await addDoc(collection(db, "mail"), {
         to: employeeData.reportLine1,
         message: {
@@ -171,6 +191,14 @@ export async function submitLeaveRequestAction(
         status: "pending",
         createdAt: serverTimestamp(),
       });
+    } else {
+        // No report line, send a global notification for HR/Admin
+         await addDoc(collection(db, "notifications"), {
+            message: `New leave request from ${employeeName} (No manager assigned).`,
+            link: `/leave/all-requests/${newRequestRef.id}`,
+            createdAt: serverTimestamp(),
+            readBy: [],
+        });
     }
 
     return { message: 'Leave request submitted successfully.', success: true };
@@ -259,12 +287,13 @@ export async function updateLeaveRequestStatusAction(
 
           const notificationMessage = `Your leave request for ${requestData.leaveType} has been ${newStatus.toLowerCase()}.`;
           const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+          const requestLink = `${appUrl}/leave/my-requests`;
 
           // 1. Send in-app notification to the user's personal notifications subcollection
           if (employeeUserId) {
             await addDoc(collection(db, `users/${employeeUserId}/notifications`), {
               message: notificationMessage,
-              link: `/leave/my-requests`,
+              link: requestLink,
               createdAt: serverTimestamp(),
               isRead: false,
             });
@@ -274,12 +303,13 @@ export async function updateLeaveRequestStatusAction(
           if (employeeEmail) {
             const emailHtml = render(
               LeaveRequestNotificationEmail({
-                employeeName: employeeData.name, // The email is TO the employee
+                managerName: employeeData.name, // The email is TO the employee
+                employeeName: employeeData.name,
                 leaveType: requestData.leaveType,
                 startDate: requestData.startDate.toDate().toLocaleDateString(),
                 endDate: requestData.endDate.toDate().toLocaleDateString(),
                 reason: `Your leave request has been ${newStatus}. Manager notes: ${managerNotes || 'N/A'}`,
-                leaveRequestLink: `${appUrl}/leave/my-requests`,
+                leaveRequestLink: requestLink,
               })
             );
 

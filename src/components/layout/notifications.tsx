@@ -15,7 +15,7 @@ import {
 import { Bell, BellRing, Loader2 } from "lucide-react";
 import { useUserProfile } from "./app-layout";
 import { db } from "@/lib/firebase/config";
-import { collection, query, onSnapshot, doc, updateDoc, Timestamp, orderBy, arrayUnion, where, getDocs, or } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, updateDoc, Timestamp, orderBy, arrayUnion } from "firebase/firestore";
 import { formatDistanceToNow } from "date-fns";
 
 interface Notification {
@@ -35,13 +35,13 @@ export function Notifications() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!profile?.id || !user?.uid) {
+    if (!user?.uid) {
       setIsLoading(false);
       return;
     }
     
     setIsLoading(true);
-    const userRole = profile.role?.toLowerCase();
+    const userRole = profile?.role?.toLowerCase();
     const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
     
     const unsubscribes: (() => void)[] = [];
@@ -56,32 +56,32 @@ export function Notifications() {
         console.error("Error fetching global notifications:", error);
       });
       unsubscribes.push(unsubGlobal);
+    } else {
+      setGlobalNotifications([]);
     }
     
     // 2. Fetch personal notifications for the current user.
-    if(user?.uid) {
-        const personalQuery = query(
-          collection(db, `users/${user.uid}/notifications`), 
-          orderBy("createdAt", "desc")
-        );
-        const unsubPersonal = onSnapshot(personalQuery, (snapshot) => {
-            const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
-            setPersonalNotifications(notifs);
-        }, (error) => {
-            console.error("Error fetching personal notifications:", error);
-        });
-        unsubscribes.push(unsubPersonal);
-    }
+    const personalQuery = query(
+      collection(db, `users/${user.uid}/notifications`), 
+      orderBy("createdAt", "desc")
+    );
+    const unsubPersonal = onSnapshot(personalQuery, (snapshot) => {
+        const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+        setPersonalNotifications(notifs);
+        setIsLoading(false); // Set loading to false after personal notifs are fetched
+    }, (error) => {
+        console.error("Error fetching personal notifications:", error);
+        setIsLoading(false);
+    });
+    unsubscribes.push(unsubPersonal);
     
-    setIsLoading(false);
 
     return () => unsubscribes.forEach(unsub => unsub());
 
-  }, [profile?.id, profile?.role, user?.uid]);
+  }, [profile?.role, user?.uid]);
 
   const handleGlobalNotificationClick = async (notification: Notification) => {
     if (user?.uid && isGlobalNotificationUnread(notification)) {
-      setGlobalNotifications(prev => prev.filter(n => n.id !== notification.id));
       const notifDocRef = doc(db, `notifications`, notification.id);
       try {
         await updateDoc(notifDocRef, { readBy: arrayUnion(user.uid) });
@@ -94,7 +94,6 @@ export function Notifications() {
   
   const handlePersonalNotificationClick = async (notification: Notification) => {
      if (user?.uid && !notification.isRead) {
-        setPersonalNotifications(prev => prev.filter(n => n.id !== notification.id));
         const notifDocRef = doc(db, `users/${user.uid}/notifications`, notification.id);
         try {
             await updateDoc(notifDocRef, { isRead: true });
@@ -173,5 +172,3 @@ export function Notifications() {
     </DropdownMenu>
   );
 }
-
-    
