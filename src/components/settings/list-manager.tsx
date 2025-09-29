@@ -8,7 +8,9 @@ import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { 
     manageListItemAction, type ManageListItemState, 
     syncCampusesFromEmployeesAction,
-    syncGroupNamesFromEmployeesAction, type SyncState 
+    syncGroupNamesFromEmployeesAction, 
+    syncReportLine1FromEmployeesAction,
+    type SyncState 
 } from "@/actions/settings-actions";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -28,7 +30,7 @@ interface ListItem {
 
 interface ListManagerProps {
   title: string;
-  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage" | "subjects";
+  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage" | "subjects" | "reportLine1";
 }
 
 const initialManageState: ManageListItemState = { success: false, message: null, errors: {} };
@@ -52,6 +54,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   
   const [syncGroupState, syncGroupAction, isSyncGroupPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
   const [syncCampusState, syncCampusAction, isSyncCampusPending] = useActionState(syncCampusesFromEmployeesAction, initialSyncState);
+  const [syncReportLine1State, syncReportLine1Action, isSyncReportLine1Pending] = useActionState(syncReportLine1FromEmployeesAction, initialSyncState);
 
   const addFormRef = useRef<HTMLFormElement>(null);
   const editFormRef = useRef<HTMLFormElement>(null);
@@ -120,6 +123,16 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
     }
   }, [syncCampusState, toast]);
 
+  useEffect(() => {
+    if (syncReportLine1State?.message) {
+        toast({
+            title: syncReportLine1State.success ? "Sync Complete" : "Sync Failed",
+            description: syncReportLine1State.message,
+            variant: syncReportLine1State.success ? "default" : "destructive"
+        });
+    }
+  }, [syncReportLine1State, toast]);
+
   const filteredItems = useMemo(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
     if (!searchTerm.trim()) {
@@ -148,6 +161,14 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
               <form action={syncCampusAction}>
                   <Button size="sm" variant="secondary" disabled={isSyncCampusPending}>
                       {isSyncCampusPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Sync from Employees
+                  </Button>
+              </form>
+            )}
+             {collectionName === 'reportLine1' && (
+              <form action={syncReportLine1Action}>
+                  <Button size="sm" variant="secondary" disabled={isSyncReportLine1Pending}>
+                      {isSyncReportLine1Pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
                       Sync from Employees
                   </Button>
               </form>
