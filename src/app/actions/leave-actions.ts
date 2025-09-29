@@ -179,10 +179,10 @@ export async function submitLeaveRequestAction(
         
 
     return { message: "Leave request submitted successfully.", success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Submit Leave Request Error:", error);
     return {
-      errors: { form: ["Failed to submit leave request."] },
+      errors: { form: [`Failed to submit leave request. ${error.message}`] },
       success: false,
     };
   }
@@ -410,5 +410,3 @@ export async function deleteLeaveRequestAction(
     };
   }
 }
-
-    
