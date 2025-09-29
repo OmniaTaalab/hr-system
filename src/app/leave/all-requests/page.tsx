@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -111,65 +110,68 @@ function AllLeaveRequestsContent() {
   
   useEffect(() => {
     if (isLoadingProfile) return;
-    
+
     setIsLoading(true);
 
     const buildQuery = async () => {
-        let queryConstraints: QueryConstraint[] = [];
-        const userRole = profile?.role?.toLowerCase();
-        
-        if (userRole === 'admin' || userRole === 'hr') {
-            // No additional filters needed for query, but we still need to sort later
-        } 
-        else if (profile?.name) {
-            try {
-                const reportsQuery = query(collection(db, "employee"), where("reportLine1", "==", profile.name));
-                const reportsSnapshot = await getDocs(reportsQuery);
-                const reportIds = reportsSnapshot.docs.map(doc => doc.id);
-                
-                if(profile.id && !reportIds.includes(profile.id)) {
-                    reportIds.push(profile.id);
-                }
+      let queryConstraints: QueryConstraint[] = [];
+      const userRole = profile?.role?.toLowerCase();
 
-                if (reportIds.length > 0) {
-                    if (reportIds.length <= 30) {
-                        queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds));
-                    } else {
-                        console.warn("User manages more than 30 employees, showing requests for the first 30.");
-                        queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds.slice(0, 30)));
-                    }
+      // If user is not an admin or HR, filter requests based on their reports.
+      if (userRole !== 'admin' && userRole !== 'hr' && profile?.email) {
+        try {
+          const reportsQuery = query(
+            collection(db, "employee"),
+            where("reportLine1", "==", profile.email)
+          );
+          const reportsSnapshot = await getDocs(reportsQuery);
+          
+          if (reportsSnapshot.empty) {
+            // If they are not a manager for anyone, they should see no requests.
+            // We can pass a condition that will always be false.
+            queryConstraints.push(where("requestingEmployeeDocId", "==", "NO_REPORTS_FOUND"));
+          } else {
+            const reportIds = reportsSnapshot.docs.map(doc => doc.id);
+             if (reportIds.length > 0) {
+                // Firestore 'in' queries are limited to 30 items.
+                if (reportIds.length <= 30) {
+                    queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds));
                 } else {
-                     queryConstraints.push(where("requestingEmployeeDocId", "==", profile.id || ""));
+                    // For now, we will only fetch requests for the first 30 reports.
+                    // A more robust solution might involve multiple queries.
+                    console.warn("User manages more than 30 employees. Showing leave requests for the first 30 reports only.");
+                    queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds.slice(0, 30)));
                 }
-            } catch (error) {
-                console.error("Error finding direct reports:", error);
-                queryConstraints.push(where("requestingEmployeeDocId", "==", profile.id || ""));
+            } else {
+                 queryConstraints.push(where("requestingEmployeeDocId", "==", "NO_REPORTS_FOUND"));
             }
+          }
+        } catch (error) {
+          console.error("Error finding direct reports:", error);
+          // Fallback to a query that returns nothing if there's an error.
+          queryConstraints.push(where("requestingEmployeeDocId", "==", "ERROR_FETCHING_REPORTS"));
         }
-        else {
-             queryConstraints.push(where("requestingEmployeeDocId", "==", ""));
-        }
+      }
+      // Admins and HR will have no constraints, fetching all requests.
 
-        // Removed orderBy('startDate', 'desc') to avoid needing a composite index.
-        const finalQuery = query(collection(db, "leaveRequests"), ...queryConstraints);
-        
-        const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
-            const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
-            // Sort client-side instead
-            requestsData.sort((a,b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
-            setAllRequests(requestsData);
-            setIsLoading(false);
-        }, (error) => {
-            console.error("Error fetching leave requests: ", error);
-            toast({
-                variant: "destructive",
-                title: "Error Fetching Requests",
-                description: "Could not load leave requests. This might be due to a missing Firestore index.",
-            });
-            setIsLoading(false);
+      const finalQuery = query(collection(db, "leaveRequests"), ...queryConstraints);
+
+      const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
+        const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+        requestsData.sort((a, b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
+        setAllRequests(requestsData);
+        setIsLoading(false);
+      }, (error) => {
+        console.error("Error fetching leave requests: ", error);
+        toast({
+          variant: "destructive",
+          title: "Error Fetching Requests",
+          description: "Could not load leave requests. This might be due to a missing Firestore index.",
         });
+        setIsLoading(false);
+      });
 
-        return unsubscribe;
+      return unsubscribe;
     };
 
     let unsubscribe: (() => void) | undefined;
@@ -182,7 +184,7 @@ function AllLeaveRequestsContent() {
             unsubscribe();
         }
     };
-}, [profile, isLoadingProfile, toast]);
+  }, [profile, isLoadingProfile, toast]);
 
 
   useEffect(() => {
@@ -490,3 +492,5 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
+
+    
