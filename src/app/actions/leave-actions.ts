@@ -153,12 +153,12 @@ export async function submitLeaveRequestAction(
       const emailHtml = render(
         LeaveRequestNotificationEmail({
           managerName: employeeData.reportLine1, // أو لو عندك اسم المدير منفصل استبدليه هنا
-          employeeName ,
+          employeeName,
           leaveType,
           startDate: startDate.toLocaleDateString(),
           endDate: endDate.toLocaleDateString(),
           reason,
-          leaveRequestLink: `${appUrl}leave/all-requests/${newRequestRef.id}`,
+          leaveRequestLink: `${appUrl}/leave/all-requests/${newRequestRef.id}`,
         })
       );
     
@@ -166,8 +166,6 @@ export async function submitLeaveRequestAction(
 
     
             await addDoc(collection(db, "mail"), {
-              from: employeeData.email,
-      
               to: employeeData.reportLine1,
               message: {
                 subject: `New Leave Request from ${employeeName}`,
@@ -250,6 +248,60 @@ export async function updateLeaveRequestStatusAction(
         leaveRequestId: requestId,
         newStatus,
     });
+    
+    // Send notification to the user who requested the leave
+    const requestSnap = await getDoc(requestRef);
+    if (requestSnap.exists()) {
+      const requestData = requestSnap.data();
+      const employeeDocId = requestData.requestingEmployeeDocId;
+      
+      if (employeeDocId) {
+        const employeeDoc = await getDoc(doc(db, "employee", employeeDocId));
+        if (employeeDoc.exists()) {
+          const employeeData = employeeDoc.data();
+          const employeeUserId = employeeData.userId;
+          const employeeEmail = employeeData.email; // Assuming this is the NIS email
+
+          const notificationMessage = `Your leave request for ${requestData.leaveType} has been ${newStatus.toLowerCase()}.`;
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+
+          // 1. Send in-app notification to the user's personal notifications subcollection
+          if (employeeUserId) {
+            await addDoc(collection(db, `users/${employeeUserId}/notifications`), {
+              message: notificationMessage,
+              link: `/leave/my-requests`,
+              createdAt: serverTimestamp(),
+              isRead: false,
+            });
+          }
+
+          // 2. Send email notification
+          if (employeeEmail) {
+            const emailHtml = render(
+              LeaveRequestNotificationEmail({
+                employeeName: employeeData.name, // The email is TO the employee
+                leaveType: requestData.leaveType,
+                startDate: requestData.startDate.toDate().toLocaleDateString(),
+                endDate: requestData.endDate.toDate().toLocaleDateString(),
+                reason: `Your leave request has been ${newStatus}. Manager notes: ${managerNotes || 'N/A'}`,
+                leaveRequestLink: `${appUrl}/leave/my-requests`,
+              })
+            );
+
+            await addDoc(collection(db, "mail"), {
+              to: employeeEmail,
+              message: {
+                subject: `Update on Your Leave Request: ${newStatus}`,
+                html: emailHtml,
+              },
+              status: "pending",
+              createdAt: serverTimestamp(),
+            });
+          }
+        }
+      }
+    }
+
 
     return { message: `Leave request status updated to ${newStatus}.`, success: true };
   } catch (error: any) {
