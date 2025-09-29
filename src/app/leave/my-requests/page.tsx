@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { format, differenceInCalendarDays, startOfMonth, endOfMonth, max, min, getYear, getMonth, setYear, setMonth, isValid, startOfDay as dateFnsStartOfDay, endOfDay as dateFnsEndOfDay } from "date-fns";
+import { format, differenceInCalendarDays, startOfMonth, endOfMonth, max, min, getYear, getMonth, setYear, setMonth, isValid, startOfDay as dateFnsStartOfDay, endOfDay as dateFnsEndOfDay, startOfYear, endOfYear } from "date-fns";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, where, Timestamp, orderBy, DocumentData, getDocs } from 'firebase/firestore';
 import { cn } from "@/lib/utils";
@@ -210,11 +210,15 @@ function MyRequestsContent() {
       }
 
       try {
+        // Simplified query to get all requests for the year to avoid composite index.
+        const yearStart = startOfYear(currentMonthDate);
+        const yearEnd = endOfYear(currentMonthDate);
+
         const overlappingLeavesQuery = query(
           collection(db, "leaveRequests"),
           where("requestingEmployeeDocId", "==", currentEmployeeId),
-          where("status", "==", "Approved"), 
-          where("startDate", "<=", Timestamp.fromDate(monthEnd))
+          where("startDate", "<=", Timestamp.fromDate(yearEnd)),
+          where("endDate", ">=", Timestamp.fromDate(yearStart))
         );
         
         const leaveSnapshot = await getDocs(overlappingLeavesQuery);
@@ -227,22 +231,24 @@ function MyRequestsContent() {
           const leaveStartDate = leave.startDate.toDate();
           const leaveEndDate = leave.endDate.toDate();
 
-          if (leaveEndDate >= monthStart) { 
-            const daysInMonth = calculateLeaveDaysInMonth(
+          // Check for overlap with the specific month
+          if (leaveEndDate >= monthStart && leaveStartDate <= monthEnd) {
+             const daysInMonth = calculateLeaveDaysInMonth(
               leaveStartDate,
               leaveEndDate,
-              monthStart, 
-              monthEnd    
+              monthStart,
+              monthEnd
             );
             if (daysInMonth > 0) {
-              if(leave.status === "Approved") { 
-                 totalLeaveDaysInMonth += daysInMonth;
-                 approvedLeaveApplicationsInMonth.add(leave.id);
+              if (leave.status === "Approved") {
+                totalLeaveDaysInMonth += daysInMonth;
+                approvedLeaveApplicationsInMonth.add(leave.id);
               }
               filteredLeaveRequestsForTable.push(leave);
             }
           }
         });
+
         setMonthlyLeaveDays(totalLeaveDaysInMonth);
         setMonthlyLeaveApplicationsCount(approvedLeaveApplicationsInMonth.size);
         setEmployeeLeaveRequests(filteredLeaveRequestsForTable.sort((a,b) => b.startDate.toMillis() - a.startDate.toMillis()));
