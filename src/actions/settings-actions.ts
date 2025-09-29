@@ -307,18 +307,22 @@ export async function manageListItemAction(
 ): Promise<ManageListItemState> {
   
   const rawData = {
-    collectionName: formData.get('collectionName'),
-    operation: formData.get('operation'),
-    name: formData.get('name'),
-    id: formData.get('id'),
-    actorId: formData.get('actorId'),
-    actorEmail: formData.get('actorEmail'),
-    actorRole: formData.get('actorRole'),
+    collectionName: formData.get("collectionName") ?? "",
+    operation: formData.get("operation") ?? "",
+    name: formData.get("name") ?? "",
+    id: formData.get("id") ?? "",
+    actorId: formData.get("actorId") ?? "",
+    actorEmail: formData.get("actorEmail") ?? "",
+    actorRole: formData.get("actorRole") ?? "",
   };
-  
   const baseValidation = ManageItemSchema.safeParse(rawData);
   if (!baseValidation.success) {
-    return { errors: { form: ["Invalid data submitted."] }, success: false };
+    return { 
+      errors: { 
+        form: baseValidation.error.errors.map(err => err.message) 
+      }, 
+      success: false 
+    };
   }
 
   const { collectionName } = baseValidation.data;
