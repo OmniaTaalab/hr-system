@@ -309,12 +309,12 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-          <Command shouldFilter={false}>
-             <CommandInput placeholder="Search or type email..." onValueChange={setValue} value={value} />
+          <Command>
+             <CommandInput placeholder="Search or type email..." />
             <CommandList>
                 <CommandEmpty>No manager found.</CommandEmpty>
                 <CommandGroup>
-                  {options.filter(email => email.toLowerCase().includes(value.toLowerCase())).map((email) => (
+                  {options.map((email) => (
                     <CommandItem
                       key={email}
                       value={email}
@@ -514,7 +514,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                  
               </div>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div className="space-y-2">
+                <div className="space-y-2">
                     <Label htmlFor="add-reportLine1">Report Line 1</Label>
                     <ReportLineCombobox
                       value={reportLine1}
