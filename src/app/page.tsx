@@ -115,6 +115,7 @@ function DashboardPageContent() {
   const [pendingLeaveRequests, setPendingLeaveRequests] = useState<number | null>(null);
   const [approvedLeaveRequests, setApprovedLeaveRequests] = useState<number | null>(null);
   const [rejectedLeaveRequests, setRejectedLeaveRequests] = useState<number | null>(null);
+  const [totalLeaveRequests, setTotalLeaveRequests] = useState<number | null>(null);
   const [campusData, setCampusData] = useState<CampusData[]>([]);
   const [upcomingHolidays, setUpcomingHolidays] = useState<Holiday[]>([]);
   const [lateAttendance, setLateAttendance] = useState<number | null>(null);
@@ -125,6 +126,7 @@ function DashboardPageContent() {
   const [isLoadingPendingLeaves, setIsLoadingPendingLeaves] = useState(true);
   const [isLoadingApprovedLeaves, setIsLoadingApprovedLeaves] = useState(true);
   const [isLoadingRejectedLeaves, setIsLoadingRejectedLeaves] = useState(true);
+  const [isLoadingTotalLeaves, setIsLoadingTotalLeaves] = useState(true);
   const [isLoadingCampusData, setIsLoadingCampusData] = useState(true);
   const [isLoadingHolidays, setIsLoadingHolidays] = useState(true);
   const [isLoadingLateAttendance, setIsLoadingLateAttendance] = useState(true);
@@ -167,6 +169,7 @@ function DashboardPageContent() {
       setIsLoadingPendingLeaves(true);
       setIsLoadingApprovedLeaves(true);
       setIsLoadingRejectedLeaves(true);
+      setIsLoadingTotalLeaves(true);
 
       try {
         const leaveRequestsCollection = collection(db, "leaveRequests");
@@ -182,6 +185,7 @@ function DashboardPageContent() {
             setPendingLeaveRequests(0);
             setApprovedLeaveRequests(0);
             setRejectedLeaveRequests(0);
+            setTotalLeaveRequests(0);
             return;
           }
         } else if (userRole !== 'admin' && userRole !== 'hr' && profile?.id) {
@@ -191,25 +195,30 @@ function DashboardPageContent() {
         const pendingQuery = query(leaveRequestsCollection, ...baseLeaveQueryConstraints, where("status", "==", "Pending"));
         const approvedQuery = query(leaveRequestsCollection, ...baseLeaveQueryConstraints, where("status", "==", "Approved"));
         const rejectedQuery = query(leaveRequestsCollection, ...baseLeaveQueryConstraints, where("status", "==", "Rejected"));
+        const totalQuery = query(leaveRequestsCollection, ...baseLeaveQueryConstraints);
 
-        const [pendingSnapshot, approvedSnapshot, rejectedSnapshot] = await Promise.all([
+        const [pendingSnapshot, approvedSnapshot, rejectedSnapshot, totalSnapshot] = await Promise.all([
           getCountFromServer(pendingQuery),
           getCountFromServer(approvedQuery),
-          getCountFromServer(rejectedQuery)
+          getCountFromServer(rejectedQuery),
+          getCountFromServer(totalQuery),
         ]);
 
         setPendingLeaveRequests(pendingSnapshot.data().count);
         setApprovedLeaveRequests(approvedSnapshot.data().count);
         setRejectedLeaveRequests(rejectedSnapshot.data().count);
+        setTotalLeaveRequests(totalSnapshot.data().count);
       } catch (error) {
         console.error("Error fetching leave requests count:", error);
         setPendingLeaveRequests(0);
         setApprovedLeaveRequests(0);
         setRejectedLeaveRequests(0);
+        setTotalLeaveRequests(0);
       } finally {
         setIsLoadingPendingLeaves(false);
         setIsLoadingApprovedLeaves(false);
         setIsLoadingRejectedLeaves(false);
+        setIsLoadingTotalLeaves(false);
       }
     };
 
@@ -362,6 +371,15 @@ function DashboardPageContent() {
       href: "/leave/all-requests",
       linkText: "View Rejected",
     },
+     {
+      title: "All Leave Requests",
+      iconName: "ListChecks",
+      statistic: totalLeaveRequests ?? 0,
+      isLoadingStatistic: isLoadingTotalLeaves,
+      href: "/leave/all-requests",
+      linkText: "View All Requests",
+      adminOnly: true,
+    },
   ];
   
   const filteredStatisticCards = useMemo(() => {
@@ -454,7 +472,7 @@ function DashboardPageContent() {
         <h2 id="statistics-title" className="text-2xl font-semibold font-headline mb-4">
           Key Statistics
         </h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredStatisticCards.map((card) => (
             <DashboardCard key={card.title} {...card} />
           ))}
@@ -571,3 +589,5 @@ export default function HRDashboardPage() {
     </AppLayout>
   );
 }
+
+    
