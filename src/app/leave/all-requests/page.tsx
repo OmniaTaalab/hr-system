@@ -102,7 +102,7 @@ function AllLeaveRequestsContent() {
   
   const [deleteServerState, deleteFormAction, isDeletePending] = useActionState(deleteLeaveRequestAction, initialDeleteState);
   
-  const canManageRequests = useMemo(() => {
+  const canManageAllRequests = useMemo(() => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();
     return userRole === 'admin' || userRole === 'hr'; 
@@ -115,11 +115,11 @@ function AllLeaveRequestsContent() {
 
     const buildQuery = async () => {
       let queryConstraints: QueryConstraint[] = [];
-      const userRole = profile?.role?.toLowerCase();
-
-      // If user is not an admin or HR, filter requests based on their reports.
-      if (userRole !== 'admin' && userRole !== 'hr' && profile?.email) {
+      
+      // Managers should see requests from their reports. HR/Admin see all.
+      if (!canManageAllRequests && profile?.email) {
         try {
+          // Find employees who report to the current user
           const reportsQuery = query(
             collection(db, "employee"),
             where("reportLine1", "==", profile.email)
@@ -128,31 +128,27 @@ function AllLeaveRequestsContent() {
           
           if (reportsSnapshot.empty) {
             // If they are not a manager for anyone, they should see no requests.
-            // We can pass a condition that will always be false.
+            // We can pass a condition that will always be false to return no documents.
             queryConstraints.push(where("requestingEmployeeDocId", "==", "NO_REPORTS_FOUND"));
           } else {
             const reportIds = reportsSnapshot.docs.map(doc => doc.id);
-             if (reportIds.length > 0) {
-                // Firestore 'in' queries are limited to 30 items.
-                if (reportIds.length <= 30) {
-                    queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds));
-                } else {
-                    // For now, we will only fetch requests for the first 30 reports.
-                    // A more robust solution might involve multiple queries.
-                    console.warn("User manages more than 30 employees. Showing leave requests for the first 30 reports only.");
-                    queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds.slice(0, 30)));
-                }
+            // Firestore 'in' queries are limited to 30 items per query.
+            if (reportIds.length > 0) {
+              // We'll apply the filter here. If more than 30 reports, we could do multiple queries,
+              // but for now, we'll assume a manager has <= 30 direct reports.
+              queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds.slice(0, 30)));
             } else {
-                 queryConstraints.push(where("requestingEmployeeDocId", "==", "NO_REPORTS_FOUND"));
+               queryConstraints.push(where("requestingEmployeeDocId", "==", "NO_REPORTS_FOUND"));
             }
           }
         } catch (error) {
           console.error("Error finding direct reports:", error);
-          // Fallback to a query that returns nothing if there's an error.
+          // Fallback to a query that returns nothing to prevent showing all requests on error.
           queryConstraints.push(where("requestingEmployeeDocId", "==", "ERROR_FETCHING_REPORTS"));
         }
       }
-      // Admins and HR will have no constraints, fetching all requests.
+
+      // Admins and HR will have no constraints here, fetching all requests.
 
       const finalQuery = query(collection(db, "leaveRequests"), ...queryConstraints);
 
@@ -184,7 +180,7 @@ function AllLeaveRequestsContent() {
             unsubscribe();
         }
     };
-  }, [profile, isLoadingProfile, toast]);
+  }, [profile, isLoadingProfile, toast, canManageAllRequests]);
 
 
   useEffect(() => {
@@ -492,5 +488,3 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
-
-    
