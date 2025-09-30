@@ -13,6 +13,9 @@ import { createJobAction, type CreateJobState } from '@/app/actions/job-actions'
 import { Loader2, PlusCircle, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Checkbox } from '@/components/ui/checkbox';
+import { applicationFieldsConfig } from '@/components/job-application-dialog';
+import { Separator } from '@/components/ui/separator';
 
 const initialState: CreateJobState = {
   message: null,
@@ -35,7 +38,6 @@ function CreateJobForm() {
             });
             if (state.success) {
                 formRef.current?.reset();
-                // Redirect back to the jobs list after successful creation
                 router.push('/jobs');
             }
         }
@@ -55,12 +57,10 @@ function CreateJobForm() {
                     {state.errors?.department && <p className="text-sm text-destructive">{state.errors.department.join(', ')}</p>}
                 </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                    <Label htmlFor="location">Location</Label>
-                    <Input id="location" name="location" placeholder="e.g., Remote or City, Country" required />
-                    {state.errors?.location && <p className="text-sm text-destructive">{state.errors.location.join(', ')}</p>}
-                </div>
+            <div className="space-y-2">
+                <Label htmlFor="location">Location</Label>
+                <Input id="location" name="location" placeholder="e.g., Remote or City, Country" required />
+                {state.errors?.location && <p className="text-sm text-destructive">{state.errors.location.join(', ')}</p>}
             </div>
              <div className="space-y-2">
                 <Label htmlFor="shortRequirements">Key Requirements</Label>
@@ -68,13 +68,34 @@ function CreateJobForm() {
                 <p className="text-xs text-muted-foreground">Each line will be treated as a separate bullet point on the job board.</p>
                  {state.errors?.shortRequirements && <p className="text-sm text-destructive">{state.errors.shortRequirements.join(', ')}</p>}
             </div>
+            
+            <Separator />
+
+            <div className="space-y-4">
+                <Label className="text-base font-semibold">Application Form Fields</Label>
+                <p className="text-sm text-muted-foreground">
+                    Select the fields you want applicants to fill out for this job. Core fields (Resume, Job ID) are always included.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 rounded-lg border p-4">
+                    {applicationFieldsConfig.map(field => (
+                        <div key={field.id} className="flex items-center space-x-2">
+                            <Checkbox id={`field-${field.id}`} name="applicationFields" value={field.id} defaultChecked={field.required} disabled={field.required} />
+                            <Label htmlFor={`field-${field.id}`} className={cn(field.required && "text-muted-foreground")}>
+                                {field.label}
+                            </Label>
+                        </div>
+                    ))}
+                </div>
+                 {state.errors?.applicationFields && <p className="text-sm text-destructive">{state.errors.applicationFields.join(', ')}</p>}
+            </div>
+
             {state.errors?.form && (
                  <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
                     <AlertTriangle className="mr-2 h-4 w-4 flex-shrink-0" />
                     <span>{state.errors.form.join(', ')}</span>
                 </div>
             )}
-            <div className="flex justify-end gap-4">
+            <div className="flex justify-end gap-4 pt-4 border-t">
                  <Button variant="outline" asChild>
                     <Link href="/jobs">Cancel</Link>
                 </Button>

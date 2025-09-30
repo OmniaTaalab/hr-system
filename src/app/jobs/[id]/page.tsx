@@ -21,6 +21,7 @@ interface JobOpening {
   location: string;
   shortRequirements: string[];
   createdAt?: Timestamp;
+  applicationFields?: string[];
 }
 
 const LinkedInIcon = (props: React.SVGProps<SVGSVGElement>) => (

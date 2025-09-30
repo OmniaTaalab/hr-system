@@ -1,6 +1,6 @@
 
 "use client";
-import React, { useState, useEffect, useRef, useTransition } from "react";
+import React, { useState, useEffect, useRef, useTransition, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -32,11 +32,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 interface JobOpening {
   id: string;
   title: string;
+  applicationFields?: string[];
 }
 
 interface JobApplicationDialogProps {
   job: JobOpening;
 }
+
+// Configuration for all possible fields
+export const applicationFieldsConfig = [
+    { id: 'nameEn', label: 'Name (English)', required: true },
+    { id: 'nameAr', label: 'Name (Arabic)', required: true },
+    { id: 'dateOfBirth', label: 'Date of Birth', required: true },
+    { id: 'placeOfBirth', label: 'Place of Birth', required: true },
+    { id: 'nationalities', label: 'Nationality(ies)', required: true },
+    { id: 'socialTitle', label: 'Social Title', required: true },
+    { id: 'isParentAtNIS', label: 'Parent at NIS?', required: true },
+    { id: 'maritalStatus', label: 'Marital Status', required: true },
+    { id: 'numberOfChildren', label: 'Number of Children', required: false },
+    { id: 'address', label: 'Current Address', required: false },
+    { id: 'contactNumbers', label: 'Contact Numbers', required: true },
+    { id: 'emails', label: 'Email Addresses', required: true },
+];
 
 const initialState: ApplyForJobState = {
   message: null,
@@ -58,6 +75,14 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const [isSubmitting, startTransition] = useTransition();
 
   const isPending = isUploading || isSubmitting;
+
+  const visibleFields = useMemo(() => {
+    if (!job.applicationFields || job.applicationFields.length === 0) {
+      // Default to all required fields if none are specified
+      return new Set(applicationFieldsConfig.filter(f => f.required).map(f => f.id));
+    }
+    return new Set(job.applicationFields);
+  }, [job.applicationFields]);
 
   useEffect(() => {
     if (state?.message) {
@@ -124,6 +149,48 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
 
     setIsUploading(true);
     const formData = new FormData(currentForm);
+    
+    // Only construct payload with visible fields
+    const payload: Partial<JobApplicationPayload> = {
+      jobId: job.id,
+      jobTitle: job.title,
+    };
+
+    if (visibleFields.has('nameEn')) {
+      payload.firstNameEn = formData.get('firstNameEn') as string;
+      payload.middleNameEn = formData.get('middleNameEn') as string;
+      payload.lastNameEn = formData.get('lastNameEn') as string;
+    }
+    if (visibleFields.has('nameAr')) {
+      payload.firstNameAr = formData.get('firstNameAr') as string;
+      payload.fatherNameAr = formData.get('fatherNameAr') as string;
+      payload.familyNameAr = formData.get('familyNameAr') as string;
+    }
+    if (visibleFields.has('dateOfBirth')) payload.dateOfBirth = dateOfBirth;
+    if (visibleFields.has('placeOfBirth')) payload.placeOfBirth = formData.get('placeOfBirth') as string;
+    if (visibleFields.has('nationalities')) payload.nationalities = formData.get('nationalities') as string;
+    if (visibleFields.has('socialTitle')) payload.socialTitle = formData.get('socialTitle') as any;
+    if (visibleFields.has('isParentAtNIS')) payload.isParentAtNIS = formData.get('isParentAtNIS') as any;
+    if (visibleFields.has('maritalStatus')) payload.maritalStatus = formData.get('maritalStatus') as any;
+    if (visibleFields.has('numberOfChildren')) payload.numberOfChildren = Number(formData.get('numberOfChildren'));
+    if (visibleFields.has('address')) {
+      payload.country = formData.get('country') as string;
+      payload.city = formData.get('city') as string;
+      payload.area = formData.get('area') as string;
+      payload.street = formData.get('street') as string;
+      payload.building = formData.get('building') as string;
+      payload.apartment = formData.get('apartment') as string;
+    }
+    if (visibleFields.has('contactNumbers')) {
+      payload.homePhone = formData.get('homePhone') as string;
+      payload.mobilePhone = formData.get('mobilePhone') as string;
+      payload.otherPhone = formData.get('otherPhone') as string;
+    }
+    if (visibleFields.has('emails')) {
+      payload.email1 = formData.get('email1') as string;
+      payload.email2 = formData.get('email2') as string;
+    }
+
 
     try {
       const fileExtension = file.name.split(".").pop();
@@ -133,39 +200,10 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
 
       await uploadBytes(fileRef, file, { contentType: "application/pdf" });
       const resumeURL = await getDownloadURL(fileRef);
+      payload.resumeURL = resumeURL;
       
-      const payload: JobApplicationPayload = {
-        jobId: job.id,
-        jobTitle: job.title,
-        resumeURL: resumeURL,
-        firstNameEn: formData.get('firstNameEn') as string,
-        middleNameEn: formData.get('middleNameEn') as string,
-        lastNameEn: formData.get('lastNameEn') as string,
-        firstNameAr: formData.get('firstNameAr') as string,
-        fatherNameAr: formData.get('fatherNameAr') as string,
-        familyNameAr: formData.get('familyNameAr') as string,
-        dateOfBirth: dateOfBirth!,
-        placeOfBirth: formData.get('placeOfBirth') as string,
-        nationalities: formData.get('nationalities') as string,
-        socialTitle: formData.get('socialTitle') as "Mr" | "Miss" | "Mrs",
-        isParentAtNIS: formData.get('isParentAtNIS') as "Yes" | "No",
-        maritalStatus: formData.get('maritalStatus') as "Single" | "Engaged" | "Married" | "Divorced" | "Separated" | "Widowed",
-        numberOfChildren: Number(formData.get('numberOfChildren')),
-        country: formData.get('country') as string,
-        city: formData.get('city') as string,
-        area: formData.get('area') as string,
-        street: formData.get('street') as string,
-        building: formData.get('building') as string,
-        apartment: formData.get('apartment') as string,
-        homePhone: formData.get('homePhone') as string,
-        mobilePhone: formData.get('mobilePhone') as string,
-        otherPhone: formData.get('otherPhone') as string,
-        email1: formData.get('email1') as string,
-        email2: formData.get('email2') as string,
-      };
-
       startTransition(() => {
-        formAction(payload);
+        formAction(payload as JobApplicationPayload);
       });
 
     } catch (error) {
@@ -199,10 +237,11 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
           </DialogDescription>
         </DialogHeader>
         <form ref={formRef} onSubmit={handleFormSubmit} noValidate>
-          <ScrollArea className="h-96 pr-6">
+          <ScrollArea className="h-[60vh] pr-6">
             <div className="space-y-6">
                 <h3 className="font-semibold text-lg border-b pb-2">Personal Info</h3>
                 
+                {visibleFields.has('nameEn') && (
                 <div className="space-y-2">
                     <Label>Name in English (as in official documents)</Label>
                     <div className="grid grid-cols-3 gap-2">
@@ -211,7 +250,9 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                         <Input name="lastNameEn" placeholder="Last Name" required disabled={isPending} />
                     </div>
                 </div>
+                )}
 
+                {visibleFields.has('nameAr') && (
                 <div className="space-y-2">
                     <Label>Name in Arabic (as in I.D.)</Label>
                     <div className="grid grid-cols-3 gap-2">
@@ -220,8 +261,10 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                         <Input name="familyNameAr" placeholder="العائلة" required disabled={isPending} dir="rtl" />
                     </div>
                 </div>
+                )}
                 
                 <div className="grid grid-cols-2 gap-4">
+                    {visibleFields.has('dateOfBirth') && (
                     <div className="space-y-2">
                         <Label>Date of Birth</Label>
                         <Popover>
@@ -236,28 +279,35 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                             </PopoverContent>
                         </Popover>
                     </div>
+                    )}
+                     {visibleFields.has('placeOfBirth') && (
                     <div className="space-y-2">
                         <Label htmlFor="placeOfBirth">Place of Birth</Label>
                         <Input id="placeOfBirth" name="placeOfBirth" required disabled={isPending} />
                     </div>
+                    )}
                 </div>
 
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="nationalities">Nationality(ies)</Label>
-                        <Input id="nationalities" name="nationalities" required disabled={isPending} />
-                    </div>
-                     <div className="space-y-2">
-                        <Label>Social Title</Label>
-                        <RadioGroup name="socialTitle" defaultValue="Mr" className="flex gap-4">
-                            <div className="flex items-center space-x-2"><RadioGroupItem value="Mr" id="title-mr" /><Label htmlFor="title-mr">Mr</Label></div>
-                            <div className="flex items-center space-x-2"><RadioGroupItem value="Miss" id="title-miss" /><Label htmlFor="title-miss">Miss</Label></div>
-                            <div className="flex items-center space-x-2"><RadioGroupItem value="Mrs" id="title-mrs" /><Label htmlFor="title-mrs">Mrs</Label></div>
-                        </RadioGroup>
-                    </div>
+                 {visibleFields.has('nationalities') && (
+                 <div className="space-y-2">
+                    <Label htmlFor="nationalities">Nationality(ies)</Label>
+                    <Input id="nationalities" name="nationalities" required disabled={isPending} />
                 </div>
+                 )}
+
+                 {visibleFields.has('socialTitle') && (
+                 <div className="space-y-2">
+                    <Label>Social Title</Label>
+                    <RadioGroup name="socialTitle" defaultValue="Mr" className="flex gap-4">
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="Mr" id="title-mr" /><Label htmlFor="title-mr">Mr</Label></div>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="Miss" id="title-miss" /><Label htmlFor="title-miss">Miss</Label></div>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="Mrs" id="title-mrs" /><Label htmlFor="title-mrs">Mrs</Label></div>
+                    </RadioGroup>
+                </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
+                     {visibleFields.has('isParentAtNIS') && (
                     <div className="space-y-2">
                          <Label>Are you a parent at NIS?</Label>
                         <RadioGroup name="isParentAtNIS" defaultValue="No" className="flex gap-4">
@@ -265,6 +315,8 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                              <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="is-parent-no" /><Label htmlFor="is-parent-no">No</Label></div>
                         </RadioGroup>
                     </div>
+                    )}
+                     {visibleFields.has('maritalStatus') && (
                     <div className="space-y-2">
                         <Label>Marital Status</Label>
                          <Select name="maritalStatus" required>
@@ -279,64 +331,77 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                             </SelectContent>
                         </Select>
                     </div>
+                     )}
                 </div>
 
+                {visibleFields.has('numberOfChildren') && (
                 <div className="space-y-2">
                     <Label htmlFor="numberOfChildren">Number of children (if any)</Label>
                     <Input id="numberOfChildren" name="numberOfChildren" type="number" min="0" defaultValue="0" disabled={isPending} />
                 </div>
+                )}
                 
-                <Separator />
-                <h3 className="font-semibold text-lg border-b pb-2">Contact & Address</h3>
+                {visibleFields.has('address') && (
+                    <>
+                    <Separator />
+                    <h3 className="font-semibold text-lg border-b pb-2">Current Address</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="country">Country</Label>
+                            <Input id="country" name="country" disabled={isPending} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="city">City</Label>
+                            <Input id="city" name="city" disabled={isPending} />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="area">Area</Label>
+                            <Input id="area" name="area" disabled={isPending} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="street">Street</Label>
+                            <Input id="street" name="street" disabled={isPending} />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="building">Building/Floor</Label>
+                            <Input id="building" name="building" disabled={isPending} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="apartment">Apartment Number</Label>
+                            <Input id="apartment" name="apartment" disabled={isPending} />
+                        </div>
+                    </div>
+                    </>
+                )}
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="country">Country</Label>
-                        <Input id="country" name="country" disabled={isPending} />
+                {visibleFields.has('contactNumbers') && (
+                    <>
+                    <Separator />
+                     <h3 className="font-semibold text-lg border-b pb-2">Contact Info</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="homePhone">Home Telephone</Label>
+                            <Input id="homePhone" name="homePhone" type="tel" disabled={isPending} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="mobilePhone">Mobile Number</Label>
+                            <Input id="mobilePhone" name="mobilePhone" type="tel" required disabled={isPending} />
+                        </div>
                     </div>
+
                     <div className="space-y-2">
-                        <Label htmlFor="city">City</Label>
-                        <Input id="city" name="city" disabled={isPending} />
+                        <Label htmlFor="otherPhone">Other Telephone Numbers</Label>
+                        <Input id="otherPhone" name="otherPhone" type="tel" disabled={isPending} />
                     </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="area">Area</Label>
-                        <Input id="area" name="area" disabled={isPending} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="street">Street</Label>
-                        <Input id="street" name="street" disabled={isPending} />
-                    </div>
-                </div>
+                    </>
+                )}
+
+                 {visibleFields.has('emails') && (
                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="building">Building/Floor</Label>
-                        <Input id="building" name="building" disabled={isPending} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="apartment">Apartment Number</Label>
-                        <Input id="apartment" name="apartment" disabled={isPending} />
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="homePhone">Home Telephone</Label>
-                        <Input id="homePhone" name="homePhone" type="tel" disabled={isPending} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="mobilePhone">Mobile Number</Label>
-                        <Input id="mobilePhone" name="mobilePhone" type="tel" required disabled={isPending} />
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <Label htmlFor="otherPhone">Other Telephone Numbers</Label>
-                    <Input id="otherPhone" name="otherPhone" type="tel" disabled={isPending} />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="email1">Email address (1)</Label>
                         <Input id="email1" name="email1" type="email" required disabled={isPending} />
@@ -346,6 +411,8 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                         <Input id="email2" name="email2" type="email" disabled={isPending} />
                     </div>
                 </div>
+                )}
+
                  <div className="space-y-2 pt-4">
                     <Label htmlFor="resume">Resume (PDF, max 5MB)</Label>
                     <Input id="resume" name="resume" type="file" accept=".pdf" required onChange={handleFileChange} disabled={isPending} />

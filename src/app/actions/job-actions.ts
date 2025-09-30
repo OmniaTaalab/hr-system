@@ -11,6 +11,7 @@ const JobFormSchema = z.object({
   department: z.string().min(2, "Department is required."),
   location: z.string().min(2, "Location is required."),
   shortRequirements: z.string().min(1, "At least one requirement is needed."),
+  applicationFields: z.array(z.string()).optional(),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
@@ -22,6 +23,7 @@ export type CreateJobState = {
     department?: string[];
     location?: string[];
     shortRequirements?: string[];
+    applicationFields?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -37,6 +39,7 @@ export async function createJobAction(
     department: formData.get('department'),
     location: formData.get('location'),
     shortRequirements: formData.get('shortRequirements'),
+    applicationFields: formData.getAll('applicationFields'),
     actorId: formData.get('actorId'),
     actorEmail: formData.get('actorEmail'),
     actorRole: formData.get('actorRole'),
@@ -50,7 +53,7 @@ export async function createJobAction(
     };
   }
 
-  const { title, department, location, shortRequirements, actorId, actorEmail, actorRole } = validatedFields.data;
+  const { title, department, location, shortRequirements, applicationFields, actorId, actorEmail, actorRole } = validatedFields.data;
   
   const requirementsArray = shortRequirements.split('\n').map(req => req.trim()).filter(req => req.length > 0);
 
@@ -67,6 +70,7 @@ export async function createJobAction(
       department,
       location,
       shortRequirements: requirementsArray,
+      applicationFields: applicationFields || [],
       createdAt: serverTimestamp(),
     });
 
@@ -94,22 +98,20 @@ const JobApplicationSchema = z.object({
     jobTitle: z.string().min(1, "Job Title is required."),
     resumeURL: z.string().url({ message: "A valid resume URL is required." }),
 
-    // Personal Info
-    firstNameEn: z.string().min(1, "First name is required."),
+    // Making all other fields optional for validation, as they may not be rendered
+    firstNameEn: z.string().optional(),
     middleNameEn: z.string().optional(),
-    lastNameEn: z.string().min(1, "Last name is required."),
-    firstNameAr: z.string().min(1, "First name in Arabic is required."),
+    lastNameEn: z.string().optional(),
+    firstNameAr: z.string().optional(),
     fatherNameAr: z.string().optional(),
-    familyNameAr: z.string().min(1, "Family name in Arabic is required."),
-    dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
-    placeOfBirth: z.string().min(1, "Place of birth is required."),
-    nationalities: z.string().min(1, "Nationality is required."),
-    socialTitle: z.enum(["Mr", "Miss", "Mrs"]),
-    isParentAtNIS: z.enum(["Yes", "No"]),
-    maritalStatus: z.enum(["Single", "Engaged", "Married", "Divorced", "Separated", "Widowed"]),
+    familyNameAr: z.string().optional(),
+    dateOfBirth: z.coerce.date().optional(),
+    placeOfBirth: z.string().optional(),
+    nationalities: z.string().optional(),
+    socialTitle: z.enum(["Mr", "Miss", "Mrs"]).optional(),
+    isParentAtNIS: z.enum(["Yes", "No"]).optional(),
+    maritalStatus: z.enum(["Single", "Engaged", "Married", "Divorced", "Separated", "Widowed"]).optional(),
     numberOfChildren: z.coerce.number().int().nonnegative().optional(),
-
-    // Contact & Address
     country: z.string().optional(),
     city: z.string().optional(),
     area: z.string().optional(),
@@ -117,9 +119,9 @@ const JobApplicationSchema = z.object({
     building: z.string().optional(),
     apartment: z.string().optional(),
     homePhone: z.string().optional(),
-    mobilePhone: z.string().min(1, "Mobile number is required."),
+    mobilePhone: z.string().optional(),
     otherPhone: z.string().optional(),
-    email1: z.string().email("A valid email is required."),
+    email1: z.string().email("A valid email is required.").optional(),
     email2: z.string().email("A valid secondary email is required.").optional().or(z.literal('')),
 });
 
@@ -136,17 +138,16 @@ export async function applyForJobAction(
   payload: JobApplicationPayload
 ): Promise<ApplyForJobState> {
 
-  const validatedFields = JobApplicationSchema.safeParse(payload);
- 
-  if (!validatedFields.success) {
+  // As fields are dynamic, we only validate that required fields for any application are present.
+  // The client-side logic will ensure that fields selected for the job are actually submitted.
+   if (!payload.jobId || !payload.jobTitle || !payload.resumeURL) {
     return {
-      errors: validatedFields.error.flatten().fieldErrors,
-      message: "Validation failed. Please check the form data.",
+      errors: { form: ["Core information (Job ID, Title, Resume) is missing."] },
       success: false,
     };
   }
   
-  const { jobId, jobTitle, resumeURL, ...applicationData } = validatedFields.data;
+  const { jobId, jobTitle, resumeURL, ...applicationData } = payload;
 
   try {
     const newApplicationRef = await addDoc(collection(db, "jobApplications"), {
