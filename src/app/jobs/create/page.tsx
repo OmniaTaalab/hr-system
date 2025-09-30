@@ -85,7 +85,7 @@ function CreateJobForm() {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 rounded-lg border p-4">
                     {applicationFieldsConfig.map(field => (
                         <div key={field.id} className="flex items-center space-x-2">
-                            <Checkbox id={`field-${field.id}`} name="applicationFields" value={field.id} defaultChecked={field.required} disabled={field.required} />
+                            <Checkbox id={`field-${field.id}`} name="applicationFields" value={field.id} defaultChecked={field.required} />
                             <Label htmlFor={`field-${field.id}`} className={cn(field.required && "text-muted-foreground")}>
                                 {field.label}
                             </Label>
