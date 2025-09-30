@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useState, useEffect, useRef, useTransition, useMemo } from "react";
 import {
@@ -362,7 +363,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
     }
 
     try {
-      if (cvFile) {
+      if (cvFile && visibleFields.has('file_cv')) {
         const cvExt = cvFile.name.split(".").pop();
         const cvFileName = `${job.id}-cv-${nanoid()}.${cvExt}`;
         const cvFileRef = ref(storage, `job-applications/${cvFileName}`);
@@ -370,7 +371,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
         payload.cvUrl = await getDownloadURL(cvFileRef);
       }
 
-      if (nationalIdFile) {
+      if (nationalIdFile && visibleFields.has('file_nationalId')) {
         const idExt = nationalIdFile.name.split(".").pop();
         const idFileName = `${job.id}-id-${nanoid()}.${idExt}`;
         const idFileRef = ref(storage, `job-applications/${idFileName}`);
