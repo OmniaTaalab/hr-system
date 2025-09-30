@@ -98,7 +98,7 @@ const JobApplicationSchema = z.object({
     jobTitle: z.string().min(1, "Job Title is required."),
     resumeURL: z.string().url({ message: "A valid resume URL is required." }),
 
-    // Making all other fields optional for validation, as they may not be rendered
+    // Personal Info
     firstNameEn: z.string().optional(),
     middleNameEn: z.string().optional(),
     lastNameEn: z.string().optional(),
@@ -112,17 +112,48 @@ const JobApplicationSchema = z.object({
     isParentAtNIS: z.enum(["Yes", "No"]).optional(),
     maritalStatus: z.enum(["Single", "Engaged", "Married", "Divorced", "Separated", "Widowed"]).optional(),
     numberOfChildren: z.coerce.number().int().nonnegative().optional(),
+    
+    // Address
     country: z.string().optional(),
     city: z.string().optional(),
     area: z.string().optional(),
     street: z.string().optional(),
     building: z.string().optional(),
     apartment: z.string().optional(),
+
+    // Contact
     homePhone: z.string().optional(),
     mobilePhone: z.string().optional(),
     otherPhone: z.string().optional(),
     email1: z.string().email("A valid email is required.").optional(),
     email2: z.string().email("A valid secondary email is required.").optional().or(z.literal('')),
+
+    // Job Requirements
+    howDidYouHear: z.string().optional(),
+    previouslyWorkedAtNIS: z.enum(["Yes", "No"]).optional(),
+    positionJobTitle: z.string().optional(),
+    positionSubject: z.string().optional(),
+    yearsOfExperience: z.coerce.number().nonnegative().optional(),
+    expectedSalary: z.coerce.number().nonnegative().optional(),
+    schoolType: z.enum(["National", "International"]).optional(),
+    noticePeriod: z.coerce.number().int().nonnegative().optional(),
+    availableStartDate: z.coerce.date().optional(),
+    needsBus: z.enum(["Yes", "No", "Flexible"]).optional(),
+    insideContact: z.enum(["Yes", "No"]).optional(),
+
+    // References
+    reference1_name: z.string().optional(),
+    reference1_jobTitle: z.string().optional(),
+    reference1_company: z.string().optional(),
+    reference1_phone: z.string().optional(),
+    reference2_name: z.string().optional(),
+    reference2_jobTitle: z.string().optional(),
+    reference2_company: z.string().optional(),
+    reference2_phone: z.string().optional(),
+    reference3_name: z.string().optional(),
+    reference3_jobTitle: z.string().optional(),
+    reference3_company: z.string().optional(),
+    reference3_phone: z.string().optional(),
 });
 
 export type JobApplicationPayload = z.infer<typeof JobApplicationSchema>;

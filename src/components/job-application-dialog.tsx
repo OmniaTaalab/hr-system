@@ -27,6 +27,7 @@ import { Calendar } from "./ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Textarea } from "./ui/textarea";
 
 
 interface JobOpening {
@@ -41,6 +42,7 @@ interface JobApplicationDialogProps {
 
 // Configuration for all possible fields
 export const applicationFieldsConfig = [
+    // Personal Info
     { id: 'nameEn', label: 'Name (English)', required: true },
     { id: 'nameAr', label: 'Name (Arabic)', required: true },
     { id: 'dateOfBirth', label: 'Date of Birth', required: true },
@@ -53,6 +55,19 @@ export const applicationFieldsConfig = [
     { id: 'address', label: 'Current Address', required: false },
     { id: 'contactNumbers', label: 'Contact Numbers', required: true },
     { id: 'emails', label: 'Email Addresses', required: true },
+
+    // Job Requirements
+    { id: 'howDidYouHear', label: 'How did you learn about N.I.S.?', required: false },
+    { id: 'previouslyWorkedAtNIS', label: 'Previously worked at NIS?', required: false },
+    { id: 'positionApplyingFor', label: 'Position Applying for', required: false },
+    { id: 'yearsOfExperience', label: 'Years of Experience', required: false },
+    { id: 'expectedSalary', label: 'Expected Salary', required: false },
+    { id: 'schoolType', label: 'School Type Experience', required: false },
+    { id: 'noticePeriod', label: 'Notice Period', required: false },
+    { id: 'availableStartDate', label: 'Available Start Date', required: false },
+    { id: 'needsBus', label: 'Needs School Bus?', required: false },
+    { id: 'insideContact', label: 'Inside Contact?', required: false },
+    { id: 'references', label: 'References', required: false },
 ];
 
 const initialState: ApplyForJobState = {
@@ -69,6 +84,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const formRef = useRef<HTMLFormElement>(null);
 
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
+  const [availableStartDate, setAvailableStartDate] = useState<Date | undefined>();
 
   const [state, formAction] = React.useActionState(applyForJobAction, initialState);
   const [isUploading, setIsUploading] = useState(false);
@@ -103,6 +119,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
         setFile(null);
         setFileError(null);
         setDateOfBirth(undefined);
+        setAvailableStartDate(undefined);
     }
   }, [isOpen]);
 
@@ -155,16 +172,17 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       jobId: job.id,
       jobTitle: job.title,
     };
-
+    
+    // Dynamically build payload
     if (visibleFields.has('nameEn')) {
-      payload.firstNameEn = formData.get('firstNameEn') as string;
-      payload.middleNameEn = formData.get('middleNameEn') as string;
-      payload.lastNameEn = formData.get('lastNameEn') as string;
+        payload.firstNameEn = formData.get('firstNameEn') as string;
+        payload.middleNameEn = formData.get('middleNameEn') as string;
+        payload.lastNameEn = formData.get('lastNameEn') as string;
     }
     if (visibleFields.has('nameAr')) {
-      payload.firstNameAr = formData.get('firstNameAr') as string;
-      payload.fatherNameAr = formData.get('fatherNameAr') as string;
-      payload.familyNameAr = formData.get('familyNameAr') as string;
+        payload.firstNameAr = formData.get('firstNameAr') as string;
+        payload.fatherNameAr = formData.get('fatherNameAr') as string;
+        payload.familyNameAr = formData.get('familyNameAr') as string;
     }
     if (visibleFields.has('dateOfBirth')) payload.dateOfBirth = dateOfBirth;
     if (visibleFields.has('placeOfBirth')) payload.placeOfBirth = formData.get('placeOfBirth') as string;
@@ -174,21 +192,48 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
     if (visibleFields.has('maritalStatus')) payload.maritalStatus = formData.get('maritalStatus') as any;
     if (visibleFields.has('numberOfChildren')) payload.numberOfChildren = Number(formData.get('numberOfChildren'));
     if (visibleFields.has('address')) {
-      payload.country = formData.get('country') as string;
-      payload.city = formData.get('city') as string;
-      payload.area = formData.get('area') as string;
-      payload.street = formData.get('street') as string;
-      payload.building = formData.get('building') as string;
-      payload.apartment = formData.get('apartment') as string;
+        payload.country = formData.get('country') as string;
+        payload.city = formData.get('city') as string;
+        payload.area = formData.get('area') as string;
+        payload.street = formData.get('street') as string;
+        payload.building = formData.get('building') as string;
+        payload.apartment = formData.get('apartment') as string;
     }
     if (visibleFields.has('contactNumbers')) {
-      payload.homePhone = formData.get('homePhone') as string;
-      payload.mobilePhone = formData.get('mobilePhone') as string;
-      payload.otherPhone = formData.get('otherPhone') as string;
+        payload.homePhone = formData.get('homePhone') as string;
+        payload.mobilePhone = formData.get('mobilePhone') as string;
+        payload.otherPhone = formData.get('otherPhone') as string;
     }
     if (visibleFields.has('emails')) {
-      payload.email1 = formData.get('email1') as string;
-      payload.email2 = formData.get('email2') as string;
+        payload.email1 = formData.get('email1') as string;
+        payload.email2 = formData.get('email2') as string;
+    }
+    if(visibleFields.has('howDidYouHear')) payload.howDidYouHear = formData.get('howDidYouHear') as string;
+    if(visibleFields.has('previouslyWorkedAtNIS')) payload.previouslyWorkedAtNIS = formData.get('previouslyWorkedAtNIS') as any;
+    if(visibleFields.has('positionApplyingFor')) {
+        payload.positionJobTitle = formData.get('positionJobTitle') as string;
+        payload.positionSubject = formData.get('positionSubject') as string;
+    }
+    if(visibleFields.has('yearsOfExperience')) payload.yearsOfExperience = Number(formData.get('yearsOfExperience'));
+    if(visibleFields.has('expectedSalary')) payload.expectedSalary = Number(formData.get('expectedSalary'));
+    if(visibleFields.has('schoolType')) payload.schoolType = formData.get('schoolType') as any;
+    if(visibleFields.has('noticePeriod')) payload.noticePeriod = Number(formData.get('noticePeriod'));
+    if(visibleFields.has('availableStartDate')) payload.availableStartDate = availableStartDate;
+    if(visibleFields.has('needsBus')) payload.needsBus = formData.get('needsBus') as any;
+    if(visibleFields.has('insideContact')) payload.insideContact = formData.get('insideContact') as any;
+    if(visibleFields.has('references')) {
+        payload.reference1_name = formData.get('reference1_name') as string;
+        payload.reference1_jobTitle = formData.get('reference1_jobTitle') as string;
+        payload.reference1_company = formData.get('reference1_company') as string;
+        payload.reference1_phone = formData.get('reference1_phone') as string;
+        payload.reference2_name = formData.get('reference2_name') as string;
+        payload.reference2_jobTitle = formData.get('reference2_jobTitle') as string;
+        payload.reference2_company = formData.get('reference2_company') as string;
+        payload.reference2_phone = formData.get('reference2_phone') as string;
+        payload.reference3_name = formData.get('reference3_name') as string;
+        payload.reference3_jobTitle = formData.get('reference3_jobTitle') as string;
+        payload.reference3_company = formData.get('reference3_company') as string;
+        payload.reference3_phone = formData.get('reference3_phone') as string;
     }
 
 
@@ -229,14 +274,14 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
           <Send className="ml-2 h-4 w-4 transform transition-transform group-hover:translate-x-1" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl flex flex-col">
         <DialogHeader>
           <DialogTitle>Apply for {job.title}</DialogTitle>
           <DialogDescription>
             Fill in your details and upload your resume to apply.
           </DialogDescription>
         </DialogHeader>
-        <form ref={formRef} onSubmit={handleFormSubmit} noValidate>
+        <form ref={formRef} onSubmit={handleFormSubmit} noValidate className="flex-grow overflow-hidden">
           <ScrollArea className="h-[60vh] pr-6">
             <div className="space-y-6">
                 <h3 className="font-semibold text-lg border-b pb-2">Personal Info</h3>
@@ -370,7 +415,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                             <Label htmlFor="building">Building/Floor</Label>
                             <Input id="building" name="building" disabled={isPending} />
                         </div>
-                        <div className="space-y-2">
+                         <div className="space-y-2">
                             <Label htmlFor="apartment">Apartment Number</Label>
                             <Input id="apartment" name="apartment" disabled={isPending} />
                         </div>
@@ -412,6 +457,140 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                     </div>
                 </div>
                 )}
+                
+                <Separator />
+                <h3 className="font-semibold text-lg border-b pb-2">Job Requirements</h3>
+                
+                {visibleFields.has('howDidYouHear') && (
+                    <div className="space-y-2">
+                        <Label htmlFor="howDidYouHear">How did you learn about N.I.S.?</Label>
+                        <Input id="howDidYouHear" name="howDidYouHear" disabled={isPending} />
+                    </div>
+                )}
+
+                {visibleFields.has('previouslyWorkedAtNIS') && (
+                    <div className="space-y-2">
+                        <Label>Did you previously work at NIS?</Label>
+                        <RadioGroup name="previouslyWorkedAtNIS" defaultValue="No" className="flex gap-4">
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="prev-yes" /><Label htmlFor="prev-yes">Yes</Label></div>
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="prev-no" /><Label htmlFor="prev-no">No</Label></div>
+                        </RadioGroup>
+                    </div>
+                )}
+
+                {visibleFields.has('positionApplyingFor') && (
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="positionJobTitle">Job Title</Label>
+                            <Input id="positionJobTitle" name="positionJobTitle" disabled={isPending} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="positionSubject">Subject</Label>
+                            <Input id="positionSubject" name="positionSubject" disabled={isPending} />
+                        </div>
+                    </div>
+                )}
+
+                {visibleFields.has('yearsOfExperience') && (
+                    <div className="space-y-2">
+                        <Label htmlFor="yearsOfExperience">Years of Experience in that position</Label>
+                        <Input id="yearsOfExperience" name="yearsOfExperience" type="number" min="0" disabled={isPending} />
+                    </div>
+                )}
+                
+                {visibleFields.has('expectedSalary') && (
+                    <div className="space-y-2">
+                        <Label htmlFor="expectedSalary">Expected monthly salary</Label>
+                        <Input id="expectedSalary" name="expectedSalary" type="number" min="0" disabled={isPending} />
+                    </div>
+                )}
+                
+                {visibleFields.has('schoolType') && (
+                    <div className="space-y-2">
+                        <Label>School Type Experience</Label>
+                        <RadioGroup name="schoolType" className="flex gap-4">
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="National" id="school-national" /><Label htmlFor="school-national">National</Label></div>
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="International" id="school-international" /><Label htmlFor="school-international">International</Label></div>
+                        </RadioGroup>
+                    </div>
+                )}
+
+                {visibleFields.has('noticePeriod') && (
+                    <div className="space-y-2">
+                        <Label htmlFor="noticePeriod">Minimum notice period in days to leave your current job</Label>
+                        <Input id="noticePeriod" name="noticePeriod" type="number" min="0" disabled={isPending} />
+                    </div>
+                )}
+
+                {visibleFields.has('availableStartDate') && (
+                    <div className="space-y-2">
+                        <Label>Available to start work on</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !availableStartDate && "text-muted-foreground")}>
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {availableStartDate ? format(availableStartDate, "PPP") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <Calendar mode="single" selected={availableStartDate} onSelect={setAvailableStartDate} initialFocus />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                )}
+
+                {visibleFields.has('needsBus') && (
+                    <div className="space-y-2">
+                        <Label>Do you need school transportation “School Bus”?</Label>
+                        <RadioGroup name="needsBus" className="flex gap-4">
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="bus-yes" /><Label htmlFor="bus-yes">Yes</Label></div>
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="bus-no" /><Label htmlFor="bus-no">No</Label></div>
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="Flexible" id="bus-flexible" /><Label htmlFor="bus-flexible">Flexible</Label></div>
+                        </RadioGroup>
+                    </div>
+                )}
+
+                {visibleFields.has('insideContact') && (
+                     <div className="space-y-2">
+                        <Label>Do you have any contacts [relatives, friends] in our School?</Label>
+                        <RadioGroup name="insideContact" defaultValue="No" className="flex gap-4">
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="contact-yes" /><Label htmlFor="contact-yes">Yes</Label></div>
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="contact-no" /><Label htmlFor="contact-no">No</Label></div>
+                        </RadioGroup>
+                    </div>
+                )}
+
+                {visibleFields.has('references') && (
+                    <>
+                        <Separator />
+                        <h3 className="font-semibold text-lg border-b pb-2">References</h3>
+                        <p className="text-sm text-muted-foreground">Please provide at least three professional references. Do not include family members.</p>
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="p-4 border rounded-lg space-y-2">
+                                <Label className="font-medium">Reference {i}</Label>
+                                <div className="grid grid-cols-2 gap-4">
+                                     <div className="space-y-1">
+                                        <Label htmlFor={`ref-name-${i}`} className="text-xs">Reference Name</Label>
+                                        <Input id={`ref-name-${i}`} name={`reference${i}_name`} disabled={isPending} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor={`ref-title-${i}`} className="text-xs">Job Title</Label>
+                                        <Input id={`ref-title-${i}`} name={`reference${i}_jobTitle`} disabled={isPending} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor={`ref-company-${i}`} className="text-xs">Company</Label>
+                                        <Input id={`ref-company-${i}`} name={`reference${i}_company`} disabled={isPending} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor={`ref-phone-${i}`} className="text-xs">Phone Number</Label>
+                                        <Input id={`ref-phone-${i}`} name={`reference${i}_phone`} type="tel" disabled={isPending} />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </>
+                )}
+
 
                  <div className="space-y-2 pt-4">
                     <Label htmlFor="resume">Resume (PDF, max 5MB)</Label>
@@ -421,14 +600,14 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                 </div>
             </div>
             
-            </ScrollArea>
+          </ScrollArea>
              {state?.errors?.form && (
               <div className="text-sm text-destructive flex items-center gap-2 mt-4">
                 <AlertTriangle className="h-4 w-4" />
                 {state.errors.form.join(", ")}
               </div>
             )}
-          <DialogFooter className="pt-4 border-t">
+          <DialogFooter className="pt-4 border-t mt-4 flex-shrink-0">
             <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isPending}>
               Cancel
             </Button>
