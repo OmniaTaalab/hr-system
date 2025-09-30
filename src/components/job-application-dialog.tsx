@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { applyForJobAction, type ApplyForJobState, type JobApplicationPayload } from "@/app/actions/job-actions";
-import { Loader2, Send, AlertTriangle, Calendar as CalendarIcon } from "lucide-react";
+import { Loader2, Send, AlertTriangle, Calendar as CalendarIcon, UploadCloud } from "lucide-react";
 import { storage } from "@/lib/firebase/config";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { nanoid } from "nanoid";
@@ -63,11 +63,17 @@ export const applicationFieldsConfig = [
     { id: 'yearsOfExperience', label: 'Years of Experience', required: false },
     { id: 'expectedSalary', label: 'Expected Salary', required: false },
     { id: 'schoolType', label: 'School Type Experience', required: false },
+    { id: 'nationalCampus', label: 'National Campus', required: false },
     { id: 'noticePeriod', label: 'Notice Period', required: false },
     { id: 'availableStartDate', label: 'Available Start Date', required: false },
     { id: 'needsBus', label: 'Needs School Bus?', required: false },
     { id: 'insideContact', label: 'Inside Contact?', required: false },
     { id: 'references', label: 'References', required: false },
+
+    // Educational History
+    { id: 'education_school', label: 'School History', required: false },
+    { id: 'education_university', label: 'University History', required: false },
+    { id: 'education_diplomas', label: 'Diplomas & Courses', required: false },
 ];
 
 const initialState: ApplyForJobState = {
@@ -85,6 +91,10 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
 
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
   const [availableStartDate, setAvailableStartDate] = useState<Date | undefined>();
+  const [schoolStartDate, setSchoolStartDate] = useState<Date | undefined>();
+  const [schoolEndDate, setSchoolEndDate] = useState<Date | undefined>();
+  const [universityStartDate, setUniversityStartDate] = useState<Date | undefined>();
+  const [universityEndDate, setUniversityEndDate] = useState<Date | undefined>();
 
   const [state, formAction] = React.useActionState(applyForJobAction, initialState);
   const [isUploading, setIsUploading] = useState(false);
@@ -120,6 +130,10 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
         setFileError(null);
         setDateOfBirth(undefined);
         setAvailableStartDate(undefined);
+        setSchoolStartDate(undefined);
+        setSchoolEndDate(undefined);
+        setUniversityStartDate(undefined);
+        setUniversityEndDate(undefined);
     }
   }, [isOpen]);
 
@@ -217,6 +231,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
     if(visibleFields.has('yearsOfExperience')) payload.yearsOfExperience = Number(formData.get('yearsOfExperience'));
     if(visibleFields.has('expectedSalary')) payload.expectedSalary = Number(formData.get('expectedSalary'));
     if(visibleFields.has('schoolType')) payload.schoolType = formData.get('schoolType') as any;
+    if(visibleFields.has('nationalCampus')) payload.nationalCampus = formData.get('nationalCampus') as string;
     if(visibleFields.has('noticePeriod')) payload.noticePeriod = Number(formData.get('noticePeriod'));
     if(visibleFields.has('availableStartDate')) payload.availableStartDate = availableStartDate;
     if(visibleFields.has('needsBus')) payload.needsBus = formData.get('needsBus') as any;
@@ -234,6 +249,33 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
         payload.reference3_jobTitle = formData.get('reference3_jobTitle') as string;
         payload.reference3_company = formData.get('reference3_company') as string;
         payload.reference3_phone = formData.get('reference3_phone') as string;
+    }
+    if(visibleFields.has('education_school')) {
+        payload.school_name = formData.get('school_name') as string;
+        payload.school_major = formData.get('school_major') as string;
+        payload.school_cityCountry = formData.get('school_cityCountry') as string;
+        payload.school_startDate = schoolStartDate;
+        payload.school_endDate = schoolEndDate;
+        payload.school_overall = formData.get('school_overall') as string;
+        payload.school_completed = formData.get('school_completed') as any;
+    }
+    if(visibleFields.has('education_university')) {
+        payload.university_name = formData.get('university_name') as string;
+        payload.university_faculty = formData.get('university_faculty') as string;
+        payload.university_major = formData.get('university_major') as string;
+        payload.university_cityCountry = formData.get('university_cityCountry') as string;
+        payload.university_overall = formData.get('university_overall') as string;
+        payload.university_startDate = universityStartDate;
+        payload.university_endDate = universityEndDate;
+        payload.university_completed = formData.get('university_completed') as any;
+    }
+    if(visibleFields.has('education_diplomas')) {
+        payload.diploma1_name = formData.get('diploma1_name') as string;
+        payload.diploma1_institution = formData.get('diploma1_institution') as string;
+        payload.diploma1_completed = formData.get('diploma1_completed') as any;
+        payload.diploma2_name = formData.get('diploma2_name') as string;
+        payload.diploma2_institution = formData.get('diploma2_institution') as string;
+        payload.diploma2_completed = formData.get('diploma2_completed') as any;
     }
 
 
@@ -514,6 +556,13 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                         </RadioGroup>
                     </div>
                 )}
+                
+                 {visibleFields.has('nationalCampus') && (
+                    <div className="space-y-2">
+                        <Label htmlFor="nationalCampus">National Campus</Label>
+                        <Input id="nationalCampus" name="nationalCampus" disabled={isPending} />
+                    </div>
+                )}
 
                 {visibleFields.has('noticePeriod') && (
                     <div className="space-y-2">
@@ -589,6 +638,103 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                             </div>
                         ))}
                     </>
+                )}
+                
+                <Separator />
+                <h3 className="font-semibold text-lg border-b pb-2">Educational History</h3>
+                <p className="text-sm text-muted-foreground">Please give exact titles in their original language.</p>
+
+                {visibleFields.has('education_school') && (
+                    <div className="p-4 border rounded-lg space-y-4">
+                        <Label className="font-medium">School (highest degree)</Label>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <Label htmlFor="school_name" className="text-xs">School Name</Label>
+                                <Input id="school_name" name="school_name" disabled={isPending} />
+                            </div>
+                            <div className="space-y-1">
+                                <Label htmlFor="school_major" className="text-xs">Major</Label>
+                                <Input id="school_major" name="school_major" disabled={isPending} />
+                            </div>
+                             <div className="space-y-1">
+                                <Label htmlFor="school_cityCountry" className="text-xs">City, Country</Label>
+                                <Input id="school_cityCountry" name="school_cityCountry" disabled={isPending} />
+                            </div>
+                             <div className="space-y-1">
+                                <Label htmlFor="school_overall" className="text-xs">Overall</Label>
+                                <Input id="school_overall" name="school_overall" disabled={isPending} />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs">Start Date</Label>
+                                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolStartDate ? format(schoolStartDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolStartDate} onSelect={setSchoolStartDate} initialFocus /></PopoverContent></Popover>
+                            </div>
+                             <div className="space-y-1">
+                                <Label className="text-xs">End Date</Label>
+                                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolEndDate ? format(schoolEndDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolEndDate} onSelect={setSchoolEndDate} initialFocus /></PopoverContent></Popover>
+                            </div>
+                             <div className="space-y-2 col-span-2">
+                                <Label className="text-xs">Completed</Label>
+                                <RadioGroup name="school_completed" className="flex gap-4">
+                                    <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="school-completed-yes" /><Label htmlFor="school-completed-yes">Yes</Label></div>
+                                    <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="school-completed-no" /><Label htmlFor="school-completed-no">No</Label></div>
+                                </RadioGroup>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {visibleFields.has('education_university') && (
+                     <div className="p-4 border rounded-lg space-y-4">
+                        <Label className="font-medium">University</Label>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Input name="university_name" placeholder="University Name" disabled={isPending} />
+                            <Input name="university_faculty" placeholder="Faculty" disabled={isPending} />
+                            <Input name="university_major" placeholder="Major" disabled={isPending} />
+                            <Input name="university_cityCountry" placeholder="City, Country" disabled={isPending} />
+                            <Input name="university_overall" placeholder="Overall" disabled={isPending} />
+                             <div className="space-y-1">
+                                <Label className="text-xs">Start Date</Label>
+                                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityStartDate ? format(universityStartDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityStartDate} onSelect={setUniversityStartDate} initialFocus /></PopoverContent></Popover>
+                            </div>
+                             <div className="space-y-1">
+                                <Label className="text-xs">End Date</Label>
+                                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityEndDate ? format(universityEndDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityEndDate} onSelect={setUniversityEndDate} initialFocus /></PopoverContent></Popover>
+                            </div>
+                             <div className="space-y-2 col-span-2">
+                                <Label className="text-xs">Completed</Label>
+                                <RadioGroup name="university_completed" className="flex gap-4">
+                                    <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="uni-completed-yes" /><Label htmlFor="uni-completed-yes">Yes</Label></div>
+                                    <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="uni-completed-no" /><Label htmlFor="uni-completed-no">No</Label></div>
+                                </RadioGroup>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {visibleFields.has('education_diplomas') && (
+                     <div className="p-4 border rounded-lg space-y-4">
+                        <Label className="font-medium">Diplomas & Courses</Label>
+                         <div className="grid grid-cols-3 items-center gap-4">
+                             <Input name="diploma1_name" placeholder="Course Name" disabled={isPending} />
+                             <Input name="diploma1_institution" placeholder="Institution Name" disabled={isPending} />
+                             <RadioGroup name="diploma1_completed" className="flex gap-4">
+                                <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="d1-completed-yes" /><Label htmlFor="d1-completed-yes">Yes</Label></div>
+                                <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="d1-completed-no" /><Label htmlFor="d1-completed-no">No</Label></div>
+                            </RadioGroup>
+                         </div>
+                         <div className="grid grid-cols-3 items-center gap-4">
+                             <Input name="diploma2_name" placeholder="Course Name" disabled={isPending} />
+                             <Input name="diploma2_institution" placeholder="Institution Name" disabled={isPending} />
+                             <RadioGroup name="diploma2_completed" className="flex gap-4">
+                                <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="d2-completed-yes" /><Label htmlFor="d2-completed-yes">Yes</Label></div>
+                                <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="d2-completed-no" /><Label htmlFor="d2-completed-no">No</Label></div>
+                            </RadioGroup>
+                         </div>
+                         <div className="space-y-2">
+                             <Label>Attach certificates for completed diplomas/courses</Label>
+                             <Button type="button" variant="outline" size="sm" disabled>
+                                 <UploadCloud className="mr-2 h-4 w-4" /> Upload File (Not implemented)
+                             </Button>
+                         </div>
+                    </div>
                 )}
 
 

@@ -136,6 +136,7 @@ const JobApplicationSchema = z.object({
     yearsOfExperience: z.coerce.number().nonnegative().optional(),
     expectedSalary: z.coerce.number().nonnegative().optional(),
     schoolType: z.enum(["National", "International"]).optional(),
+    nationalCampus: z.string().optional(),
     noticePeriod: z.coerce.number().int().nonnegative().optional(),
     availableStartDate: z.coerce.date().optional(),
     needsBus: z.enum(["Yes", "No", "Flexible"]).optional(),
@@ -154,6 +155,31 @@ const JobApplicationSchema = z.object({
     reference3_jobTitle: z.string().optional(),
     reference3_company: z.string().optional(),
     reference3_phone: z.string().optional(),
+
+    // Educational History
+    school_name: z.string().optional(),
+    school_major: z.string().optional(),
+    school_cityCountry: z.string().optional(),
+    school_startDate: z.coerce.date().optional(),
+    school_endDate: z.coerce.date().optional(),
+    school_overall: z.string().optional(),
+    school_completed: z.enum(["Yes", "No"]).optional(),
+
+    university_name: z.string().optional(),
+    university_faculty: z.string().optional(),
+    university_major: z.string().optional(),
+    university_cityCountry: z.string().optional(),
+    university_overall: z.string().optional(),
+    university_startDate: z.coerce.date().optional(),
+    university_endDate: z.coerce.date().optional(),
+    university_completed: z.enum(["Yes", "No"]).optional(),
+
+    diploma1_name: z.string().optional(),
+    diploma1_institution: z.string().optional(),
+    diploma1_completed: z.enum(["Yes", "No"]).optional(),
+    diploma2_name: z.string().optional(),
+    diploma2_institution: z.string().optional(),
+    diploma2_completed: z.enum(["Yes", "No"]).optional(),
 });
 
 export type JobApplicationPayload = z.infer<typeof JobApplicationSchema>;
