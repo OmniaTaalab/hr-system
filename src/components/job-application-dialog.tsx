@@ -494,7 +494,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                  {visibleFields.has('socialTitle') && (
                  <div className="space-y-2">
                     <Label>Social Title</Label>
-                    <RadioGroup name="socialTitle" defaultValue="Mr" className="flex gap-4">
+                    <RadioGroup name="socialTitle" className="flex gap-4">
                         <div className="flex items-center space-x-2"><RadioGroupItem value="Mr" id="title-mr" /><Label htmlFor="title-mr">Mr</Label></div>
                         <div className="flex items-center space-x-2"><RadioGroupItem value="Miss" id="title-miss" /><Label htmlFor="title-miss">Miss</Label></div>
                         <div className="flex items-center space-x-2"><RadioGroupItem value="Mrs" id="title-mrs" /><Label htmlFor="title-mrs">Mrs</Label></div>
@@ -506,7 +506,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                      {visibleFields.has('isParentAtNIS') && (
                     <div className="space-y-2">
                          <Label>Are you a parent at NIS?</Label>
-                        <RadioGroup name="isParentAtNIS" defaultValue="No" className="flex gap-4">
+                        <RadioGroup name="isParentAtNIS" className="flex gap-4">
                              <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="is-parent-yes" /><Label htmlFor="is-parent-yes">Yes</Label></div>
                              <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="is-parent-no" /><Label htmlFor="is-parent-no">No</Label></div>
                         </RadioGroup>
