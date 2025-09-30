@@ -1,4 +1,3 @@
-
 "use client";
 import React, { useState, useEffect, useRef, useTransition, useMemo } from "react";
 import {
@@ -74,6 +73,10 @@ export const applicationFieldsConfig = [
     { id: 'education_school', label: 'School History', required: false },
     { id: 'education_university', label: 'University History', required: false },
     { id: 'education_diplomas', label: 'Diplomas & Courses', required: false },
+
+    // Language & Computer Skills
+    { id: 'languageSkills', label: 'Language Skills', required: false },
+    { id: 'computerSkills', label: 'Computer Skills', required: false },
 ];
 
 const initialState: ApplyForJobState = {
@@ -277,6 +280,35 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
         payload.diploma2_institution = formData.get('diploma2_institution') as string;
         payload.diploma2_completed = formData.get('diploma2_completed') as any;
     }
+     if (visibleFields.has('languageSkills')) {
+        payload.lang_english_speak = formData.get('lang_english_speak') as string;
+        payload.lang_english_understand = formData.get('lang_english_understand') as string;
+        payload.lang_english_read = formData.get('lang_english_read') as string;
+        payload.lang_english_write = formData.get('lang_english_write') as string;
+        payload.lang_english_typing = Number(formData.get('lang_english_typing'));
+        payload.lang_french_speak = formData.get('lang_french_speak') as string;
+        payload.lang_french_understand = formData.get('lang_french_understand') as string;
+        payload.lang_french_read = formData.get('lang_french_read') as string;
+        payload.lang_french_write = formData.get('lang_french_write') as string;
+        payload.lang_french_typing = Number(formData.get('lang_french_typing'));
+        payload.lang_arabic_speak = formData.get('lang_arabic_speak') as string;
+        payload.lang_arabic_understand = formData.get('lang_arabic_understand') as string;
+        payload.lang_arabic_read = formData.get('lang_arabic_read') as string;
+        payload.lang_arabic_write = formData.get('lang_arabic_write') as string;
+        payload.lang_arabic_typing = Number(formData.get('lang_arabic_typing'));
+        payload.lang_german_speak = formData.get('lang_german_speak') as string;
+        payload.lang_german_understand = formData.get('lang_german_understand') as string;
+        payload.lang_german_read = formData.get('lang_german_read') as string;
+        payload.lang_german_write = formData.get('lang_german_write') as string;
+        payload.lang_german_typing = Number(formData.get('lang_german_typing'));
+    }
+    if (visibleFields.has('computerSkills')) {
+        payload.skill_ms_office = formData.get('skill_ms_office') as string;
+        payload.skill_smart_board = formData.get('skill_smart_board') as string;
+        payload.skill_e_learning = formData.get('skill_e_learning') as string;
+        payload.skill_gclass_zoom = formData.get('skill_gclass_zoom') as string;
+        payload.skill_oracle_db = formData.get('skill_oracle_db') as string;
+    }
 
 
     try {
@@ -304,6 +336,25 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
         setIsUploading(false);
     }
   };
+
+  const LanguageProficiencySelect = () => (
+    <SelectContent>
+        <SelectItem value="Poor">Poor</SelectItem>
+        <SelectItem value="Fair">Fair</SelectItem>
+        <SelectItem value="Very good">Very good</SelectItem>
+        <SelectItem value="Excellent">Excellent</SelectItem>
+    </SelectContent>
+  );
+
+  const ComputerSkillSelect = () => (
+    <SelectContent>
+        <SelectItem value="None">None</SelectItem>
+        <SelectItem value="Beginner">Beginner</SelectItem>
+        <SelectItem value="Intermediate">Intermediate</SelectItem>
+        <SelectItem value="Advanced">Advanced</SelectItem>
+    </SelectContent>
+  );
+
 
   return (
     <Dialog
@@ -640,9 +691,13 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                     </>
                 )}
                 
-                <Separator />
-                <h3 className="font-semibold text-lg border-b pb-2">Educational History</h3>
-                <p className="text-sm text-muted-foreground">Please give exact titles in their original language.</p>
+                {visibleFields.has('education_school') || visibleFields.has('education_university') || visibleFields.has('education_diplomas') ? (
+                    <>
+                        <Separator />
+                        <h3 className="font-semibold text-lg border-b pb-2">Educational History</h3>
+                        <p className="text-sm text-muted-foreground">Please give exact titles in their original language.</p>
+                    </>
+                ): null}
 
                 {visibleFields.has('education_school') && (
                     <div className="p-4 border rounded-lg space-y-4">
@@ -735,6 +790,56 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                              </Button>
                          </div>
                     </div>
+                )}
+
+                {visibleFields.has('languageSkills') && (
+                    <>
+                        <Separator />
+                        <h3 className="font-semibold text-lg border-b pb-2">Language Skills</h3>
+                        <div className="p-4 border rounded-lg space-y-4">
+                            {['english', 'french', 'arabic', 'german'].map(lang => (
+                                <div key={lang} className="space-y-2">
+                                    <Label className="font-medium capitalize">{lang}</Label>
+                                    <div className="grid grid-cols-5 gap-2 items-center">
+                                        <Select name={`lang_${lang}_speak`}><SelectTrigger><SelectValue placeholder="Speak" /></SelectTrigger><LanguageProficiencySelect/></Select>
+                                        <Select name={`lang_${lang}_understand`}><SelectTrigger><SelectValue placeholder="Understand" /></SelectTrigger><LanguageProficiencySelect/></Select>
+                                        <Select name={`lang_${lang}_read`}><SelectTrigger><SelectValue placeholder="Read" /></SelectTrigger><LanguageProficiencySelect/></Select>
+                                        <Select name={`lang_${lang}_write`}><SelectTrigger><SelectValue placeholder="Write" /></SelectTrigger><LanguageProficiencySelect/></Select>
+                                        <Input name={`lang_${lang}_typing`} type="number" placeholder="w/m" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                )}
+
+                 {visibleFields.has('computerSkills') && (
+                    <>
+                        <Separator />
+                        <h3 className="font-semibold text-lg border-b pb-2">Computer Skills</h3>
+                        <div className="p-4 border rounded-lg grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Microsoft Office</Label>
+                                <Select name="skill_ms_office"><SelectTrigger><SelectValue placeholder="Select level..." /></SelectTrigger><ComputerSkillSelect/></Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Smart Board</Label>
+                                <Select name="skill_smart_board"><SelectTrigger><SelectValue placeholder="Select level..." /></SelectTrigger><ComputerSkillSelect/></Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>E-Learning Platforms</Label>
+                                <Select name="skill_e_learning"><SelectTrigger><SelectValue placeholder="Select level..." /></SelectTrigger><ComputerSkillSelect/></Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Google Classroom/Zoom</Label>
+                                <Select name="skill_gclass_zoom"><SelectTrigger><SelectValue placeholder="Select level..." /></SelectTrigger><ComputerSkillSelect/></Select>
+                            </div>
+                             <div className="space-y-2 col-span-2">
+                                <Label>Oracle Database</Label>
+                                <Select name="skill_oracle_db"><SelectTrigger><SelectValue placeholder="Select level..." /></SelectTrigger><ComputerSkillSelect/></Select>
+                            </div>
+                        </div>
+                    </>
                 )}
 
 

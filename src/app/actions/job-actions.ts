@@ -1,4 +1,3 @@
-
 'use server';
 
 import { z } from 'zod';
@@ -180,6 +179,34 @@ const JobApplicationSchema = z.object({
     diploma2_name: z.string().optional(),
     diploma2_institution: z.string().optional(),
     diploma2_completed: z.enum(["Yes", "No"]).optional(),
+
+    // Language & Computer Skills
+    lang_english_speak: z.string().optional(),
+    lang_english_understand: z.string().optional(),
+    lang_english_read: z.string().optional(),
+    lang_english_write: z.string().optional(),
+    lang_english_typing: z.coerce.number().nonnegative().optional(),
+    lang_french_speak: z.string().optional(),
+    lang_french_understand: z.string().optional(),
+    lang_french_read: z.string().optional(),
+    lang_french_write: z.string().optional(),
+    lang_french_typing: z.coerce.number().nonnegative().optional(),
+    lang_arabic_speak: z.string().optional(),
+    lang_arabic_understand: z.string().optional(),
+    lang_arabic_read: z.string().optional(),
+    lang_arabic_write: z.string().optional(),
+    lang_arabic_typing: z.coerce.number().nonnegative().optional(),
+    lang_german_speak: z.string().optional(),
+    lang_german_understand: z.string().optional(),
+    lang_german_read: z.string().optional(),
+    lang_german_write: z.string().optional(),
+    lang_german_typing: z.coerce.number().nonnegative().optional(),
+
+    skill_ms_office: z.string().optional(),
+    skill_smart_board: z.string().optional(),
+    skill_e_learning: z.string().optional(),
+    skill_gclass_zoom: z.string().optional(),
+    skill_oracle_db: z.string().optional(),
 });
 
 export type JobApplicationPayload = z.infer<typeof JobApplicationSchema>;
