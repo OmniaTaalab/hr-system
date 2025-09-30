@@ -92,24 +92,41 @@ export async function createJobAction(
 const JobApplicationSchema = z.object({
     jobId: z.string().min(1, "Job ID is required."),
     jobTitle: z.string().min(1, "Job Title is required."),
-    name: z.string({ required_error: "Name is required."}).min(2, { message: "Your name must be at least 2 characters."}),
-    email: z.string({ required_error: "Email is required."}).email({ message: "A valid email is required." }),
     resumeURL: z.string().url({ message: "A valid resume URL is required." }),
-    salary: z.number().optional(),
-    netSalary: z.number().optional(),
+
+    // Personal Info
+    firstNameEn: z.string().min(1, "First name is required."),
+    middleNameEn: z.string().optional(),
+    lastNameEn: z.string().min(1, "Last name is required."),
+    firstNameAr: z.string().min(1, "First name in Arabic is required."),
+    fatherNameAr: z.string().optional(),
+    familyNameAr: z.string().min(1, "Family name in Arabic is required."),
+    dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
+    placeOfBirth: z.string().min(1, "Place of birth is required."),
+    nationalities: z.string().min(1, "Nationality is required."),
+    socialTitle: z.enum(["Mr", "Miss", "Mrs"]),
+    isParentAtNIS: z.enum(["Yes", "No"]),
+    maritalStatus: z.enum(["Single", "Engaged", "Married", "Divorced", "Separated", "Widowed"]),
+    numberOfChildren: z.coerce.number().int().nonnegative().optional(),
+
+    // Contact & Address
+    country: z.string().optional(),
+    city: z.string().optional(),
+    area: z.string().optional(),
+    street: z.string().optional(),
+    building: z.string().optional(),
+    apartment: z.string().optional(),
+    homePhone: z.string().optional(),
+    mobilePhone: z.string().min(1, "Mobile number is required."),
+    otherPhone: z.string().optional(),
+    email1: z.string().email("A valid email is required."),
+    email2: z.string().email("A valid secondary email is required.").optional().or(z.literal('')),
 });
 
 export type JobApplicationPayload = z.infer<typeof JobApplicationSchema>;
 
 export type ApplyForJobState = {
-  errors?: {
-    name?: string[];
-    email?: string[];
-    resumeURL?: string[];
-    salary?: string[];
-    netSalary?: string[];
-    form?: string[];
-  };
+  errors?: z.ZodError<JobApplicationPayload>['formErrors']['fieldErrors'];
   message?: string | null;
   success?: boolean;
 };
@@ -129,22 +146,19 @@ export async function applyForJobAction(
     };
   }
   
-  const { jobId, jobTitle, name, email, resumeURL, salary, netSalary } = validatedFields.data;
+  const { jobId, jobTitle, resumeURL, ...applicationData } = validatedFields.data;
 
   try {
     const newApplicationRef = await addDoc(collection(db, "jobApplications"), {
       jobId,
       jobTitle,
-      name,
-      email,
       resumeURL,
-      salary: salary ?? null,
-      netSalary: netSalary ?? null,
+      ...applicationData,
       submittedAt: serverTimestamp(),
     });
 
     await logSystemEvent("Apply for Job", {
-        actorEmail: email, // Applicant is the actor
+        actorEmail: applicationData.email1, // Applicant is the actor
         applicationId: newApplicationRef.id,
         jobTitle,
     });

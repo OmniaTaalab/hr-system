@@ -15,10 +15,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { applyForJobAction, type ApplyForJobState, type JobApplicationPayload } from "@/app/actions/job-actions";
-import { Loader2, Send, AlertTriangle } from "lucide-react";
+import { Loader2, Send, AlertTriangle, Calendar as CalendarIcon } from "lucide-react";
 import { storage } from "@/lib/firebase/config";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { nanoid } from "nanoid";
+import { ScrollArea } from "./ui/scroll-area";
+import { Separator } from "./ui/separator";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Calendar } from "./ui/calendar";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+
 
 interface JobOpening {
   id: string;
@@ -42,11 +51,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const [fileError, setFileError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Use state for form fields
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [salary, setSalary] = useState('');
-  const [netSalary, setNetSalary] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
 
   const [state, formAction] = React.useActionState(applyForJobAction, initialState);
   const [isUploading, setIsUploading] = useState(false);
@@ -72,11 +77,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
         formRef.current?.reset();
         setFile(null);
         setFileError(null);
-        // Reset state when dialog closes
-        setName('');
-        setEmail('');
-        setSalary('');
-        setNetSalary('');
+        setDateOfBirth(undefined);
     }
   }, [isOpen]);
 
@@ -122,6 +123,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
     }
 
     setIsUploading(true);
+    const formData = new FormData(currentForm);
 
     try {
       const fileExtension = file.name.split(".").pop();
@@ -135,11 +137,31 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
       const payload: JobApplicationPayload = {
         jobId: job.id,
         jobTitle: job.title,
-        name: name,
-        email: email,
         resumeURL: resumeURL,
-        salary: salary ? Number(salary) : undefined,
-        netSalary: netSalary ? Number(netSalary) : undefined,
+        firstNameEn: formData.get('firstNameEn') as string,
+        middleNameEn: formData.get('middleNameEn') as string,
+        lastNameEn: formData.get('lastNameEn') as string,
+        firstNameAr: formData.get('firstNameAr') as string,
+        fatherNameAr: formData.get('fatherNameAr') as string,
+        familyNameAr: formData.get('familyNameAr') as string,
+        dateOfBirth: dateOfBirth!,
+        placeOfBirth: formData.get('placeOfBirth') as string,
+        nationalities: formData.get('nationalities') as string,
+        socialTitle: formData.get('socialTitle') as "Mr" | "Miss" | "Mrs",
+        isParentAtNIS: formData.get('isParentAtNIS') as "Yes" | "No",
+        maritalStatus: formData.get('maritalStatus') as "Single" | "Engaged" | "Married" | "Divorced" | "Separated" | "Widowed",
+        numberOfChildren: Number(formData.get('numberOfChildren')),
+        country: formData.get('country') as string,
+        city: formData.get('city') as string,
+        area: formData.get('area') as string,
+        street: formData.get('street') as string,
+        building: formData.get('building') as string,
+        apartment: formData.get('apartment') as string,
+        homePhone: formData.get('homePhone') as string,
+        mobilePhone: formData.get('mobilePhone') as string,
+        otherPhone: formData.get('otherPhone') as string,
+        email1: formData.get('email1') as string,
+        email2: formData.get('email2') as string,
       };
 
       startTransition(() => {
@@ -169,7 +191,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
           <Send className="ml-2 h-4 w-4 transform transition-transform group-hover:translate-x-1" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Apply for {job.title}</DialogTitle>
           <DialogDescription>
@@ -177,87 +199,173 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
           </DialogDescription>
         </DialogHeader>
         <form ref={formRef} onSubmit={handleFormSubmit} noValidate>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input 
-                id="name" 
-                name="name" 
-                required 
-                disabled={isPending} 
-                value={name} 
-                onChange={(e) => setName(e.target.value)} 
-              />
-              {state?.errors?.name && <p className="text-sm text-destructive mt-1">{state.errors.name[0]}</p>}
+          <ScrollArea className="h-96 pr-6">
+            <div className="space-y-6">
+                <h3 className="font-semibold text-lg border-b pb-2">Personal Info</h3>
+                
+                <div className="space-y-2">
+                    <Label>Name in English (as in official documents)</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                        <Input name="firstNameEn" placeholder="First Name" required disabled={isPending} />
+                        <Input name="middleNameEn" placeholder="Middle Name" disabled={isPending} />
+                        <Input name="lastNameEn" placeholder="Last Name" required disabled={isPending} />
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <Label>Name in Arabic (as in I.D.)</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                        <Input name="firstNameAr" placeholder="الاسم الأول" required disabled={isPending} dir="rtl" />
+                        <Input name="fatherNameAr" placeholder="اسم الأب" disabled={isPending} dir="rtl" />
+                        <Input name="familyNameAr" placeholder="العائلة" required disabled={isPending} dir="rtl" />
+                    </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label>Date of Birth</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="placeOfBirth">Place of Birth</Label>
+                        <Input id="placeOfBirth" name="placeOfBirth" required disabled={isPending} />
+                    </div>
+                </div>
+
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="nationalities">Nationality(ies)</Label>
+                        <Input id="nationalities" name="nationalities" required disabled={isPending} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label>Social Title</Label>
+                        <RadioGroup name="socialTitle" defaultValue="Mr" className="flex gap-4">
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="Mr" id="title-mr" /><Label htmlFor="title-mr">Mr</Label></div>
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="Miss" id="title-miss" /><Label htmlFor="title-miss">Miss</Label></div>
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="Mrs" id="title-mrs" /><Label htmlFor="title-mrs">Mrs</Label></div>
+                        </RadioGroup>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                         <Label>Are you a parent at NIS?</Label>
+                        <RadioGroup name="isParentAtNIS" defaultValue="No" className="flex gap-4">
+                             <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="is-parent-yes" /><Label htmlFor="is-parent-yes">Yes</Label></div>
+                             <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="is-parent-no" /><Label htmlFor="is-parent-no">No</Label></div>
+                        </RadioGroup>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Marital Status</Label>
+                         <Select name="maritalStatus" required>
+                            <SelectTrigger><SelectValue placeholder="Select status..." /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Single">Single</SelectItem>
+                                <SelectItem value="Engaged">Engaged</SelectItem>
+                                <SelectItem value="Married">Married</SelectItem>
+                                <SelectItem value="Divorced">Divorced</SelectItem>
+                                <SelectItem value="Separated">Separated</SelectItem>
+                                <SelectItem value="Widowed">Widowed</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="numberOfChildren">Number of children (if any)</Label>
+                    <Input id="numberOfChildren" name="numberOfChildren" type="number" min="0" defaultValue="0" disabled={isPending} />
+                </div>
+                
+                <Separator />
+                <h3 className="font-semibold text-lg border-b pb-2">Contact & Address</h3>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="country">Country</Label>
+                        <Input id="country" name="country" disabled={isPending} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="city">City</Label>
+                        <Input id="city" name="city" disabled={isPending} />
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="area">Area</Label>
+                        <Input id="area" name="area" disabled={isPending} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="street">Street</Label>
+                        <Input id="street" name="street" disabled={isPending} />
+                    </div>
+                </div>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="building">Building/Floor</Label>
+                        <Input id="building" name="building" disabled={isPending} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="apartment">Apartment Number</Label>
+                        <Input id="apartment" name="apartment" disabled={isPending} />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="homePhone">Home Telephone</Label>
+                        <Input id="homePhone" name="homePhone" type="tel" disabled={isPending} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="mobilePhone">Mobile Number</Label>
+                        <Input id="mobilePhone" name="mobilePhone" type="tel" required disabled={isPending} />
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="otherPhone">Other Telephone Numbers</Label>
+                    <Input id="otherPhone" name="otherPhone" type="tel" disabled={isPending} />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="email1">Email address (1)</Label>
+                        <Input id="email1" name="email1" type="email" required disabled={isPending} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="email2">Email address (2)</Label>
+                        <Input id="email2" name="email2" type="email" disabled={isPending} />
+                    </div>
+                </div>
+                 <div className="space-y-2 pt-4">
+                    <Label htmlFor="resume">Resume (PDF, max 5MB)</Label>
+                    <Input id="resume" name="resume" type="file" accept=".pdf" required onChange={handleFileChange} disabled={isPending} />
+                    {fileError && <p className="text-sm text-destructive mt-1">{fileError}</p>}
+                    {state?.errors?.resumeURL && <p className="text-sm text-destructive mt-1">{state.errors.resumeURL[0]}</p>}
+                </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <Input 
-                id="email" 
-                name="email" 
-                type="email" 
-                required 
-                disabled={isPending}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              {state?.errors?.email && <p className="text-sm text-destructive mt-1">{state.errors.email[0]}</p>}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-               <div className="space-y-2">
-                <Label htmlFor="salary">Expected Salary (Optional)</Label>
-                <Input 
-                  id="salary" 
-                  name="salary" 
-                  type="number" 
-                  placeholder="e.g., 50000" 
-                  disabled={isPending} 
-                  value={salary}
-                  onChange={(e) => setSalary(e.target.value)}
-                />
-                 {state?.errors?.salary && <p className="text-sm text-destructive mt-1">{state.errors.salary[0]}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="netSalary">Expected Net Salary (Optional)</Label>
-                <Input 
-                  id="netSalary" 
-                  name="netSalary" 
-                  type="number" 
-                  placeholder="e.g., 45000" 
-                  disabled={isPending} 
-                  value={netSalary}
-                  onChange={(e) => setNetSalary(e.target.value)}
-                />
-                 {state?.errors?.netSalary && <p className="text-sm text-destructive mt-1">{state.errors.netSalary[0]}</p>}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="resume">Resume (PDF, max 5MB)</Label>
-              <Input
-                id="resume"
-                name="resume"
-                type="file"
-                accept=".pdf"
-                required
-                onChange={handleFileChange}
-                disabled={isPending}
-              />
-              {fileError && <p className="text-sm text-destructive mt-1">{fileError}</p>}
-               {state?.errors?.resumeURL && <p className="text-sm text-destructive mt-1">{state.errors.resumeURL[0]}</p>}
-            </div>
-            {state?.errors?.form && (
-              <div className="text-sm text-destructive flex items-center gap-2">
+            
+            </ScrollArea>
+             {state?.errors?.form && (
+              <div className="text-sm text-destructive flex items-center gap-2 mt-4">
                 <AlertTriangle className="h-4 w-4" />
                 {state.errors.form.join(", ")}
               </div>
             )}
-          </div>
-
-          <DialogFooter>
+          <DialogFooter className="pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending || !name || !email}>
+            <Button type="submit" disabled={isPending}>
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
