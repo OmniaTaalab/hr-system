@@ -236,7 +236,7 @@ function LeaveRequestForm() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="attachment">Attach Document (Optional)</Label>
+              <Label htmlFor="attachment">Attachments (Optional)</Label>
               <Input 
                 id="attachment"
                 name="attachment"
