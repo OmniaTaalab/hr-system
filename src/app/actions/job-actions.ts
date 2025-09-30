@@ -91,11 +91,29 @@ export async function createJobAction(
   }
 }
 
+const WorkExperienceSchema = z.object({
+  companyName: z.string().optional(),
+  jobTitle: z.string().optional(),
+  stage: z.string().optional(),
+  department: z.string().optional(),
+  address: z.string().optional(),
+  telephone: z.string().optional(),
+  duties: z.string().optional(),
+  supervisedCount: z.coerce.number().optional(),
+  reasonForLeaving: z.string().optional(),
+  supervisorName: z.string().optional(),
+  salary: z.coerce.number().optional(),
+  benefits: z.string().optional(),
+  fromDate: z.coerce.date().optional(),
+  toDate: z.coerce.date().optional(),
+});
 
 const JobApplicationSchema = z.object({
     jobId: z.string().min(1, "Job ID is required."),
     jobTitle: z.string().min(1, "Job Title is required."),
-    resumeURL: z.string().url({ message: "A valid resume URL is required." }),
+    cvUrl: z.string().url("A valid CV URL is required.").optional(),
+    nationalIdUrl: z.string().url("A valid National ID URL is required.").optional(),
+
 
     // Personal Info
     firstNameEn: z.string().optional(),
@@ -124,7 +142,7 @@ const JobApplicationSchema = z.object({
     homePhone: z.string().optional(),
     mobilePhone: z.string().optional(),
     otherPhone: z.string().optional(),
-    email1: z.string().email("A valid email is required.").optional(),
+    email1: z.string().email("A valid email is required.").optional().or(z.literal('')),
     email2: z.string().email("A valid secondary email is required.").optional().or(z.literal('')),
 
     // Job Requirements
@@ -207,6 +225,9 @@ const JobApplicationSchema = z.object({
     skill_e_learning: z.string().optional(),
     skill_gclass_zoom: z.string().optional(),
     skill_oracle_db: z.string().optional(),
+    
+    // Work Experience
+    workExperience: z.array(WorkExperienceSchema).optional(),
 });
 
 export type JobApplicationPayload = z.infer<typeof JobApplicationSchema>;
@@ -224,20 +245,20 @@ export async function applyForJobAction(
 
   // As fields are dynamic, we only validate that required fields for any application are present.
   // The client-side logic will ensure that fields selected for the job are actually submitted.
-   if (!payload.jobId || !payload.jobTitle || !payload.resumeURL) {
+   if (!payload.jobId || !payload.jobTitle) {
     return {
-      errors: { form: ["Core information (Job ID, Title, Resume) is missing."] },
+      errors: { form: ["Core information (Job ID, Title) is missing."] },
       success: false,
     };
   }
   
-  const { jobId, jobTitle, resumeURL, ...applicationData } = payload;
+  const { jobId, jobTitle, cvUrl, ...applicationData } = payload;
 
   try {
     const newApplicationRef = await addDoc(collection(db, "jobApplications"), {
       jobId,
       jobTitle,
-      resumeURL,
+      cvUrl: cvUrl ?? null,
       ...applicationData,
       submittedAt: serverTimestamp(),
     });

@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { applyForJobAction, type ApplyForJobState, type JobApplicationPayload } from "@/app/actions/job-actions";
-import { Loader2, Send, AlertTriangle, Calendar as CalendarIcon, UploadCloud } from "lucide-react";
+import { Loader2, Send, AlertTriangle, Calendar as CalendarIcon, UploadCloud, PlusCircle, Trash2 } from "lucide-react";
 import { storage } from "@/lib/firebase/config";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { nanoid } from "nanoid";
@@ -77,6 +77,13 @@ export const applicationFieldsConfig = [
     // Language & Computer Skills
     { id: 'languageSkills', label: 'Language Skills', required: false },
     { id: 'computerSkills', label: 'Computer Skills', required: false },
+    
+    // Work Experience
+    { id: 'workExperience', label: 'Work Experience', required: false },
+
+    // File Uploads
+    { id: 'file_cv', label: 'CV', required: true },
+    { id: 'file_nationalId', label: 'National ID/Passport', required: true },
 ];
 
 const initialState: ApplyForJobState = {
@@ -85,11 +92,31 @@ const initialState: ApplyForJobState = {
   success: false,
 };
 
+type WorkExperience = {
+    id: string;
+    companyName?: string;
+    jobTitle?: string;
+    stage?: string;
+    department?: string;
+    address?: string;
+    telephone?: string;
+    duties?: string;
+    supervisedCount?: number;
+    reasonForLeaving?: string;
+    supervisorName?: string;
+    salary?: number;
+    benefits?: string;
+    fromDate?: Date;
+    toDate?: Date;
+};
+
+
 export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [nationalIdFile, setNationalIdFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<{ cv?: string; nationalId?: string }>({});
   const formRef = useRef<HTMLFormElement>(null);
 
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
@@ -98,6 +125,8 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   const [schoolEndDate, setSchoolEndDate] = useState<Date | undefined>();
   const [universityStartDate, setUniversityStartDate] = useState<Date | undefined>();
   const [universityEndDate, setUniversityEndDate] = useState<Date | undefined>();
+  
+  const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
 
   const [state, formAction] = React.useActionState(applyForJobAction, initialState);
   const [isUploading, setIsUploading] = useState(false);
@@ -112,6 +141,18 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
     }
     return new Set(job.applicationFields);
   }, [job.applicationFields]);
+  
+  const handleAddWorkExperience = () => {
+    setWorkExperiences(prev => [...prev, { id: nanoid() }]);
+  };
+
+  const handleRemoveWorkExperience = (id: string) => {
+    setWorkExperiences(prev => prev.filter(exp => exp.id !== id));
+  };
+  
+  const handleWorkExperienceChange = (id: string, field: keyof Omit<WorkExperience, 'id'>, value: any) => {
+    setWorkExperiences(prev => prev.map(exp => exp.id === id ? { ...exp, [field]: value } : exp));
+  };
 
   useEffect(() => {
     if (state?.message) {
@@ -129,49 +170,56 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
   useEffect(() => {
     if (!isOpen) {
         formRef.current?.reset();
-        setFile(null);
-        setFileError(null);
+        setCvFile(null);
+        setNationalIdFile(null);
+        setFileError({});
         setDateOfBirth(undefined);
         setAvailableStartDate(undefined);
         setSchoolStartDate(undefined);
         setSchoolEndDate(undefined);
         setUniversityStartDate(undefined);
         setUniversityEndDate(undefined);
+        setWorkExperiences([]);
     }
   }, [isOpen]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileType: 'cv' | 'nationalId') => {
     const selectedFile = e.target.files?.[0];
-    setFileError(null);
+    setFileError(prev => ({...prev, [fileType]: undefined}));
+    
     if (!selectedFile) {
-      setFile(null);
-      return;
-    }
-
-    if (selectedFile.type !== "application/pdf") {
-      setFileError("Resume must be a PDF file.");
-      setFile(null);
-      e.target.value = "";
+      fileType === 'cv' ? setCvFile(null) : setNationalIdFile(null);
       return;
     }
 
     if (selectedFile.size > 5 * 1024 * 1024) {
-      setFileError("Resume must be smaller than 5MB.");
-      setFile(null);
+      setFileError(prev => ({...prev, [fileType]: "File must be smaller than 5MB."}));
+      fileType === 'cv' ? setCvFile(null) : setNationalIdFile(null);
       e.target.value = "";
       return;
     }
 
-    setFile(selectedFile);
+    fileType === 'cv' ? setCvFile(selectedFile) : setNationalIdFile(selectedFile);
   };
 
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!file) {
-      setFileError("A resume file is required.");
-      return;
+    let hasError = false;
+    const newFileErrors: typeof fileError = {};
+    if (visibleFields.has('file_cv') && !cvFile) {
+        newFileErrors.cv = "CV is required.";
+        hasError = true;
     }
+    if (visibleFields.has('file_nationalId') && !nationalIdFile) {
+        newFileErrors.nationalId = "National ID/Passport is required.";
+        hasError = true;
+    }
+    if(hasError) {
+        setFileError(newFileErrors);
+        return;
+    }
+
 
     const currentForm = formRef.current;
     if (!currentForm) return;
@@ -309,17 +357,26 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
         payload.skill_gclass_zoom = formData.get('skill_gclass_zoom') as string;
         payload.skill_oracle_db = formData.get('skill_oracle_db') as string;
     }
-
+    if (visibleFields.has('workExperience')) {
+        payload.workExperience = workExperiences;
+    }
 
     try {
-      const fileExtension = file.name.split(".").pop();
-      const fileName = `${job.id}-${nanoid()}.${fileExtension}`;
-      const filePath = `job-applications/${fileName}`;
-      const fileRef = ref(storage, filePath);
+      if (cvFile) {
+        const cvExt = cvFile.name.split(".").pop();
+        const cvFileName = `${job.id}-cv-${nanoid()}.${cvExt}`;
+        const cvFileRef = ref(storage, `job-applications/${cvFileName}`);
+        await uploadBytes(cvFileRef, cvFile);
+        payload.cvUrl = await getDownloadURL(cvFileRef);
+      }
 
-      await uploadBytes(fileRef, file, { contentType: "application/pdf" });
-      const resumeURL = await getDownloadURL(fileRef);
-      payload.resumeURL = resumeURL;
+      if (nationalIdFile) {
+        const idExt = nationalIdFile.name.split(".").pop();
+        const idFileName = `${job.id}-id-${nanoid()}.${idExt}`;
+        const idFileRef = ref(storage, `job-applications/${idFileName}`);
+        await uploadBytes(idFileRef, nationalIdFile);
+        payload.nationalIdUrl = await getDownloadURL(idFileRef);
+      }
       
       startTransition(() => {
         formAction(payload as JobApplicationPayload);
@@ -367,15 +424,15 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
           <Send className="ml-2 h-4 w-4 transform transition-transform group-hover:translate-x-1" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl flex flex-col">
+      <DialogContent className="max-w-4xl flex flex-col h-[90vh]">
         <DialogHeader>
           <DialogTitle>Apply for {job.title}</DialogTitle>
           <DialogDescription>
             Fill in your details and upload your resume to apply.
           </DialogDescription>
         </DialogHeader>
-        <form ref={formRef} onSubmit={handleFormSubmit} noValidate className="flex-grow overflow-hidden">
-          <ScrollArea className="h-[60vh] pr-6">
+        <form ref={formRef} onSubmit={handleFormSubmit} noValidate className="flex-grow overflow-hidden flex flex-col">
+          <ScrollArea className="flex-grow pr-6">
             <div className="space-y-6">
                 <h3 className="font-semibold text-lg border-b pb-2">Personal Info</h3>
                 
@@ -841,14 +898,66 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                         </div>
                     </>
                 )}
+                
+                {visibleFields.has('workExperience') && (
+                     <>
+                        <Separator />
+                        <h3 className="font-semibold text-lg border-b pb-2">Work Experience</h3>
+                        <div className="space-y-4">
+                          {workExperiences.map((exp, index) => (
+                              <div key={exp.id} className="p-4 border rounded-lg space-y-4 relative">
+                                  <div className="grid grid-cols-2 gap-4">
+                                      <Input placeholder="Company/School Name" value={exp.companyName} onChange={e => handleWorkExperienceChange(exp.id, 'companyName', e.target.value)} />
+                                      <Input placeholder="Job Title" value={exp.jobTitle} onChange={e => handleWorkExperienceChange(exp.id, 'jobTitle', e.target.value)} />
+                                      <Input placeholder="Stage" value={exp.stage} onChange={e => handleWorkExperienceChange(exp.id, 'stage', e.target.value)} />
+                                      <Input placeholder="Department" value={exp.department} onChange={e => handleWorkExperienceChange(exp.id, 'department', e.target.value)} />
+                                      <Input placeholder="Address" value={exp.address} onChange={e => handleWorkExperienceChange(exp.id, 'address', e.target.value)} />
+                                      <Input placeholder="Telephone" value={exp.telephone} onChange={e => handleWorkExperienceChange(exp.id, 'telephone', e.target.value)} />
+                                      <Textarea placeholder="Description of your duties" className="col-span-2" value={exp.duties} onChange={e => handleWorkExperienceChange(exp.id, 'duties', e.target.value)} />
+                                      <Input type="number" placeholder="No. of supervised employees" value={exp.supervisedCount} onChange={e => handleWorkExperienceChange(exp.id, 'supervisedCount', e.target.valueAsNumber)} />
+                                      <Input placeholder="Reason for Leaving" value={exp.reasonForLeaving} onChange={e => handleWorkExperienceChange(exp.id, 'reasonForLeaving', e.target.value)} />
+                                      <Input placeholder="Supervisor's Full Name" value={exp.supervisorName} onChange={e => handleWorkExperienceChange(exp.id, 'supervisorName', e.target.value)} />
+                                      <Input type="number" placeholder="Basic Salary / month" value={exp.salary} onChange={e => handleWorkExperienceChange(exp.id, 'salary', e.target.valueAsNumber)} />
+                                      <Input placeholder="Benefits" value={exp.benefits} onChange={e => handleWorkExperienceChange(exp.id, 'benefits', e.target.value)} />
+                                      <Popover>
+                                          <PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{exp.fromDate ? format(exp.fromDate, "PPP") : <span>From</span>}</Button></PopoverTrigger>
+                                          <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={exp.fromDate} onSelect={date => handleWorkExperienceChange(exp.id, 'fromDate', date)} /></PopoverContent>
+                                      </Popover>
+                                      <Popover>
+                                          <PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{exp.toDate ? format(exp.toDate, "PPP") : <span>To</span>}</Button></PopoverTrigger>
+                                          <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={exp.toDate} onSelect={date => handleWorkExperienceChange(exp.id, 'toDate', date)} /></PopoverContent>
+                                      </Popover>
+                                  </div>
+                                  <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={() => handleRemoveWorkExperience(exp.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                              </div>
+                          ))}
+                          <Button type="button" variant="outline" onClick={handleAddWorkExperience}>
+                              <PlusCircle className="mr-2 h-4 w-4" /> Add Work Experience
+                          </Button>
+                        </div>
+                    </>
+                )}
 
 
-                 <div className="space-y-2 pt-4">
-                    <Label htmlFor="resume">Resume (PDF, max 5MB)</Label>
-                    <Input id="resume" name="resume" type="file" accept=".pdf" required onChange={handleFileChange} disabled={isPending} />
-                    {fileError && <p className="text-sm text-destructive mt-1">{fileError}</p>}
-                    {state?.errors?.resumeURL && <p className="text-sm text-destructive mt-1">{state.errors.resumeURL[0]}</p>}
+                <Separator />
+                <h3 className="font-semibold text-lg border-b pb-2">Attachments</h3>
+                {visibleFields.has('file_cv') && (
+                <div className="space-y-2 pt-4">
+                    <Label htmlFor="cv">CV</Label>
+                    <Input id="cv" name="cv" type="file" accept=".pdf,.doc,.docx" required onChange={e => handleFileChange(e, 'cv')} disabled={isPending} />
+                    {fileError.cv && <p className="text-sm text-destructive mt-1">{fileError.cv}</p>}
                 </div>
+                )}
+                 {visibleFields.has('file_nationalId') && (
+                <div className="space-y-2 pt-4">
+                    <Label htmlFor="nationalId">National ID / Passport</Label>
+                    <Input id="nationalId" name="nationalId" type="file" accept="image/*,.pdf" required onChange={e => handleFileChange(e, 'nationalId')} disabled={isPending} />
+                    {fileError.nationalId && <p className="text-sm text-destructive mt-1">{fileError.nationalId}</p>}
+                </div>
+                 )}
+
             </div>
             
           </ScrollArea>
