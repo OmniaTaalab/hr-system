@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { applicationFieldsConfig } from '@/components/job-application-dialog';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 const initialState: CreateJobState = {
   message: null,
@@ -28,6 +29,7 @@ function CreateJobForm() {
     const router = useRouter();
     const [state, formAction, isPending] = useActionState(createJobAction, initialState);
     const formRef = useRef<HTMLFormElement>(null);
+    const { profile } = useUserProfile();
 
     useEffect(() => {
         if (state.message) {
@@ -45,6 +47,10 @@ function CreateJobForm() {
 
     return (
         <form ref={formRef} action={formAction} className="space-y-6">
+            <input type="hidden" name="actorId" value={profile?.id} />
+            <input type="hidden" name="actorEmail" value={profile?.email} />
+            <input type="hidden" name="actorRole" value={profile?.role} />
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                     <Label htmlFor="title">Job Title</Label>
