@@ -1,8 +1,9 @@
+
 'use server';
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp, doc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
 import { logSystemEvent } from '@/lib/system-log';
 
 const JobFormSchema = z.object({
@@ -327,6 +328,93 @@ export async function deleteJobAction(
       errors: { form: ["Failed to delete job opening."] },
       message: `Error: ${error.message}`,
       success: false,
+    };
+  }
+}
+
+
+// --- New actions for managing job application templates ---
+
+const ManageTemplateSchema = z.object({
+  operation: z.enum(['add', 'delete']),
+  templateName: z.string().min(2, "Template name must be at least 2 characters.").optional(),
+  fields: z.array(z.string()).optional(),
+  templateId: z.string().optional(),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
+});
+
+
+export type ManageTemplateState = {
+  errors?: {
+    form?: string[];
+    templateName?: string[];
+  };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function manageApplicationTemplateAction(
+  prevState: ManageTemplateState,
+  formData: FormData
+): Promise<ManageTemplateState> {
+
+  const validatedFields = ManageTemplateSchema.safeParse({
+    operation: formData.get("operation"),
+    templateName: formData.get("templateName"),
+    fields: formData.getAll("fields"),
+    templateId: formData.get("templateId"),
+    actorId: formData.get("actorId"),
+    actorEmail: formData.get("actorEmail"),
+    actorRole: formData.get("actorRole"),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      success: false,
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "Validation failed.",
+    };
+  }
+  
+  const { operation, templateName, fields, templateId, actorId, actorEmail, actorRole } = validatedFields.data;
+  const collectionRef = collection(db, "jobApplicationTemplates");
+
+  try {
+    switch (operation) {
+      case 'add':
+        if (!templateName) return { success: false, errors: { templateName: ["Template name is required."] } };
+        
+        // Check if template with the same name already exists
+        const q = query(collectionRef, where("name", "==", templateName));
+        const existing = await getDocs(q);
+        if (!existing.empty) {
+          return { success: false, errors: { form: [`A template with the name "${templateName}" already exists.`] } };
+        }
+
+        await addDoc(collectionRef, {
+          name: templateName,
+          fields: fields || [],
+          createdAt: serverTimestamp(),
+        });
+        await logSystemEvent("Create Job Template", { actorId, actorEmail, actorRole, templateName });
+        return { success: true, message: `Template "${templateName}" saved successfully.` };
+      
+      case 'delete':
+        if (!templateId) return { success: false, errors: { form: ["Template ID is required for deletion."] } };
+        await deleteDoc(doc(db, "jobApplicationTemplates", templateId));
+        await logSystemEvent("Delete Job Template", { actorId, actorEmail, actorRole, templateId });
+        return { success: true, message: "Template deleted successfully." };
+
+      default:
+        return { success: false, errors: { form: ["Invalid operation."] } };
+    }
+  } catch (error: any) {
+    console.error(`Error performing template action:`, error);
+    return {
+      success: false,
+      errors: { form: ["An unexpected error occurred."] },
     };
   }
 }

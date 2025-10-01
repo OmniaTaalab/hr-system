@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useActionState, useEffect, useRef } from 'react';
+import React, { useActionState, useEffect, useRef, useState } from 'react';
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,27 +9,50 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { createJobAction, type CreateJobState } from '@/app/actions/job-actions';
-import { Loader2, PlusCircle, AlertTriangle } from 'lucide-react';
+import { createJobAction, type CreateJobState, manageApplicationTemplateAction, type ManageTemplateState } from '@/app/actions/job-actions';
+import { Loader2, PlusCircle, AlertTriangle, Save, Trash2, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { applicationFieldsConfig } from '@/components/job-application-dialog';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { db } from '@/lib/firebase/config';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 
-const initialState: CreateJobState = {
+const initialCreateState: CreateJobState = {
   message: null,
   errors: {},
   success: false,
 };
 
+const initialTemplateState: ManageTemplateState = {
+    message: null,
+    errors: {},
+    success: false,
+};
+
+interface Template {
+    id: string;
+    name: string;
+    fields: string[];
+}
+
 function CreateJobForm() {
     const { toast } = useToast();
     const router = useRouter();
-    const [state, formAction, isPending] = useActionState(createJobAction, initialState);
+    const [state, formAction, isPending] = useActionState(createJobAction, initialCreateState);
     const formRef = useRef<HTMLFormElement>(null);
     const { profile } = useUserProfile();
+    
+    // State for templates
+    const [templates, setTemplates] = useState<Template[]>([]);
+    const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
+    const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+    const [templateName, setTemplateName] = useState("");
+    const [templateState, templateAction, isTemplateActionPending] = useActionState(manageApplicationTemplateAction, initialTemplateState);
+
 
     useEffect(() => {
         if (state.message) {
@@ -44,6 +67,75 @@ function CreateJobForm() {
             }
         }
     }, [state, toast, router]);
+    
+    useEffect(() => {
+        if (templateState.message) {
+            toast({
+                title: templateState.success ? "Success" : "Error",
+                description: templateState.message,
+                variant: templateState.success ? "default" : "destructive",
+            });
+            if (templateState.success) {
+                setTemplateName("");
+            }
+        }
+    }, [templateState, toast]);
+
+    useEffect(() => {
+        setIsLoadingTemplates(true);
+        const q = query(collection(db, "jobApplicationTemplates"), orderBy("name"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            setTemplates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Template)));
+            setIsLoadingTemplates(false);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const handleTemplateChange = (templateId: string) => {
+        setSelectedTemplate(templateId);
+        const template = templates.find(t => t.id === templateId);
+        if (template && formRef.current) {
+            const checkboxes = formRef.current.elements.namedItem('applicationFields') as NodeListOf<HTMLInputElement>;
+            checkboxes.forEach(cb => {
+                cb.checked = template.fields.includes(cb.value);
+            });
+        }
+    };
+    
+    const handleSaveTemplate = () => {
+        if (!templateName) {
+            toast({ title: "Template Name Required", description: "Please enter a name for your template.", variant: "destructive" });
+            return;
+        }
+        if (!formRef.current) return;
+        const formData = new FormData();
+        formData.append('operation', 'add');
+        formData.append('templateName', templateName);
+        
+        const checkedFields = Array.from(formRef.current.elements.namedItem('applicationFields') as NodeListOf<HTMLInputElement>)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+            
+        checkedFields.forEach(field => formData.append('fields', field));
+        
+        if (profile?.id) formData.append('actorId', profile.id);
+        if (profile?.email) formData.append('actorEmail', profile.email);
+        if (profile?.role) formData.append('actorRole', profile.role);
+        
+        templateAction(formData);
+    };
+    
+    const handleDeleteTemplate = () => {
+        if (!selectedTemplate) return;
+        const formData = new FormData();
+        formData.append('operation', 'delete');
+        formData.append('templateId', selectedTemplate);
+        if (profile?.id) formData.append('actorId', profile.id);
+        if (profile?.email) formData.append('actorEmail', profile.email);
+        if (profile?.role) formData.append('actorRole', profile.role);
+        templateAction(formData);
+        setSelectedTemplate("");
+    };
 
     return (
         <form ref={formRef} action={formAction} className="space-y-6">
@@ -76,6 +168,38 @@ function CreateJobForm() {
             </div>
             
             <Separator />
+            
+             <div className="space-y-4">
+                <Label className="text-base font-semibold">Template Management</Label>
+                 <div className="flex flex-col sm:flex-row gap-2">
+                     <Select onValueChange={handleTemplateChange} value={selectedTemplate} disabled={isLoadingTemplates}>
+                        <SelectTrigger>
+                            <SelectValue placeholder={isLoadingTemplates ? "Loading..." : "Load from template"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                             <SelectItem value="">-- None (Default) --</SelectItem>
+                            {templates.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                    {selectedTemplate && (
+                        <Button type="button" variant="destructive" onClick={handleDeleteTemplate} disabled={isTemplateActionPending}>
+                           <Trash2 className="mr-2 h-4 w-4" /> Delete Selected Template
+                        </Button>
+                    )}
+                 </div>
+                <div className="flex flex-col sm:flex-row gap-2 p-4 border rounded-lg bg-muted/20">
+                    <Input placeholder="Enter new template name..." value={templateName} onChange={(e) => setTemplateName(e.target.value)} />
+                    <Button type="button" onClick={handleSaveTemplate} disabled={isTemplateActionPending}>
+                       {isTemplateActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                       Save Current as Template
+                    </Button>
+                </div>
+                 {templateState.errors?.form && <p className="text-sm text-destructive">{templateState.errors.form.join(', ')}</p>}
+                 {templateState.errors?.templateName && <p className="text-sm text-destructive">{templateState.errors.templateName.join(', ')}</p>}
+            </div>
+
+
+            <Separator />
 
             <div className="space-y-4">
                 <Label className="text-base font-semibold">Application Form Fields</Label>
@@ -85,7 +209,7 @@ function CreateJobForm() {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 rounded-lg border p-4">
                     {applicationFieldsConfig.map(field => (
                         <div key={field.id} className="flex items-center space-x-2">
-                            <Checkbox id={`field-${field.id}`} name="applicationFields" value={field.id} defaultChecked={field.required} />
+                            <Checkbox id={`field-${field.id}`} name="applicationFields" value={field.id} disabled={field.required} defaultChecked={field.required} />
                             <Label htmlFor={`field-${field.id}`} className={cn(field.required && "text-muted-foreground")}>
                                 {field.label}
                             </Label>
