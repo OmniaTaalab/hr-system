@@ -94,12 +94,25 @@ function CreateJobForm() {
     const handleTemplateChange = (templateId: string) => {
         setSelectedTemplate(templateId);
         const template = templates.find(t => t.id === templateId);
-        if (template && formRef.current) {
-            const checkboxes = formRef.current.elements.namedItem('applicationFields') as NodeListOf<HTMLInputElement>;
-            checkboxes.forEach(cb => {
+        const checkboxes = formRef.current?.elements.namedItem('applicationFields') as NodeListOf<HTMLInputElement>;
+        
+        if (!checkboxes) return;
+
+        checkboxes.forEach(cb => {
+            // Always check required fields
+            const fieldConfig = applicationFieldsConfig.find(f => f.id === cb.value);
+            if (fieldConfig?.required) {
+                cb.checked = true;
+                return;
+            }
+            // Check other fields based on template
+            if (template) {
                 cb.checked = template.fields.includes(cb.value);
-            });
-        }
+            } else {
+                // If "none" is selected or no template found, uncheck non-required fields
+                cb.checked = false;
+            }
+        });
     };
     
     const handleSaveTemplate = () => {
@@ -172,16 +185,16 @@ function CreateJobForm() {
              <div className="space-y-4">
                 <Label className="text-base font-semibold">Template Management</Label>
                  <div className="flex flex-col sm:flex-row gap-2">
-                     <Select onValueChange={handleTemplateChange} value={selectedTemplate} disabled={isLoadingTemplates}>
-                        <SelectTrigger>
+                     <Select onValueChange={handleTemplateChange} value={selectedTemplate}>
+                        <SelectTrigger disabled={isLoadingTemplates}>
                             <SelectValue placeholder={isLoadingTemplates ? "Loading..." : "Load from template"} />
                         </SelectTrigger>
                         <SelectContent>
-                             <SelectItem value="">-- None (Default) --</SelectItem>
+                             <SelectItem value="none">-- None (Default) --</SelectItem>
                             {templates.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                         </SelectContent>
                     </Select>
-                    {selectedTemplate && (
+                    {selectedTemplate && selectedTemplate !== 'none' && (
                         <Button type="button" variant="destructive" onClick={handleDeleteTemplate} disabled={isTemplateActionPending}>
                            <Trash2 className="mr-2 h-4 w-4" /> Delete Selected Template
                         </Button>
