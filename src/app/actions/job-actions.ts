@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp, doc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, deleteDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { logSystemEvent } from '@/lib/system-log';
 
 const JobFormSchema = z.object({
@@ -337,7 +337,7 @@ export async function deleteJobAction(
 // --- New actions for managing job application templates ---
 
 const ManageTemplateSchema = z.object({
-  operation: z.enum(['add', 'delete']),
+  operation: z.enum(['add', 'update', 'delete']),
   templateName: z.string().min(2, "Template name must be at least 2 characters.").optional(),
   fields: z.array(z.string()).optional(),
   templateId: z.string().optional(),
@@ -408,6 +408,15 @@ export async function manageApplicationTemplateAction(
         await logSystemEvent("Create Job Template", { actorId, actorEmail, actorRole, templateName });
         return { success: true, message: `Template "${templateName}" saved successfully.` };
       
+      case 'update':
+        if (!templateId) return { success: false, errors: { form: ["Template ID is required for update."] } };
+        
+        const docRef = doc(db, "jobApplicationTemplates", templateId);
+        await updateDoc(docRef, { fields: fields || [] });
+
+        await logSystemEvent("Update Job Template", { actorId, actorEmail, actorRole, templateId });
+        return { success: true, message: `Template updated successfully.` };
+
       case 'delete':
         if (!templateId) return { success: false, errors: { form: ["Template ID is required for deletion."] } };
         await deleteDoc(doc(db, "jobApplicationTemplates", templateId));

@@ -124,7 +124,7 @@ function CreateJobForm() {
             toast({ title: "Template Name Required", description: "Please enter a name for your template.", variant: "destructive" });
             return;
         }
-        if (!formRef.current) return;
+        
         const formData = new FormData();
         formData.append('operation', 'add');
         formData.append('templateName', templateName);
@@ -135,6 +135,27 @@ function CreateJobForm() {
             }
         });
         
+        if (profile?.id) formData.append('actorId', profile.id);
+        if (profile?.email) formData.append('actorEmail', profile.email);
+        if (profile?.role) formData.append('actorRole', profile.role);
+        
+        startTransition(() => {
+            templateAction(formData);
+        });
+    };
+
+     const handleUpdateTemplate = () => {
+        if (!selectedTemplate || selectedTemplate === 'none') return;
+        const formData = new FormData();
+        formData.append('operation', 'update');
+        formData.append('templateId', selectedTemplate);
+        
+        Array.from(selectedFields).forEach(field => {
+            if (!requiredFields.includes(field)) {
+                formData.append('fields', field);
+            }
+        });
+
         if (profile?.id) formData.append('actorId', profile.id);
         if (profile?.email) formData.append('actorEmail', profile.email);
         if (profile?.role) formData.append('actorRole', profile.role);
@@ -205,10 +226,16 @@ function CreateJobForm() {
                         </SelectContent>
                     </Select>
                     {selectedTemplate && selectedTemplate !== 'none' && (
-                        <Button type="button" variant="destructive" onClick={handleDeleteTemplate} disabled={isTemplateActionPending}>
-                           {isTemplateActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
-                           Delete Selected Template
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button type="button" variant="secondary" onClick={handleUpdateTemplate} disabled={isTemplateActionPending}>
+                                {isTemplateActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                Update Template
+                            </Button>
+                            <Button type="button" variant="destructive" onClick={handleDeleteTemplate} disabled={isTemplateActionPending}>
+                               {isTemplateActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
+                               Delete Template
+                            </Button>
+                        </div>
                     )}
                  </div>
                 <div className="flex flex-col sm:flex-row gap-2 p-4 border rounded-lg bg-muted/20">
