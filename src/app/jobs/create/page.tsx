@@ -57,17 +57,8 @@ function CreateJobForm() {
 
     const defaultFields = [
         'nameEn',
-        'nameAr',
-        'dateOfBirth',
-        'placeOfBirth',
-        'nationalities',
-        'socialTitle',
-        'isParentAtNIS',
-        'maritalStatus',
-        'contactNumbers',
         'emails',
         'file_cv',
-        'file_nationalId'
     ];
     const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set(defaultFields));
 

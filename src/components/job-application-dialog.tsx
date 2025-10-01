@@ -43,18 +43,18 @@ interface JobApplicationDialogProps {
 // Configuration for all possible fields
 export const applicationFieldsConfig = [
     // Personal Info
-    { id: 'nameEn', label: 'Name (English)', required: true },
-    { id: 'nameAr', label: 'Name (Arabic)', required: true },
-    { id: 'dateOfBirth', label: 'Date of Birth', required: true },
-    { id: 'placeOfBirth', label: 'Place of Birth', required: true },
-    { id: 'nationalities', label: 'Nationality(ies)', required: true },
-    { id: 'socialTitle', label: 'Social Title', required: true },
-    { id: 'isParentAtNIS', label: 'Parent at NIS?', required: true },
-    { id: 'maritalStatus', label: 'Marital Status', required: true },
+    { id: 'nameEn', label: 'Name (English)', required: false },
+    { id: 'nameAr', label: 'Name (Arabic)', required: false },
+    { id: 'dateOfBirth', label: 'Date of Birth', required: false },
+    { id: 'placeOfBirth', label: 'Place of Birth', required: false },
+    { id: 'nationalities', label: 'Nationality(ies)', required: false },
+    { id: 'socialTitle', label: 'Social Title', required: false },
+    { id: 'isParentAtNIS', label: 'Parent at NIS?', required: false },
+    { id: 'maritalStatus', label: 'Marital Status', required: false },
     { id: 'numberOfChildren', label: 'Number of Children', required: false },
     { id: 'address', label: 'Current Address', required: false },
-    { id: 'contactNumbers', label: 'Contact Numbers', required: true },
-    { id: 'emails', label: 'Email Addresses', required: true },
+    { id: 'contactNumbers', label: 'Contact Numbers', required: false },
+    { id: 'emails', label: 'Email Addresses', required: false },
 
     // Job Requirements
     { id: 'howDidYouHear', label: 'How did you learn about N.I.S.?', required: false },
@@ -83,8 +83,8 @@ export const applicationFieldsConfig = [
     { id: 'workExperience', label: 'Work Experience', required: false },
 
     // File Uploads
-    { id: 'file_cv', label: 'CV', required: true },
-    { id: 'file_nationalId', label: 'National ID/Passport', required: true },
+    { id: 'file_cv', label: 'CV', required: false },
+    { id: 'file_nationalId', label: 'National ID/Passport', required: false },
 ];
 
 const initialState: ApplyForJobState = {
