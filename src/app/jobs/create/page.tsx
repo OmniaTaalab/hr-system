@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useActionState, useEffect, useRef, useState } from 'react';
+import React, { useActionState, useEffect, useRef, useState, useTransition } from 'react';
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +52,7 @@ function CreateJobForm() {
     const [selectedTemplate, setSelectedTemplate] = useState<string>("");
     const [templateName, setTemplateName] = useState("");
     const [templateState, templateAction, isTemplateActionPending] = useActionState(manageApplicationTemplateAction, initialTemplateState);
+    const [_isPending, startTransition] = useTransition();
 
 
     useEffect(() => {
@@ -106,7 +107,7 @@ function CreateJobForm() {
                 return;
             }
             // Check other fields based on template
-            if (template) {
+            if (template && templateId !== 'none') {
                 cb.checked = template.fields.includes(cb.value);
             } else {
                 // If "none" is selected or no template found, uncheck non-required fields
@@ -135,19 +136,24 @@ function CreateJobForm() {
         if (profile?.email) formData.append('actorEmail', profile.email);
         if (profile?.role) formData.append('actorRole', profile.role);
         
-        templateAction(formData);
+        startTransition(() => {
+            templateAction(formData);
+        });
     };
     
     const handleDeleteTemplate = () => {
-        if (!selectedTemplate) return;
+        if (!selectedTemplate || selectedTemplate === 'none') return;
         const formData = new FormData();
         formData.append('operation', 'delete');
         formData.append('templateId', selectedTemplate);
         if (profile?.id) formData.append('actorId', profile.id);
         if (profile?.email) formData.append('actorEmail', profile.email);
         if (profile?.role) formData.append('actorRole', profile.role);
-        templateAction(formData);
-        setSelectedTemplate("");
+        
+        startTransition(() => {
+            templateAction(formData);
+        });
+        setSelectedTemplate("none");
     };
 
     return (
@@ -196,7 +202,8 @@ function CreateJobForm() {
                     </Select>
                     {selectedTemplate && selectedTemplate !== 'none' && (
                         <Button type="button" variant="destructive" onClick={handleDeleteTemplate} disabled={isTemplateActionPending}>
-                           <Trash2 className="mr-2 h-4 w-4" /> Delete Selected Template
+                           {isTemplateActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
+                           Delete Selected Template
                         </Button>
                     )}
                  </div>
