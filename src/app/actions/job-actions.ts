@@ -194,7 +194,7 @@ const JobApplicationSchema = z.object({
     university_completed: z.enum(["Yes", "No"]).optional(),
 
     diploma1_name: z.string().optional(),
-    diploma1_institution: z.string().optional(),
+    diploma1_institution: z_string().optional(),
     diploma1_completed: z.enum(["Yes", "No"]).optional(),
     diploma2_name: z.string().optional(),
     diploma2_institution: z.string().optional(),
@@ -361,15 +361,23 @@ export async function manageApplicationTemplateAction(
   formData: FormData
 ): Promise<ManageTemplateState> {
 
+  const rawData = {
+    operation: formData.get("operation") as string | null,
+    templateName: formData.get("templateName") as string | null,
+    fields: formData.getAll("fields") as string[] | null,
+    templateId: formData.get("templateId") as string | null,
+    actorId: formData.get("actorId") as string | null,
+    actorEmail: formData.get("actorEmail") as string | null,
+    actorRole: formData.get("actorRole") as string | null,
+  };
+  
   const validatedFields = ManageTemplateSchema.safeParse({
-    operation: formData.get("operation")??"",
-    templateName: formData.get("templateName")??"",
-    fields: formData.getAll("fields")??"",
-    templateId: formData.get("templateId")??"",
-    actorId: formData.get("actorId")??"",
-    actorEmail: formData.get("actorEmail")??"",
-    actorRole: formData.get("actorRole")??"",
+    ...rawData,
+    templateName: rawData.templateName || undefined,
+    fields: rawData.fields || [],
+    templateId: rawData.templateId || undefined,
   });
+
 
   if (!validatedFields.success) {
     return {
@@ -382,15 +390,20 @@ export async function manageApplicationTemplateAction(
   const { operation, templateName, fields, templateId, actorId, actorEmail, actorRole } = validatedFields.data;
   const collectionRef = collection(db, "jobApplicationTemplates");
 
+  // Conditional validation
+  if (operation === 'add' && (!templateName || templateName.length < 2)) {
+      return { 
+          success: false, 
+          errors: { templateName: ["Template name must be at least 2 characters."] },
+          message: "Template name is required." 
+      };
+  }
+
   try {
     switch (operation) {
       case 'add':
-        if (!templateName) {
-            return { 
-                success: false, 
-                errors: { templateName: ["Template name is required."] },
-                message: "Template name cannot be empty." 
-            };
+        if (!templateName) { // This check is now for type-safety after conditional validation
+             return { success: false, errors: { templateName: ["Template name is required."] } };
         }
         
         // Check if template with the same name already exists
