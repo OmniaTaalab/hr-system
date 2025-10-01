@@ -49,10 +49,13 @@ function CreateJobForm() {
     // State for templates
     const [templates, setTemplates] = useState<Template[]>([]);
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
-    const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+    const [selectedTemplate, setSelectedTemplate] = useState<string>("none");
     const [templateName, setTemplateName] = useState("");
     const [templateState, templateAction, isTemplateActionPending] = useActionState(manageApplicationTemplateAction, initialTemplateState);
     const [_isPending, startTransition] = useTransition();
+
+    const requiredFields = applicationFieldsConfig.filter(f => f.required).map(f => f.id);
+    const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set(requiredFields));
 
 
     useEffect(() => {
@@ -95,24 +98,24 @@ function CreateJobForm() {
     const handleTemplateChange = (templateId: string) => {
         setSelectedTemplate(templateId);
         const template = templates.find(t => t.id === templateId);
-        const checkboxes = formRef.current?.elements.namedItem('applicationFields') as NodeListOf<HTMLInputElement>;
         
-        if (!checkboxes) return;
+        if (template && templateId !== 'none') {
+            setSelectedFields(new Set([...requiredFields, ...template.fields]));
+        } else {
+            // Reset to only required fields
+            setSelectedFields(new Set(requiredFields));
+        }
+    };
 
-        checkboxes.forEach(cb => {
-            // Always check required fields
-            const fieldConfig = applicationFieldsConfig.find(f => f.id === cb.value);
-            if (fieldConfig?.required) {
-                cb.checked = true;
-                return;
-            }
-            // Check other fields based on template
-            if (template && templateId !== 'none') {
-                cb.checked = template.fields.includes(cb.value);
+    const handleCheckboxChange = (fieldId: string, checked: boolean) => {
+        setSelectedFields(prev => {
+            const newFields = new Set(prev);
+            if (checked) {
+                newFields.add(fieldId);
             } else {
-                // If "none" is selected or no template found, uncheck non-required fields
-                cb.checked = false;
+                newFields.delete(fieldId);
             }
+            return newFields;
         });
     };
     
@@ -126,11 +129,11 @@ function CreateJobForm() {
         formData.append('operation', 'add');
         formData.append('templateName', templateName);
         
-        const checkedFields = Array.from(formRef.current.elements.namedItem('applicationFields') as NodeListOf<HTMLInputElement>)
-            .filter(cb => cb.checked)
-            .map(cb => cb.value);
-            
-        checkedFields.forEach(field => formData.append('fields', field));
+        Array.from(selectedFields).forEach(field => {
+            if (!requiredFields.includes(field)) {
+                formData.append('fields', field);
+            }
+        });
         
         if (profile?.id) formData.append('actorId', profile.id);
         if (profile?.email) formData.append('actorEmail', profile.email);
@@ -154,6 +157,7 @@ function CreateJobForm() {
             templateAction(formData);
         });
         setSelectedTemplate("none");
+        setSelectedFields(new Set(requiredFields));
     };
 
     return (
@@ -229,7 +233,14 @@ function CreateJobForm() {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 rounded-lg border p-4">
                     {applicationFieldsConfig.map(field => (
                         <div key={field.id} className="flex items-center space-x-2">
-                            <Checkbox id={`field-${field.id}`} name="applicationFields" value={field.id} disabled={field.required} defaultChecked={field.required} />
+                            <Checkbox 
+                                id={`field-${field.id}`} 
+                                name="applicationFields" 
+                                value={field.id} 
+                                disabled={field.required} 
+                                checked={selectedFields.has(field.id)}
+                                onCheckedChange={(checked) => handleCheckboxChange(field.id, !!checked)}
+                            />
                             <Label htmlFor={`field-${field.id}`} className={cn(field.required && "text-muted-foreground")}>
                                 {field.label}
                             </Label>

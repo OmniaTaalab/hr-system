@@ -362,13 +362,13 @@ export async function manageApplicationTemplateAction(
 ): Promise<ManageTemplateState> {
 
   const validatedFields = ManageTemplateSchema.safeParse({
-    operation: formData.get("operation"),
-    templateName: formData.get("templateName"),
-    fields: formData.getAll("fields"),
-    templateId: formData.get("templateId"),
-    actorId: formData.get("actorId"),
-    actorEmail: formData.get("actorEmail"),
-    actorRole: formData.get("actorRole"),
+    operation: formData.get("operation")??"",
+    templateName: formData.get("templateName")??"",
+    fields: formData.getAll("fields")??"",
+    templateId: formData.get("templateId")??"",
+    actorId: formData.get("actorId")??"",
+    actorEmail: formData.get("actorEmail")??"",
+    actorRole: formData.get("actorRole")??"",
   });
 
   if (!validatedFields.success) {
