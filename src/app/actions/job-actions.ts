@@ -93,6 +93,7 @@ export async function createJobAction(
 }
 
 const WorkExperienceSchema = z.object({
+  id: z.string(),
   companyName: z.string().optional(),
   jobTitle: z.string().optional(),
   stage: z.string().optional(),
@@ -384,7 +385,13 @@ export async function manageApplicationTemplateAction(
   try {
     switch (operation) {
       case 'add':
-        if (!templateName) return { success: false, errors: { templateName: ["Template name is required."] } };
+        if (!templateName) {
+            return { 
+                success: false, 
+                errors: { templateName: ["Template name is required."] },
+                message: "Template name cannot be empty." 
+            };
+        }
         
         // Check if template with the same name already exists
         const q = query(collectionRef, where("name", "==", templateName));
