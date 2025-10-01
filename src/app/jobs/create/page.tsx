@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useActionState, useEffect, useRef, useState, useTransition } from 'react';
@@ -54,8 +55,21 @@ function CreateJobForm() {
     const [templateState, templateAction, isTemplateActionPending] = useActionState(manageApplicationTemplateAction, initialTemplateState);
     const [_isPending, startTransition] = useTransition();
 
-    const requiredFields = applicationFieldsConfig.filter(f => f.required).map(f => f.id);
-    const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set(requiredFields));
+    const defaultFields = [
+        'nameEn',
+        'nameAr',
+        'dateOfBirth',
+        'placeOfBirth',
+        'nationalities',
+        'socialTitle',
+        'isParentAtNIS',
+        'maritalStatus',
+        'contactNumbers',
+        'emails',
+        'file_cv',
+        'file_nationalId'
+    ];
+    const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set(defaultFields));
 
 
     useEffect(() => {
@@ -100,10 +114,10 @@ function CreateJobForm() {
         const template = templates.find(t => t.id === templateId);
         
         if (template && templateId !== 'none') {
-            setSelectedFields(new Set([...requiredFields, ...template.fields]));
+            setSelectedFields(new Set([...defaultFields, ...template.fields]));
         } else {
             // Reset to only required fields
-            setSelectedFields(new Set(requiredFields));
+            setSelectedFields(new Set(defaultFields));
         }
     };
 
@@ -130,7 +144,7 @@ function CreateJobForm() {
         formData.append('templateName', templateName);
         
         Array.from(selectedFields).forEach(field => {
-            if (!requiredFields.includes(field)) {
+            if (!defaultFields.includes(field)) {
                 formData.append('fields', field);
             }
         });
@@ -151,7 +165,7 @@ function CreateJobForm() {
         formData.append('templateId', selectedTemplate);
         
         Array.from(selectedFields).forEach(field => {
-            if (!requiredFields.includes(field)) {
+            if (!defaultFields.includes(field)) {
                 formData.append('fields', field);
             }
         });
@@ -178,7 +192,7 @@ function CreateJobForm() {
             templateAction(formData);
         });
         setSelectedTemplate("none");
-        setSelectedFields(new Set(requiredFields));
+        setSelectedFields(new Set(defaultFields));
     };
 
     return (
