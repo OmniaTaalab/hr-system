@@ -194,7 +194,7 @@ const JobApplicationSchema = z.object({
     university_completed: z.enum(["Yes", "No"]).optional(),
 
     diploma1_name: z.string().optional(),
-    diploma1_institution: z_string().optional(),
+    diploma1_institution: z.string().optional(),
     diploma1_completed: z.enum(["Yes", "No"]).optional(),
     diploma2_name: z.string().optional(),
     diploma2_institution: z.string().optional(),
@@ -249,6 +249,7 @@ export async function applyForJobAction(
   // The client-side logic will ensure that fields selected for the job are actually submitted.
    if (!payload.jobId || !payload.jobTitle) {
     return {
+      // @ts-ignore
       errors: { form: ["Core information (Job ID, Title) is missing."] },
       success: false,
     };
@@ -266,7 +267,7 @@ export async function applyForJobAction(
     });
 
     await logSystemEvent("Apply for Job", {
-        actorEmail: applicationData.email1, // Applicant is the actor
+        actorEmail: (applicationData as any).email1, // Applicant is the actor
         applicationId: newApplicationRef.id,
         jobTitle,
     });
@@ -275,6 +276,7 @@ export async function applyForJobAction(
   } catch (error: any) {
     console.error("Error submitting application to Firestore:", error);
     return {
+      // @ts-ignore
       errors: { form: ["Failed to save application to our database. An unexpected error occurred."] },
       message: `Error: ${error.message}`,
       success: false,
@@ -447,3 +449,5 @@ export async function manageApplicationTemplateAction(
     };
   }
 }
+
+    
