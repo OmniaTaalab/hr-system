@@ -703,7 +703,7 @@ const BatchEmployeeSchema = z.object({
   gender: z.string().optional(),
   nationalId: z.string().optional(),
   religion: z.string().optional(),
-  nisEmail: z.string().email(), // NIS Email
+  email: z.string().email(), // NIS Email is the identifier
   joiningDate: z.any().transform(val => parseFlexibleDate(val)),
   title: z.string().optional(),
   department: z.string().optional(),
@@ -760,8 +760,9 @@ export async function batchCreateEmployeesAction(
   const employeeCollectionRef = collection(db, "employee");
 
   for (const [index, record] of employeesToProcess.entries()) {
-    const batch = writeBatch(db);
     try {
+      const batch = writeBatch(db);
+      
       // Check for existing employee by email
       const q = query(employeeCollectionRef, where("email", "==", record.email), limit(1));
       const existingSnapshot = await getDocs(q);
@@ -776,10 +777,10 @@ export async function batchCreateEmployeesAction(
       }
       
       const countSnapshot = await getCountFromServer(employeeCollectionRef);
-      const employeeCount = countSnapshot.data().count + createdCount + replacedCount -1;
+      const employeeCount = countSnapshot.data().count + createdCount + replacedCount - (replacedCount > 0 ? 1 : 0);
       const employeeId = (1001 + employeeCount).toString();
 
-      const nameParts = record.name!.trim().split(/\s+/);
+      const nameParts = (record.name || 'Unknown User').trim().split(/\s+/);
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ');
 
@@ -825,7 +826,7 @@ export async function batchCreateEmployeesAction(
 
     } catch (e: any) {
         failedCount++;
-        errorMessages.push(`Row ${index + 2}: Failed to process ${record.name} - ${e.message}`);
+        errorMessages.push(`Row ${index + 2}: Failed to process ${record.name || record.email} - ${e.message}`);
     }
   }
 
