@@ -41,6 +41,8 @@ interface AppProviderProps {
   children: ReactNode;
 }
 
+const publicPaths = ['/login', '/jobs'];
+
 export function AppProvider({ children }: AppProviderProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -91,15 +93,19 @@ export function AppProvider({ children }: AppProviderProps) {
   }, []);
 
   useEffect(() => {
+    const isPublicPath = publicPaths.includes(pathname) || pathname.startsWith('/jobs/');
     // Redirect logic
-    if (!loading && !user && pathname !== '/login') {
+    if (!loading && !user && !isPublicPath) {
       router.push('/login');
     }
   }, [user, loading, pathname, router]);
 
   const contextValue = { user, profile, loading };
+  
+  const isPublicPath = publicPaths.includes(pathname) || pathname.startsWith('/jobs/');
 
-  if (loading) {
+
+  if (loading && !isPublicPath) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -110,8 +116,8 @@ export function AppProvider({ children }: AppProviderProps) {
     );
   }
   
-  if (!user && pathname !== '/login') {
-    return (
+  if (!user && !isPublicPath) {
+     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Icons.NisLogo className="h-20 w-20" />
