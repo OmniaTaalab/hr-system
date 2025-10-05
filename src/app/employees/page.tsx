@@ -965,6 +965,7 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
     const { profile } = useUserProfile();
     const [batchState, batchAction, isBatchPending] = useActionState(batchCreateEmployeesAction, initialBatchCreateState);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [isTransitioning, startTransition] = useTransition();
 
     useEffect(() => {
         if (batchState?.message) {
@@ -1004,7 +1005,9 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
             if (profile?.email) formData.append('actorEmail', profile.email);
             if (profile?.role) formData.append('actorRole', profile.role);
             
-            batchAction(formData);
+            startTransition(() => {
+                batchAction(formData);
+            });
         };
         reader.readAsArrayBuffer(selectedFile);
     };
@@ -1035,8 +1038,8 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
                 )}
                 <DialogFooter>
                     <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                    <Button type="button" onClick={handleImport} disabled={isBatchPending || !selectedFile}>
-                        {isBatchPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UploadCloud className="mr-2 h-4 w-4" />}
+                    <Button type="button" onClick={handleImport} disabled={isBatchPending || isTransitioning || !selectedFile}>
+                        {(isBatchPending || isTransitioning) ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UploadCloud className="mr-2 h-4 w-4" />}
                         Import Data
                     </Button>
                 </DialogFooter>
