@@ -693,27 +693,27 @@ export async function createEmployeeProfileAction(
 // --- NEW ACTION FOR BATCH EMPLOYEE CREATION ---
 
 const BatchEmployeeSchema = z.object({
-  name: z.string().optional(),
-  personalEmail: z.string().optional(),
-  phone: z.string().optional(),
-  emergencyContactName: z.string().optional(),
-  emergencyContactRelationship: z.string().optional(),
-  emergencyContactNumber: z.string().optional(),
-  dateOfBirth: z.any().transform(val => parseFlexibleDate(val)),
-  gender: z.string().optional(),
-  nationalId: z.string().optional(),
-  religion: z.string().optional(),
-  email: z.string().email(), // NIS Email is the identifier
-  joiningDate: z.any().transform(val => parseFlexibleDate(val)),
-  title: z.string().optional(),
-  department: z.string().optional(),
-  role: z.string().optional(),
-  stage: z.string().optional(),
-  campus: z.string().optional(),
-  reportLine1: z.string().optional(),
-  reportLine2: z.string().optional(),
-  subject: z.string().optional(),
-  hourlyRate: z.number().optional(),
+  name: z.string().optional()??"",
+  personalEmail: z.string().optional()??"",
+  phone: z.string().optional()??"",
+  emergencyContactName: z.string().optional()??"",
+  emergencyContactRelationship: z.string().optional()??"",
+  emergencyContactNumber: z.string().optional()??"",
+  dateOfBirth: z.any().transform(val => parseFlexibleDate(val))??"",
+  gender: z.string().optional()??"",
+  nationalId: z.string().optional()??"",
+  religion: z.string().optional()??"",
+  email: z.string().email()??"", // NIS Email is the identifier
+  joiningDate: z.any().transform(val => parseFlexibleDate(val))??"",
+  title: z.string().optional()??"",
+  department: z.string().optional()??"",
+  role: z.string().optional()??"",
+  stage: z.string().optional()??"",
+  campus: z.string().optional()??"",
+  reportLine1: z.string().optional()??"",
+  reportLine2: z.string().optional()??"",
+  subject: z.string().optional()??"",
+  hourlyRate: z.number().optional()??"",
 });
 
 
@@ -749,7 +749,7 @@ export async function batchCreateEmployeesAction(
 
   if (!validationResult.success) {
     console.error(validationResult.error);
-    return { errors: { file: ["The data format in the file is invalid. Check column names and data types."] }, success: false };
+    return { errors: { file: ["The data format in the file is invalid. Please check column values."] }, success: false };
   }
   
   const employeesToProcess = validationResult.data;
@@ -786,31 +786,29 @@ export async function batchCreateEmployeesAction(
 
       const newEmployeeData = {
           name: record.name,
-          firstName,
-          lastName,
           personalEmail: record.personalEmail,
           phone: record.phone?.toString(),
           emergencyContact: {
-              name: record.emergencyContactName || "",
-              relationship: record.emergencyContactRelationship || "",
-              number: record.emergencyContactNumber?.toString() || "",
+              name: record.emergencyContactName ?? "",
+              relationship: record.emergencyContactRelationship ?? "",
+              number: record.emergencyContactNumber?.toString() ?? "",
           },
           dateOfBirth: record.dateOfBirth ? Timestamp.fromDate(record.dateOfBirth) : null,
-          gender: record.gender || "",
-          nationalId: record.nationalId?.toString() || "",
-          religion: record.religion || "",
-          email: record.email,
+          gender: record.gender ?? "",
+          nationalId: record.nationalId?.toString() ?? "",
+          religion: record.religion ?? "",
+          nisEmail: record.email,
           joiningDate: record.joiningDate ? Timestamp.fromDate(record.joiningDate) : serverTimestamp(),
-          title: record.title || "",
-          department: record.department || "",
-          role: record.role || "",
-          stage: record.stage || "",
-          campus: record.campus || "",
-          reportLine1: record.reportLine1 || "",
-          reportLine2: record.reportLine2 || "",
-          subject: record.subject || "",
+          title: record.title ?? "",
+          department: record.department ?? "",
+          role: record.role ?? "",
+          stage: record.stage ?? "",
+          campus: record.campus ?? "",
+          reportLine1: record.reportLine1 ?? "",
+          reportLine2: record.reportLine2 ?? "",
+          subject: record.subject ?? "",
           system: "Unassigned",
-          employeeId: employeeId,
+          employeeId: employeeId??"",
           status: "Active",
           hourlyRate: record.hourlyRate || 0,
           leavingDate: null,
