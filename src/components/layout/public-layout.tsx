@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -6,6 +7,7 @@ import { useApp } from './app-provider';
 import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
 import { usePathname } from 'next/navigation';
+import { Skeleton } from '../ui/skeleton';
 
 interface PublicLayoutProps {
   children: React.ReactNode;
@@ -23,7 +25,9 @@ function PublicHeader() {
            <span className="font-headline text-lg font-bold">HR Assistant</span>
         </Link>
         <nav>
-          {loading ? null : user ? (
+          {loading ? (
+             <Skeleton className="h-10 w-24 rounded-md" />
+          ) : user ? (
             <Button asChild>
               <Link href="/">Dashboard</Link>
             </Button>
