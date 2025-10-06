@@ -578,7 +578,7 @@ export async function deactivateEmployeeAction(
 
 const CreateProfileFormSchema = z.object({
   userId: z.string().min(1, "User ID is required."),
-  nisEmail: z.string().nisEmail(),
+  nisEmail: z.string().email(),
   firstName: z.string().min(1, "First name is required."),
   lastName: z.string().min(1, "Last name is required."),
   department: z.string().min(1, "Department is required."),
@@ -628,7 +628,7 @@ export async function createEmployeeProfileAction(
     };
   }
 
-  const { userId, email, firstName, lastName, department, role, stage, phone, dateOfBirth } = validatedFields.data;
+  const { userId, nisEmail, firstName, lastName, department, role, stage, phone, dateOfBirth } = validatedFields.data;
   const name = `${firstName} ${lastName}`;
 
   try {
@@ -642,7 +642,7 @@ export async function createEmployeeProfileAction(
     }
 
     // Check if email is used by another employee record (edge case)
-    const emailQuery = query(employeeCollectionRef, where("nisEmai", "==", email), limit(1));
+    const emailQuery = query(employeeCollectionRef, where("nisEmai", "==", nisEmail), limit(1));
     const emailSnapshot = await getDocs(emailQuery);
     if (!emailSnapshot.empty) {
         return { success: false, errors: { form: ["This email is already linked to another employee profile."] } };
@@ -678,7 +678,7 @@ export async function createEmployeeProfileAction(
 
     const newDoc = await addDoc(employeeCollectionRef, employeeData);
 
-    await logSystemEvent("Create Employee Profile", { actorId: userId, actorEmail: nisEmail, newEmployeeId: newDoc.id, newEmployeeName: name, changes: { newData: employeeData } });
+    await logSystemEvent("Create Employee Profile", { actorId: userId, actorEmail: nisEmail, actorRole: "Employee", newEmployeeId: newDoc.id, newEmployeeName: name, changes: { newData: employeeData } });
     
     return { success: true, message: `Your profile has been created successfully!` };
   } catch (error: any) {
@@ -703,7 +703,7 @@ const BatchEmployeeSchema = z.object({
   gender: z.string().optional()??"",
   nationalId: z.string().optional()??"",
   religion: z.string().optional()??"",
-  nisEmail: z.string().nisEmail()??"", // NIS Email is the identifier
+  nisEmail: z.string().email()??"", // NIS Email is the identifier
   joiningDate: z.any().transform(val => parseFlexibleDate(val))??"",
   title: z.string().optional()??"",
   department: z.string().optional()??"",
@@ -764,7 +764,7 @@ export async function batchCreateEmployeesAction(
       const batch = writeBatch(db);
       
       // Check for existing employee by email
-      const q = query(employeeCollectionRef, where("email", "==", record.email), limit(1));
+      const q = query(employeeCollectionRef, where("nisEmail", "==", record.nisEmail), limit(1));
       const existingSnapshot = await getDocs(q);
 
       if (!existingSnapshot.empty) {
@@ -797,7 +797,7 @@ export async function batchCreateEmployeesAction(
           gender: record.gender ?? "",
           nationalId: record.nationalId?.toString() ?? "",
           religion: record.religion ?? "",
-          nisEmail: record.email,
+          nisEmail: record.nisEmail,
           joiningDate: record.joiningDate ? Timestamp.fromDate(record.joiningDate) : serverTimestamp(),
           title: record.title ?? "",
           department: record.department ?? "",
@@ -824,7 +824,7 @@ export async function batchCreateEmployeesAction(
 
     } catch (e: any) {
         failedCount++;
-        errorMessages.push(`Row ${index + 2}: Failed to process ${record.name || record.email} - ${e.message}`);
+        errorMessages.push(`Row ${index + 2}: Failed to process ${record.name || record.nisEmail} - ${e.message}`);
     }
   }
 
