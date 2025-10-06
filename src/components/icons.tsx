@@ -60,11 +60,15 @@ export const Icons = {
     );
   },
   StudioLogo: ({ className }: { className?: string }) => (
-    <svg
-      className={cn("h-8 w-8", className)}
-      viewBox="0 0 256 256"
-      xmlns="http://www.w3.org/2000/svg"
-    >
+
+   <Image
+          src="/nis_logo.png"
+          alt="NIS HR System Logo"
+          fill
+          style={{ objectFit: 'contain' }}
+          priority
+        >
+  
       <g clipPath="url(#clip0_139_2)">
         <path
           d="M51.1093 219.742L35.918 202.923L153.219 40.233L167.318 43.109L51.1093 219.742Z"
@@ -88,6 +92,6 @@ export const Icons = {
           <rect width="256" height="256" fill="white" />
         </clipPath>
       </defs>
-    </svg>
+    /</Image>
   ),
 };
