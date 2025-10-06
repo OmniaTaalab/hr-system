@@ -44,21 +44,8 @@ const GoogleLogo = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const StudioLogo = ({ className }: { className?: string }) => (
-  <div className={cn('relative h-6 w-6', className)}>
-    <Image
-      src="/nis_logo.png"
-      alt="NIS  Logo"
-      fill
-      style={{ objectFit: 'contain' }}
-      priority
-    />
-  </div>
-);
-
 export const Icons = {
   Logo: GoogleLogo,
-  StudioLogo, // تم التعديل هنا ليعرض صورة nis_logo.png
   NisLogo: ({ className }: NisLogoProps) => {
     return (
       <div className={cn('relative h-8 w-8', className)}>
@@ -72,4 +59,35 @@ export const Icons = {
       </div>
     );
   },
+  StudioLogo: ({ className }: { className?: string }) => (
+    <svg
+      className={cn("h-8 w-8", className)}
+      viewBox="0 0 256 256"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <g clipPath="url(#clip0_139_2)">
+        <path
+          d="M51.1093 219.742L35.918 202.923L153.219 40.233L167.318 43.109L51.1093 219.742Z"
+          fill="#FCCA3F"
+        />
+        <path
+          d="M125.688 123.513L51.1211 219.742L72.2461 243.609L167.318 43.109L125.688 123.513Z"
+          fill="#F57C00"
+        />
+        <path
+          d="M153.22 40.232L35.9175 202.922L54.8965 224.28L205.811 75.99L153.22 40.232Z"
+          fill="#FFA000"
+        />
+        <path
+          d="M205.811 75.99L167.318 43.109L72.2461 243.609L90.9326 255.432L205.811 75.99Z"
+          fill="#F4511E"
+        />
+      </g>
+      <defs>
+        <clipPath id="clip0_139_2">
+          <rect width="256" height="256" fill="white" />
+        </clipPath>
+      </defs>
+    </svg>
+  ),
 };
