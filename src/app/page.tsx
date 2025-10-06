@@ -26,7 +26,7 @@ interface Employee {
   name: string;
   department: string;
   campus: string;
-  status: "Active" | "On Leave" | "Terminated";
+  status: "Active" | "On Leave" | "Deactivated";
 }
 
 interface Holiday {

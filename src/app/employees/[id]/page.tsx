@@ -52,7 +52,7 @@ interface Employee {
   photoURL?: string | null;
   dateOfBirth?: Timestamp | { _seconds: number; _nanoseconds: number; }; // Can be Timestamp or serialized object
   joiningDate?: Timestamp | { _seconds: number;_nanoseconds: number; }; // Can be Timestamp or serialized object
-  status?: "Active" | "Terminated";
+  status?: "Active" | "deactivated";
   leavingDate?: Timestamp | { _seconds: number; _nanoseconds: number; } | null;
   reasonForLeaving?: string;
   [key: string]: any; // Allow other properties
@@ -386,15 +386,15 @@ function EmployeeProfileContent() {
                   <div className="text-center md:text-left">
                       <CardTitle className="font-headline text-3xl">{employee.name}</CardTitle>
                       <CardDescription className="text-lg text-primary">{employee.role}</CardDescription>
-                       {employee.status === 'Terminated' && (
+                       {employee.status === 'deactivated' && (
                           <Badge variant="destructive" className="mt-2">
-                              Terminated on {safeToDate(employee.leavingDate) ? format(safeToDate(employee.leavingDate)!, 'PPP') : 'N/A'}
+                              deactivated on {safeToDate(employee.leavingDate) ? format(safeToDate(employee.leavingDate)!, 'PPP') : 'N/A'}
                           </Badge>
                       )}
                   </div>
               </CardHeader>
               <CardContent className="p-6">
-                {employee.status === 'Terminated' && employee.reasonForLeaving && (
+                {employee.status === 'deactivated' && employee.reasonForLeaving && (
                     <div className="mb-6 p-4 bg-destructive/10 rounded-lg border border-destructive/20">
                          <h3 className="text-lg font-semibold flex items-center mb-2 text-destructive"><UserMinus className="mr-2 h-5 w-5" />Deactivation Information</h3>
                          <DetailItem icon={CalendarDays} label="Leaving Date" value={safeToDate(employee.leavingDate) ? format(safeToDate(employee.leavingDate)!, 'PPP') : undefined} />
@@ -417,7 +417,7 @@ function EmployeeProfileContent() {
                    <DetailItem icon={Users} label="Report Line 1" value={employee.reportLine1} />
                    <DetailItem icon={Users} label="Report Line 2" value={employee.reportLine2} />
                    <DetailItem icon={Activity} label="Status">
-                     <Badge variant={employee.status === "Terminated" ? "destructive" : "secondary"} className={employee.status === 'Active' ? 'bg-green-100 text-green-800' : ''}>
+                     <Badge variant={employee.status === "deactivated" ? "destructive" : "secondary"} className={employee.status === 'Active' ? 'bg-green-100 text-green-800' : ''}>
                        {employee.status || "Active"}
                      </Badge>
                    </DetailItem>

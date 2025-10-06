@@ -555,12 +555,12 @@ export async function deactivateEmployeeAction(
         const employeeName = docSnap.exists() ? docSnap.data().name : 'Unknown';
         
         await updateDoc(employeeRef, {
-            status: 'Terminated',
+            status: 'deactivated',
             leavingDate: Timestamp.fromDate(leavingDate),
             reasonForLeaving,
         });
 
-        await logSystemEvent("Deactivate Employee", { actorId, actorEmail, actorRole, targetEmployeeId: employeeDocId, targetEmployeeName: employeeName, changes: { newData: { status: 'Terminated', leavingDate, reasonForLeaving } } });
+        await logSystemEvent("Deactivate Employee", { actorId, actorEmail, actorRole, targetEmployeeId: employeeDocId, targetEmployeeName: employeeName, changes: { newData: { status: 'deactivated', leavingDate, reasonForLeaving } } });
 
         return { success: true, message: "Employee has been deactivated successfully." };
 

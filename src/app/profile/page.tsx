@@ -53,7 +53,7 @@ interface EmployeeProfile {
   department: string;
   employeeId: string;
   phone: string;
-  status: "Active" | "On Leave" | "Terminated";
+  status: "Active" | "On Leave" | "deactivated";
   reportLine1?: string;
   reportLine2?: string;
   photoURL?: string | null;
@@ -89,8 +89,8 @@ function EmployeeStatusBadge({ status }: { status: EmployeeProfile["status"] | u
       return <Badge variant="secondary" className="bg-green-100 text-green-800">Active</Badge>;
     case "On Leave":
       return <Badge variant="outline" className="border-yellow-500 text-yellow-600">On Leave</Badge>;
-    case "Terminated":
-      return <Badge variant="destructive">Terminated</Badge>;
+    case "deactivated":
+      return <Badge variant="destructive">deactivated</Badge>;
     default:
       return <Badge>{status}</Badge>;
   }

@@ -110,7 +110,7 @@ export interface Employee {
   religion?: string;
   subject?: string;
   title?: string;
-  status?: "Active" | "Terminated";
+  status?: "Active" | "deactivated";
   reasonForLeaving?: string;
 }
 
@@ -919,7 +919,7 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
                     <DialogHeader>
                         <DialogTitle>Deactivate Employee: {employee.name}</DialogTitle>
                         <DialogDescription>
-                            Set the leaving date and reason for deactivating this employee. This will set their status to "Terminated".
+                            Set the leaving date and reason for deactivating this employee. This will set their status to "deactivated".
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -1552,7 +1552,7 @@ function EmployeeManagementContent() {
             <TableBody>
               {paginatedEmployees.length > 0 ? (
                 paginatedEmployees.map((employee) => (
-                  <TableRow key={employee.id}>
+                  <TableRow key={employee.id} className={cn(employee.status === 'deactivated' && 'bg-destructive/10 hover:bg-destructive/20')}>
                     <TableCell className="font-medium">
                       <Link href={`/employees/${encodeURIComponent(employee.employeeId)}`} className="flex items-center gap-3 hover:underline">
                         <Avatar>
@@ -1567,7 +1567,7 @@ function EmployeeManagementContent() {
                     <TableCell>{employee.stage || '-'}</TableCell>
                     <TableCell>{employee.campus || '-'}</TableCell>
                     <TableCell>
-                      <Badge variant={employee.status === "Terminated" ? "destructive" : "secondary"}
+                      <Badge variant={employee.status === "deactivated" ? "destructive" : "secondary"}
                              className={cn({
                                 'bg-green-100 text-green-800': employee.status === 'Active',
                               })}>
@@ -1615,7 +1615,7 @@ function EmployeeManagementContent() {
                               <Edit3 className="mr-2 h-4 w-4" />
                               Edit Employee
                             </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => openDeactivateDialog(employee)} disabled={!canManageEmployees || employee.status === 'Terminated'}>
+                            <DropdownMenuItem onSelect={() => openDeactivateDialog(employee)} disabled={!canManageEmployees || employee.status === 'deactivated'}>
                                <UserMinus className="mr-2 h-4 w-4" />
                                Deactivate Employee
                             </DropdownMenuItem>
