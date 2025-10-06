@@ -19,9 +19,6 @@ const fontSpaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   title: 'HR Assistant',
   description: 'A modern Human Resource Management System',
-  icons: {
-    icon: '/nis_logo.png',
-  },
 };
 
 export default function RootLayout({

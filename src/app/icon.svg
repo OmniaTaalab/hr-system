@@ -1,20 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <defs>
-    <linearGradient id="studioGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#F56565" />
-      <stop offset="100%" style="stop-color:#ED8936" />
-    </linearGradient>
-  </defs>
-  <path
-    d="M83.3,16.7 L50,0 L16.7,16.7 L16.7,50 L16.7,83.3 L50,100 L83.3,83.3 L83.3,50 Z"
-    fill="url(#studioGradient)"
-  />
-  <path
-    d="M60,25 C60,25 60,35 50,40 C40,45 40,55 40,55 C40,55 40,45 50,40 C60,35 60,25 60,25 M40,45 C40,45 40,55 50,60 C60,65 60,75 60,75 C60,75 60,65 50,60 C40,55 40,45 40,45"
-    fill="none"
-    stroke="white"
-    strokeWidth="8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  />
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_139_2)">
+<path d="M51.1093 219.742L35.918 202.923L153.219 40.233L167.318 43.109L51.1093 219.742Z" fill="#FCCA3F"/>
+<path d="M125.688 123.513L51.1211 219.742L72.2461 243.609L167.318 43.109L125.688 123.513Z" fill="#F57C00"/>
+<path d="M153.22 40.232L35.9175 202.922L54.8965 224.28L205.811 75.99L153.22 40.232Z" fill="#FFA000"/>
+<path d="M205.811 75.99L167.318 43.109L72.2461 243.609L90.9326 255.432L205.811 75.99Z" fill="#F4511E"/>
+</g>
+<defs>
+<clipPath id="clip0_139_2">
+<rect width="256" height="256" fill="white"/>
+</clipPath>
+</defs>
 </svg>
