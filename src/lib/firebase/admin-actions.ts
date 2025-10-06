@@ -796,14 +796,8 @@ export async function batchCreateEmployeesAction(
   for (const [index, record] of employeesToProcess.entries()) {
     try {
       // Skip rows with no email or name
-      if (!record.email && !record.name) {
-          continue; // Silently skip empty rows
-      }
-      
       if (!record.email || !record.name) {
-          failedCount++;
-          errorMessages.push(`Row ${index + 2}: Skipped due to missing name or email.`);
-          continue;
+          continue; // Silently skip empty rows
       }
       
       const employeeData = {
@@ -880,7 +874,15 @@ export async function batchCreateEmployeesAction(
 
   await logSystemEvent("Batch Create/Update Employees", { actorId, actorEmail, actorRole, createdCount, updatedCount, failedCount, errorMessages });
 
-  let message = `Import complete. Created: ${createdCount} (${createdNames.slice(0, 3).join(', ')}${createdNames.length > 3 ? '...' : ''}). Updated: ${updatedCount} (${updatedNames.slice(0, 3).join(', ')}${updatedNames.length > 3 ? '...' : ''}).`;
+  const formatNames = (names: string[]) => {
+      if (names.length === 0) return "";
+      const nameList = names.slice(0, 3).join(', ');
+      const more = names.length > 3 ? '...' : '';
+      return ` (${nameList}${more})`;
+  };
+
+  let message = `Import complete. Created: ${createdCount}${formatNames(createdNames)}. Updated: ${updatedCount}${formatNames(updatedNames)}.`;
+
   if (failedCount > 0) {
     message += ` Failed: ${failedCount}. First error: ${errorMessages[0]}`;
     return { success: false, message, errors: { form: errorMessages }};
