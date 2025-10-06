@@ -46,7 +46,7 @@ interface Employee {
   groupName: string;
   system: string;
   campus: string;
-  email: string; // NIS Email
+  nisEmail: string; // NIS Email
   phone: string; // Personal Phone
   hourlyRate?: number;
   photoURL?: string | null;

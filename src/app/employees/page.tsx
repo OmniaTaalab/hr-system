@@ -99,8 +99,8 @@ export interface Employee {
   hourlyRate?: number;
   userId?: string | null;
   photoURL?: string | null;
-  dateOfBirth?:string; // Can be either
-  joiningDate?: string; // Can be either
+  dateOfBirth?: Timestamp | Date | string; // Can be either
+  joiningDate?: Timestamp | Date | string; // Can be either
   leavingDate?: Timestamp | Date | null; // Can be either
   leaveBalances?: { [key: string]: number };
   documents?: EmployeeFile[];
@@ -434,7 +434,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="add-nisEmail">NIS Email</Label>
-                  <Input id="add-nisEmail" name="nisEmail" type="email" />
+                  <Input id="add-nisEmail" name="email" type="email" />
                   {serverState?.errors?.nisEmail && <p className="text-sm text-destructive">{serverState.errors.nisEmail.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
@@ -740,7 +740,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                 <div className="space-y-2">
                   <Label htmlFor="edit-email">NIS Email</Label>
                   <Input id="edit-email" name="email" type="email" defaultValue={employee.email}  />
-                  {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
+                  {serverState?.errors?.nisEmail && <p className="text-sm text-destructive">{serverState.errors.nisEmail.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="edit-title">Title</Label>
@@ -1125,7 +1125,7 @@ function EmployeeManagementContent() {
                 convertedData.dateOfBirth = data.dateOfBirth.toDate();
             }
             if (data.joiningDate instanceof Timestamp) {
-                convertedData.joiningDate = data.joiningDate.toDate();
+              convertedData.joiningDate = data.joiningDate.toDate();
             }
              if (data.leavingDate instanceof Timestamp) {
                 convertedData.leavingDate = data.leavingDate.toDate();

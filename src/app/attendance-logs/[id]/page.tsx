@@ -65,7 +65,7 @@ function UserAttendanceLogContent() {
         // Check if identifier is an email
         if (employeeIdentifier.includes('@')) {
             try {
-                const employeeQuery = query(collection(db, "employee"), where("email", "==", employeeIdentifier), limit(1));
+                const employeeQuery = query(collection(db, "employee"), where("nisEmail", "==", employeeIdentifier), limit(1));
                 const employeeSnapshot = await getDocs(employeeQuery);
                 if (!employeeSnapshot.empty) {
                     const employeeData = employeeSnapshot.docs[0].data();

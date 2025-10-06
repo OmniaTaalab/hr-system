@@ -75,7 +75,7 @@ export default function LoginPage() {
     if (user?.email) {
       const q = query(
         collection(db, "employee"),
-        where("email", "==", user.email),
+        where("nisEmail", "==", user.email),
         limit(1)
       );
       const employeeSnapshot = await getDocs(q);
@@ -173,7 +173,7 @@ export default function LoginPage() {
       const user = result.user;
       
       if (user?.email) {
-        const nisEmailQuery = query(collection(db, "employee"), where("email", "==", user.email), limit(1));
+        const nisEmailQuery = query(collection(db, "employee"), where("nisEmail", "==", user.email), limit(1));
         const personalEmailQuery = query(collection(db, "employee"), where("personalEmail", "==", user.email), limit(1));
         
         const [nisEmailSnapshot, personalEmailSnapshot] = await Promise.all([

@@ -74,7 +74,7 @@ export async function getAllAuthUsers() {
     // Map the complex UserRecord objects to plain, serializable objects
     return users.map(user => ({
       uid: user.uid,
-      email: user.email,
+      nisEmail: user.nisEmail,
       displayName: user.displayName,
       disabled: user.disabled,
       metadata: {
@@ -276,7 +276,7 @@ const UpdateEmployeeFormSchema = z.object({
   role: z.string().optional(),
   system: z.string().optional(),
   campus: z.string().optional(),
-  email: z.string().email({ message: 'Invalid email address.' }).optional(),
+  nisEmail: z.string().email({ message: 'Invalid email address.' }).optional(),
   personalEmail: z.string().email({ message: 'Invalid personal email address.' }).optional().or(z.literal('')),
   phone: z.string().optional(),
   emergencyContactName: z.string().optional(),
@@ -578,7 +578,7 @@ export async function deactivateEmployeeAction(
 
 const CreateProfileFormSchema = z.object({
   userId: z.string().min(1, "User ID is required."),
-  email: z.string().email(),
+  nisEmail: z.string().nisEmail(),
   firstName: z.string().min(1, "First name is required."),
   lastName: z.string().min(1, "Last name is required."),
   department: z.string().min(1, "Department is required."),
@@ -610,7 +610,7 @@ export async function createEmployeeProfileAction(
   
   const validatedFields = CreateProfileFormSchema.safeParse({
     userId: formData.get('userId'),
-    email: formData.get('email'),
+    nisEmail: formData.get('nisEmail'),
     firstName: formData.get('firstName'),
     lastName: formData.get('lastName'),
     department: formData.get('department'),
@@ -642,7 +642,7 @@ export async function createEmployeeProfileAction(
     }
 
     // Check if email is used by another employee record (edge case)
-    const emailQuery = query(employeeCollectionRef, where("email", "==", email), limit(1));
+    const emailQuery = query(employeeCollectionRef, where("nisEmai", "==", email), limit(1));
     const emailSnapshot = await getDocs(emailQuery);
     if (!emailSnapshot.empty) {
         return { success: false, errors: { form: ["This email is already linked to another employee profile."] } };
@@ -657,7 +657,7 @@ export async function createEmployeeProfileAction(
       name,
       firstName,
       lastName,
-      email,
+      nisEmail,
       userId,
       employeeId,
       phone,
@@ -678,7 +678,7 @@ export async function createEmployeeProfileAction(
 
     const newDoc = await addDoc(employeeCollectionRef, employeeData);
 
-    await logSystemEvent("Create Employee Profile", { actorId: userId, actorEmail: email, newEmployeeId: newDoc.id, newEmployeeName: name, changes: { newData: employeeData } });
+    await logSystemEvent("Create Employee Profile", { actorId: userId, actorEmail: nisEmail, newEmployeeId: newDoc.id, newEmployeeName: name, changes: { newData: employeeData } });
     
     return { success: true, message: `Your profile has been created successfully!` };
   } catch (error: any) {
@@ -703,7 +703,7 @@ const BatchEmployeeSchema = z.object({
   gender: z.string().optional()??"",
   nationalId: z.string().optional()??"",
   religion: z.string().optional()??"",
-  email: z.string().email()??"", // NIS Email is the identifier
+  nisEmail: z.string().nisEmail()??"", // NIS Email is the identifier
   joiningDate: z.any().transform(val => parseFlexibleDate(val))??"",
   title: z.string().optional()??"",
   department: z.string().optional()??"",
