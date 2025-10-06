@@ -796,6 +796,10 @@ export async function batchCreateEmployeesAction(
   for (const [index, record] of employeesToProcess.entries()) {
     try {
       // Skip rows with no email or name
+      if (!record.email && !record.name) {
+          continue; // Silently skip empty rows
+      }
+      
       if (!record.email || !record.name) {
           failedCount++;
           errorMessages.push(`Row ${index + 2}: Skipped due to missing name or email.`);
