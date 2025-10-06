@@ -34,9 +34,37 @@ const GoogleLogo = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const StudioLogo = ({ className }: { className?: string }) => (
+    <svg
+        className={cn('h-5 w-5', className)}
+        viewBox="0 0 100 100"
+        xmlns="http://www.w3.org/2000/svg"
+    >
+        <defs>
+            <linearGradient id="studioGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style={{ stopColor: '#F56565' }} />
+                <stop offset="100%" style={{ stopColor: '#ED8936' }} />
+            </linearGradient>
+        </defs>
+        <path
+            d="M83.3,16.7 L50,0 L16.7,16.7 L16.7,50 L16.7,83.3 L50,100 L83.3,83.3 L83.3,50 Z"
+            fill="url(#studioGradient)"
+        />
+        <path
+            d="M60,25 C60,25 60,35 50,40 C40,45 40,55 40,55 C40,55 40,45 50,40 C60,35 60,25 60,25 M40,45 C40,45 40,55 50,60 C60,65 60,75 60,75 C60,75 60,65 50,60 C40,55 40,45 40,45"
+            fill="none"
+            stroke="white"
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
+    </svg>
+);
+
 
 export const Icons = {
   Logo: GoogleLogo,
+  StudioLogo, // Added the new StudioLogo
   NisLogo: ({ className }: NisLogoProps) => { 
     return (
       <div className={cn("relative", className)}>
