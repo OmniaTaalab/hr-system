@@ -1552,7 +1552,7 @@ function EmployeeManagementContent() {
             <TableBody>
               {paginatedEmployees.length > 0 ? (
                 paginatedEmployees.map((employee) => (
-                  <TableRow key={employee.id} className={cn(employee.status === 'deactivated' && 'bg-destructive/10 hover:bg-destructive/20')}>
+                  <TableRow key={employee.id} className={cn(employee.status === 'deactivated' && 'bg-destructive/20 hover:bg-destructive/30')}>
                     <TableCell className="font-medium">
                       <Link href={`/employees/${encodeURIComponent(employee.employeeId)}`} className="flex items-center gap-3 hover:underline">
                         <Avatar>
@@ -1571,7 +1571,7 @@ function EmployeeManagementContent() {
                              className={cn({
                                 'bg-green-100 text-green-800': employee.status === 'Active',
                               })}>
-                        {employee.status || "Active"}
+                        {employee.status === 'deactivated' ? "Terminated" : (employee.status || "Active")}
                       </Badge>
                     </TableCell>
                     {canManageEmployees && (

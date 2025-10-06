@@ -205,7 +205,7 @@ export async function createEmployeeAction(
     const employeeCollectionRef = collection(db, "employee");
 
     if (nisEmail) {
-        const emailQuery = query(employeeCollectionRef, where("email", "==", nisEmail), limit(1));
+        const emailQuery = query(employeeCollectionRef, where("nisEmail", "==", nisEmail), limit(1));
         const emailSnapshot = await getDocs(emailQuery);
         if (!emailSnapshot.empty) {
         return { success: false, errors: { nisEmail: ["An employee with this NIS email already exists."] } };
@@ -233,7 +233,7 @@ export async function createEmployeeAction(
       nationalId: nationalId || "",
       religion: religion || "",
       
-      email: nisEmail || "", // Storing nisEmail in 'email' field
+      nisEmail: nisEmail || "", // Storing nisEmail in 'email' field
       joiningDate: joiningDate ? Timestamp.fromDate(joiningDate) : serverTimestamp(),
       title: title || "",
       department: department || "",
