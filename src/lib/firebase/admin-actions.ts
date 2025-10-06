@@ -104,7 +104,7 @@ const CreateEmployeeFormSchema = z.object({
   religion: z.string().optional(),
   
   // Work Info
-  email: z.string().email({ message: 'A valid NIS email is required.' }).optional().or(z.literal('')),
+  nisEmail: z.string().email({ message: 'A valid NIS email is required.' }).optional(),
   joiningDate: z.coerce.date().optional(),
   title: z.string().optional(),
   department: z.string().optional(),
@@ -132,7 +132,7 @@ export type CreateEmployeeState = {
     gender?: string[];
     nationalId?: string[];
     religion?: string[];
-    email?: string[];
+    nisEmail?: string[];
     joiningDate?: string[];
     title?: string[];
     department?: string[];
@@ -167,7 +167,7 @@ export async function createEmployeeAction(
     religion: formData.get('religion'),
 
     // Work
-    email: formData.get('email'),
+    nisEmail: formData.get('nisEmail'),
     joiningDate: formData.get('joiningDate') || undefined,
     title: formData.get('title'),
     department: formData.get('department'),
@@ -193,7 +193,7 @@ export async function createEmployeeAction(
   const { 
     name, personalEmail, personalPhone, emergencyContactName,
     emergencyContactRelationship, emergencyContactNumber, dateOfBirth, gender,
-    nationalId, religion, email, joiningDate, title, department, role, stage, campus,
+    nationalId, religion, nisEmail, joiningDate, title, department, role, stage, campus,
     reportLine1, reportLine2, subject, actorId, actorEmail, actorRole
   } = validatedFields.data;
   
@@ -204,11 +204,11 @@ export async function createEmployeeAction(
   try {
     const employeeCollectionRef = collection(db, "employee");
 
-    if (email) {
-        const emailQuery = query(employeeCollectionRef, where("email", "==", email), limit(1));
+    if (nisEmail) {
+        const emailQuery = query(employeeCollectionRef, where("nisEmail", "==", nisEmail), limit(1));
         const emailSnapshot = await getDocs(emailQuery);
         if (!emailSnapshot.empty) {
-        return { success: false, errors: { email: ["An employee with this NIS email already exists."] } };
+        return { success: false, errors: { nisEmail: ["An employee with this NIS email already exists."] } };
         }
     }
 
@@ -233,7 +233,7 @@ export async function createEmployeeAction(
       nationalId: nationalId || "",
       religion: religion || "",
       
-      email: email || "", // Storing nisEmail in 'email' field
+      nisEmail: nisEmail || "", // Storing nisEmail in 'email' field
       joiningDate: joiningDate ? Timestamp.fromDate(joiningDate) : serverTimestamp(),
       title: title || "",
       department: department || "",
@@ -276,7 +276,7 @@ const UpdateEmployeeFormSchema = z.object({
   role: z.string().optional(),
   system: z.string().optional(),
   campus: z.string().optional(),
-  email: z.string().email({ message: 'Invalid email address.' }).optional(),
+  nisEmail: z.string().email({ message: 'Invalid email address.' }).optional(),
   personalEmail: z.string().email({ message: 'Invalid personal email address.' }).optional().or(z.literal('')),
   phone: z.string().optional(),
   emergencyContactName: z.string().optional(),
@@ -328,7 +328,7 @@ export type UpdateEmployeeState = {
     role?: string[];
     system?: string[];
     campus?: string[];
-    email?: string[];
+    nisEmail?: string[];
     personalEmail?: string[];
     phone?: string[];
     emergencyContactName?: string[];
@@ -578,7 +578,7 @@ export async function deactivateEmployeeAction(
 
 const CreateProfileFormSchema = z.object({
   userId: z.string().min(1, "User ID is required."),
-  email: z.string().email(),
+  nisEmail: z.string().email(),
   firstName: z.string().min(1, "First name is required."),
   lastName: z.string().min(1, "Last name is required."),
   department: z.string().min(1, "Department is required."),
@@ -610,7 +610,7 @@ export async function createEmployeeProfileAction(
   
   const validatedFields = CreateProfileFormSchema.safeParse({
     userId: formData.get('userId'),
-    email: formData.get('email'),
+    nisEmail: formData.get('nisEmail'),
     firstName: formData.get('firstName'),
     lastName: formData.get('lastName'),
     department: formData.get('department'),
@@ -628,7 +628,7 @@ export async function createEmployeeProfileAction(
     };
   }
 
-  const { userId, email, firstName, lastName, department, role, stage, phone, dateOfBirth } = validatedFields.data;
+  const { userId, nisEmail, firstName, lastName, department, role, stage, phone, dateOfBirth } = validatedFields.data;
   const name = `${firstName} ${lastName}`;
 
   try {
@@ -642,7 +642,7 @@ export async function createEmployeeProfileAction(
     }
 
     // Check if email is used by another employee record (edge case)
-    const emailQuery = query(employeeCollectionRef, where("email", "==", email), limit(1));
+    const emailQuery = query(employeeCollectionRef, where("nisEmai", "==", nisEmail), limit(1));
     const emailSnapshot = await getDocs(emailQuery);
     if (!emailSnapshot.empty) {
         return { success: false, errors: { form: ["This email is already linked to another employee profile."] } };
@@ -657,7 +657,7 @@ export async function createEmployeeProfileAction(
       name,
       firstName,
       lastName,
-      email,
+      nisEmail,
       userId,
       employeeId,
       phone,
@@ -678,7 +678,7 @@ export async function createEmployeeProfileAction(
 
     const newDoc = await addDoc(employeeCollectionRef, employeeData);
 
-    await logSystemEvent("Create Employee Profile", { actorId: userId, actorEmail: email, actorRole: "Employee", newEmployeeId: newDoc.id, newEmployeeName: name, changes: { newData: employeeData } });
+    await logSystemEvent("Create Employee Profile", { actorId: userId, actorEmail: nisEmail, actorRole: "Employee", newEmployeeId: newDoc.id, newEmployeeName: name, changes: { newData: employeeData } });
     
     return { success: true, message: `Your profile has been created successfully!` };
   } catch (error: any) {
@@ -692,7 +692,7 @@ export async function createEmployeeProfileAction(
 
 // --- NEW ACTION FOR BATCH EMPLOYEE CREATION ---
 const BatchEmployeeSchema = z.object({
-  employeeId: z.string().optional().or(z.number()).transform(val => val ? String(val) : "").default(""),
+  employeeId: z.string().optional().or(z.number()).transform(String).optional(),
   name: z.string().optional().or(z.literal("")).default(""),
   title: z.string().optional().or(z.literal("")).default(""),
   role: z.string().optional().or(z.literal("")).default(""),
@@ -700,43 +700,35 @@ const BatchEmployeeSchema = z.object({
   campus: z.string().optional().or(z.literal("")).default(""),
   stage: z.string().optional().or(z.literal("")).default(""),
   subject: z.string().optional().or(z.literal("")).default(""),
-  email: z.string().optional().or(z.literal("")).default(""),
+  nisEmail: z.string().optional().or(z.literal("")).default(""), // ممكن يكون فاضي
   personalEmail: z.string().optional().or(z.literal("")).default(""),
-  phone: z
-    .any()
-    .optional()
-    .transform(val => val ? String(val) : "")
-    .default(""),
+  phone: z.string().optional().or(z.number()).transform(String).optional(),
   dateOfBirth: z
     .any()
     .optional()
-    .transform(val => (val ? parseFlexibleDate(val) : null))
-    .default(null),
+    .transform((val) => parseFlexibleDate(val)),
   joiningDate: z
     .any()
     .optional()
-    .transform(val => (val ? parseFlexibleDate(val) : null))
-    .default(null),
+    .transform((val) => parseFlexibleDate(val)),
   gender: z.string().optional().or(z.literal("")).default(""),
-  nationalId: z
-    .any()
-    .optional()
-    .transform(val => val ? String(val) : "")
-    .default(""),
+  nationalId: z.string().optional().or(z.number()).transform(String).optional(),
   religion: z.string().optional().or(z.literal("")).default(""),
   hourlyRate: z
-    .any()
+    .string()
     .optional()
-    .transform(val => val ? Number(val) : 0)
-    .default(0),
+    .or(z.number())
+    .transform((val) => (val ? Number(val) : 0))
+    .optional(),
   status: z.string().optional().or(z.literal("")).default(""),
   emergencyContactName: z.string().optional().or(z.literal("")).default(""),
   emergencyContactRelationship: z.string().optional().or(z.literal("")).default(""),
   emergencyContactNumber: z
-    .any()
+    .string()
     .optional()
-    .transform(val => val ? String(val) : "")
-    .default(""),
+    .or(z.number())
+    .transform(String)
+    .optional(),
   reportLine1: z.string().optional().or(z.literal("")).default(""),
   reportLine2: z.string().optional().or(z.literal("")).default(""),
 });
@@ -752,6 +744,7 @@ export async function batchCreateEmployeesAction(
   prevState: BatchCreateEmployeesState,
   formData: FormData
 ): Promise<BatchCreateEmployeesState> {
+
   const recordsJson = formData.get('recordsJson');
   const actorId = formData.get('actorId') as string;
   const actorEmail = formData.get('actorEmail') as string;
@@ -762,127 +755,136 @@ export async function batchCreateEmployeesAction(
   }
 
   let parsedRecords;
+  let normalizedRecords; // 👈 أضف السطر ده فوق
   try {
     parsedRecords = JSON.parse(recordsJson);
+  
+    const keyMap: Record<string, string> = {
+      "Employee ID": "employeeId",
+      "Name": "name",
+      "Title": "title",
+      "Role": "role",
+      "Department": "department",
+      "Campus": "campus",
+      "Stage": "stage",
+      "Subject": "subject",
+      "NIS Email": "nisEmail",
+      "Personal Email": "personalEmail",
+      "Phone": "phone",
+      "Date of Birth": "dateOfBirth",
+      "Joining Date": "joiningDate",
+      "Gender": "gender",
+      "National ID": "nationalId",
+      "Religion": "religion",
+      "Hourly Rate": "hourlyRate",
+      "Status": "status",
+      "Emergency Contact Name": "emergencyContactName",
+      "Emergency Contact Relationship": "emergencyContactRelationship",
+      "Emergency Contact Number": "emergencyContactNumber",
+      "Report Line 1": "reportLine1",
+      "Report Line 2": "reportLine2",
+    };
+  
+    normalizedRecords = parsedRecords.map((record: Record<string, any>) => {
+      const normalized: Record<string, any> = {};
+      for (const key in record) {
+        const mappedKey = keyMap[key.trim()] || key.trim();
+        normalized[mappedKey] = record[key];
+      }
+      return normalized;
+    });
+  
   } catch (e) {
     return { errors: { file: ["Failed to parse file data."] }, success: false };
   }
-
-  const validationResult = z.array(BatchEmployeeSchema).safeParse(parsedRecords);
+  
+  // ✅ استخدمي normalizedRecords بدل parsedRecords هنا
+  const validationResult = z.array(BatchEmployeeSchema).safeParse(normalizedRecords);
 
   if (!validationResult.success) {
     console.error(validationResult.error);
-    return { errors: { file: ["The data format in the file is invalid. Please check column headers and values."] }, success: false };
+    return { errors: { file: ["The data format in the file is invalid. Please check column values."] }, success: false };
   }
-
+  
   const employeesToProcess = validationResult.data;
   let createdCount = 0;
-  let updatedCount = 0;
+  let replacedCount = 0;
   let failedCount = 0;
-  const updatedNames: string[] = [];
-  const createdNames: string[] = [];
   const errorMessages: string[] = [];
   const employeeCollectionRef = collection(db, "employee");
 
-  // Fetch all existing emails to check in memory
-  const allEmployeesSnapshot = await getDocs(query(employeeCollectionRef, where("email", "!=", "")));
-  const emailToDocIdMap = new Map<string, string>();
-  allEmployeesSnapshot.forEach(doc => {
-      emailToDocIdMap.set(doc.data().email, doc.id);
-  });
-
-  const batch = writeBatch(db);
-
   for (const [index, record] of employeesToProcess.entries()) {
     try {
-      // Skip rows with no email or name
-      if (!record.email || !record.name) {
-          continue; // Silently skip empty rows
+      const batch = writeBatch(db);
+      
+      // Check for existing employee by email
+      const q = query(employeeCollectionRef, where("nisEmail", "==", record.nisEmail), limit(1));
+      const existingSnapshot = await getDocs(q);
+
+      if (!existingSnapshot.empty) {
+        // Employee exists, delete them
+        const existingDoc = existingSnapshot.docs[0];
+        batch.delete(existingDoc.ref);
+        replacedCount++;
+      } else {
+        createdCount++;
       }
       
-      const employeeData = {
-          name: record.name,
-          personalEmail: record.personalEmail,
-          phone: record.phone,
-          emergencyContact: {
-              name: record.emergencyContactName ?? "",
-              relationship: record.emergencyContactRelationship ?? "",
-              number: record.emergencyContactNumber?.toString() ?? "",
-          },
-          dateOfBirth: record.dateOfBirth ? Timestamp.fromDate(record.dateOfBirth) : null,
-          gender: record.gender ?? "",
-          nationalId: record.nationalId?.toString() ?? "",
-          religion: record.religion ?? "",
-          email: record.email,
-          joiningDate: record.joiningDate ? Timestamp.fromDate(record.joiningDate) : serverTimestamp(),
-          title: record.title ?? "",
-          department: record.department ?? "",
-          role: record.role ?? "",
-          stage: record.stage ?? "",
-          campus: record.campus ?? "",
-          reportLine1: record.reportLine1 ?? "",
-          reportLine2: record.reportLine2 ?? "",
-          subject: record.subject ?? "",
-          hourlyRate: record.hourlyRate || 0,
+      const countSnapshot = await getCountFromServer(employeeCollectionRef);
+      const employeeCount = countSnapshot.data().count + createdCount + replacedCount - (replacedCount > 0 ? 1 : 0);
+      const employeeId = (1001 + employeeCount).toString();
+
+      const nameParts = (record.name || 'Unknown User').trim().split(/\s+/);
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ');
+
+      const newEmployeeData = {
+        name: record.name ?? "",
+        personalEmail: record.personalEmail ?? "",
+        phone: record.phone ?? "",
+        emergencyContact: {
+          name: record.emergencyContactName ?? "",
+          relationship: record.emergencyContactRelationship ?? "",
+          number: record.emergencyContactNumber ? record.emergencyContactNumber.toString() : "",
+        },
+        dateOfBirth: record.dateOfBirth ? Timestamp.fromDate(record.dateOfBirth) : null,
+        gender: record.gender ?? "",
+        nationalId: record.nationalId ? record.nationalId.toString() : "",
+        religion: record.religion ?? "",
+        nisEmail: record.nisEmail ?? "",
+        joiningDate: record.joiningDate ? Timestamp.fromDate(record.joiningDate) : serverTimestamp(),
+        title: record.title ?? "",
+        department: record.department ?? "",
+        role: record.role ?? "",
+        stage: record.stage ?? "",
+        campus: record.campus ?? "",
+        reportLine1: record.reportLine1 ?? "",
+        reportLine2: record.reportLine2 ?? "",
+        subject: record.subject ?? "",
+        system: "Unassigned",
+        employeeId: employeeId ?? "",
+        status: record.status ?? "Active",
+        hourlyRate: record.hourlyRate ?? 0,
+        leavingDate: null,
+        documents: [],
+        photoURL: null,
+        createdAt: serverTimestamp(),
       };
+      
+      const newDocRef = doc(employeeCollectionRef);
+      batch.set(newDocRef, newEmployeeData);
+      
+      await batch.commit();
 
-      const existingDocId = emailToDocIdMap.get(record.email);
-
-      if (existingDocId) {
-        const docRef = doc(employeeCollectionRef, existingDocId);
-        batch.update(docRef, employeeData);
-        updatedCount++;
-        updatedNames.push(record.name);
-      } else {
-        const countSnapshot = await getCountFromServer(employeeCollectionRef);
-        const employeeCount = countSnapshot.data().count;
-        const newEmployeeId = (1001 + employeeCount + createdCount).toString();
-
-        const nameParts = (record.name || 'Unknown User').trim().split(/\s+/);
-        const firstName = nameParts[0];
-        const lastName = nameParts.slice(1).join(' ');
-
-        const newEmployeeData = {
-          ...employeeData,
-          firstName,
-          lastName,
-          employeeId: newEmployeeId,
-          status: "Active",
-          system: "Unassigned",
-          leavingDate: null,
-          documents: [],
-          photoURL: null,
-          createdAt: serverTimestamp(),
-        };
-
-        const newDocRef = doc(employeeCollectionRef);
-        batch.set(newDocRef, newEmployeeData);
-        createdCount++;
-        createdNames.push(record.name);
-      }
     } catch (e: any) {
-      failedCount++;
-      errorMessages.push(`Row ${index + 2}: Failed to process ${record.name || record.email} - ${e.message}`);
+        failedCount++;
+        errorMessages.push(`Row ${index + 2}: Failed to process ${record.name || record.nisEmail} - ${e.message}`);
     }
   }
 
-  try {
-      await batch.commit();
-  } catch (commitError: any) {
-      return { success: false, message: `Batch commit failed: ${commitError.message}`, errors: { form: [commitError.message] } };
-  }
+  await logSystemEvent("Batch Create Employees", { actorId, actorEmail, actorRole, createdCount, replacedCount, failedCount, errorMessages });
 
-  await logSystemEvent("Batch Create/Update Employees", { actorId, actorEmail, actorRole, createdCount, updatedCount, failedCount, errorMessages });
-
-  const formatNames = (names: string[]) => {
-      if (names.length === 0) return "";
-      const nameList = names.slice(0, 3).join(', ');
-      const more = names.length > 3 ? '...' : '';
-      return ` (${nameList}${more})`;
-  };
-
-  let message = `Import complete. Created: ${createdCount}${formatNames(createdNames)}. Updated: ${updatedCount}${formatNames(updatedNames)}.`;
-
+  let message = `Import complete. Created: ${createdCount}, Replaced: ${replacedCount}.`;
   if (failedCount > 0) {
     message += ` Failed: ${failedCount}. First error: ${errorMessages[0]}`;
     return { success: false, message, errors: { form: errorMessages }};
