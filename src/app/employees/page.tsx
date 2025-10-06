@@ -99,9 +99,9 @@ export interface Employee {
   hourlyRate?: number;
   userId?: string | null;
   photoURL?: string | null;
-  dateOfBirth?: Timestamp | Date | string;
-  joiningDate?: Timestamp | Date | string;
-  leavingDate?: Timestamp | Date | null;
+  dateOfBirth?: Timestamp | Date | string; // Can be either
+  joiningDate?: Timestamp | Date | string; // Can be either
+  leavingDate?: Timestamp | Date | null; // Can be either
   leaveBalances?: { [key: string]: number };
   documents?: EmployeeFile[];
   createdAt?: Timestamp; 
@@ -1226,11 +1226,6 @@ function EmployeeManagementContent() {
     return [...new Set(titles)].sort();
   }, [allEmployees]);
   
-  const uniqueReligions = useMemo(() => {
-    const religions = allEmployees.map(emp => emp.religion).filter(Boolean);
-    return [...new Set(religions)].sort();
-  }, [allEmployees]);
-  
   const filteredEmployees = useMemo(() => {
     let listToFilter = allEmployees;
     const userRole = profile?.role?.toLowerCase();
@@ -1527,7 +1522,9 @@ function EmployeeManagementContent() {
                       </SelectTrigger>
                       <SelectContent>
                           <SelectItem value="All">All Religions</SelectItem>
-                          {uniqueReligions.map(religion => <SelectItem key={religion} value={religion}>{religion}</SelectItem>)}
+                          <SelectItem value="Muslim">Muslim</SelectItem>
+                          <SelectItem value="Christian">Christian</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
                       </SelectContent>
                   </Select>
               </div>
@@ -1570,11 +1567,11 @@ function EmployeeManagementContent() {
                     <TableCell>{employee.stage || '-'}</TableCell>
                     <TableCell>{employee.campus || '-'}</TableCell>
                     <TableCell>
-                      <Badge variant={employee.status === "deactivated" ? "destructive" : "secondary"}
+                      <Badge variant={employee.status === "Terminated" ? "destructive" : "secondary"}
                              className={cn({
                                 'bg-green-100 text-green-800': employee.status === 'Active',
                               })}>
-                        {employee.status === 'deactivated' ? "deactivated" : (employee.status || "Active")}
+                        {employee.status === 'Terminated' ? "deactivated" : (employee.status || "Active")}
                       </Badge>
                     </TableCell>
                     {canManageEmployees && (
