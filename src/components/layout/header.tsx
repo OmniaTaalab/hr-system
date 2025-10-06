@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -20,6 +21,7 @@ import { useUserProfile } from "./app-layout";
 import { Skeleton } from "../ui/skeleton";
 import { Icons } from "../icons";
 import { Notifications } from "./notifications";
+import Image from 'next/image';
 
 export function Header() {
   const router = useRouter();
@@ -72,8 +74,8 @@ export function Header() {
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/profile">
-                    <UserCircle2 className="mr-2 h-4 w-4" />
+                  <Link href="/profile" className="flex items-center">
+                    <Image src="/nis_logo.png" alt="Profile Icon" width={16} height={16} className="mr-2" />
                     <span>Profile</span>
                   </Link>
                 </DropdownMenuItem>
