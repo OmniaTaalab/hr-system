@@ -1,6 +1,7 @@
 "use client"
 
 import { useToast } from "@/hooks/use-toast"
+import { Icons } from "@/components/icons"
 import {
   Toast,
   ToastClose,
@@ -18,11 +19,14 @@ export function Toaster() {
       {toasts.map(function ({ id, title, description, action, ...props }) {
         return (
           <Toast key={id} {...props}>
-            <div className="grid gap-1">
-              {title && <ToastTitle>{title}</ToastTitle>}
-              {description && (
-                <ToastDescription>{description}</ToastDescription>
-              )}
+            <div className="flex items-start gap-3">
+              <Icons.NisLogo className="h-6 w-6 flex-shrink-0" />
+              <div className="grid gap-1">
+                {title && <ToastTitle>{title}</ToastTitle>}
+                {description && (
+                  <ToastDescription>{description}</ToastDescription>
+                )}
+              </div>
             </div>
             {action}
             <ToastClose />
