@@ -723,34 +723,34 @@ export async function batchCreateEmployeesAction(
 
     const keyMap: Record<string, string> = {
       "name": "name",
-      "personalEmail": "personalEmail",
+      "personalemail": "personalEmail",
       "phone": "phone",
-      "emergencyContactName": "emergencyContactName",
-      "emergencyContactRelationship": "emergencyContactRelationship",
-      "emergencyContactNumber": "emergencyContactNumber",
-      "dateofBirth": "dateOfBirth",
+      "emergencycontactname": "emergencyContactName",
+      "emergencycontactrelationship": "emergencyContactRelationship",
+      "emergencycontactnumber": "emergencyContactNumber",
+      "dateofbirth": "dateOfBirth",
       "gender": "gender",
-      "nationalID": "nationalId",
+      "nationalid": "nationalId",
       "religion": "religion",
-      "nisEmail": "nisEmail",
-      "joiningDate": "joiningDate",
+      "nisemail": "nisEmail",
+      "joiningdate": "joiningDate",
       "title": "title",
       "department": "department",
       "role": "role",
       "stage": "stage",
       "campus": "campus",
-      "reportLine1": "reportLine1",
-      "reportLine2": "reportLine2",
+      "reportline1": "reportLine1",
+      "reportline2": "reportLine2",
       "subject": "subject",
       "status": "status",
-      "ID Portal / Employee Number ": "employeeId",
+      "id portal / employee number": "employeeId",
 
     };
 
     normalizedRecords = parsedRecords.map((record: Record<string, any>) => {
       const normalized: Record<string, any> = {};
       for (const key in record) {
-        const mappedKey = keyMap[key.trim()] || key.trim();
+        const mappedKey = keyMap[key.trim().toLowerCase()] || key.trim();
         normalized[mappedKey] = record[key];
       }
       return normalized;
@@ -776,8 +776,10 @@ export async function batchCreateEmployeesAction(
   const skippedEmails: string[] = [];
 
   const employeeCollectionRef = collection(db, "employee");
+  
+  // Get current count to calculate new employee IDs sequentially.
   const countSnapshot = await getCountFromServer(employeeCollectionRef);
-  const totalEmployees = countSnapshot.data().count;
+  let currentEmployeeCount = countSnapshot.data().count;
 
   for (const record of validationResult.data) {
     try {
@@ -787,7 +789,7 @@ export async function batchCreateEmployeesAction(
         if (!existing.empty) {
           skippedCount++;
           skippedEmails.push(record.nisEmail);
-          continue;
+          continue; // Skip this record
         }
       }
 
@@ -797,7 +799,7 @@ export async function batchCreateEmployeesAction(
         firstName: nameParts[0] || "",
         lastName: nameParts.slice(1).join(" "),
         email: record.nisEmail,
-        employeeId: (1001 + totalEmployees + createdCount).toString(),
+        employeeId: (1001 + currentEmployeeCount + createdCount).toString(),
         status: "Active",
         dateOfBirth: record.dateOfBirth
           ? Timestamp.fromDate(new Date(record.dateOfBirth))
