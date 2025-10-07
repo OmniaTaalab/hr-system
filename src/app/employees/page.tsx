@@ -458,7 +458,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 <div className="space-y-2">
                   <Label htmlFor="add-nisEmail">NIS Email</Label>
                   <Input id="add-nisEmail" name="nisEmail" type="email" />
-                  {serverState?.errors?.nisEmail && <p className="text-sm text-destructive">{serverState.errors.nisEmail.join(', ')}</p>}
+                  {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
                     <Label>Date of Entry</Label>
@@ -1006,18 +1006,16 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
 // New component for batch import dialog
 function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
     const { toast } = useToast();
-    const { profile } = useUserProfile();
     const [batchState, batchAction, isBatchPending] = useActionState(batchCreateEmployeesAction, initialBatchCreateState);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [isTransitioning, startTransition] = useTransition();
 
     useEffect(() => {
-        if (batchState?.message) {
+        if (batchState.message) {
             toast({
                 title: batchState.success ? "Batch Import Complete" : "Batch Import Failed",
                 description: batchState.message,
                 variant: batchState.success ? "default" : "destructive",
-                duration: batchState.success ? 5000 : 10000,
+                duration: 10000,
             });
             if (batchState.success) {
                 onOpenChange(false);
@@ -1045,13 +1043,8 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
 
             const formData = new FormData();
             formData.append('recordsJson', JSON.stringify(json));
-            if (profile?.id) formData.append('actorId', profile.id);
-            if (profile?.email) formData.append('actorEmail', profile.email);
-            if (profile?.role) formData.append('actorRole', profile.role);
             
-            startTransition(() => {
-                batchAction(formData);
-            });
+            batchAction(formData);
         };
         reader.readAsArrayBuffer(selectedFile);
     };
@@ -1062,7 +1055,7 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
                 <DialogHeader>
                     <DialogTitle>Import Employees from Excel</DialogTitle>
                     <DialogDescription>
-                        Upload an .xlsx file with employee data. The file should have headers matching the employee fields (e.g., name, email, role). Any existing employee with the same email will be replaced.
+                        Upload an .xlsx file with employee data. The file should have headers matching the employee fields (e.g., name, email, role).
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -1071,19 +1064,10 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
                         <Input id="excel-file" type="file" accept=".xlsx" onChange={handleFileChange} />
                     </div>
                 </div>
-                {batchState?.errors?.file && <p className="text-sm text-destructive">{batchState.errors.file.join(", ")}</p>}
-                {batchState?.errors?.form && (
-                    <div className="text-sm text-destructive max-h-40 overflow-y-auto">
-                        <p>Errors found during import:</p>
-                        <ul className="list-disc pl-5">
-                            {batchState.errors.form.map((err, i) => <li key={i}>{err}</li>)}
-                        </ul>
-                    </div>
-                )}
                 <DialogFooter>
                     <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                    <Button type="button" onClick={handleImport} disabled={isBatchPending || isTransitioning || !selectedFile}>
-                        {(isBatchPending || isTransitioning) ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UploadCloud className="mr-2 h-4 w-4" />}
+                    <Button type="button" onClick={handleImport} disabled={isBatchPending || !selectedFile}>
+                        {isBatchPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UploadCloud className="mr-2 h-4 w-4" />}
                         Import Data
                     </Button>
                 </DialogFooter>
