@@ -1,7 +1,8 @@
 
+
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useTransition } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,13 +11,96 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query } from 'firebase/firestore';
-import { Loader2, Trophy, AlertTriangle } from "lucide-react";
+import { Loader2, Trophy, AlertTriangle, FileDown, UploadCloud } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { batchSaveTpiDataAction, type BatchTpiState } from "@/app/actions/tpi-actions";
+import * as XLSX from 'xlsx';
 
 interface Employee {
   id: string;
   role: string;
 }
+
+const initialBatchState: BatchTpiState = { success: false, message: null, errors: {} };
+
+function BatchTpiDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
+    const { toast } = useToast();
+    const [batchState, batchAction, isBatchPending] = useActionState(batchSaveTpiDataAction, initialBatchState);
+    const [_isPending, startTransition] = useTransition();
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+    useEffect(() => {
+        if (batchState.message) {
+            toast({
+                title: batchState.success ? "Batch Import Complete" : "Batch Import Failed",
+                description: batchState.message,
+                variant: batchState.success ? "default" : "destructive",
+                duration: 10000,
+            });
+            if (batchState.success) {
+                onOpenChange(false);
+            }
+        }
+    }, [batchState, toast, onOpenChange]);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSelectedFile(e.target.files?.[0] || null);
+    };
+
+    const handleImport = async () => {
+        if (!selectedFile) {
+            toast({ variant: "destructive", title: "No File Selected", description: "Please select an Excel file to import." });
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            const data = event.target?.result;
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet);
+
+            const formData = new FormData();
+            formData.append('recordsJson', JSON.stringify(json));
+            formData.append('sheetName', selectedFile.name); // Add sheet name for logging
+            
+            startTransition(() => {
+                batchAction(formData);
+            });
+        };
+        reader.readAsArrayBuffer(selectedFile);
+    };
+    
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Import TPI Data from Excel</DialogTitle>
+                    <DialogDescription>
+                        Upload an .xlsx file with TPI data. Match column headers like 'firstName', 'lastName', 'examAvg', etc.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="excel-file">Excel File (.xlsx)</Label>
+                        <Input id="excel-file" type="file" accept=".xlsx" onChange={handleFileChange} />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button type="button" onClick={handleImport} disabled={isBatchPending || !selectedFile}>
+                        {isBatchPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UploadCloud className="mr-2 h-4 w-4" />}
+                        Import Data
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 
 function TpiManagementContent() {
     const { toast } = useToast();
@@ -24,6 +108,7 @@ function TpiManagementContent() {
     const router = useRouter();
     const [roles, setRoles] = useState<string[]>([]);
     const [isLoadingRoles, setIsLoadingRoles] = useState(true);
+    const [isBatchImportOpen, setIsBatchImportOpen] = useState(false);
 
     useEffect(() => {
         if (!loading) {
@@ -67,14 +152,24 @@ function TpiManagementContent() {
 
     return (
         <div className="space-y-8">
-            <header>
-                <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
-                    <Trophy className="mr-3 h-8 w-8 text-primary" />
-                    TPI Management
-                </h1>
-                <p className="text-muted-foreground">
-                    View and manage Teacher Performance Indicators.
-                </p>
+            <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div>
+                    <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
+                        <Trophy className="mr-3 h-8 w-8 text-primary" />
+                        TPI Management
+                    </h1>
+                    <p className="text-muted-foreground">
+                        View and manage Teacher Performance Indicators.
+                    </p>
+                </div>
+                <div className="flex gap-2">
+                    <Button variant="outline" disabled>
+                        <FileDown className="mr-2 h-4 w-4" /> Export TPI Data
+                    </Button>
+                    <Button onClick={() => setIsBatchImportOpen(true)}>
+                        <UploadCloud className="mr-2 h-4 w-4" /> Import TPI Data
+                    </Button>
+                </div>
             </header>
 
             <Card className="shadow-lg">
@@ -103,6 +198,8 @@ function TpiManagementContent() {
                     </div>
                 </CardContent>
             </Card>
+
+            <BatchTpiDialog open={isBatchImportOpen} onOpenChange={setIsBatchImportOpen} />
         </div>
     );
 }

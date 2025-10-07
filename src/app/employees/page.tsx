@@ -1007,6 +1007,7 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
 function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
     const { toast } = useToast();
     const [batchState, batchAction, isBatchPending] = useActionState(batchCreateEmployeesAction, initialBatchCreateState);
+    const [_isPending, startTransition] = useTransition();
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     useEffect(() => {
@@ -1044,7 +1045,9 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
             const formData = new FormData();
             formData.append('recordsJson', JSON.stringify(json));
             
-            batchAction(formData);
+            startTransition(() => {
+                batchAction(formData);
+            });
         };
         reader.readAsArrayBuffer(selectedFile);
     };
