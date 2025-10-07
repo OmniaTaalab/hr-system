@@ -143,36 +143,42 @@ function EmployeeProfileContent() {
 
   useEffect(() => {
     if (!identifier) return;
-    
-    const fetchEmployeeData = async () => {
+
+    const findEmployee = async () => {
       setLoading(true);
       setError(null);
-      try {
-        const decodedId = decodeURIComponent(identifier);
-        
-        const queries = [
-            query(collection(db, 'employee'), where('employeeId', '==', decodedId), limit(1)),
-            query(collection(db, 'employee'), where('email', '==', decodedId), limit(1)),
-            query(collection(db, 'employee'), where('personalEmail', '==', decodedId), limit(1)),
-        ];
+      const decodedId = decodeURIComponent(identifier);
+      const employeeRef = collection(db, "employee");
 
-        let employeeDocSnapshot;
-        for (const q of queries) {
-            employeeDocSnapshot = await getDocs(q);
-            if (!employeeDocSnapshot.empty) {
-                break; // Found a match, stop querying
-            }
-        }
+      // Construct multiple queries
+      const byIdQuery = query(employeeRef, where('employeeId', '==', decodedId), limit(1));
+      const byEmailQuery = query(employeeRef, where('email', '==', decodedId), limit(1));
+      const byPersonalEmailQuery = query(employeeRef, where('personalEmail', '==', decodedId), limit(1));
+
+      try {
+        const [byIdSnapshot, byEmailSnapshot, byPersonalEmailSnapshot] = await Promise.all([
+          getDocs(byIdQuery),
+          getDocs(byEmailQuery),
+          getDocs(byPersonalEmailQuery)
+        ]);
         
-        if (employeeDocSnapshot && !employeeDocSnapshot.empty) {
-            const employeeDoc = employeeDocSnapshot.docs[0];
-            const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
-            setEmployee(employeeData);
-            
-            fetchAttendanceLogs(employeeData.employeeId);
-            fetchLeaveRequests(employeeData.id);
+        let employeeDoc;
+
+        if (!byIdSnapshot.empty) {
+          employeeDoc = byIdSnapshot.docs[0];
+        } else if (!byEmailSnapshot.empty) {
+          employeeDoc = byEmailSnapshot.docs[0];
+        } else if (!byPersonalEmailSnapshot.empty) {
+          employeeDoc = byPersonalEmailSnapshot.docs[0];
+        }
+
+        if (employeeDoc) {
+          const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
+          setEmployee(employeeData);
+          fetchAttendanceLogs(employeeData.employeeId);
+          fetchLeaveRequests(employeeData.id);
         } else {
-            setError('Employee not found.');
+          setError('Employee not found.');
         }
       } catch (e) {
         console.error("Error fetching employee details:", e);
@@ -223,7 +229,7 @@ function EmployeeProfileContent() {
         }
     };
 
-    fetchEmployeeData();
+    findEmployee();
   }, [identifier, toast]);
   
   const getInitials = (name?: string | null) => {
