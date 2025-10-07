@@ -13,6 +13,7 @@ import {
     syncRolesFromEmployeesAction,
     syncStagesFromEmployeesAction,
     syncSubjectsFromEmployeesAction,
+    syncMachineNamesFromAttendanceLogsAction,
     type SyncState 
 } from "@/actions/settings-actions";
 
@@ -33,7 +34,7 @@ interface ListItem {
 
 interface ListManagerProps {
   title: string;
-  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage" | "subjects" | "reportLines1";
+  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage" | "subjects" | "machineNames" | "reportLines1";
 }
 
 const initialManageState: ManageListItemState = { success: false, message: null, errors: {} };
@@ -61,6 +62,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   const [syncRolesState, syncRolesAction, isSyncRolesPending] = useActionState(syncRolesFromEmployeesAction, initialSyncState);
   const [syncStagesState, syncStagesAction, isSyncStagesPending] = useActionState(syncStagesFromEmployeesAction, initialSyncState);
   const [syncSubjectsState, syncSubjectsAction, isSyncSubjectsPending] = useActionState(syncSubjectsFromEmployeesAction, initialSyncState);
+  const [syncMachineNamesState, syncMachineNamesAction, isSyncMachineNamesPending] = useActionState(syncMachineNamesFromAttendanceLogsAction, initialSyncState);
 
 
   const addFormRef = useRef<HTMLFormElement>(null);
@@ -115,7 +117,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   }, [deleteState, toast]);
 
   useEffect(() => {
-    const states = [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState];
+    const states = [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState];
     states.forEach(state => {
         if (state?.message) {
             toast({
@@ -125,7 +127,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
             });
         }
     });
-  }, [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, toast]);
+  }, [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState, toast]);
 
 
   const filteredItems = useMemo(() => {
@@ -188,6 +190,14 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
               <form action={syncSubjectsAction}>
                   <Button size="sm" variant="secondary" disabled={isSyncSubjectsPending}>
                       {isSyncSubjectsPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Sync
+                  </Button>
+              </form>
+            )}
+            {collectionName === 'machineNames' && (
+              <form action={syncMachineNamesAction}>
+                  <Button size="sm" variant="secondary" disabled={isSyncMachineNamesPending}>
+                      {isSyncMachineNamesPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
                       Sync
                   </Button>
               </form>

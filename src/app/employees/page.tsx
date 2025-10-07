@@ -1301,6 +1301,7 @@ function EmployeeManagementContent() {
               employee.subject,
               employee.title,
               employee.religion,
+              employee.nameAr,
           ];
           return searchableFields.some(field =>
               typeof field === 'string' && field.toLowerCase().includes(lowercasedFilter)
@@ -1422,6 +1423,7 @@ function EmployeeManagementContent() {
             'NIS Email': emp.email,
             'Personal Email': emp.personalEmail,
             'Phone': emp.phone,
+            'NameAr':emp.nameAr,
             'Date of Birth': dob ? format(dob, 'yyyy-MM-dd') : '-',
             'Joining Date': joined ? format(joined, 'yyyy-MM-dd') : '-',
             'Gender': emp.gender,

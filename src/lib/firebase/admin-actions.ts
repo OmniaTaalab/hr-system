@@ -706,6 +706,8 @@ export async function createEmployeeProfileAction(
 const BatchEmployeeSchema = z.object({
   employeeId: z.string().optional().or(z.number()).transform(String).optional(),
   name: z.string().optional().or(z.literal("")).default(""),
+  nameAr: z.string().optional().or(z.literal("")).default(""),
+  childrenAtNIS: z.string().optional().or(z.literal("")).default(""),
   title: z.string().optional().or(z.literal("")).default(""),
   role: z.string().optional().or(z.literal("")).default(""),
   department: z.string().optional().or(z.literal("")).default(""),
@@ -774,6 +776,8 @@ export async function batchCreateEmployeesAction(
     const keyMap: Record<string, string> = {
       "Employee ID": "employeeId",
       "Name": "name",
+      "Name (Arabic)": "nameAr",
+      "Children at NIS": "childrenAtNIS",
       "Title": "title",
       "Role": "role",
       "Department": "department",
@@ -781,9 +785,9 @@ export async function batchCreateEmployeesAction(
       "Stage": "stage",
       "Subject": "subject",
       "NIS Email": "nisEmail",
-      "Personal Email": "personalEmail",
+      "Personal Email": "personal Email",
       "Phone": "phone",
-      "Date of Birth": "dateOfBirth",
+      "Date Of Birth": "Date Of Birth",
       "Joining Date": "joiningDate",
       "Gender": "gender",
       "National ID": "nationalId",
@@ -854,6 +858,7 @@ export async function batchCreateEmployeesAction(
         name: record.name ?? "",
         personalEmail: record.personalEmail ?? "",
         phone: record.phone ?? "",
+        nameAr:record.nameAr??"",
         emergencyContact: {
           name: record.emergencyContactName ?? "",
           relationship: record.emergencyContactRelationship ?? "",
