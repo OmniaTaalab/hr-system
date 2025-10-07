@@ -681,7 +681,7 @@ const BatchEmployeeSchema = z.object({
   name: z.string().min(1, "Name is required"),
   nisEmail: z.string().email().optional().or(z.literal("")),
   personalEmail: z.string().email().optional().or(z.literal("")),
-  phone: z.string().optional(),
+  phone: z.any().optional(),
   department: z.string().optional(),
   role: z.string().optional(),
   stage: z.string().optional(),
@@ -689,17 +689,31 @@ const BatchEmployeeSchema = z.object({
   subject: z.string().optional(),
   title: z.string().optional(),
   gender: z.string().optional(),
-  nationalId: z.string().optional(),
+  nationalId: z.any().optional(),
   religion: z.string().optional(),
-  dateOfBirth: z.string().optional(),
-  joiningDate: z.string().optional(),
+  dateOfBirth: z.any().optional(),
+  joiningDate: z.any().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactRelationship: z.string().optional(),
-  emergencyContactNumber: z.string().optional(),
+  emergencyContactNumber: z.any().optional(),
   reportLine1: z.string().optional(),
   reportLine2: z.string().optional(),
   status: z.string().optional(),
+  employeeId: z.any().optional(),
 });
+
+function parseExcelDate(value: any): Date | null {
+  if (!value) return null;
+  if (typeof value === "number") {
+    // Excel stores dates as the number of days since 1900-01-01.
+    // The number 25569 is the days between 1900-01-01 and 1970-01-01 (Unix epoch).
+    // The subtraction of 1 is for a leap year bug in Excel.
+    const date = new Date((value - 25569) * 86400 * 1000);
+     if (!isNaN(date.getTime())) return date;
+  }
+  const date = new Date(value);
+  return isNaN(date.getTime()) ? null : date;
+}
 
 export type BatchCreateEmployeesState = {
   errors?: { form?: string[]; file?: string[] };
@@ -725,7 +739,7 @@ export async function batchCreateEmployeesAction(
 
     const keyMap: Record<string, string> = {
       "name": "name",
-      "personalemail": "personalEmail",
+      "personal email": "personalEmail",
       "phone": "phone",
       "emergencycontactname": "emergencyContactName",
       "emergencycontactrelationship": "emergencyContactRelationship",
@@ -734,7 +748,7 @@ export async function batchCreateEmployeesAction(
       "gender": "gender",
       "nationalid": "nationalId",
       "religion": "religion",
-      "nisemail": "nisEmail",
+      "nis email": "nisEmail",
       "joiningdate": "joiningDate",
       "title": "title",
       "department": "department",
@@ -746,13 +760,13 @@ export async function batchCreateEmployeesAction(
       "subject": "subject",
       "status": "status",
       "id portal / employee number": "employeeId",
-
     };
 
     normalizedRecords = parsedRecords.map((record: Record<string, any>) => {
       const normalized: Record<string, any> = {};
       for (const key in record) {
-        const mappedKey = keyMap[key.trim().toLowerCase()] || key.trim();
+        const lowerKey = key.trim().toLowerCase();
+        const mappedKey = keyMap[lowerKey] || key.trim();
         normalized[mappedKey] = record[key];
       }
       return normalized;
@@ -785,7 +799,7 @@ export async function batchCreateEmployeesAction(
   for (const record of validationResult.data) {
     try {
       if (record.nisEmail) {
-        const q = query(employeeCollectionRef, where("nisEmail", "==", record.nisEmail), limit(1));
+        const q = query(employeeCollectionRef, where("email", "==", record.nisEmail), limit(1));
         const existing = await getDocs(q);
         if (!existing.empty) {
           skippedCount++;
@@ -795,20 +809,21 @@ export async function batchCreateEmployeesAction(
       }
 
       const nameParts = record.name.trim().split(/\s+/);
+      const dob = parseExcelDate(record.dateOfBirth);
+      const joined = parseExcelDate(record.joiningDate);
       
       const newEmployeeData = {
         ...record,
+        phone: record.phone ? String(record.phone) : '',
+        nationalId: record.nationalId ? String(record.nationalId) : '',
+        emergencyContactNumber: record.emergencyContactNumber ? String(record.emergencyContactNumber) : '',
         firstName: nameParts[0] || "",
         lastName: nameParts.slice(1).join(" "),
         email: record.nisEmail,
-        employeeId: (1001 + currentEmployeeCount + createdCount).toString(),
+        employeeId: record.employeeId ? String(record.employeeId) : (1001 + currentEmployeeCount + createdCount).toString(),
         status: record.status || "Active",
-        dateOfBirth: record.dateOfBirth
-          ? Timestamp.fromDate(new Date(record.dateOfBirth))
-          : null,
-        joiningDate: record.joiningDate
-          ? Timestamp.fromDate(new Date(record.joiningDate))
-          : serverTimestamp(),
+        dateOfBirth: dob ? Timestamp.fromDate(dob) : null,
+        joiningDate: joined ? Timestamp.fromDate(joined) : serverTimestamp(),
         createdAt: serverTimestamp(),
       };
       
@@ -840,5 +855,3 @@ export async function batchCreateEmployeesAction(
     };
   }
 }
-
-    
