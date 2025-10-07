@@ -698,7 +698,6 @@ const BatchEmployeeSchema = z.object({
   emergencyContactNumber: z.any().optional(),
   reportLine1: z.string().optional(),
   reportLine2: z.string().optional(),
-  status: z.string().optional(),
   employeeId: z.any().optional(),
   nameAr:z.string().optional(),
 });
@@ -759,7 +758,6 @@ export async function batchCreateEmployeesAction(
       "reportline1": "reportLine1",
       "reportline2": "reportLine2",
       "subject": "subject",
-      "status": "status",
       "id portal / employee number": "employeeId",
       "namear":"nameAr"
     };
@@ -811,33 +809,31 @@ export async function batchCreateEmployeesAction(
         firstName: nameParts[0] || "",
         lastName: nameParts.slice(1).join(" "),
         email: record.nisEmail,
-        status: record.status || "Active",
+        status: "Active",
         dateOfBirth: dob ? Timestamp.fromDate(dob) : null,
         joiningDate: joined ? Timestamp.fromDate(joined) : serverTimestamp(),
       };
       
       delete employeeData.nisEmail; // Use 'email' as the canonical field
 
-      let docRef;
+      // If NIS email is provided, check for existing employee
       if (record.nisEmail) {
         const q = query(employeeCollectionRef, where("email", "==", record.nisEmail), limit(1));
         const existing = await getDocs(q);
         if (!existing.empty) {
-          // Employee exists, update them
-          docRef = existing.docs[0].ref;
-          batch.set(docRef, employeeData, { merge: true });
+          const docRef = existing.docs[0].ref;
+          batch.update(docRef, employeeData);
           updatedCount++;
+          continue; // Move to the next record
         }
       }
 
-      if (!docRef) {
-        // Employee does not exist, create a new one
-        employeeData.employeeId = record.employeeId ? String(record.employeeId) : (1001 + currentEmployeeCount + createdCount).toString();
-        employeeData.createdAt = serverTimestamp();
-        docRef = doc(employeeCollectionRef);
-        batch.set(docRef, employeeData);
-        createdCount++;
-      }
+      // If no existing employee was found, create a new one.
+      employeeData.employeeId = record.employeeId ? String(record.employeeId) : (1001 + currentEmployeeCount + createdCount).toString();
+      employeeData.createdAt = serverTimestamp();
+      const newDocRef = doc(employeeCollectionRef);
+      batch.set(newDocRef, employeeData);
+      createdCount++;
       
     } catch (e) {
       errorCount++;
