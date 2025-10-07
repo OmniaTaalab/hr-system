@@ -700,6 +700,7 @@ const BatchEmployeeSchema = z.object({
   reportLine2: z.string().optional(),
   status: z.string().optional(),
   employeeId: z.any().optional(),
+  nameAr:z.string().optional(),
 });
 
 function parseExcelDate(value: any): Date | null {
@@ -760,6 +761,7 @@ export async function batchCreateEmployeesAction(
       "subject": "subject",
       "status": "status",
       "id portal / employee number": "employeeId",
+      "namear":"nameAr"
     };
 
     normalizedRecords = parsedRecords.map((record: Record<string, any>) => {
@@ -787,9 +789,9 @@ export async function batchCreateEmployeesAction(
 
   const batch = writeBatch(db);
   let createdCount = 0;
-  let skippedCount = 0;
+  let updatedCount = 0;
   let errorCount = 0;
-  const skippedEmails: string[] = [];
+  const updatedEmails: string[] = [];
 
   const employeeCollectionRef = collection(db, "employee");
   
@@ -798,21 +800,11 @@ export async function batchCreateEmployeesAction(
 
   for (const record of validationResult.data) {
     try {
-      if (record.nisEmail) {
-        const q = query(employeeCollectionRef, where("email", "==", record.nisEmail), limit(1));
-        const existing = await getDocs(q);
-        if (!existing.empty) {
-          skippedCount++;
-          skippedEmails.push(record.nisEmail);
-          continue;
-        }
-      }
-
       const nameParts = record.name.trim().split(/\s+/);
       const dob = parseExcelDate(record.dateOfBirth);
       const joined = parseExcelDate(record.joiningDate);
       
-      const newEmployeeData = {
+      const employeeData = {
         ...record,
         phone: record.phone ? String(record.phone) : '',
         nationalId: record.nationalId ? String(record.nationalId) : '',
@@ -820,19 +812,35 @@ export async function batchCreateEmployeesAction(
         firstName: nameParts[0] || "",
         lastName: nameParts.slice(1).join(" "),
         email: record.nisEmail,
-        employeeId: record.employeeId ? String(record.employeeId) : (1001 + currentEmployeeCount + createdCount).toString(),
         status: record.status || "Active",
         dateOfBirth: dob ? Timestamp.fromDate(dob) : null,
         joiningDate: joined ? Timestamp.fromDate(joined) : serverTimestamp(),
-        createdAt: serverTimestamp(),
       };
       
-      delete newEmployeeData.nisEmail;
+      delete employeeData.nisEmail; // Use 'email' as the canonical field
 
-      const newDocRef = doc(employeeCollectionRef);
-      batch.set(newDocRef, newEmployeeData);
+      let docRef;
+      if (record.nisEmail) {
+        const q = query(employeeCollectionRef, where("email", "==", record.nisEmail), limit(1));
+        const existing = await getDocs(q);
+        if (!existing.empty) {
+          // Employee exists, update them
+          docRef = existing.docs[0].ref;
+          batch.set(docRef, employeeData, { merge: true });
+          updatedCount++;
+          updatedEmails.push(record.nisEmail);
+        }
+      }
 
-      createdCount++;
+      if (!docRef) {
+        // Employee does not exist, create a new one
+        employeeData.employeeId = record.employeeId ? String(record.employeeId) : (1001 + currentEmployeeCount + createdCount).toString();
+        employeeData.createdAt = serverTimestamp();
+        docRef = doc(employeeCollectionRef);
+        batch.set(docRef, employeeData);
+        createdCount++;
+      }
+      
     } catch (e) {
       errorCount++;
     }
@@ -840,12 +848,9 @@ export async function batchCreateEmployeesAction(
 
   try {
     await batch.commit();
-    let message = `✅ Successfully created ${createdCount} employee(s).`;
-    if (skippedCount > 0) {
-      message += ` ⚠️ Skipped ${skippedCount} record(s) (duplicate emails: ${skippedEmails.slice(0, 3).join(", ")}).`;
-    }
+    let message = `✅ Successfully created ${createdCount} and updated ${updatedCount} employee(s).`;
     if (errorCount > 0) {
-      message += ` ❌ Failed ${errorCount} record(s).`;
+      message += ` ❌ Failed to process ${errorCount} record(s).`;
     }
     return { success: true, message };
   } catch (error: any) {
