@@ -733,7 +733,7 @@ const BatchEmployeeSchema = z.object({
   campus: z.string().optional().or(z.literal("")).default(""),
   stage: z.string().optional().or(z.literal("")).default(""),
   subject: z.string().optional().or(z.literal("")).default(""),
-  nisEmail: z.string().optional().or(z.literal("")).default(""), // ممكن يكون فاضي
+  nisEmail: z.string().optional().or(z.literal("")).default(""),
   personalEmail: z.string().optional().or(z.literal("")).default(""),
   phone: z.string().optional().or(z.number()).transform(String).optional(),
   dateOfBirth: z
@@ -755,7 +755,10 @@ const BatchEmployeeSchema = z.object({
     .optional(),
   status: z.string().optional().or(z.literal("")).default(""),
   emergencyContactName: z.string().optional().or(z.literal("")).default(""),
-  emergencyContactRelationship: z.string().optional().or(z.literal("")).default(""),
+  emergencyContactRelationship: z
+    .string()
+    .optional()
+    .or(z.literal("")).default(""),
   emergencyContactNumber: z
     .string()
     .optional()
@@ -765,9 +768,8 @@ const BatchEmployeeSchema = z.object({
   reportLine1: z.string().optional().or(z.literal("")).default(""),
   reportLine2: z.string().optional().or(z.literal("")).default(""),
 });
-
 export type BatchCreateEmployeesState = {
-  errors?: { form?: string[]; file?: string[]; };
+  errors?: { form?: string[]; file?: string[] };
   message?: string | null;
   success?: boolean;
 };
@@ -777,69 +779,70 @@ export async function batchCreateEmployeesAction(
   prevState: BatchCreateEmployeesState,
   formData: FormData
 ): Promise<BatchCreateEmployeesState> {
+  const recordsJson = formData.get("recordsJson");
+  const actorId = formData.get("actorId") as string;
+  const actorEmail = formData.get("actorEmail") as string;
+  const actorRole = formData.get("actorRole") as string;
 
-  const recordsJson = formData.get('recordsJson');
-  const actorId = formData.get('actorId') as string;
-  const actorEmail = formData.get('actorEmail') as string;
-  const actorRole = formData.get('actorRole') as string;
-
-  if (!recordsJson || typeof recordsJson !== 'string') {
-    return { errors: { file: ["No data received from file."] }, success: false };
-  }
-
-  let parsedRecords;
-  let normalizedRecords; // 👈 أضف السطر ده فوق
-  try {
-    parsedRecords = JSON.parse(recordsJson);
-  
-    const keyMap: Record<string, string> = {
-      "Employee ID": "employeeId",
-      "Name": "name",
-      "Title": "title",
-      "Role": "role",
-      "Department": "department",
-      "Campus": "campus",
-      "Stage": "stage",
-      "Subject": "subject",
-      "NIS Email": "nisEmail",
-      "Personal Email": "personalEmail",
-      "Phone": "phone",
-      "Date of Birth": "dateOfBirth",
-      "Joining Date": "joiningDate",
-      "Gender": "gender",
-      "National ID": "nationalId",
-      "Religion": "religion",
-      "Hourly Rate": "hourlyRate",
-      "Status": "status",
-      "Emergency Contact Name": "emergencyContactName",
-      "Emergency Contact Relationship": "emergencyContactRelationship",
-      "Emergency Contact Number": "emergencyContactNumber",
-      "Report Line 1": "reportLine1",
-      "Report Line 2": "reportLine2",
+  if (!recordsJson || typeof recordsJson !== "string") {
+    return {
+      errors: { file: ["No data received from file."] },
+      success: false,
     };
-  
-    normalizedRecords = parsedRecords.map((record: Record<string, any>) => {
-      const normalized: Record<string, any> = {};
-      for (const key in record) {
-        const mappedKey = keyMap[key.trim()] || key.trim();
-        normalized[mappedKey] = record[key];
-      }
-      return normalized;
-    });
-  
-  } catch (e) {
-    return { errors: { file: ["Failed to parse file data."] }, success: false };
   }
-  
-  // ✅ استخدمي normalizedRecords بدل parsedRecords هنا
-  const validationResult = z.array(BatchEmployeeSchema).safeParse(normalizedRecords);
 
+    let parsedRecords;
+    let normalizedRecords;
+    try {
+      parsedRecords = JSON.parse(recordsJson);
+    
+      const keyMap: Record<string, string> = {
+        "Employee ID": "employeeId",
+        "Name": "name",
+        "Title": "title",
+        "Role": "role",
+        "Department": "department",
+        "Campus": "campus",
+        "Stage": "stage",
+        "Subject": "subject",
+        "NIS Email": "nisEmail",
+        "Personal Email": "personalEmail",
+        "Phone": "phone",
+        "Date of Birth": "dateOfBirth",
+        "Joining Date": "joiningDate",
+        "Gender": "gender",
+        "National ID": "nationalId",
+        "Religion": "religion",
+        "Hourly Rate": "hourlyRate",
+        "Status": "status",
+        "Emergency Contact Name": "emergencyContactName",
+        "Emergency Contact Relationship": "emergencyContactRelationship",
+        "Emergency Contact Number": "emergencyContactNumber",
+        "Report Line 1": "reportLine1",
+        "Report Line 2": "reportLine2",
+      };
+    
+      normalizedRecords = parsedRecords.map((record: Record<string, any>) => {
+        const normalized: Record<string, any> = {};
+        for (const key in record) {
+          const mappedKey = keyMap[key.trim()] || key.trim();
+          normalized[mappedKey] = record[key];
+        }
+        return normalized;
+      });
+    
+    } catch (e) {
+      return { errors: { file: ["Failed to parse file data."] }, success: false };
+    }
+    
+    const validationResult = z.array(BatchEmployeeSchema).safeParse(normalizedRecords);
   if (!validationResult.success) {
     console.error(validationResult.error);
     return { errors: { file: ["The data format in the file is invalid. Please check column values."] }, success: false };
   }
-  
+ 
   const employeesToProcess = validationResult.data;
+
   let createdCount = 0;
   let replacedCount = 0;
   let failedCount = 0;
@@ -849,13 +852,11 @@ export async function batchCreateEmployeesAction(
   for (const [index, record] of employeesToProcess.entries()) {
     try {
       const batch = writeBatch(db);
-      
-      // Check for existing employee by email
+
       const q = query(employeeCollectionRef, where("nisEmail", "==", record.nisEmail), limit(1));
       const existingSnapshot = await getDocs(q);
 
-      if (!existingSnapshot.empty) {
-        // Employee exists, delete them
+      if (!existingSnapshot.empty && record.nisEmail) {
         const existingDoc = existingSnapshot.docs[0];
         batch.delete(existingDoc.ref);
         replacedCount++;
@@ -866,54 +867,60 @@ export async function batchCreateEmployeesAction(
       const countSnapshot = await getCountFromServer(employeeCollectionRef);
       const employeeCount = countSnapshot.data().count + createdCount + replacedCount - (replacedCount > 0 ? 1 : 0);
       const employeeId = (1001 + employeeCount).toString();
-
-      const nameParts = (record.name || 'Unknown User').trim().split(/\s+/);
+      
+      const nameParts = (record.name || "Unknown User").trim().split(/\s+/);
       const firstName = nameParts[0];
-      const lastName = nameParts.slice(1).join(' ');
-
+      const lastName = nameParts.slice(1).join(" ");
+      
       const newEmployeeData = {
-        name: record.name ?? "",
-        personalEmail: record.personalEmail ?? "",
-        phone: record.phone ?? "",
+        name: record.name,
+        firstName,
+        lastName,
+        personalEmail: record.personalEmail,
+        phone: record.phone,
         emergencyContact: {
-          name: record.emergencyContactName ?? "",
-          relationship: record.emergencyContactRelationship ?? "",
+          name: record.emergencyContactName,
+          relationship: record.emergencyContactRelationship,
           number: record.emergencyContactNumber ? record.emergencyContactNumber.toString() : "",
         },
         dateOfBirth: record.dateOfBirth ? Timestamp.fromDate(record.dateOfBirth) : null,
-        gender: record.gender ?? "",
+        gender: record.gender,
         nationalId: record.nationalId ? record.nationalId.toString() : "",
-        religion: record.religion ?? "",
-        nisEmail: record.nisEmail ?? "",
-        joiningDate: record.joiningDate ? Timestamp.fromDate(record.joiningDate) : serverTimestamp(),
-        title: record.title ?? "",
-        department: record.department ?? "",
-        role: record.role ?? "",
-        stage: record.stage ?? "",
-        campus: record.campus ?? "",
-        reportLine1: record.reportLine1 ?? "",
-        reportLine2: record.reportLine2 ?? "",
-        subject: record.subject ?? "",
+        religion: record.religion,
+        nisEmail: record.nisEmail,
+        joiningDate: record.joiningDate
+          ? Timestamp.fromDate(record.joiningDate)
+          : serverTimestamp(),
+        title: record.title,
+        department: record.department,
+        role: record.role,
+        stage: record.stage,
+        campus: record.campus,
+        reportLine1: record.reportLine1,
+        reportLine2: record.reportLine2,
+        subject: record.subject,
         system: "Unassigned",
-        employeeId: employeeId ?? "",
-        status: record.status ?? "Active",
-        hourlyRate: record.hourlyRate ?? 0,
+        employeeId: employeeId,
+        status: record.status || "Active",
+        hourlyRate: record.hourlyRate || 0,
         leavingDate: null,
         documents: [],
         photoURL: null,
         createdAt: serverTimestamp(),
       };
-      
+
       const newDocRef = doc(employeeCollectionRef);
       batch.set(newDocRef, newEmployeeData);
-      
       await batch.commit();
 
     } catch (e: any) {
-        failedCount++;
-        errorMessages.push(`Row ${index + 2}: Failed to process ${record.name || record.nisEmail} - ${e.message}`);
+      failedCount++;
+      errorMessages.push(
+        `Row ${index + 2}: Failed to process ${record.name || record.nisEmail} - ${e.message}`
+      );
     }
   }
+
 
   await logSystemEvent("Batch Create Employees", { actorId, actorEmail, actorRole, createdCount, replacedCount, failedCount, errorMessages });
 
