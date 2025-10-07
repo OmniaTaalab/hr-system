@@ -96,6 +96,7 @@ export type CreateEmployeeState = {
     nationalId?: string[];
     religion?: string[];
     email?: string[];
+    nisEmail?: string[];
     joiningDate?: string[];
     title?: string[];
     department?: string[];
@@ -176,7 +177,7 @@ export async function createEmployeeAction(
       if (!emailSnapshot.empty) {
         return { 
           success: false, 
-          errors: { email: ["An employee with this NIS email already exists."] }, 
+          errors: { nisEmail: ["An employee with this NIS email already exists."] }, 
           message: "Duplicate email found." 
         };
       }
@@ -697,6 +698,7 @@ const BatchEmployeeSchema = z.object({
   emergencyContactNumber: z.string().optional(),
   reportLine1: z.string().optional(),
   reportLine2: z.string().optional(),
+  status: z.string().optional(),
 });
 
 export type BatchCreateEmployeesState = {
@@ -777,7 +779,6 @@ export async function batchCreateEmployeesAction(
 
   const employeeCollectionRef = collection(db, "employee");
   
-  // Get current count to calculate new employee IDs sequentially.
   const countSnapshot = await getCountFromServer(employeeCollectionRef);
   let currentEmployeeCount = countSnapshot.data().count;
 
@@ -789,18 +790,19 @@ export async function batchCreateEmployeesAction(
         if (!existing.empty) {
           skippedCount++;
           skippedEmails.push(record.nisEmail);
-          continue; // Skip this record
+          continue;
         }
       }
 
       const nameParts = record.name.trim().split(/\s+/);
+      
       const newEmployeeData = {
         ...record,
         firstName: nameParts[0] || "",
         lastName: nameParts.slice(1).join(" "),
         email: record.nisEmail,
         employeeId: (1001 + currentEmployeeCount + createdCount).toString(),
-        status: "Active",
+        status: record.status || "Active",
         dateOfBirth: record.dateOfBirth
           ? Timestamp.fromDate(new Date(record.dateOfBirth))
           : null,
@@ -809,6 +811,8 @@ export async function batchCreateEmployeesAction(
           : serverTimestamp(),
         createdAt: serverTimestamp(),
       };
+      
+      delete newEmployeeData.nisEmail;
 
       const newDocRef = doc(employeeCollectionRef);
       batch.set(newDocRef, newEmployeeData);
@@ -836,3 +840,5 @@ export async function batchCreateEmployeesAction(
     };
   }
 }
+
+    
