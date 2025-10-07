@@ -706,8 +706,6 @@ export async function createEmployeeProfileAction(
 const BatchEmployeeSchema = z.object({
   employeeId: z.string().optional().or(z.number()).transform(String).optional(),
   name: z.string().optional().or(z.literal("")).default(""),
-  nameAr: z.string().optional().or(z.literal("")).default(""),
-  childrenAtNIS: z.string().optional().or(z.literal("")).default(""),
   title: z.string().optional().or(z.literal("")).default(""),
   role: z.string().optional().or(z.literal("")).default(""),
   department: z.string().optional().or(z.literal("")).default(""),
@@ -745,6 +743,10 @@ const BatchEmployeeSchema = z.object({
     .optional(),
   reportLine1: z.string().optional().or(z.literal("")).default(""),
   reportLine2: z.string().optional().or(z.literal("")).default(""),
+  childrenAtNIS: z.string().optional().or(z.literal("")).default(""),
+
+  nameAr: z.string().optional().or(z.literal("")).default(""),
+
 });
 
 export type BatchCreateEmployeesState = {
@@ -769,38 +771,35 @@ export async function batchCreateEmployeesAction(
   }
 
   let parsedRecords;
-  let normalizedRecords; // 👈 أضف السطر ده فوق
+  let normalizedRecords;
   try {
     parsedRecords = JSON.parse(recordsJson);
   
     const keyMap: Record<string, string> = {
       "Employee ID": "employeeId",
       "Name": "name",
-      "Name (Arabic)": "nameAr",
-      "Children at NIS": "childrenAtNIS",
       "Title": "title",
       "Role": "role",
       "Department": "department",
       "Campus": "campus",
       "Stage": "stage",
       "Subject": "subject",
-      "NIS Email": "nisEmail",
-      "Personal Email": "personal Email",
+      "nisEmail": "nisEmail",
+      "Personal Email": "personalEmail",
       "Phone": "phone",
-      "Date Of Birth": "Date Of Birth",
-      "Joining Date": "joiningDate",
+      "Date Of Birth": "dateOfBirth",
+      "joining Date": "joiningDate",
       "Gender": "gender",
       "National ID": "nationalId",
       "Religion": "religion",
-      "Hourly Rate": "hourlyRate",
       "Status": "status",
       "Emergency Contact Name": "emergencyContactName",
       "Emergency Contact Relationship": "emergencyContactRelationship",
       "Emergency Contact Number": "emergencyContactNumber",
-      "Report Line 1": "reportLine1",
-      "Report Line 2": "reportLine2",
+      "nameAr": "nameAr",
+      "childrenAtNIS": "childrenAtNIS",
     };
-  
+    
     normalizedRecords = parsedRecords.map((record: Record<string, any>) => {
       const normalized: Record<string, any> = {};
       for (const key in record) {
@@ -814,7 +813,6 @@ export async function batchCreateEmployeesAction(
     return { errors: { file: ["Failed to parse file data."] }, success: false };
   }
   
-  // ✅ استخدمي normalizedRecords بدل parsedRecords هنا
   const validationResult = z.array(BatchEmployeeSchema).safeParse(normalizedRecords);
 
   if (!validationResult.success) {
@@ -833,12 +831,10 @@ export async function batchCreateEmployeesAction(
     try {
       const batch = writeBatch(db);
       
-      // Check for existing employee by email
       const q = query(employeeCollectionRef, where("nisEmail", "==", record.nisEmail), limit(1));
       const existingSnapshot = await getDocs(q);
 
       if (!existingSnapshot.empty) {
-        // Employee exists, delete them
         const existingDoc = existingSnapshot.docs[0];
         batch.delete(existingDoc.ref);
         replacedCount++;
