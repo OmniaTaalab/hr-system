@@ -1587,7 +1587,7 @@ function EmployeeManagementContent() {
                 paginatedEmployees.map((employee) => (
                   <TableRow key={employee.id} className={cn(employee.status === 'deactivated' && 'bg-destructive/20 hover:bg-destructive/30')}>
                     <TableCell className="font-medium">
-                      <Link href={`/employees/${encodeURIComponent(employee.employeeId)}`} className="flex items-center gap-3 hover:underline">
+                      <Link href={`/employees/${employee.employeeId}`} className="flex items-center gap-3 hover:underline">
                         <Avatar>
                             <AvatarImage src={employee.photoURL || undefined} alt={employee.name || ''} />
                             <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
@@ -1622,7 +1622,7 @@ function EmployeeManagementContent() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                           <DropdownMenuItem onSelect={() => router.push(`/employees/${encodeURIComponent(employee.employeeId)}`)}>
+                           <DropdownMenuItem onSelect={() => router.push(`/employees/${employee.employeeId}`)}>
                               <Eye className="mr-2 h-4 w-4" />
                               View Full Profile
                             </DropdownMenuItem>

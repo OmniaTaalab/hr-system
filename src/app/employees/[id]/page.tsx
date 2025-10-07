@@ -149,23 +149,20 @@ function EmployeeProfileContent() {
       setError(null);
       try {
         const decodedId = decodeURIComponent(identifier);
-        const isEmail = decodedId.includes('@');
-        let employeeDocSnapshot;
+        
+        // Prioritize querying by the numeric employeeId
+        const idQuery = query(collection(db, 'employee'), where('employeeId', '==', decodedId), limit(1));
+        let employeeDocSnapshot = await getDocs(idQuery);
 
-        if (isEmail) {
-            // First, try querying by work email
+        // If not found by employeeId, try by email as a fallback
+        if (employeeDocSnapshot.empty && decodedId.includes('@')) {
             const emailQuery = query(collection(db, 'employee'), where('email', '==', decodedId), limit(1));
             employeeDocSnapshot = await getDocs(emailQuery);
 
-            // If not found, try personal email
             if (employeeDocSnapshot.empty) {
                 const personalEmailQuery = query(collection(db, 'employee'), where('personalEmail', '==', decodedId), limit(1));
                 employeeDocSnapshot = await getDocs(personalEmailQuery);
             }
-        } else {
-            // Query by employeeId (which is the numeric ID)
-            const idQuery = query(collection(db, 'employee'), where('employeeId', '==', decodedId), limit(1));
-            employeeDocSnapshot = await getDocs(idQuery);
         }
 
         if (!employeeDocSnapshot.empty) {
@@ -173,9 +170,8 @@ function EmployeeProfileContent() {
             const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
             setEmployee(employeeData);
             
-            // Now use the correct IDs for fetching related data
-            fetchAttendanceLogs(employeeData.employeeId); // Use numeric employeeId for logs
-            fetchLeaveRequests(employeeData.id);          // Use Firestore document id for leaves
+            fetchAttendanceLogs(employeeData.employeeId);
+            fetchLeaveRequests(employeeData.id);
         } else {
             setError('Employee not found.');
         }
@@ -429,7 +425,7 @@ function EmployeeProfileContent() {
 
                 <h3 className="text-lg font-semibold flex items-center mb-4"><UserCircle className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                   <DetailItem icon={User} label="Name in Arabic" value={employee.nameAr ? employee.nameAr: "-"} />
+                   <DetailItem icon={User} label="Name in Arabic" value={employee.nameAr ? employee.nameAr : "-"} />
                    <DetailItem icon={Mail} label="Personal Email" value={employee.personalEmail ? employee.personalEmail :"-"} />
                    <DetailItem icon={Phone} label="Personal Phone" value={employee.phone ? employee.phone :"-" } />
                    <DetailItem icon={Cake} label="Birthday" value={formattedDobAndAge ? formattedDobAndAge :"-"} />
