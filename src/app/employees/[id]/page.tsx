@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from 'next/navigation';
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
-import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit, or } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home } from 'lucide-react';
@@ -144,50 +144,48 @@ function EmployeeProfileContent() {
   useEffect(() => {
     if (!identifier) return;
 
-    const findEmployee = async () => {
+    const fetchEmployeeData = async () => {
       setLoading(true);
       setError(null);
-      const decodedId = decodeURIComponent(identifier);
-      const employeeRef = collection(db, "employee");
-
-      // Construct multiple queries
-      const byIdQuery = query(employeeRef, where('employeeId', '==', decodedId), limit(1));
-      const byEmailQuery = query(employeeRef, where('email', '==', decodedId), limit(1));
-      const byPersonalEmailQuery = query(employeeRef, where('personalEmail', '==', decodedId), limit(1));
-
       try {
-        const [byIdSnapshot, byEmailSnapshot, byPersonalEmailSnapshot] = await Promise.all([
-          getDocs(byIdQuery),
-          getDocs(byEmailQuery),
-          getDocs(byPersonalEmailQuery)
-        ]);
+        const decodedId = decodeURIComponent(identifier);
         
-        let employeeDoc;
+        // This query now searches across multiple fields.
+        // It requires a composite index on (employeeId, email, personalEmail) or individual exemptions.
+        const employeeQuery = query(
+          collection(db, 'employee'), 
+          or(
+            where('employeeId', '==', decodedId),
+            where('email', '==', decodedId),
+            where('personalEmail', '==', decodedId)
+          ),
+          limit(1)
+        );
 
-        if (!byIdSnapshot.empty) {
-          employeeDoc = byIdSnapshot.docs[0];
-        } else if (!byEmailSnapshot.empty) {
-          employeeDoc = byEmailSnapshot.docs[0];
-        } else if (!byPersonalEmailSnapshot.empty) {
-          employeeDoc = byPersonalEmailSnapshot.docs[0];
-        }
-
-        if (employeeDoc) {
+        const employeeDocSnapshot = await getDocs(employeeQuery);
+        
+        if (!employeeDocSnapshot.empty) {
+          const employeeDoc = employeeDocSnapshot.docs[0];
           const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
           setEmployee(employeeData);
+
           fetchAttendanceLogs(employeeData.employeeId);
           fetchLeaveRequests(employeeData.id);
         } else {
           setError('Employee not found.');
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("Error fetching employee details:", e);
-        setError('Failed to load employee details.');
+        if (e.code === 'failed-precondition') {
+          setError('A necessary database index is missing. Please create a composite index in Firestore for the `employee` collection on fields (employeeId, email, personalEmail).');
+        } else {
+          setError('Failed to load employee details.');
+        }
       } finally {
         setLoading(false);
       }
     };
-    
+
     const fetchAttendanceLogs = async (numericEmployeeId: string) => {
         setLoadingLogs(true);
         try {
@@ -229,7 +227,7 @@ function EmployeeProfileContent() {
         }
     };
 
-    findEmployee();
+    fetchEmployeeData();
   }, [identifier, toast]);
   
   const getInitials = (name?: string | null) => {
@@ -595,3 +593,5 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
+    
