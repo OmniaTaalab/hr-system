@@ -150,22 +150,21 @@ function EmployeeProfileContent() {
       try {
         const decodedId = decodeURIComponent(identifier);
         
-        // Prioritize querying by the numeric employeeId
-        const idQuery = query(collection(db, 'employee'), where('employeeId', '==', decodedId), limit(1));
-        let employeeDocSnapshot = await getDocs(idQuery);
+        const queries = [
+            query(collection(db, 'employee'), where('employeeId', '==', decodedId), limit(1)),
+            query(collection(db, 'employee'), where('email', '==', decodedId), limit(1)),
+            query(collection(db, 'employee'), where('personalEmail', '==', decodedId), limit(1)),
+        ];
 
-        // If not found by employeeId, try by email as a fallback
-        if (employeeDocSnapshot.empty && decodedId.includes('@')) {
-            const emailQuery = query(collection(db, 'employee'), where('email', '==', decodedId), limit(1));
-            employeeDocSnapshot = await getDocs(emailQuery);
-
-            if (employeeDocSnapshot.empty) {
-                const personalEmailQuery = query(collection(db, 'employee'), where('personalEmail', '==', decodedId), limit(1));
-                employeeDocSnapshot = await getDocs(personalEmailQuery);
+        let employeeDocSnapshot;
+        for (const q of queries) {
+            employeeDocSnapshot = await getDocs(q);
+            if (!employeeDocSnapshot.empty) {
+                break; // Found a match, stop querying
             }
         }
-
-        if (!employeeDocSnapshot.empty) {
+        
+        if (employeeDocSnapshot && !employeeDocSnapshot.empty) {
             const employeeDoc = employeeDocSnapshot.docs[0];
             const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
             setEmployee(employeeData);
@@ -590,4 +589,3 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
-
