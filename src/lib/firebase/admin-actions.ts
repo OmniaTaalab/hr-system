@@ -791,7 +791,6 @@ export async function batchCreateEmployeesAction(
   let createdCount = 0;
   let updatedCount = 0;
   let errorCount = 0;
-  const updatedEmails: string[] = [];
 
   const employeeCollectionRef = collection(db, "employee");
   
@@ -804,7 +803,7 @@ export async function batchCreateEmployeesAction(
       const dob = parseExcelDate(record.dateOfBirth);
       const joined = parseExcelDate(record.joiningDate);
       
-      const employeeData = {
+      const employeeData: { [key: string]: any } = {
         ...record,
         phone: record.phone ? String(record.phone) : '',
         nationalId: record.nationalId ? String(record.nationalId) : '',
@@ -828,7 +827,6 @@ export async function batchCreateEmployeesAction(
           docRef = existing.docs[0].ref;
           batch.set(docRef, employeeData, { merge: true });
           updatedCount++;
-          updatedEmails.push(record.nisEmail);
         }
       }
 
