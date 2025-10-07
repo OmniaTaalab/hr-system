@@ -457,7 +457,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="add-nisEmail">NIS Email</Label>
-                  <Input id="add-nisEmail" name="email" type="email" />
+                  <Input id="add-nisEmail" name="nisEmail" type="email" />
                   {serverState?.errors?.nisEmail && <p className="text-sm text-destructive">{serverState.errors.nisEmail.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
@@ -783,7 +783,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-email">NIS Email</Label>
-                  <Input id="edit-email" name="email" type="email" defaultValue={employee.email}  />
+                  <Input id="edit-email" name="nisEmail" type="email" defaultValue={employee.email}  />
                   {serverState?.errors?.nisEmail && <p className="text-sm text-destructive">{serverState.errors.nisEmail.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
