@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home } from 'lucide-react';
 import { format, getYear, getMonth, getDate, intervalToDuration, formatDistanceToNow } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -34,6 +34,8 @@ interface EmployeeFile {
 interface Employee {
   id: string; 
   name: string;
+  nameAr?: string;
+  childrenAtNIS?: 'Yes' | 'No';
   firstName?: string;
   lastName?: string;
   personalEmail?: string;
@@ -427,12 +429,14 @@ function EmployeeProfileContent() {
 
                 <h3 className="text-lg font-semibold flex items-center mb-4"><UserCircle className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                   <DetailItem icon={User} label="Name in Arabic" value={employee.nameAr} />
                    <DetailItem icon={Mail} label="Personal Email" value={employee.personalEmail} />
                    <DetailItem icon={Phone} label="Personal Phone" value={employee.phone} />
                    <DetailItem icon={Cake} label="Birthday" value={formattedDobAndAge} />
-                   <DetailItem icon={User} label="Gender" value={employee.gender} />
+                   <DetailItem icon={Smile} label="Gender" value={employee.gender} />
                    <DetailItem icon={FileText} label="National ID" value={employee.nationalId} />
                    <DetailItem icon={Star} label="Religion" value={employee.religion} />
+                   <DetailItem icon={Home} label="Children at NIS" value={employee.childrenAtNIS} />
                 </div>
 
                 <Separator className="my-6" />

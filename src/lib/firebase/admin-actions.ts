@@ -93,6 +93,8 @@ export async function getAllAuthUsers() {
 const CreateEmployeeFormSchema = z.object({
   // Personal Info
   name: z.string().min(1, "Full name is required."),
+  nameAr: z.string().optional(),
+  childrenAtNIS: z.enum(['Yes', 'No']).optional(),
   personalEmail: z.string().email({ message: 'A valid personal email is required.' }).optional().or(z.literal('')),
   personalPhone: z.string().optional(),
   emergencyContactName: z.string().optional(),
@@ -123,6 +125,8 @@ const CreateEmployeeFormSchema = z.object({
 export type CreateEmployeeState = {
   errors?: {
     name?: string[];
+    nameAr?: string[];
+    childrenAtNIS?: string[];
     personalEmail?: string[];
     personalPhone?: string[];
     emergencyContactName?: string[];
@@ -156,6 +160,8 @@ export async function createEmployeeAction(
   const validatedFields = CreateEmployeeFormSchema.safeParse({
     // Personal
     name: formData.get('name'),
+    nameAr: formData.get('nameAr'),
+    childrenAtNIS: formData.get('childrenAtNIS'),
     personalEmail: formData.get('personalEmail'),
     personalPhone: formData.get('personalPhone'),
     emergencyContactName: formData.get('emergencyContactName'),
@@ -191,7 +197,7 @@ export async function createEmployeeAction(
   }
 
   const { 
-    name, personalEmail, personalPhone, emergencyContactName,
+    name, nameAr, childrenAtNIS, personalEmail, personalPhone, emergencyContactName,
     emergencyContactRelationship, emergencyContactNumber, dateOfBirth, gender,
     nationalId, religion, nisEmail, joiningDate, title, department, role, stage, campus,
     reportLine1, reportLine2, subject, actorId, actorEmail, actorRole
@@ -219,6 +225,8 @@ export async function createEmployeeAction(
 
     const employeeData = {
       name: name,
+      nameAr: nameAr || "",
+      childrenAtNIS: childrenAtNIS || "No",
       firstName,
       lastName,
       personalEmail: personalEmail || "",
@@ -272,6 +280,8 @@ const UpdateEmployeeFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee document ID is required."),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
+  nameAr: z.string().optional(),
+  childrenAtNIS: z.enum(['Yes', 'No']).optional(),
   department: z.string().optional(),
   role: z.string().optional(),
   system: z.string().optional(),
@@ -324,6 +334,8 @@ export type UpdateEmployeeState = {
     employeeDocId?: string[];
     firstName?: string[];
     lastName?: string[];
+    nameAr?: string[];
+    childrenAtNIS?: string[];
     department?: string[];
     role?: string[];
     system?: string[];

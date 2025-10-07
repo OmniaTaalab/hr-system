@@ -82,6 +82,8 @@ interface EmergencyContact {
 export interface Employee {
   id: string; 
   name: string;
+  nameAr?: string;
+  childrenAtNIS?: 'Yes' | 'No';
   firstName?: string;
   lastName?: string;
   personalEmail?: string;
@@ -201,6 +203,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [campus, setCampus] = useState("");
   const [gender, setGender] = useState("");
   const [stage, setStage] = useState("");
+  const [childrenAtNIS, setChildrenAtNIS] = useState<'Yes' | 'No'>('No');
 
   const [reportLine1, setReportLine1] = useState("");
   const [reportLine2, setReportLine2] = useState("");
@@ -336,6 +339,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         <input type="hidden" name="campus" value={campus} />
         <input type="hidden" name="gender" value={gender} />
         <input type="hidden" name="stage" value={stage} />
+        <input type="hidden" name="childrenAtNIS" value={childrenAtNIS} />
         <input type="hidden" name="reportLine1" value={reportLine1} />
         <input type="hidden" name="reportLine2" value={reportLine2} />
         <input type="hidden" name="actorId" value={profile?.id} />
@@ -350,9 +354,14 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               <h3 className="text-lg font-semibold flex items-center"><UserCircle2 className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="add-name">Full Name</Label>
+                  <Label htmlFor="add-name">Full Name (English)</Label>
                   <Input id="add-name" name="name" placeholder="e.g., John Doe" required />
                   {serverState?.errors?.name && <p className="text-sm text-destructive">{serverState.errors.name.join(', ')}</p>}
+                </div>
+                 <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="add-name-ar">Full Name (Arabic)</Label>
+                  <Input id="add-name-ar" name="nameAr" dir="rtl" />
+                  {serverState?.errors?.nameAr && <p className="text-sm text-destructive">{serverState.errors.nameAr.join(', ')}</p>}
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -423,6 +432,20 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                     <Input name="nationalId" />
                     {serverState?.errors?.nationalId && <p className="text-sm text-destructive">{serverState.errors.nationalId.join(', ')}</p>}
                   </div>
+              </div>
+               <div className="space-y-2">
+                  <Label>Do they have children enrolled at NIS?</Label>
+                  <RadioGroup name="childrenAtNIS" value={childrenAtNIS} onValueChange={(val) => setChildrenAtNIS(val as 'Yes' | 'No')} className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="Yes" id="children-yes" />
+                          <Label htmlFor="children-yes">Yes</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="No" id="children-no" />
+                          <Label htmlFor="children-no">No</Label>
+                      </div>
+                  </RadioGroup>
+                  {serverState?.errors?.childrenAtNIS && <p className="text-sm text-destructive">{serverState.errors.childrenAtNIS.join(', ')}</p>}
               </div>
             </div>
 
@@ -580,6 +603,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   const [gender, setGender] = useState(employee.gender || "");
   const [stage, setStage] = useState(employee.stage || "");
   const [subject, setSubject] = useState(employee.subject || "");
+  const [childrenAtNIS, setChildrenAtNIS] = useState<'Yes' | 'No'>(employee.childrenAtNIS || 'No');
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(safeToDate(employee.dateOfBirth));
   const [joiningDate, setJoiningDate] = useState<Date | undefined>(safeToDate(employee.joiningDate));
   const [leavingDate, setLeavingDate] = useState<Date | undefined | null>(safeToDate(employee.leavingDate));
@@ -627,6 +651,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         <input type="hidden" name="gender" value={gender || ''} />
         <input type="hidden" name="stage" value={stage || ''} />
         <input type="hidden" name="subject" value={subject || ''} />
+        <input type="hidden" name="childrenAtNIS" value={childrenAtNIS} />
         <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
         <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
         <input type="hidden" name="leavingDate" value={leavingDate?.toISOString() ?? ''} />
@@ -657,6 +682,11 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                     <Input id="edit-lastName" name="lastName" defaultValue={employee.lastName || (typeof employee.name === 'string' ? employee.name.split(' ').slice(1).join(' ') : '') || ''}  />
                     {serverState?.errors?.lastName && <p className="text-sm text-destructive">{serverState.errors.lastName.join(', ')}</p>}
                 </div>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="edit-name-ar">Full Name (Arabic)</Label>
+                <Input id="edit-name-ar" name="nameAr" defaultValue={employee.nameAr || ''} dir="rtl" />
+                {serverState?.errors?.nameAr && <p className="text-sm text-destructive">{serverState.errors.nameAr.join(', ')}</p>}
             </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -731,6 +761,20 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                     <Input id="edit-religion" name="religion" defaultValue={employee.religion} />
                     {serverState?.errors?.religion && <p className="text-sm text-destructive">{serverState.errors.religion.join(', ')}</p>}
                 </div>
+            </div>
+             <div className="space-y-2">
+                <Label>Do they have children enrolled at NIS?</Label>
+                <RadioGroup name="childrenAtNIS" value={childrenAtNIS} onValueChange={(val) => setChildrenAtNIS(val as 'Yes' | 'No')} className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="Yes" id="edit-children-yes" />
+                        <Label htmlFor="edit-children-yes">Yes</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="No" id="edit-children-no" />
+                        <Label htmlFor="edit-children-no">No</Label>
+                    </div>
+                </RadioGroup>
+                {serverState?.errors?.childrenAtNIS && <p className="text-sm text-destructive">{serverState.errors.childrenAtNIS.join(', ')}</p>}
             </div>
 
             <Separator />
