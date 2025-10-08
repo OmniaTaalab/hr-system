@@ -470,7 +470,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} captionLayout="dropdown-buttons" fromYear={new Date().getFullYear() - 20} toYear={new Date().getFullYear()} initialFocus />
+                            <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} captionLayout="dropdown-buttons" fromYear={new Date().getFullYear() - 20} toYear={2025} initialFocus />
                         </PopoverContent>
                     </Popover>
                     {serverState?.errors?.joiningDate && <p className="text-sm text-destructive">{serverState.errors.joiningDate.join(', ')}</p>}
@@ -874,7 +874,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} initialFocus />
+                            <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} captionLayout="dropdown-buttons" fromYear={new Date().getFullYear() - 20} toYear={2025} initialFocus />
                         </PopoverContent>
                     </Popover>
                     {serverState?.errors?.joiningDate && <p className="text-sm text-destructive">{serverState.errors.joiningDate.join(', ')}</p>}
@@ -893,7 +893,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                         </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                        <Calendar mode="single" selected={leavingDate || undefined} onSelect={setLeavingDate} />
+                        <Calendar mode="single" selected={leavingDate || undefined} onSelect={setLeavingDate} captionLayout="dropdown-buttons" fromYear={new Date().getFullYear() - 20} toYear={2025} />
                     </PopoverContent>
                 </Popover>
                 {serverState?.errors?.leavingDate && <p className="text-sm text-destructive">{serverState.errors.leavingDate.join(', ')}</p>}
@@ -977,7 +977,7 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0">
-                                    <Calendar mode="single" selected={leavingDate} onSelect={setLeavingDate} initialFocus />
+                                    <Calendar mode="single" selected={leavingDate} onSelect={setLeavingDate} captionLayout="dropdown-buttons" fromYear={new Date().getFullYear() - 5} toYear={2025} initialFocus />
                                 </PopoverContent>
                             </Popover>
                             <input type="hidden" name="leavingDate" value={leavingDate?.toISOString() ?? ''} />

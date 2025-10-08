@@ -175,7 +175,7 @@ function CreateProfileForm({ user }: { user: User }) {
               </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0">
-              <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
+              <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={2025} initialFocus />
           </PopoverContent>
         </Popover>
         {state.errors?.dateOfBirth && <p className="text-sm text-destructive">{state.errors.dateOfBirth.join(', ')}</p>}
