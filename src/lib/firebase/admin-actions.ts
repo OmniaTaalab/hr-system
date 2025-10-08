@@ -794,13 +794,12 @@ export async function batchCreateEmployeesAction(
   
   const countSnapshot = await getCountFromServer(employeeCollectionRef);
   let currentEmployeeCount = countSnapshot.data().count;
-
   for (const record of validationResult.data) {
     try {
       const nameParts = record.name.trim().split(/\s+/);
       const dob = parseExcelDate(record.dateOfBirth);
       const joined = parseExcelDate(record.joiningDate);
-      
+  
       const employeeData: { [key: string]: any } = {
         ...record,
         phone: record.phone ? String(record.phone) : '',
@@ -808,37 +807,39 @@ export async function batchCreateEmployeesAction(
         emergencyContactNumber: record.emergencyContactNumber ? String(record.emergencyContactNumber) : '',
         firstName: nameParts[0] || "",
         lastName: nameParts.slice(1).join(" "),
-        email: record.nisEmail,
+        nisEmail: record.nisEmail,
+        email: record.nisEmail, // 👈 نحفظه كمان في email
         status: "Active",
         dateOfBirth: dob ? Timestamp.fromDate(dob) : null,
         joiningDate: joined ? Timestamp.fromDate(joined) : serverTimestamp(),
       };
-      
-      delete employeeData.nisEmail; // Use 'email' as the canonical field
-
-      // If NIS email is provided, check for existing employee
+  
       if (record.nisEmail) {
         const q = query(employeeCollectionRef, where("email", "==", record.nisEmail), limit(1));
         const existing = await getDocs(q);
+  
+        // 👇 لو الموظف موجود نحذفه الأول
         if (!existing.empty) {
-          const docRef = existing.docs[0].ref;
-          batch.update(docRef, employeeData);
-          updatedCount++;
-          continue; // Move to the next record
+          const oldDoc = existing.docs[0];
+          const oldRef = oldDoc.ref;
+          batch.delete(oldRef); // ❌ نحذف القديم
         }
       }
-
-      // If no existing employee was found, create a new one.
-      employeeData.employeeId = record.employeeId ? String(record.employeeId) : (1001 + currentEmployeeCount + createdCount).toString();
+  
+      // ✅ بعد الحذف (أو لو مش موجود)، نضيف موظف جديد
+      employeeData.employeeId = record.employeeId
+        ? String(record.employeeId)
+        : (1001 + currentEmployeeCount + createdCount).toString();
       employeeData.createdAt = serverTimestamp();
+  
       const newDocRef = doc(employeeCollectionRef);
       batch.set(newDocRef, employeeData);
       createdCount++;
-      
     } catch (e) {
       errorCount++;
     }
   }
+
 
   try {
     await batch.commit();

@@ -155,9 +155,12 @@ function EmployeeProfileContent() {
         const employeeQuery = query(
           collection(db, 'employee'), 
           or(
-            where('employeeId', '==', decodedId),
-            where('email', '==', decodedId),
-            where('personalEmail', '==', decodedId)
+            where('employeeId', '==', decodedId),           
+                where('employeeId', '==', decodedId),
+                where('nisEmail', '==', decodedId),
+                where('personalEmail', '==', decodedId)
+            
+
           ),
           limit(1)
         );

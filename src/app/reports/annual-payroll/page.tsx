@@ -77,7 +77,8 @@ interface AnnualReportData {
 }
 
 const currentFullYear = getYear(new Date());
-const reportYears = Array.from({ length: 5 }, (_, i) => currentFullYear - i); // Current year and past 4 years
+const START_YEAR = 2007;
+const reportYears = Array.from({ length: currentFullYear - START_YEAR + 1 }, (_, i) => currentFullYear - i);
 const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // Helper function to calculate leave days in a specific month (from /leave/my-requests)
