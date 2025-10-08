@@ -77,7 +77,7 @@ interface AnnualReportData {
 }
 
 const currentFullYear = getYear(new Date());
-const START_YEAR = 2007;
+const START_YEAR = 2025;
 const reportYears = Array.from({ length: currentFullYear - START_YEAR + 1 }, (_, i) => currentFullYear - i);
 const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
