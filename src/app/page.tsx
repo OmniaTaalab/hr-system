@@ -48,7 +48,7 @@ const FacePile = ({ count }: { count: number }) => {
                         key={index}
                         className="flex items-center justify-center h-8 w-8 rounded-full bg-muted-foreground/20 border-2 border-background text-muted-foreground"
                     >
-                        <User className="h-4 w-4" />
+              
                     </div>
                 ))}
             </div>
@@ -371,6 +371,8 @@ function DashboardPageContent() {
       href: "/attendance-logs",
       linkText: "View Attendance Logs",
       adminOnly: true,
+      isFacePile: true,
+
     },
      {
       title: "Late Arrivals",
@@ -381,6 +383,8 @@ function DashboardPageContent() {
       href: "/attendance-logs",
       linkText: "View Attendance Logs",
       adminOnly: true,
+      isFacePile: true,
+
     },
     {
       title: "Pending Leaves",
@@ -390,6 +394,7 @@ function DashboardPageContent() {
       href: "/leave/all-requests", 
       linkText: "Review Requests",
       adminOnly: true,
+      isFacePile: true,
     },
     {
       title: "Approved Leaves",
@@ -398,6 +403,8 @@ function DashboardPageContent() {
       isLoadingStatistic: isLoadingApprovedLeaves,
       href: "/leave/all-requests",
       linkText: "View Approved",
+      isFacePile: true,
+
     },
     {
       title: "Rejected Leaves",
@@ -406,6 +413,8 @@ function DashboardPageContent() {
       isLoadingStatistic: isLoadingRejectedLeaves,
       href: "/leave/all-requests",
       linkText: "View Rejected",
+      isFacePile: true,
+
     },
      {
       title: "All Leave Requests",
@@ -415,6 +424,8 @@ function DashboardPageContent() {
       href: "/leave/all-requests",
       linkText: "View All Requests",
       adminOnly: true,
+      isFacePile: true,
+
     },
   ];
   
