@@ -24,7 +24,7 @@ export default function AccessControlPage() {
     const managerRoles = ['principal', 'manager']; // Add other manager-like roles here
     const managerCount = 0; // Placeholder
     const employeeCount = 0; // Placeholder
-    const adminCount = reportLines2.length;
+    const adminCount = reportLines2 ? reportLines2.length : 0;
 
   return (
     <div className="space-y-8">
@@ -59,25 +59,27 @@ export default function AccessControlPage() {
                         <p className="text-xs text-muted-foreground">Full access to all features</p>
                     </CardContent>
                 </Card>
-                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Admin</CardTitle>
-                         <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Avatar className="h-8 w-8"><AvatarFallback><User /></AvatarFallback></Avatar>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                <p>Admin</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{isLoading ? '...' : adminCount} Users</div>
-                        <p className="text-xs text-muted-foreground">Manages users and content</p>
-                    </CardContent>
-                </Card>
+                <Card>
+  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium">Admin</CardTitle>
+      <TooltipProvider>
+          <Tooltip>
+              <TooltipTrigger asChild>
+                  <Avatar className="h-8 w-8"><AvatarFallback><User /></AvatarFallback></Avatar>
+              </TooltipTrigger>
+              <TooltipContent>
+              <p>Admin</p>
+              </TooltipContent>
+          </Tooltip>
+      </TooltipProvider>
+  </CardHeader>
+  <CardContent>
+      <div className="text-2xl font-bold">
+        {isLoading ? '...' : adminCount} Users
+      </div>
+      <p className="text-xs text-muted-foreground">Manages users and content</p>
+  </CardContent>
+</Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Manager</CardTitle>
