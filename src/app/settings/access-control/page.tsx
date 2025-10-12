@@ -124,7 +124,7 @@ export default function AccessControlPage() {
         <RoleCard 
           role="Super Admin" 
           accessLevel="FULL ACCESS" 
-          description="Can view and edit anything on Crewingo." 
+          description="this all hr role" 
           userCount={1}
           avatars={[null]}
         />
