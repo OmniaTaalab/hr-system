@@ -1,11 +1,52 @@
 
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import SettingsPageWrapper from '../settings-page-wrapper';
-import { Shield } from 'lucide-react';
+import { Shield, User, Users } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { db } from '@/lib/firebase/config';
+import { collection, onSnapshot, query } from 'firebase/firestore';
+
+interface Employee {
+  id: string;
+  name: string;
+  role: string;
+}
+
 
 export default function AccessControlPage() {
+    const [employees, setEmployees] = useState<Employee[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const q = query(collection(db, "employee"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const employeesData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                name: doc.data().name,
+                role: doc.data().role
+            } as Employee));
+            setEmployees(employeesData);
+            setIsLoading(false);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const roleCounts = employees.reduce((acc, employee) => {
+        const role = employee.role?.toLowerCase() || 'employee';
+        acc[role] = (acc[role] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+
+    const managerRoles = ['principal', 'manager']; // Add other manager-like roles here
+    const managerCount = employees.filter(e => managerRoles.includes(e.role?.toLowerCase())).length;
+    const employeeCount = employees.length - (roleCounts['hr'] || 0) - (roleCounts['admin'] || 0) - managerCount;
+
+
   return (
     <div className="space-y-8">
        <header>
@@ -18,9 +59,81 @@ export default function AccessControlPage() {
         </p>
       </header>
        <SettingsPageWrapper>
-        <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
-            <h3 className="text-xl font-semibold">Access Control Panel</h3>
-            <p className="mt-2">This section is under construction. Role and permission management will be available here.</p>
+        <div className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Super Admin</CardTitle>
+                         <Avatar className="h-8 w-8"><AvatarFallback><Shield /></AvatarFallback></Avatar>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{(roleCounts['hr'] || 0)} Users</div>
+                        <p className="text-xs text-muted-foreground">Full access to all features</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Admin</CardTitle>
+                         <Avatar className="h-8 w-8"><AvatarFallback><User /></AvatarFallback></Avatar>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{(roleCounts['admin'] || 0)} Users</div>
+                        <p className="text-xs text-muted-foreground">Manages users and content</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Manager</CardTitle>
+                         <Avatar className="h-8 w-8"><AvatarFallback><Users /></AvatarFallback></Avatar>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{managerCount} Users</div>
+                        <p className="text-xs text-muted-foreground">Manages their direct reports</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Employee</CardTitle>
+                        <Avatar className="h-8 w-8"><AvatarFallback><User /></AvatarFallback></Avatar>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{employeeCount} Users</div>
+                        <p className="text-xs text-muted-foreground">Access to personal information</p>
+                    </CardContent>
+                </Card>
+            </div>
+             <Card>
+                <CardHeader>
+                    <CardTitle>User Permissions</CardTitle>
+                    <CardDescription>Manage individual user permissions and roles.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                     <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>User</TableHead>
+                                <TableHead>Role</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow><TableCell colSpan={3} className="text-center">Loading users...</TableCell></TableRow>
+                            ) : (
+                                employees.slice(0, 5).map(employee => (
+                                <TableRow key={employee.id}>
+                                    <TableCell className="font-medium">{employee.name}</TableCell>
+                                    <TableCell>{employee.role}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button variant="outline" size="sm">Manage</Button>
+                                    </TableCell>
+                                </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
         </div>
       </SettingsPageWrapper>
     </div>
