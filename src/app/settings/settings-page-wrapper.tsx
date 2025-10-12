@@ -9,6 +9,7 @@ import { useUserProfile } from '@/components/layout/app-layout';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 const settingsNavItems = [
+  { title: "Access Control", href: "/settings/access-control" },
   { title: "General", href: "/settings/general" },
   { title: "Organization", href: "/settings/organization" },
   { title: "Sync Data", href: "/settings/sync-data" },
