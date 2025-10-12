@@ -4,7 +4,7 @@
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Loader2, CalendarCheck2, Briefcase, Clock } from "lucide-react";
+import { ArrowRight, Loader2, CalendarCheck2, Briefcase, Clock, User } from "lucide-react";
 import Link from "next/link";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useMemo } from "react";
@@ -35,6 +35,37 @@ interface Holiday {
   date: FirebaseTimestamp;
 }
 
+const FacePile = ({ count }: { count: number }) => {
+    const maxFaces = 5;
+    const displayCount = Math.min(count, maxFaces);
+    const overflowCount = count > maxFaces ? count - maxFaces : 0;
+    
+    return (
+        <div className="flex items-center">
+            <div className="flex -space-x-3 rtl:space-x-reverse">
+                {Array.from({ length: displayCount }).map((_, index) => (
+                    <div
+                        key={index}
+                        className="flex items-center justify-center h-10 w-10 rounded-full bg-muted-foreground/20 border-2 border-background text-muted-foreground"
+                    >
+                        <User className="h-6 w-6" />
+                    </div>
+                ))}
+            </div>
+            {overflowCount > 0 && (
+                <span className="ml-2 text-xl font-bold text-primary">
+                    +{overflowCount}
+                </span>
+            )}
+            {count <= maxFaces && (
+                 <span className="ml-2 text-xl font-bold text-primary">
+                    {count}
+                </span>
+            )}
+        </div>
+    );
+};
+
 
 interface DashboardCardProps {
   title: string;
@@ -47,6 +78,7 @@ interface DashboardCardProps {
   isLoadingStatistic?: boolean;
   className?: string;
   adminOnly?: boolean;
+  isFacePile?: boolean;
 }
 
 function DashboardCard({
@@ -58,7 +90,8 @@ function DashboardCard({
   statistic,
   statisticLabel,
   isLoadingStatistic,
-  className
+  className,
+  isFacePile = false,
 }: DashboardCardProps) {
   const IconComponent = iconMap[iconName];
 
@@ -73,6 +106,8 @@ function DashboardCard({
           <div className="mt-1">
             {isLoadingStatistic ? (
               <Skeleton className="h-8 w-1/4" />
+            ) : isFacePile ? (
+              <FacePile count={Number(statistic)} />
             ) : (
               <p className="text-3xl font-bold text-primary">{statistic}</p>
             )}
@@ -325,6 +360,7 @@ function DashboardPageContent() {
       href: "/employees",
       linkText: "Manage Employees",
       adminOnly: true,
+      isFacePile: true,
     },
     {
       title: "Today's Attendance",
@@ -589,5 +625,3 @@ export default function HRDashboardPage() {
     </AppLayout>
   );
 }
-
-    
