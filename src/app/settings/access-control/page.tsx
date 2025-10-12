@@ -12,6 +12,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserProfile } from '@/components/layout/app-layout';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
 
 interface RoleCardProps {
   role: string;
@@ -35,10 +42,19 @@ function RoleCard({ role, accessLevel, description, userCount, avatars }: RoleCa
         <div className="flex items-center">
           <div className="flex -space-x-2 rtl:space-x-reverse">
             {avatars.map((avatar, index) => (
-              <Avatar key={index} className="h-8 w-8 border-2 border-background">
-                <AvatarImage src={avatar || undefined} />
-                <AvatarFallback>{getInitials(role)}</AvatarFallback>
-              </Avatar>
+              <TooltipProvider key={index}>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Avatar className="h-8 w-8 border-2 border-background">
+                      <AvatarImage src={avatar || undefined} />
+                      <AvatarFallback>{getInitials(role)}</AvatarFallback>
+                    </Avatar>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{role}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             ))}
           </div>
           {userCount > avatars.length && (
