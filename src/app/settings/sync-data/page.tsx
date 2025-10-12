@@ -15,6 +15,7 @@ import {
   syncSubjectsFromEmployeesAction,
   syncMachineNamesFromAttendanceLogsAction,
   syncReportLine1FromEmployeesAction,
+  syncReportLine2FromEmployeesAction,
   type SyncState
 } from "@/app/actions/settings-actions";
 import { useToast } from "@/hooks/use-toast";
@@ -81,6 +82,7 @@ export default function SyncDataPage() {
   const [syncSubjectState, syncSubjectAction, isSyncSubjectPending] = useActionState(syncSubjectsFromEmployeesAction, initialSyncState);
   const [syncMachineState, syncMachineAction, isSyncMachinePending] = useActionState(syncMachineNamesFromAttendanceLogsAction, initialSyncState);
   const [syncReportLine1State, syncReportLine1Action, isSyncReportLine1Pending] = useActionState(syncReportLine1FromEmployeesAction, initialSyncState);
+  const [syncReportLine2State, syncReportLine2Action, isSyncReportLine2Pending] = useActionState(syncReportLine2FromEmployeesAction, initialSyncState);
 
 
   return (
@@ -150,6 +152,13 @@ export default function SyncDataPage() {
                     action={syncReportLine1Action}
                     isPending={isSyncReportLine1Pending}
                     state={syncReportLine1State}
+                    actorDetails={actorDetails}
+                />
+                <SyncButton 
+                    label="Sync Report Line 2 from Employees"
+                    action={syncReportLine2Action}
+                    isPending={isSyncReportLine2Pending}
+                    state={syncReportLine2State}
                     actorDetails={actorDetails}
                 />
             </CardContent>

@@ -274,7 +274,7 @@ export async function getWorkdaySettings(): Promise<{ standardHours: number }> {
 
 // --- ORGANIZATION LISTS (DEPARTMENTS, ROLES, ETC.) ---
 
-const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes", "stage", "subjects", "machineNames", "reportLines1"]);
+const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes", "stage", "subjects", "machineNames", "reportLines1", "reportLines2"]);
 
 const ManageItemSchema = z.object({
   collectionName: collectionNames,
@@ -328,7 +328,7 @@ export async function manageListItemAction(
   const { collectionName } = baseValidation.data;
 
   // Apply conditional validation based on collection name
-  const isEmailCollection = collectionName === 'reportLines1';
+  const isEmailCollection = collectionName === 'reportLines1' || collectionName === 'reportLines2';
   const nameValidation = isEmailCollection
     ? z.string().email("Must be a valid email.").min(1, "Email cannot be empty.")
     : z.string().min(1, "Name cannot be empty.");
@@ -524,4 +524,8 @@ export async function syncMachineNamesFromAttendanceLogsAction(prevState: SyncSt
 
 export async function syncReportLine1FromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
     return runSync(formData, (actorDetails) => syncListFromSource("employee", "reportLine1", "reportLines1", actorDetails));
+}
+
+export async function syncReportLine2FromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
+    return runSync(formData, (actorDetails) => syncListFromSource("employee", "reportLine2", "reportLines2", actorDetails));
 }

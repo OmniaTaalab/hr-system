@@ -10,6 +10,7 @@ import {
     syncCampusesFromEmployeesAction,
     syncGroupNamesFromEmployeesAction, 
     syncReportLine1FromEmployeesAction,
+    syncReportLine2FromEmployeesAction,
     syncRolesFromEmployeesAction,
     syncStagesFromEmployeesAction,
     syncSubjectsFromEmployeesAction,
@@ -34,7 +35,7 @@ interface ListItem {
 
 interface ListManagerProps {
   title: string;
-  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage" | "subjects" | "machineNames" | "reportLines1";
+  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage" | "subjects" | "machineNames" | "reportLines1" | "reportLines2";
 }
 
 const initialManageState: ManageListItemState = { success: false, message: null, errors: {} };
@@ -59,6 +60,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   const [syncGroupState, syncGroupAction, isSyncGroupPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
   const [syncCampusState, syncCampusAction, isSyncCampusPending] = useActionState(syncCampusesFromEmployeesAction, initialSyncState);
   const [syncReportLine1State, syncReportLine1Action, isSyncReportLine1Pending] = useActionState(syncReportLine1FromEmployeesAction, initialSyncState);
+  const [syncReportLine2State, syncReportLine2Action, isSyncReportLine2Pending] = useActionState(syncReportLine2FromEmployeesAction, initialSyncState);
   const [syncRolesState, syncRolesAction, isSyncRolesPending] = useActionState(syncRolesFromEmployeesAction, initialSyncState);
   const [syncStagesState, syncStagesAction, isSyncStagesPending] = useActionState(syncStagesFromEmployeesAction, initialSyncState);
   const [syncSubjectsState, syncSubjectsAction, isSyncSubjectsPending] = useActionState(syncSubjectsFromEmployeesAction, initialSyncState);
@@ -68,9 +70,9 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   const addFormRef = useRef<HTMLFormElement>(null);
   const editFormRef = useRef<HTMLFormElement>(null);
   
-  const isReportLine = title === "Report Line 1";
-  const fieldLabel = isReportLine ? "Email" : "Name";
-  const fieldType = isReportLine ? "email" : "text";
+  const isEmailList = collectionName === "reportLines1" || collectionName === "reportLines2";
+  const fieldLabel = isEmailList ? "Email" : "Name";
+  const fieldType = isEmailList ? "email" : "text";
 
   useEffect(() => {
     setIsLoading(true);
@@ -117,7 +119,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   }, [deleteState, toast]);
 
   useEffect(() => {
-    const states = [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState];
+    const states = [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState, syncReportLine2State];
     states.forEach(state => {
         if (state?.message) {
             toast({
@@ -127,7 +129,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
             });
         }
     });
-  }, [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState, toast]);
+  }, [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState, syncReportLine2State, toast]);
 
 
   const filteredItems = useMemo(() => {
@@ -166,6 +168,14 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
               <form action={syncReportLine1Action}>
                   <Button size="sm" variant="secondary" disabled={isSyncReportLine1Pending}>
                       {isSyncReportLine1Pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Sync
+                  </Button>
+              </form>
+            )}
+            {collectionName === 'reportLines2' && (
+              <form action={syncReportLine2Action}>
+                  <Button size="sm" variant="secondary" disabled={isSyncReportLine2Pending}>
+                      {isSyncReportLine2Pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
                       Sync
                   </Button>
               </form>

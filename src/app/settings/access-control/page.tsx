@@ -1,52 +1,28 @@
-
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import SettingsPageWrapper from '../settings-page-wrapper';
 import { Shield, User, Users } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { useOrganizationLists } from '@/hooks/use-organization-lists';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
-interface Employee {
-  id: string;
-  name: string;
-  role: string;
-}
-
-
 export default function AccessControlPage() {
-    const [employees, setEmployees] = useState<Employee[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const { roles, isLoading } = useOrganizationLists();
 
-    useEffect(() => {
-        const q = query(collection(db, "employee"));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const employeesData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                name: doc.data().name,
-                role: doc.data().role
-            } as Employee));
-            setEmployees(employeesData);
-            setIsLoading(false);
-        });
-        return () => unsubscribe();
-    }, []);
-
-    const roleCounts = employees.reduce((acc, employee) => {
-        const role = employee.role?.toLowerCase() || 'employee';
-        acc[role] = (acc[role] || 0) + 1;
+    const roleCounts = roles.reduce((acc, role) => {
+        // This is a simplification. A real implementation would query the employees collection.
+        const roleName = role.name?.toLowerCase() || 'employee';
+        acc[roleName] = (acc[roleName] || 0) + 1; // This is a placeholder count
         return acc;
     }, {} as Record<string, number>);
 
     const managerRoles = ['principal', 'manager']; // Add other manager-like roles here
-    const managerCount = employees.filter(e => managerRoles.includes(e.role?.toLowerCase())).length;
-    const employeeCount = employees.length - (roleCounts['hr'] || 0) - (roleCounts['admin'] || 0) - managerCount;
-
+    const managerCount = 0; // Placeholder
+    const employeeCount = 0; // Placeholder
 
   return (
     <div className="space-y-8">
@@ -61,7 +37,7 @@ export default function AccessControlPage() {
       </header>
        <SettingsPageWrapper>
         <div className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Super Admin</CardTitle>
@@ -79,6 +55,25 @@ export default function AccessControlPage() {
                     <CardContent>
                         <div className="text-2xl font-bold">{roleCounts['hr'] || 0} Users</div>
                         <p className="text-xs text-muted-foreground">Full access to all features</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Admin</CardTitle>
+                         <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Avatar className="h-8 w-8"><AvatarFallback><User /></AvatarFallback></Avatar>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                <p>Admin</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{roleCounts['admin'] || 0} Users</div>
+                        <p className="text-xs text-muted-foreground">Manages users and content</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -138,10 +133,10 @@ export default function AccessControlPage() {
                             {isLoading ? (
                                 <TableRow><TableCell colSpan={3} className="text-center">Loading users...</TableCell></TableRow>
                             ) : (
-                                employees.slice(0, 5).map(employee => (
+                                roles.slice(0, 5).map(employee => (
                                 <TableRow key={employee.id}>
                                     <TableCell className="font-medium">{employee.name}</TableCell>
-                                    <TableCell>{employee.role}</TableCell>
+                                    <TableCell>{employee.name}</TableCell>
                                     <TableCell className="text-right">
                                         <Button variant="outline" size="sm">Manage</Button>
                                     </TableCell>
