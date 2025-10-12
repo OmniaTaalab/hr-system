@@ -43,6 +43,8 @@ import {
   BookOpenCheck,
   Bell,
   History, // Added History icon for System Log
+  User, // Added User icon
+  Shield, // Added Shield icon
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -88,4 +90,6 @@ export const iconMap: { [key: string]: LucideIcon } = {
   BookOpenCheck,
   Bell,
   History, // Added History icon for System Log
+  User, // Added User icon
+  Shield, // Added Shield icon
 };

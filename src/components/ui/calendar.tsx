@@ -19,12 +19,18 @@ function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       numberOfMonths={1}
+      /** ✅ إظهار القوائم المنسدلة لاختيار الشهر والسنة */
+      captionLayout="dropdown"
+      /** ✅ تحديد مدى السنوات المسموح بها */
+      fromYear={1970}
+      toYear={2035}
       className={cn("p-3", className)}
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
         caption: "flex justify-center pt-1 relative items-center",
-        caption_label: "hidden", // ✅ إخفاء التكرار (مش هيعرض الشهر/السنة كـ نص تاني)
+        /** ✅ نعرض الـ dropdowns بدل ما نخفي العنوان */
+        caption_label: "hidden",
         caption_dropdowns: "flex justify-center gap-1",
         nav: "space-x-1 flex items-center",
         nav_button: cn(
@@ -67,6 +73,7 @@ function Calendar({
     />
   )
 }
+
 Calendar.displayName = "Calendar"
 
 export { Calendar }
