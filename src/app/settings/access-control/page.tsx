@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -11,7 +12,7 @@ import { useOrganizationLists } from '@/hooks/use-organization-lists';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 export default function AccessControlPage() {
-    const { roles, isLoading } = useOrganizationLists();
+    const { roles, reportLines2, isLoading } = useOrganizationLists();
 
     const roleCounts = roles.reduce((acc, role) => {
         // This is a simplification. A real implementation would query the employees collection.
@@ -23,6 +24,7 @@ export default function AccessControlPage() {
     const managerRoles = ['principal', 'manager']; // Add other manager-like roles here
     const managerCount = 0; // Placeholder
     const employeeCount = 0; // Placeholder
+    const adminCount = reportLines2.length;
 
   return (
     <div className="space-y-8">
@@ -72,7 +74,7 @@ export default function AccessControlPage() {
                         </TooltipProvider>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{roleCounts['admin'] || 0} Users</div>
+                        <div className="text-2xl font-bold">{isLoading ? '...' : adminCount} Users</div>
                         <p className="text-xs text-muted-foreground">Manages users and content</p>
                     </CardContent>
                 </Card>
