@@ -5,11 +5,9 @@ import React, { useState, useEffect, useActionState, useMemo } from 'react';
 import SettingsPageWrapper from '../settings-page-wrapper';
 import { Shield, User, Users, KeyRound, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useOrganizationLists } from '@/hooks/use-organization-lists';
-import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { useUserProfile } from '@/components/layout/app-layout';
 import { onSnapshot, collection, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
@@ -110,11 +108,6 @@ export default function AccessControlPage() {
     const adminCount = reportLines2 ? reportLines2.length : 0;
     const superAdminCount = useMemo(() => roleCounts['hr'] || 0, [roleCounts]);
 
-    const usersWithLogin = useMemo(() => {
-      return employees.filter(e => e.userId);
-    }, [employees]);
-
-
   return (
     <div className="space-y-8">
        <header>
@@ -132,16 +125,7 @@ export default function AccessControlPage() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Super Admin</CardTitle>
-                         <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Avatar className="h-8 w-8"><AvatarFallback><Shield /></AvatarFallback></Avatar>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                <p>Super Admin</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <Shield className="h-6 w-6 text-primary" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{isLoading ? '...' : superAdminCount} Users</div>
@@ -151,16 +135,7 @@ export default function AccessControlPage() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Admin</CardTitle>
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Avatar className="h-8 w-8"><AvatarFallback><User /></AvatarFallback></Avatar>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                <p>Admin</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <User className="h-6 w-6 text-primary" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
@@ -172,16 +147,7 @@ export default function AccessControlPage() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Manager</CardTitle>
-                         <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Avatar className="h-8 w-8"><AvatarFallback><Users /></AvatarFallback></Avatar>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                <p>Manager</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <Users className="h-6 w-6 text-primary" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{isLoading ? '...' : managerCount} Users</div>
@@ -191,16 +157,7 @@ export default function AccessControlPage() {
                  <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Employee</CardTitle>
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Avatar className="h-8 w-8"><AvatarFallback><User /></AvatarFallback></Avatar>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                <p>Employee</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <User className="h-6 w-6 text-primary" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{isLoading ? '...' : employeeCount} Users</div>
@@ -210,30 +167,31 @@ export default function AccessControlPage() {
             </div>
              <Card>
                 <CardHeader>
-                    <CardTitle>User Permissions</CardTitle>
-                    <CardDescription>Manage individual user permissions and roles.</CardDescription>
+                    <CardTitle>User Credentials</CardTitle>
+                    <CardDescription>Manage individual user login credentials.</CardDescription>
                 </CardHeader>
                 <CardContent>
                      <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>User</TableHead>
-                                <TableHead>Role</TableHead>
+                                <TableHead>Employee Number</TableHead>
+                                <TableHead>First Name</TableHead>
+                                <TableHead>Family Name</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
-                                <TableRow><TableCell colSpan={3} className="text-center">Loading users...</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={4} className="text-center">Loading users...</TableCell></TableRow>
                             ) : (
-                                usersWithLogin.slice(0, 10).map(employee => (
+                                employees.map(employee => (
                                 <TableRow key={employee.id}>
-                                    <TableCell className="font-medium">{employee.name}</TableCell>
-                                    <TableCell>{employee.role}</TableCell>
+                                    <TableCell>{employee.employeeId}</TableCell>
+                                    <TableCell>{employee.firstName || employee.name.split(' ')[0]}</TableCell>
+                                    <TableCell>{employee.lastName || employee.name.split(' ').slice(1).join(' ')}</TableCell>
                                     <TableCell className="text-right">
-                                        <Button variant="outline" size="sm" onClick={() => openChangePasswordDialog(employee)} disabled={!employee.userId}>
-                                          <KeyRound className="mr-2 h-4 w-4"/>
-                                          Reset Password
+                                        <Button variant="default" size="sm" onClick={() => openChangePasswordDialog(employee)} disabled={!employee.userId} className="bg-green-600 hover:bg-green-700 text-white">
+                                          RESET PASSWORD
                                         </Button>
                                     </TableCell>
                                 </TableRow>
