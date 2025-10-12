@@ -42,23 +42,23 @@ const FacePile = ({ count }: { count: number }) => {
     
     return (
         <div className="flex items-center">
-            <div className="flex -space-x-3 rtl:space-x-reverse">
+            <div className="flex -space-x-2 rtl:space-x-reverse">
                 {Array.from({ length: displayCount }).map((_, index) => (
                     <div
                         key={index}
-                        className="flex items-center justify-center h-10 w-10 rounded-full bg-muted-foreground/20 border-2 border-background text-muted-foreground"
+                        className="flex items-center justify-center h-8 w-8 rounded-full bg-muted-foreground/20 border-2 border-background text-muted-foreground"
                     >
-                        <User className="h-6 w-6" />
+                        <User className="h-4 w-4" />
                     </div>
                 ))}
             </div>
             {overflowCount > 0 && (
-                <span className="ml-2 text-xl font-bold text-primary">
+                <span className="ml-3 text-lg font-bold text-primary">
                     +{overflowCount}
                 </span>
             )}
-            {count <= maxFaces && (
-                 <span className="ml-2 text-xl font-bold text-primary">
+            {count <= maxFaces && count > 0 && (
+                 <span className="ml-3 text-lg font-bold text-primary">
                     {count}
                 </span>
             )}
