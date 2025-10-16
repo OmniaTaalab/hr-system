@@ -704,15 +704,19 @@ const BatchEmployeeSchema = z.object({
 
 function parseExcelDate(value: any): Date | null {
   if (!value) return null;
+  // Check if it's already a valid date string
+  const directDate = new Date(value);
+  if (directDate instanceof Date && !isNaN(directDate.getTime())) {
+    return directDate;
+  }
+  // Check for Excel's numeric date format
   if (typeof value === "number") {
-    // Excel stores dates as the number of days since 1900-01-01.
     // The number 25569 is the days between 1900-01-01 and 1970-01-01 (Unix epoch).
     // The subtraction of 1 is for a leap year bug in Excel.
-    const date = new Date((value - 25569) * 86400 * 1000);
-     if (!isNaN(date.getTime())) return date;
+    const excelDate = new Date((value - 25569) * 86400 * 1000);
+     if (!isNaN(excelDate.getTime())) return excelDate;
   }
-  const date = new Date(value);
-  return isNaN(date.getTime()) ? null : date;
+  return null;
 }
 
 export type BatchCreateEmployeesState = {
@@ -794,6 +798,7 @@ export async function batchCreateEmployeesAction(
   
   const countSnapshot = await getCountFromServer(employeeCollectionRef);
   let currentEmployeeCount = countSnapshot.data().count;
+  
   for (const record of validationResult.data) {
     try {
       const nameParts = record.name.trim().split(/\s+/);
@@ -807,35 +812,39 @@ export async function batchCreateEmployeesAction(
         emergencyContactNumber: record.emergencyContactNumber ? String(record.emergencyContactNumber) : '',
         firstName: nameParts[0] || "",
         lastName: nameParts.slice(1).join(" "),
-        nisEmail: record.nisEmail,
-        email: record.nisEmail, // 👈 نحفظه كمان في email
+        email: record.nisEmail,
         status: "Active",
         dateOfBirth: dob ? Timestamp.fromDate(dob) : null,
         joiningDate: joined ? Timestamp.fromDate(joined) : serverTimestamp(),
       };
-  
+      
+      let existingDocId: string | null = null;
       if (record.nisEmail) {
         const q = query(employeeCollectionRef, where("email", "==", record.nisEmail), limit(1));
         const existing = await getDocs(q);
-  
-        // 👇 لو الموظف موجود نحذفه الأول
         if (!existing.empty) {
-          const oldDoc = existing.docs[0];
-          const oldRef = oldDoc.ref;
-          batch.delete(oldRef); // ❌ نحذف القديم
+          existingDocId = existing.docs[0].id;
         }
       }
-  
-      // ✅ بعد الحذف (أو لو مش موجود)، نضيف موظف جديد
-      employeeData.employeeId = record.employeeId
-        ? String(record.employeeId)
-        : (1001 + currentEmployeeCount + createdCount).toString();
-      employeeData.createdAt = serverTimestamp();
-  
-      const newDocRef = doc(employeeCollectionRef);
-      batch.set(newDocRef, employeeData);
-      createdCount++;
+
+      if(existingDocId){
+        // Update existing employee
+        const docRef = doc(employeeCollectionRef, existingDocId);
+        batch.set(docRef, employeeData, { merge: true }); // Use set with merge to update or create fields
+        updatedCount++;
+      } else {
+        // Create new employee
+        employeeData.employeeId = record.employeeId
+          ? String(record.employeeId)
+          : (1001 + currentEmployeeCount + createdCount).toString();
+        employeeData.createdAt = serverTimestamp();
+        
+        const newDocRef = doc(employeeCollectionRef);
+        batch.set(newDocRef, employeeData);
+        createdCount++;
+      }
     } catch (e) {
+      console.error("Error processing a record:", record, e);
       errorCount++;
     }
   }
