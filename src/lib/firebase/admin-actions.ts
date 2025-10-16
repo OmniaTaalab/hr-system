@@ -715,6 +715,8 @@ function parseExcelDate(value: any): Date | null {
       }
   }
   if (typeof value === "number") {
+    // Excel stores dates as number of days since 1900-01-01.
+    // The '25569' is the number of days between 1900-01-01 and 1970-01-01 (JS epoch).
     const excelDate = new Date((value - 25569) * 86400 * 1000);
      if (!isNaN(excelDate.getTime())) return excelDate;
   }
@@ -743,44 +745,49 @@ export async function batchCreateEmployeesAction(
   try {
     parsedRecords = JSON.parse(recordsJson);
 
+    // More flexible header mapping
     const keyMap: Record<string, string> = {
         "name": "name", "full name": "name",
-        "name in arabic": "nameAr",
-        "nis email": "nisEmail", "work email": "nisEmail",
+        "namear": "nameAr", "name in arabic": "nameAr",
+        "nis email": "nisEmail", "work email": "nisEmail", "email": "nisEmail",
         "personal email": "personalEmail",
         "phone": "phone", "mobile": "phone", "phone number": "phone",
-        "emergency contact name": "emergencyContactName",
-        "emergency contact relationship": "emergencyContactRelationship",
-        "emergency contact number": "emergencyContactNumber",
+        "emergencycontact": "emergencyContactName", "emergency contact name": "emergencyContactName",
+        "emergency (relationship)": "emergencyContactRelationship", "emergency relationship": "emergencyContactRelationship",
+        "emergency (religion": "emergencyContactNumber", "emergency number": "emergencyContactNumber", // OCR was weird here
         "date of birth": "dateOfBirth", "dob": "dateOfBirth",
         "gender": "gender",
         "national id": "nationalId",
         "religion": "religion",
         "joining date": "joiningDate", "hire date": "joiningDate",
-        "title": "title",
+        "title": "title", "job title": "title",
         "department": "department",
-        "role": "role", "job title": "role",
+        "role": "role",
         "stage": "stage",
         "campus": "campus",
-        "report line 1": "reportLine1",
-        "report line 2": "reportLine2",
+        "reportline": "reportLine1", // From OCR
+        "reportline2": "reportLine2", // Assuming it exists
         "subject": "subject",
-        "id portal / employee number": "employeeId",
-        "employee number": "employeeId",
+        "employee #": "employeeId", "employee number": "employeeId",
         "id": "employeeId",
-        "children at nis": "childrenAtNIS",
+        "childrenat": "childrenAtNIS", // From OCR
     };
 
     normalizedRecords = parsedRecords.map((record: Record<string, any>) => {
       const normalized: Record<string, any> = {};
       for (const key in record) {
-        const lowerKey = key.trim().toLowerCase();
+        const lowerKey = key.trim().toLowerCase().replace(/[\(\)]/g, ''); // Clean up keys
         const mappedKey = keyMap[lowerKey];
         if (mappedKey) {
             normalized[mappedKey] = record[key];
         } else {
-            // Keep unmapped keys for flexibility, Zod will strip them
-            normalized[key.trim()] = record[key];
+            // Try to find partial matches for flexibility
+            for(const mapKey in keyMap) {
+                if (lowerKey.includes(mapKey)) {
+                    normalized[keyMap[mapKey]] = record[key];
+                    break;
+                }
+            }
         }
       }
       return normalized;
@@ -823,7 +830,7 @@ export async function batchCreateEmployeesAction(
         emergencyContactNumber: record.emergencyContactNumber ? String(record.emergencyContactNumber) : null,
         firstName: nameParts[0] || "",
         lastName: nameParts.slice(1).join(" "),
-        email: record.nisEmail,
+        email: record.nisEmail, // Use nisEmail as the main email field
         status: "Active",
         dateOfBirth: dob ? Timestamp.fromDate(dob) : null,
         joiningDate: joined ? Timestamp.fromDate(joined) : serverTimestamp(),
