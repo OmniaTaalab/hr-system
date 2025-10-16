@@ -705,9 +705,11 @@ const BatchEmployeeSchema = z.object({
 function parseExcelDate(value: any): Date | null {
   if (!value) return null;
   // Check if it's already a valid date string
-  const directDate = new Date(value);
-  if (directDate instanceof Date && !isNaN(directDate.getTime())) {
-    return directDate;
+  if (typeof value === 'string') {
+      const parsedDate = new Date(value);
+      if (!isNaN(parsedDate.getTime())) {
+          return parsedDate;
+      }
   }
   // Check for Excel's numeric date format
   if (typeof value === "number") {
@@ -742,29 +744,31 @@ export async function batchCreateEmployeesAction(
     parsedRecords = JSON.parse(recordsJson);
 
     const keyMap: Record<string, string> = {
-      "name": "name",
-      "personal email": "personalEmail",
-      "phone": "phone",
-      "emergencycontactname": "emergencyContactName",
-      "emergencycontactrelationship": "emergencyContactRelationship",
-      "emergencycontactnumber": "emergencyContactNumber",
-      "dateofbirth": "dateOfBirth",
-      "gender": "gender",
-      "nationalid": "nationalId",
-      "religion": "religion",
-      "nis email": "nisEmail",
-      "joiningdate": "joiningDate",
-      "title": "title",
-      "department": "department",
-      "role": "role",
-      "stage": "stage",
-      "campus": "campus",
-      "reportline1": "reportLine1",
-      "reportline2": "reportLine2",
-      "subject": "subject",
-      "id portal / employee number": "employeeId",
-      "namear":"nameAr"
+        "name": "name",
+        "name in arabic": "nameAr",
+        "personal email": "personalEmail",
+        "phone": "phone",
+        "emergency contact name": "emergencyContactName",
+        "emergency contact relationship": "emergencyContactRelationship",
+        "emergency contact number": "emergencyContactNumber",
+        "date of birth": "dateOfBirth",
+        "gender": "gender",
+        "national id": "nationalId",
+        "religion": "religion",
+        "nis email": "nisEmail",
+        "joining date": "joiningDate",
+        "title": "title",
+        "department": "department",
+        "role": "role",
+        "stage": "stage",
+        "campus": "campus",
+        "report line 1": "reportLine1",
+        "report line 2": "reportLine2",
+        "subject": "subject",
+        "id portal / employee number": "employeeId",
+        "employee number": "employeeId",
     };
+
 
     normalizedRecords = parsedRecords.map((record: Record<string, any>) => {
       const normalized: Record<string, any> = {};
@@ -782,7 +786,7 @@ export async function batchCreateEmployeesAction(
   const validationResult = z.array(BatchEmployeeSchema).safeParse(normalizedRecords);
 
   if (!validationResult.success) {
-    console.error(validationResult.error.flatten().fieldErrors);
+    console.error(validationResult.error.flatten());
     return {
       success: false,
       errors: { file: ["The data in the file is invalid. Please check column values and formats."] },
@@ -801,7 +805,7 @@ export async function batchCreateEmployeesAction(
   
   for (const record of validationResult.data) {
     try {
-      const nameParts = record.name.trim().split(/\s+/);
+      const nameParts = record.name ? record.name.trim().split(/\s+/) : ['',''];
       const dob = parseExcelDate(record.dateOfBirth);
       const joined = parseExcelDate(record.joiningDate);
   
