@@ -679,42 +679,42 @@ export async function createEmployeeProfileAction(
 
 const BatchEmployeeSchema = z.object({
   name: z.string().min(1, "Name is required"),
+  nameAr: z.string().optional().nullable(),
   nisEmail: z.string().email().optional().or(z.literal("")),
   personalEmail: z.string().email().optional().or(z.literal("")),
-  phone: z.any().optional(),
-  department: z.string().optional(),
-  role: z.string().optional(),
-  stage: z.string().optional(),
-  campus: z.string().optional(),
-  subject: z.string().optional(),
-  title: z.string().optional(),
-  gender: z.string().optional(),
-  nationalId: z.any().optional(),
-  religion: z.string().optional(),
-  dateOfBirth: z.any().optional(),
-  joiningDate: z.any().optional(),
-  emergencyContactName: z.string().optional(),
-  emergencyContactRelationship: z.string().optional(),
-  emergencyContactNumber: z.any().optional(),
-  reportLine1: z.string().optional(),
-  reportLine2: z.string().optional(),
-  employeeId: z.any().optional(),
-  nameAr:z.string().optional(),
+  phone: z.any().optional().nullable(),
+  department: z.string().optional().nullable(),
+  role: z.string().optional().nullable(),
+  stage: z.string().optional().nullable(),
+  campus: z.string().optional().nullable(),
+  subject: z.string().optional().nullable(),
+  title: z.string().optional().nullable(),
+  gender: z.string().optional().nullable(),
+  nationalId: z.any().optional().nullable(),
+  religion: z.string().optional().nullable(),
+  dateOfBirth: z.any().optional().nullable(),
+  joiningDate: z.any().optional().nullable(),
+  emergencyContactName: z.string().optional().nullable(),
+  emergencyContactRelationship: z.string().optional().nullable(),
+  emergencyContactNumber: z.any().optional().nullable(),
+  reportLine1: z.string().optional().nullable(),
+  reportLine2: z.string().optional().nullable(),
+  employeeId: z.any().optional().nullable(),
+  childrenAtNIS: z.enum(['Yes', 'No']).optional().nullable(),
 });
 
 function parseExcelDate(value: any): Date | null {
   if (!value) return null;
-  // Check if it's already a valid date string
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return value;
+  }
   if (typeof value === 'string') {
       const parsedDate = new Date(value);
       if (!isNaN(parsedDate.getTime())) {
           return parsedDate;
       }
   }
-  // Check for Excel's numeric date format
   if (typeof value === "number") {
-    // The number 25569 is the days between 1900-01-01 and 1970-01-01 (Unix epoch).
-    // The subtraction of 1 is for a leap year bug in Excel.
     const excelDate = new Date((value - 25569) * 86400 * 1000);
      if (!isNaN(excelDate.getTime())) return excelDate;
   }
@@ -744,22 +744,22 @@ export async function batchCreateEmployeesAction(
     parsedRecords = JSON.parse(recordsJson);
 
     const keyMap: Record<string, string> = {
-        "name": "name",
+        "name": "name", "full name": "name",
         "name in arabic": "nameAr",
+        "nis email": "nisEmail", "work email": "nisEmail",
         "personal email": "personalEmail",
-        "phone": "phone",
+        "phone": "phone", "mobile": "phone", "phone number": "phone",
         "emergency contact name": "emergencyContactName",
         "emergency contact relationship": "emergencyContactRelationship",
         "emergency contact number": "emergencyContactNumber",
-        "date of birth": "dateOfBirth",
+        "date of birth": "dateOfBirth", "dob": "dateOfBirth",
         "gender": "gender",
         "national id": "nationalId",
         "religion": "religion",
-        "nis email": "nisEmail",
-        "joining date": "joiningDate",
+        "joining date": "joiningDate", "hire date": "joiningDate",
         "title": "title",
         "department": "department",
-        "role": "role",
+        "role": "role", "job title": "role",
         "stage": "stage",
         "campus": "campus",
         "report line 1": "reportLine1",
@@ -767,15 +767,21 @@ export async function batchCreateEmployeesAction(
         "subject": "subject",
         "id portal / employee number": "employeeId",
         "employee number": "employeeId",
+        "id": "employeeId",
+        "children at nis": "childrenAtNIS",
     };
-
 
     normalizedRecords = parsedRecords.map((record: Record<string, any>) => {
       const normalized: Record<string, any> = {};
       for (const key in record) {
         const lowerKey = key.trim().toLowerCase();
-        const mappedKey = keyMap[lowerKey] || key.trim();
-        normalized[mappedKey] = record[key];
+        const mappedKey = keyMap[lowerKey];
+        if (mappedKey) {
+            normalized[mappedKey] = record[key];
+        } else {
+            // Keep unmapped keys for flexibility, Zod will strip them
+            normalized[key.trim()] = record[key];
+        }
       }
       return normalized;
     });
@@ -786,10 +792,10 @@ export async function batchCreateEmployeesAction(
   const validationResult = z.array(BatchEmployeeSchema).safeParse(normalizedRecords);
 
   if (!validationResult.success) {
-    console.error(validationResult.error.flatten());
+    console.error("Zod validation failed:", validationResult.error.flatten());
     return {
       success: false,
-      errors: { file: ["The data in the file is invalid. Please check column values and formats."] },
+      errors: { file: ["The data in the file has an invalid format. Please check your column names and data types."] },
     };
   }
 
@@ -811,9 +817,10 @@ export async function batchCreateEmployeesAction(
   
       const employeeData: { [key: string]: any } = {
         ...record,
-        phone: record.phone ? String(record.phone) : '',
-        nationalId: record.nationalId ? String(record.nationalId) : '',
-        emergencyContactNumber: record.emergencyContactNumber ? String(record.emergencyContactNumber) : '',
+        name: record.name.trim(),
+        phone: record.phone ? String(record.phone) : null,
+        nationalId: record.nationalId ? String(record.nationalId) : null,
+        emergencyContactNumber: record.emergencyContactNumber ? String(record.emergencyContactNumber) : null,
         firstName: nameParts[0] || "",
         lastName: nameParts.slice(1).join(" "),
         email: record.nisEmail,
@@ -821,6 +828,13 @@ export async function batchCreateEmployeesAction(
         dateOfBirth: dob ? Timestamp.fromDate(dob) : null,
         joiningDate: joined ? Timestamp.fromDate(joined) : serverTimestamp(),
       };
+      
+      // Clean up the object to not include undefined values passed to firestore
+      Object.keys(employeeData).forEach(key => {
+        if (employeeData[key] === undefined || employeeData[key] === null) {
+            employeeData[key] = null;
+        }
+      });
       
       let existingDocId: string | null = null;
       if (record.nisEmail) {
@@ -834,7 +848,7 @@ export async function batchCreateEmployeesAction(
       if(existingDocId){
         // Update existing employee
         const docRef = doc(employeeCollectionRef, existingDocId);
-        batch.set(docRef, employeeData, { merge: true }); // Use set with merge to update or create fields
+        batch.set(docRef, employeeData, { merge: true }); 
         updatedCount++;
       } else {
         // Create new employee
@@ -858,7 +872,7 @@ export async function batchCreateEmployeesAction(
     await batch.commit();
     let message = `✅ Successfully created ${createdCount} and updated ${updatedCount} employee(s).`;
     if (errorCount > 0) {
-      message += ` ❌ Failed to process ${errorCount} record(s).`;
+      message += ` ❌ Failed to process ${errorCount} record(s). Check console for details.`;
     }
     return { success: true, message };
   } catch (error: any) {
