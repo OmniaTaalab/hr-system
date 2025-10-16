@@ -1403,6 +1403,7 @@ function EmployeeManagementContent() {
             'Name': emp.name,
             'Title': emp.title,
             'Role': emp.role,
+            'childrenAtNIS': emp.childrenAtNIS,
             'Department': emp.department,
             'Campus': emp.campus,
             'Stage': emp.stage,
