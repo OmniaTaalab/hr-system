@@ -214,8 +214,7 @@ function EmployeeProfileContent() {
         }
         const logsQuery = query(
           collection(db, 'attendance_log'),
-          where('userId', '==', userIdNumber),
-          orderBy('date', 'desc')
+          where('userId', '==', userIdNumber)
         );
         const querySnapshot = await getDocs(logsQuery);
         let logs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
@@ -640,4 +639,3 @@ export default function EmployeeProfilePage() {
     );
 }
 
-    
