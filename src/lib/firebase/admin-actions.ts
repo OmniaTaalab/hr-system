@@ -2,6 +2,8 @@
 
 'use server';
 
+
+
 import { z } from 'zod';
 import * as XLSX from "xlsx";
 import { revalidatePath } from "next/cache";
@@ -683,8 +685,17 @@ const BatchEmployeeSchema = z.object({
   name: z.string().min(1, "Name is required"),
   nameAr: z.string().optional().nullable(),
   childrenAtNIS: z.enum(['Yes', 'No']).optional().nullable(),
-  nisEmail: z.string().email().optional().or(z.literal("")),
-  personalEmail: z.string().email().optional().or(z.literal("")),
+  
+  nisEmail: z.preprocess(
+    (val) => (val === "" || val === null ? undefined : val),
+    z.string().email().optional().nullable()
+  ),
+
+  personalEmail: z.preprocess(
+    (val) => (val === "" || val === null ? undefined : val),
+    z.string().optional().nullable()
+  ),
+
   phone: z.any().optional().nullable(),
   department: z.string().optional().nullable(),
   role: z.string().optional().nullable(),
@@ -748,9 +759,10 @@ const keyMap: Record<string, string> = {
 //
 function normalizeHeader(header: string): string {
   return header
-    .replace(/["']/g, "") // يشيل علامات الاقتباس
-    .replace(/\s+/g, " ") // يوحّد المسافات
-    .trim();
+    .replace(/[\r\n\t]+/g, " ") // يشيل newlines والتابات
+    .replace(/["']/g, "")       // يشيل علامات الاقتباس
+    .replace(/\s+/g, " ")       // يوحد المسافات
+    .trim();                    // يشيل المسافات في الأطراف
 }
 
 //
@@ -758,18 +770,19 @@ function normalizeHeader(header: string): string {
 //
 function cleanValue(value: any): any {
   if (value == null) return null;
-  if (typeof value === "number" && value > 1000) { // Simple heuristic to check if it's an Excel date serial
+
+  // إذا كان رقم كبير (Excel date serial)
+  if (typeof value === "number" && value > 1000) {
     const date = XLSX.SSF.parse_date_code(value);
     if (date && date.y && date.m && date.d) {
-       // Return a Date object, will be converted to Timestamp later
-       return new Date(Date.UTC(date.y, date.m - 1, date.d));
+      return new Date(Date.UTC(date.y, date.m - 1, date.d));
     }
   }
-  // For strings that might be dates
-  if (typeof value === 'string') {
+
+  // نصوص تشبه التاريخ
+  if (typeof value === "string") {
     const parsedDate = new Date(value);
     if (!isNaN(parsedDate.getTime())) {
-      // It's a valid date string
       return parsedDate;
     }
   }
@@ -780,9 +793,13 @@ function cleanValue(value: any): any {
 //
 // ✅ الأكشن الرئيسي
 //
-export async function batchCreateEmployeesAction(prevState: BatchCreateEmployeesState, formData: FormData): Promise<BatchCreateEmployeesState> {
-  const recordsJson = formData.get('recordsJson');
-  if (!recordsJson || typeof recordsJson !== 'string') {
+export async function batchCreateEmployeesAction(
+  prevState: BatchCreateEmployeesState,
+  formData: FormData
+): Promise<BatchCreateEmployeesState> {
+
+  const recordsJson = formData.get("recordsJson");
+  if (!recordsJson || typeof recordsJson !== "string") {
     return { errors: { file: ["No data received from file."] }, success: false };
   }
 
@@ -792,116 +809,125 @@ export async function batchCreateEmployeesAction(prevState: BatchCreateEmployees
   } catch (e) {
     return { errors: { file: ["Failed to parse file data."] }, success: false };
   }
-  console.log("📊 Rows found:", parsedRecords.length);
 
+  console.log("📊 Rows found:", parsedRecords.length);
   if (parsedRecords.length === 0) {
-      return { success: false, errors: { file: ["No data found in Excel file."] } };
+    return { success: false, errors: { file: ["No data found in Excel file."] } };
   }
 
-  // 2️⃣ تحويل الأعمدة إلى المفاتيح الصحيحة
+  // ✅ طباعة أسماء الأعمدة المقروءة لمساعدتك في الديبج
+  console.log("🪶 Excel headers detected:", Object.keys(parsedRecords[0]));
+
+  // ✅ تحويل الأعمدة إلى المفاتيح الصحيحة
   const mappedData = parsedRecords.map((row: Record<string, any>) => {
-      const cleanedRow: Record<string, any> = {};
-      Object.keys(row).forEach((key) => {
-          const cleanKey = normalizeHeader(key);
-          const mappedKey = keyMap[cleanKey] || cleanKey; // Fallback to original clean key
-          if (mappedKey) cleanedRow[mappedKey] = cleanValue(row[key]);
-      });
-      return cleanedRow;
+    const cleanedRow: Record<string, any> = {};
+    Object.keys(row).forEach((key) => {
+      const cleanKey = normalizeHeader(key);
+      const mappedKey = keyMap[cleanKey] || cleanKey;
+      if (mappedKey) cleanedRow[mappedKey] = cleanValue(row[key]);
+    });
+    return cleanedRow;
   });
+
   console.log("🧩 Sample mapped record:", mappedData[0]);
 
-  // 3️⃣ التحقق من صحة البيانات
+  // ✅ التحقق من صحة البيانات
   const validation = z.array(BatchEmployeeSchema).safeParse(mappedData);
   if (!validation.success) {
-      console.error("❌ Validation failed:", validation.error.flatten());
-      return {
-          success: false,
-          errors: {file: ["The data in the file has an invalid format. Please check your column names and data types."]},
-      };
+    console.error("❌ Validation failed:", validation.error.flatten());
+    return {
+      success: false,
+      errors: {
+        file: validation.error.errors.map(
+          (e) => `${e.path.join(".") || "unknown"}: ${e.message}`
+        ),
+      },
+    };
   }
 
   const validRecords = validation.data;
   console.log(`✅ Valid records: ${validRecords.length}`);
 
   if (validRecords.length === 0) {
-    return { success: false, errors: {file: ["No valid records found in the file."]} };
+    return { success: false, errors: { file: ["No valid records found in the file."] } };
   }
 
   try {
-      const batch = writeBatch(db);
-      const employeeCollectionRef = collection(db, "employee");
-      let createdCount = 0;
-      let skippedCount = 0;
+    const batch = writeBatch(db);
+    const employeeCollectionRef = collection(db, "employee");
+    let createdCount = 0;
+    let skippedCount = 0;
 
-      for (const record of validRecords) {
-          if (!record.nisEmail) {
-              skippedCount++;
-              continue; // Skip records without an email as it's a primary identifier
-          }
-
-          // Check if employee with this email already exists
-          const q = query(employeeCollectionRef, where("email", "==", record.nisEmail), limit(1));
-          const existing = await getDocs(q);
-          if (!existing.empty) {
-              skippedCount++;
-              continue; // Skip existing employees
-          }
-
-          const docRef = doc(employeeCollectionRef);
-          
-          const nameParts = record.name.trim().split(/\s+/);
-          const firstName = nameParts[0] || '';
-          const lastName = nameParts.slice(1).join(' ');
-
-          const newEmployeeData = {
-              name: record.name,
-              firstName,
-              lastName,
-              nameAr: record.nameAr || null,
-              email: record.nisEmail,
-              personalEmail: record.personalEmail || null,
-              phone: record.phone ? String(record.phone) : null,
-              childrenAtNIS: record.childrenAtNIS || null,
-              title: record.title || null,
-              role: record.role || null,
-              department: record.department || null,
-              stage: record.stage || null,
-              campus: record.campus || null,
-              subject: record.subject || null,
-              system: "Unassigned",
-              gender: record.gender || null,
-              nationalId: record.nationalId ? String(record.nationalId) : null,
-              religion: record.religion || null,
-              status: record.status || "Active",
-              emergencyContact: {
-                  name: record.emergencyContactName || null,
-                  relationship: record.emergencyContactRelationship || null,
-                  number: record.emergencyContactNumber ? String(record.emergencyContactNumber) : null,
-              },
-              dateOfBirth: record.dateOfBirth ? Timestamp.fromDate(new Date(record.dateOfBirth)) : null,
-              joiningDate: record.joiningDate ? Timestamp.fromDate(new Date(record.joiningDate)) : serverTimestamp(),
-              reportLine1: record.reportLine1 || null,
-              reportLine2: record.reportLine2 || null,
-              createdAt: serverTimestamp(),
-              hourlyRate: 0,
-              documents: [],
-              photoURL: null,
-          };
-          
-          batch.set(docRef, newEmployeeData);
-          createdCount++;
+    for (const record of validRecords) {
+      if (!record.nisEmail) {
+        skippedCount++;
+        continue;
       }
 
-      await batch.commit();
+      const q = query(employeeCollectionRef, where("email", "==", record.nisEmail), limit(1));
+      const existing = await getDocs(q);
+      if (!existing.empty) {
+        skippedCount++;
+        continue;
+      }
 
-      revalidatePath("/employees");
-      return { 
-          success: true, 
-          message: `Import complete. ${createdCount} employees created. ${skippedCount} employees were skipped (already exist or missing email).` 
+      const docRef = doc(employeeCollectionRef);
+      const nameParts = record.name.trim().split(/\s+/);
+      const firstName = nameParts[0] || "";
+      const lastName = nameParts.slice(1).join(" ");
+
+      const newEmployeeData = {
+        name: record.name,
+        firstName,
+        lastName,
+        nameAr: record.nameAr || null,
+        email: record.nisEmail,
+        personalEmail: record.personalEmail || null,
+        phone: record.phone ? String(record.phone) : null,
+        childrenAtNIS: record.childrenAtNIS || null,
+        title: record.title || null,
+        role: record.role || null,
+        department: record.department || null,
+        stage: record.stage || null,
+        campus: record.campus || null,
+        subject: record.subject || null,
+        system: "Unassigned",
+        gender: record.gender || null,
+        nationalId: record.nationalId ? String(record.nationalId) : null,
+        religion: record.religion || null,
+        status: record.status || "Active",
+        emergencyContact: {
+          name: record.emergencyContactName || null,
+          relationship: record.emergencyContactRelationship || null,
+          number: record.emergencyContactNumber ? String(record.emergencyContactNumber) : null,
+        },
+        dateOfBirth: record.dateOfBirth ? Timestamp.fromDate(new Date(record.dateOfBirth)) : null,
+        joiningDate: record.joiningDate ? Timestamp.fromDate(new Date(record.joiningDate)) : serverTimestamp(),
+        reportLine1: record.reportLine1 || null,
+        reportLine2: record.reportLine2 || null,
+        createdAt: serverTimestamp(),
+        hourlyRate: 0,
+        documents: [],
+        photoURL: null,
       };
 
+      batch.set(docRef, newEmployeeData);
+      createdCount++;
+    }
+
+    await batch.commit();
+
+    revalidatePath("/employees");
+    return {
+      success: true,
+      message: `Import complete. ${createdCount} employees created. ${skippedCount} employees were skipped (already exist or missing email).`,
+    };
+
   } catch (error: any) {
-      console.error("💥 Error in batchCreateEmployeesAction:", error);
-      return { success: false, errors: {form: [error.message || "Unknown error during Firestore write operation."]} };
+    console.error("💥 Error in batchCreateEmployeesAction:", error);
+    return {
+      success: false,
+      errors: { form: [error.message || "Unknown error during Firestore write operation."] },
+    };
   }
 }

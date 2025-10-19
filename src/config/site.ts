@@ -20,7 +20,7 @@ export const navItems: NavItem[] = [
   {
     i18nKey: 'sidebar.employees_chart',
     href: '/employees-chart',
-    iconName: 'BarChartBig',
+    iconName: 'GitBranch',
   },
   {
     i18nKey: 'sidebar.submit_leave_request',

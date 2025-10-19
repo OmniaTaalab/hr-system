@@ -35,38 +35,6 @@ interface Holiday {
   date: FirebaseTimestamp;
 }
 
-const FacePile = ({ count }: { count: number }) => {
-    const maxFaces = 5;
-    const displayCount = Math.min(count, maxFaces);
-    const overflowCount = count > maxFaces ? count - maxFaces : 0;
-    
-    return (
-        <div className="flex items-center">
-            <div className="flex -space-x-2 rtl:space-x-reverse">
-                {Array.from({ length: displayCount }).map((_, index) => (
-                    <div
-                        key={index}
-                        className="flex items-center justify-center h-8 w-8 rounded-full bg-muted-foreground/20 border-2 border-background text-muted-foreground"
-                    >
-              
-                    </div>
-                ))}
-            </div>
-            {overflowCount > 0 && (
-                <span className="ml-3 text-lg font-bold text-primary">
-                    +{overflowCount}
-                </span>
-            )}
-            {count <= maxFaces && count > 0 && (
-                 <span className="ml-3 text-lg font-bold text-primary">
-                    {count}
-                </span>
-            )}
-        </div>
-    );
-};
-
-
 interface DashboardCardProps {
   title: string;
   description?: string;
@@ -78,7 +46,6 @@ interface DashboardCardProps {
   isLoadingStatistic?: boolean;
   className?: string;
   adminOnly?: boolean;
-  isFacePile?: boolean;
 }
 
 function DashboardCard({
@@ -91,7 +58,6 @@ function DashboardCard({
   statisticLabel,
   isLoadingStatistic,
   className,
-  isFacePile = false,
 }: DashboardCardProps) {
   const IconComponent = iconMap[iconName];
 
@@ -106,8 +72,6 @@ function DashboardCard({
           <div className="mt-1">
             {isLoadingStatistic ? (
               <Skeleton className="h-8 w-1/4" />
-            ) : isFacePile ? (
-              <FacePile count={Number(statistic)} />
             ) : (
               <p className="text-3xl font-bold text-primary">{statistic}</p>
             )}
@@ -360,7 +324,6 @@ function DashboardPageContent() {
       href: "/employees",
       linkText: "Manage Employees",
       adminOnly: true,
-      isFacePile: true,
     },
     {
       title: "Today's Attendance",
@@ -371,7 +334,6 @@ function DashboardPageContent() {
       href: "/attendance-logs",
       linkText: "View Attendance Logs",
       adminOnly: true,
-      isFacePile: true,
 
     },
      {
@@ -383,7 +345,6 @@ function DashboardPageContent() {
       href: "/attendance-logs",
       linkText: "View Attendance Logs",
       adminOnly: true,
-      isFacePile: true,
 
     },
     {
@@ -394,7 +355,6 @@ function DashboardPageContent() {
       href: "/leave/all-requests", 
       linkText: "Review Requests",
       adminOnly: true,
-      isFacePile: true,
     },
     {
       title: "Approved Leaves",
@@ -403,7 +363,6 @@ function DashboardPageContent() {
       isLoadingStatistic: isLoadingApprovedLeaves,
       href: "/leave/all-requests",
       linkText: "View Approved",
-      isFacePile: true,
 
     },
     {
@@ -413,7 +372,6 @@ function DashboardPageContent() {
       isLoadingStatistic: isLoadingRejectedLeaves,
       href: "/leave/all-requests",
       linkText: "View Rejected",
-      isFacePile: true,
 
     },
      {
@@ -424,7 +382,6 @@ function DashboardPageContent() {
       href: "/leave/all-requests",
       linkText: "View All Requests",
       adminOnly: true,
-      isFacePile: true,
 
     },
   ];
