@@ -150,21 +150,15 @@ function EmployeeProfileContent() {
       try {
         const decodedId = decodeURIComponent(identifier);
         
-        // This query now searches across multiple fields.
-        // It requires a composite index on (employeeId, email, personalEmail) or individual exemptions.
-        const employeeQuery = query(
-          collection(db, 'employee'), 
-          or(
-            where('employeeId', '==', decodedId),           
-                where('employeeId', '==', decodedId),
-                where('nisEmail', '==', decodedId),
-                where('personalEmail', '==', decodedId)
-            
+        const isNumericId = /^\d+$/.test(decodedId);
 
-          ),
-          limit(1)
-        );
-
+        let employeeQuery;
+        if (isNumericId) {
+            employeeQuery = query(collection(db, 'employee'), where('employeeId', '==', decodedId), limit(1));
+        } else {
+            employeeQuery = query(collection(db, 'employee'), or(where('nisEmail', '==', decodedId), where('personalEmail', '==', decodedId)), limit(1));
+        }
+        
         const employeeDocSnapshot = await getDocs(employeeQuery);
         
         if (!employeeDocSnapshot.empty) {
@@ -180,7 +174,7 @@ function EmployeeProfileContent() {
       } catch (e: any) {
         console.error("Error fetching employee details:", e);
         if (e.code === 'failed-precondition') {
-          setError('A necessary database index is missing. Please create a composite index in Firestore for the `employee` collection on fields (employeeId, email, personalEmail).');
+          setError('A necessary database index is missing. Please check Firestore console for index creation links in the error logs.');
         } else {
           setError('Failed to load employee details.');
         }
@@ -192,13 +186,20 @@ function EmployeeProfileContent() {
     const fetchAttendanceLogs = async (numericEmployeeId: string) => {
         setLoadingLogs(true);
         try {
+          // The userId in attendance_log is a number, so we must convert.
+          const userIdNumber = Number(numericEmployeeId);
+          if (isNaN(userIdNumber)) {
+              setAttendanceLogs([]);
+              setLoadingLogs(false);
+              return;
+          }
           const logsQuery = query(
             collection(db, 'attendance_log'),
-            where('userId', '==', Number(numericEmployeeId))
+            where('userId', '==', userIdNumber),
+            orderBy('date', 'desc')
           );
           const querySnapshot = await getDocs(logsQuery);
           let logs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
-          logs.sort((a, b) => b.date.localeCompare(a.date));
           setAttendanceLogs(logs);
         } catch (e) {
           console.error("Error fetching attendance logs:", e);
@@ -217,11 +218,11 @@ function EmployeeProfileContent() {
         try {
             const leavesQuery = query(
             collection(db, 'leaveRequests'),
-            where('requestingEmployeeDocId', '==', employeeDocId)
+            where('requestingEmployeeDocId', '==', employeeDocId),
+            orderBy('startDate', 'desc')
             );
             const querySnapshot = await getDocs(leavesQuery);
             const leaves = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequest));
-            leaves.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
             setLeaveRequests(leaves);
         } catch(e) {
             console.error("Error fetching leave requests:", e);
@@ -596,5 +597,3 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
-
-    

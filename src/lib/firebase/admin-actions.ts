@@ -679,7 +679,15 @@ export async function createEmployeeProfileAction(
     };
   }
 }
-// --- NEW ACTION FOR BATCH EMPLOYEE CREATION ---
+export type BatchCreateEmployeesState = {
+    errors?: {
+        file?: string[];
+        form?: string[];
+    };
+    message?: string | null;
+    success?: boolean;
+};
+
 const BatchEmployeeSchema = z.object({
   employeeId: z.any().optional().nullable(),
   name: z.string().min(1, "Name is required"),
@@ -716,62 +724,62 @@ const BatchEmployeeSchema = z.object({
   reportLine2: z.string().optional().nullable(),
 });
 
-export type BatchCreateEmployeesState = {
-  errors?: {
-    file?: string[];
-    form?: string[];
-  };
-  message?: string | null;
-  success?: boolean;
-};
-
-//
-// ✅ خريطة الأعمدة من الإكسيل إلى الفايربيز
-//
 const keyMap: Record<string, string> = {
+  // Main Identifiers
   "Employee ID": "employeeId",
+  "ID": "employeeId",
   "Name": "name",
-  "NameAr": "nameAr",
-  "childrenAtNIS": "childrenAtNIS",
+  "Full Name": "name",
+  "اسم الموظف": "nameAr",
   "NIS Email": "nisEmail",
-  "Title": "title",
-  "Department": "department",
-  "Campus": "campus",
-  "Stage": "stage",
-  "Status": "status",
-  "Subject": "subject",
-  "personal Email": "personalEmail",
+  "Work Email": "nisEmail",
+  "Personal Email": "personalEmail",
+
+  // Personal Details
+  "childrenAtNIS": "childrenAtNIS",
   "Phone": "phone",
+  "Mobile": "phone",
   "Date Of Birth": "dateOfBirth",
-  "joining Date": "joiningDate",
+  "DOB": "dateOfBirth",
   "Gender": "gender",
   "National ID": "nationalId",
   "Religion": "religion",
+
+  // Work Details
+  "Title": "title",
+  "Role": "role",
+  "Job Title": "role",
+  "Department": "department",
+  "Campus": "campus",
+  "Stage": "stage",
+  "Subject": "subject",
+  "Status": "status",
+  "joining Date": "joiningDate",
+  "Hire Date": "joiningDate",
+
+  // Emergency Contact
   "Emergency Contact Name": "emergencyContactName",
   "Emergency Contact Relationship": "emergencyContactRelationship",
   "Emergency Contact Number": "emergencyContactNumber",
+  
+  // Reporting Lines
   "ReportLine1": "reportLine1",
-  "ReportLine2": "reportLine2",
+  "Manager": "reportLine1",
+  "ReportLine2": "reportLine2"
 };
 
-//
-// ✅ تنظيف اسم العمود قبل المقارنة
-//
 function normalizeHeader(header: string): string {
+  if (!header) return "";
   return header
-    .replace(/[\r\n\t]+/g, " ") // يشيل newlines والتابات
-    .replace(/["']/g, "")       // يشيل علامات الاقتباس
-    .replace(/\s+/g, " ")       // يوحد المسافات
-    .trim();                    // يشيل المسافات في الأطراف
+    .replace(/[\r\n\t]+/g, " ") 
+    .replace(/["']/g, "")       
+    .replace(/\s+/g, " ")      
+    .trim();                   
 }
 
-//
-// ✅ تنظيف القيم (تواريخ + أرقام + نصوص)
-//
 function cleanValue(value: any): any {
   if (value == null) return null;
 
-  // إذا كان رقم كبير (Excel date serial)
   if (typeof value === "number" && value > 1000) {
     const date = XLSX.SSF.parse_date_code(value);
     if (date && date.y && date.m && date.d) {
@@ -779,20 +787,21 @@ function cleanValue(value: any): any {
     }
   }
 
-  // نصوص تشبه التاريخ
   if (typeof value === "string") {
-    const parsedDate = new Date(value);
-    if (!isNaN(parsedDate.getTime())) {
+    const trimmedValue = value.trim();
+    const parsedDate = new Date(trimmedValue);
+    if (trimmedValue.match(/^\d{4}-\d{2}-\d{2}/) && !isNaN(parsedDate.getTime())) {
       return parsedDate;
     }
+     if (trimmedValue.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}/) && !isNaN(parsedDate.getTime())) {
+      return parsedDate;
+    }
+    return trimmedValue;
   }
-
-  return String(value).trim();
+  
+  return value;
 }
 
-//
-// ✅ الأكشن الرئيسي
-//
 export async function batchCreateEmployeesAction(
   prevState: BatchCreateEmployeesState,
   formData: FormData
@@ -810,15 +819,10 @@ export async function batchCreateEmployeesAction(
     return { errors: { file: ["Failed to parse file data."] }, success: false };
   }
 
-  console.log("📊 Rows found:", parsedRecords.length);
   if (parsedRecords.length === 0) {
     return { success: false, errors: { file: ["No data found in Excel file."] } };
   }
 
-  // ✅ طباعة أسماء الأعمدة المقروءة لمساعدتك في الديبج
-  console.log("🪶 Excel headers detected:", Object.keys(parsedRecords[0]));
-
-  // ✅ تحويل الأعمدة إلى المفاتيح الصحيحة
   const mappedData = parsedRecords.map((row: Record<string, any>) => {
     const cleanedRow: Record<string, any> = {};
     Object.keys(row).forEach((key) => {
@@ -829,12 +833,9 @@ export async function batchCreateEmployeesAction(
     return cleanedRow;
   });
 
-  console.log("🧩 Sample mapped record:", mappedData[0]);
-
-  // ✅ التحقق من صحة البيانات
   const validation = z.array(BatchEmployeeSchema).safeParse(mappedData);
   if (!validation.success) {
-    console.error("❌ Validation failed:", validation.error.flatten());
+    console.error("Validation failed:", validation.error.flatten());
     return {
       success: false,
       errors: {
@@ -846,8 +847,6 @@ export async function batchCreateEmployeesAction(
   }
 
   const validRecords = validation.data;
-  console.log(`✅ Valid records: ${validRecords.length}`);
-
   if (validRecords.length === 0) {
     return { success: false, errors: { file: ["No valid records found in the file."] } };
   }
@@ -857,19 +856,21 @@ export async function batchCreateEmployeesAction(
     const employeeCollectionRef = collection(db, "employee");
     let createdCount = 0;
     let skippedCount = 0;
+    
+    // Pre-fetch all emails to avoid querying in a loop
+    const allEmailsSnapshot = await getDocs(query(employeeCollectionRef, where("email", "!=", null)));
+    const existingEmails = new Set(allEmailsSnapshot.docs.map(d => d.data().email));
 
     for (const record of validRecords) {
-      if (!record.nisEmail) {
+      if (!record.nisEmail || existingEmails.has(record.nisEmail)) {
         skippedCount++;
         continue;
       }
+      
+      const countSnapshot = await getCountFromServer(employeeCollectionRef);
+      const employeeCount = countSnapshot.data().count + createdCount;
+      const employeeId = record.employeeId ? String(record.employeeId) : (1001 + employeeCount).toString();
 
-      const q = query(employeeCollectionRef, where("email", "==", record.nisEmail), limit(1));
-      const existing = await getDocs(q);
-      if (!existing.empty) {
-        skippedCount++;
-        continue;
-      }
 
       const docRef = doc(employeeCollectionRef);
       const nameParts = record.name.trim().split(/\s+/);
@@ -877,6 +878,7 @@ export async function batchCreateEmployeesAction(
       const lastName = nameParts.slice(1).join(" ");
 
       const newEmployeeData = {
+        employeeId,
         name: record.name,
         firstName,
         lastName,
@@ -901,8 +903,8 @@ export async function batchCreateEmployeesAction(
           relationship: record.emergencyContactRelationship || null,
           number: record.emergencyContactNumber ? String(record.emergencyContactNumber) : null,
         },
-        dateOfBirth: record.dateOfBirth ? Timestamp.fromDate(new Date(record.dateOfBirth)) : null,
-        joiningDate: record.joiningDate ? Timestamp.fromDate(new Date(record.joiningDate)) : serverTimestamp(),
+        dateOfBirth: record.dateOfBirth && !isNaN(new Date(record.dateOfBirth).getTime()) ? Timestamp.fromDate(new Date(record.dateOfBirth)) : null,
+        joiningDate: record.joiningDate && !isNaN(new Date(record.joiningDate).getTime()) ? Timestamp.fromDate(new Date(record.joiningDate)) : serverTimestamp(),
         reportLine1: record.reportLine1 || null,
         reportLine2: record.reportLine2 || null,
         createdAt: serverTimestamp(),
@@ -924,7 +926,7 @@ export async function batchCreateEmployeesAction(
     };
 
   } catch (error: any) {
-    console.error("💥 Error in batchCreateEmployeesAction:", error);
+    console.error("Error in batchCreateEmployeesAction:", error);
     return {
       success: false,
       errors: { form: [error.message || "Unknown error during Firestore write operation."] },
