@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -151,21 +152,30 @@ function EmployeeProfileContent() {
         const decodedId = decodeURIComponent(identifier).trim();
         const employeeRef = collection(db, 'employee');
         
+        // Main query attempts to find by employeeId (as string), or emails.
         let q = query(
           employeeRef,
           or(
             where('employeeId', '==', decodedId),
-            where('nisEmail', '==', decodedId.toLowerCase()),
+            where('email', '==', decodedId.toLowerCase()),
             where('personalEmail', '==', decodedId.toLowerCase())
           ),
           limit(1)
         );
         let employeeDocSnapshot = await getDocs(q);
   
-        // Fallback for numeric ID if it was passed as string and first query failed
-        if (employeeDocSnapshot.empty && /^\d+$/.test(decodedId)) {
-          q = query(employeeRef, where('employeeId', '==', decodedId), limit(1));
-          employeeDocSnapshot = await getDocs(q);
+        // Fallback for document ID if direct query fails (e.g., from an old link)
+        if (employeeDocSnapshot.empty) {
+          const docRef = doc(db, 'employee', decodedId);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+             const empData = { id: docSnap.id, ...docSnap.data() } as Employee;
+             setEmployee(empData);
+             fetchAttendanceLogs(empData.employeeId);
+             fetchLeaveRequests(empData.id);
+             setLoading(false);
+             return; // Exit after successful doc ID fetch
+          }
         }
   
         if (!employeeDocSnapshot.empty) {
@@ -191,6 +201,10 @@ function EmployeeProfileContent() {
     };
   
     const fetchAttendanceLogs = async (numericEmployeeId: string) => {
+      if (!numericEmployeeId) {
+        setAttendanceLogs([]);
+        return;
+      }
       setLoadingLogs(true);
       try {
         const userIdNumber = Number(numericEmployeeId);

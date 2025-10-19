@@ -768,23 +768,30 @@ function normalizeHeader(header: string): string {
     .trim();
 }
 
-function cleanValue(value: any): any {
+// More specific cleaning function for values
+function cleanValue(value: any, key: string): any {
   if (value == null) return null;
 
-  if (typeof value === "number" && value > 1000) {
+  // Don't convert employeeId, nationalId, phone to dates.
+  const nonDateNumericKeys = ['employeeId', 'nationalId', 'phone', 'emergencyContactNumber'];
+  if (nonDateNumericKeys.includes(key)) {
+    return String(value).trim();
+  }
+
+  // Handle Excel dates (which are numbers)
+  if (typeof value === "number" && value > 25569) { // 25569 is Excel's day number for 1970-01-01
     const date = XLSX.SSF.parse_date_code(value);
     if (date && date.y && date.m && date.d) {
       return new Date(Date.UTC(date.y, date.m - 1, date.d));
     }
   }
 
+  // Handle string dates
   if (typeof value === "string") {
     const trimmedValue = value.trim();
     const parsedDate = new Date(trimmedValue);
-    if (trimmedValue.match(/^\d{4}-\d{2}-\d{2}/) && !isNaN(parsedDate.getTime())) {
-      return parsedDate;
-    }
-    if (trimmedValue.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}/) && !isNaN(parsedDate.getTime())) {
+    // Check if it's a plausible date string
+    if ((trimmedValue.match(/^\d{4}-\d{2}-\d{2}/) || trimmedValue.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}/)) && !isNaN(parsedDate.getTime())) {
       return parsedDate;
     }
     return trimmedValue;
@@ -792,6 +799,7 @@ function cleanValue(value: any): any {
 
   return value;
 }
+
 
 export async function batchCreateEmployeesAction(prevState: any, formData: FormData) {
   const recordsJson = formData.get("recordsJson");
@@ -815,7 +823,7 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
     Object.keys(row).forEach((key) => {
       const cleanKey = normalizeHeader(key);
       const mappedKey = keyMap[cleanKey] || cleanKey;
-      if (mappedKey) cleanedRow[mappedKey] = cleanValue(row[key]);
+      if (mappedKey) cleanedRow[mappedKey] = cleanValue(row[key], mappedKey);
     });
     return cleanedRow;
   });
@@ -845,17 +853,8 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
     let updatedCount = 0;
     let skippedCount = 0;
     
-    // Get the current highest employee ID to ensure new ones are unique
-    const latestIdQuery = query(employeeCollectionRef, orderBy("employeeId", "desc"), limit(1));
-    const latestIdSnapshot = await getDocs(latestIdQuery);
-    let nextEmployeeId = 1001;
-    if (!latestIdSnapshot.empty) {
-      const latestId = parseInt(latestIdSnapshot.docs[0].data().employeeId, 10);
-      if (!isNaN(latestId)) {
-        nextEmployeeId = latestId + 1;
-      }
-    }
-
+    const countSnapshot = await getCountFromServer(employeeCollectionRef);
+    let nextEmployeeId = 1001 + countSnapshot.data().count;
 
     for (const record of validRecords) {
       const emailToUse = record.nisEmail || record.personalEmail;
@@ -864,14 +863,11 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
         skippedCount++;
         continue;
       }
+      
+      const q = query(employeeCollectionRef, where("email", "==", emailToUse));
+      const existingSnapshot = await getDocs(q);
 
-      // Is the employee present?
-      const existingQuery = query(employeeCollectionRef, where("email", "==", emailToUse));
-      const existingSnapshot = await getDocs(existingQuery);
-
-      const employeeId = record.employeeId
-        ? String(record.employeeId)
-        : (nextEmployeeId++).toString();
+      const employeeId = record.employeeId ? String(record.employeeId) : (nextEmployeeId++).toString();
 
       const nameParts = record.name.trim().split(/\s+/);
       const firstName = nameParts[0] || "";
@@ -901,24 +897,14 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
         emergencyContact: {
           name: record.emergencyContactName || null,
           relationship: record.emergencyContactRelationship || null,
-          number: record.emergencyContactNumber
-            ? String(record.emergencyContactNumber)
-            : null,
+          number: record.emergencyContactNumber ? String(record.emergencyContactNumber) : null,
         },
-        dateOfBirth:
-          record.dateOfBirth && !isNaN(new Date(record.dateOfBirth).getTime())
-            ? Timestamp.fromDate(new Date(record.dateOfBirth))
-            : null,
-        joiningDate:
-          record.joiningDate && !isNaN(new Date(record.joiningDate).getTime())
-            ? Timestamp.fromDate(new Date(record.joiningDate))
-            : serverTimestamp(),
+        dateOfBirth: record.dateOfBirth && !isNaN(new Date(record.dateOfBirth).getTime()) ? Timestamp.fromDate(new Date(record.dateOfBirth)) : null,
+        joiningDate: record.joiningDate && !isNaN(new Date(record.joiningDate).getTime()) ? Timestamp.fromDate(new Date(record.joiningDate)) : serverTimestamp(),
         reportLine1: record.reportLine1 || null,
         reportLine2: record.reportLine2 || null,
         updatedAt: serverTimestamp(),
-        createdAt: existingSnapshot.empty
-          ? serverTimestamp()
-          : existingSnapshot.docs[0].data().createdAt || serverTimestamp(),
+        createdAt: existingSnapshot.empty ? serverTimestamp() : existingSnapshot.docs[0].data().createdAt || serverTimestamp(),
         hourlyRate: 0,
         documents: [],
         photoURL: null,
