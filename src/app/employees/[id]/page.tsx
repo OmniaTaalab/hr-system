@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -220,7 +219,30 @@ function EmployeeProfileContent() {
         );
         const querySnapshot = await getDocs(logsQuery);
         let logs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
-        setAttendanceLogs(logs);
+        
+        // Group by date to get first check-in and last check-out
+        const groupedLogs: { [key: string]: { check_ins: string[], check_outs: string[], date: string } } = {};
+        logs.forEach(log => {
+          if (!groupedLogs[log.date]) {
+            groupedLogs[log.date] = { check_ins: [], check_outs: [], date: log.date };
+          }
+          if (log.check_in) groupedLogs[log.date].check_ins.push(log.check_in);
+          if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
+        });
+
+        const processedLogs = Object.values(groupedLogs).map(group => {
+            group.check_ins.sort();
+            group.check_outs.sort();
+            return {
+                id: group.date,
+                date: group.date,
+                check_in: group.check_ins[0] || null,
+                check_out: group.check_outs.length > 0 ? group.check_outs[group.check_outs.length - 1] : null,
+            };
+        }).sort((a, b) => b.date.localeCompare(a.date));
+
+
+        setAttendanceLogs(processedLogs);
       } catch (e) {
         console.error("Error fetching attendance logs:", e);
         toast({
@@ -617,3 +639,5 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
+    
