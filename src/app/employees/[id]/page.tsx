@@ -112,14 +112,13 @@ function LeaveStatusBadge({ status }: { status: LeaveRequest["status"] }) {
   }
 }
 
-function DetailItem({ icon: Icon, label, value, children }: { icon: React.ElementType, label: string, value?: string | undefined | null, children?: React.ReactNode }) {
+function DetailItem({ icon: Icon, label, value, children }: { icon: React.ElementType, label: string, value?: string | number | null | undefined, children?: React.ReactNode }) {
   if (!value && !children) return null;
   return (
     <div className="flex items-center text-sm">
       <Icon className="h-4 w-4 mr-3 text-muted-foreground flex-shrink-0" />
       <span className="font-medium text-muted-foreground mr-2">{label}:</span>
-      {value && <span className="text-foreground">{value}</span>}
-      {children}
+      {value ? <span className="text-foreground">{value}</span> : children ? children : null}
     </div>
   );
 }
@@ -451,18 +450,18 @@ function EmployeeProfileContent() {
 
                 <h3 className="text-lg font-semibold flex items-center mb-4"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                   <DetailItem icon={Mail} label="NIS Email" value={employee.email ? employee.email : "-"} />
-                   <DetailItem icon={User} label="Title" value={employee.title ? employee.title : "-"} />
-                   <DetailItem icon={Briefcase} label="Department" value={employee.department ? employee.department : "-"} />
-                   <DetailItem icon={Hash} label="Employee ID" value={employee.employeeId ? employee.employeeId : "-"} />
-                   <DetailItem icon={Star} label="Role" value={employee.role ? employee.role : "-"} />
-                   <DetailItem icon={Users} label="Stage" value={employee.stage ? employee.stage : "-"} />
-                   <DetailItem icon={Code} label="System" value={employee.system ? employee.system : "-"} />
-                   <DetailItem icon={MapPin} label="Campus" value={employee.campus ? employee.campus : "-"} />
-                   <DetailItem icon={CalendarDays} label="Joining Date" value={formattedJoiningDateAndPeriod ? formattedJoiningDateAndPeriod : "-"} />
-                   <DetailItem icon={Stethoscope} label="Subject" value={employee.subject ? employee.subject : "-"} />
-                   <DetailItem icon={Users} label="Report Line 1" value={employee.reportLine1 ? employee.reportLine1 : "-"} />
-                   <DetailItem icon={Users} label="Report Line 2" value={employee.reportLine2 ? employee.reportLine2 : "-"} />
+                   <DetailItem icon={Mail} label="NIS Email" value={employee.email || "-"} />
+                   <DetailItem icon={User} label="Title" value={employee.title || "-"} />
+                   <DetailItem icon={Briefcase} label="Department" value={employee.department || "-"} />
+                   <DetailItem icon={Hash} label="Employee ID" value={employee.employeeId || "-"} />
+                   <DetailItem icon={Star} label="Role" value={employee.role || "-"} />
+                   <DetailItem icon={Users} label="Stage" value={employee.stage || "-"} />
+                   <DetailItem icon={Code} label="System" value={employee.system || "-"} />
+                   <DetailItem icon={MapPin} label="Campus" value={employee.campus || "-"} />
+                   <DetailItem icon={CalendarDays} label="Joining Date" value={formattedJoiningDateAndPeriod || "-"} />
+                   <DetailItem icon={Stethoscope} label="Subject" value={employee.subject || "-"} />
+                   <DetailItem icon={Users} label="Report Line 1" value={employee.reportLine1 || "-"} />
+                   <DetailItem icon={Users} label="Report Line 2" value={employee.reportLine2 || "-"} />
                    <DetailItem icon={Activity} label="Status">
                      <Badge variant={employee.status === "deactivated" ? "destructive" : "secondary"} className={employee.status === 'Active' ? 'bg-green-100 text-green-800' : ''}>
                        {employee.status || "Active"}
@@ -474,14 +473,14 @@ function EmployeeProfileContent() {
 
                 <h3 className="text-lg font-semibold flex items-center mb-4"><UserCircle className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                   <DetailItem icon={User} label="Name in Arabic" value={employee.nameAr ? employee.nameAr : "-"} />
-                   <DetailItem icon={Mail} label="Personal Email" value={employee.personalEmail ? employee.personalEmail :"-"} />
-                   <DetailItem icon={Phone} label="Personal Phone" value={employee.phone ? employee.phone :"-" } />
-                   <DetailItem icon={Cake} label="Birthday" value={formattedDobAndAge ? formattedDobAndAge :"-"} />
-                   <DetailItem icon={Smile} label="Gender" value={employee.gender ? employee.gender :"-"} />
-                   <DetailItem icon={FileText} label="National ID" value={employee.nationalId ? employee.nationalId :"-"} />
-                   <DetailItem icon={Star} label="Religion" value={employee.religion ? employee.religion :"-"} />
-                   <DetailItem icon={Home} label="Children at NIS" value={employee.childrenAtNIS ? employee.childrenAtNIS :"-"} />
+                   <DetailItem icon={User} label="Name in Arabic" value={employee.nameAr || "-"} />
+                   <DetailItem icon={Mail} label="Personal Email" value={employee.personalEmail || "-"} />
+                   <DetailItem icon={Phone} label="Personal Phone" value={employee.phone || "-"} />
+                   <DetailItem icon={Cake} label="Birthday" value={formattedDobAndAge || "-"} />
+                   <DetailItem icon={Smile} label="Gender" value={employee.gender || "-"} />
+                   <DetailItem icon={FileText} label="National ID" value={employee.nationalId || "-"} />
+                   <DetailItem icon={Star} label="Religion" value={employee.religion || "-"} />
+                   <DetailItem icon={Home} label="Children at NIS" value={employee.childrenAtNIS || "-"} />
                 </div>
 
                 <Separator className="my-6" />
@@ -639,4 +638,3 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
-

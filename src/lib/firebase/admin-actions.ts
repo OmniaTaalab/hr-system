@@ -729,7 +729,7 @@ const keyMap: Record<string, string> = {
   ID: "employeeId",
   Name: "name",
   "Full Name": "name",
-  "اسم الموظف": "nameAr",
+  "NameAr": "NameAr",
   "NIS Email": "nisEmail",
   "Work Email": "nisEmail",
   "Personal Email": "personalEmail",
