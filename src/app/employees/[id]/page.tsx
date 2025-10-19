@@ -143,29 +143,36 @@ function EmployeeProfileContent() {
 
   useEffect(() => {
     if (!identifier) return;
-
+  
     const fetchEmployeeData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const decodedId = decodeURIComponent(identifier);
+        const decodedId = decodeURIComponent(identifier).trim();
+        const employeeRef = collection(db, 'employee');
         
-        const isNumericId = /^\d+$/.test(decodedId);
-
-        let employeeQuery;
-        if (isNumericId) {
-            employeeQuery = query(collection(db, 'employee'), where('employeeId', '==', decodedId), limit(1));
-        } else {
-            employeeQuery = query(collection(db, 'employee'), or(where('nisEmail', '==', decodedId), where('personalEmail', '==', decodedId)), limit(1));
+        let q = query(
+          employeeRef,
+          or(
+            where('employeeId', '==', decodedId),
+            where('nisEmail', '==', decodedId.toLowerCase()),
+            where('personalEmail', '==', decodedId.toLowerCase())
+          ),
+          limit(1)
+        );
+        let employeeDocSnapshot = await getDocs(q);
+  
+        // Fallback for numeric ID if it was passed as string and first query failed
+        if (employeeDocSnapshot.empty && /^\d+$/.test(decodedId)) {
+          q = query(employeeRef, where('employeeId', '==', decodedId), limit(1));
+          employeeDocSnapshot = await getDocs(q);
         }
-        
-        const employeeDocSnapshot = await getDocs(employeeQuery);
-        
+  
         if (!employeeDocSnapshot.empty) {
           const employeeDoc = employeeDocSnapshot.docs[0];
           const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
           setEmployee(employeeData);
-
+  
           fetchAttendanceLogs(employeeData.employeeId);
           fetchLeaveRequests(employeeData.id);
         } else {
@@ -182,55 +189,54 @@ function EmployeeProfileContent() {
         setLoading(false);
       }
     };
-
+  
     const fetchAttendanceLogs = async (numericEmployeeId: string) => {
-        setLoadingLogs(true);
-        try {
-          // The userId in attendance_log is a number, so we must convert.
-          const userIdNumber = Number(numericEmployeeId);
-          if (isNaN(userIdNumber)) {
-              setAttendanceLogs([]);
-              setLoadingLogs(false);
-              return;
-          }
-          const logsQuery = query(
-            collection(db, 'attendance_log'),
-            where('userId', '==', userIdNumber),
-            orderBy('date', 'desc')
-          );
-          const querySnapshot = await getDocs(logsQuery);
-          let logs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
-          setAttendanceLogs(logs);
-        } catch (e) {
-          console.error("Error fetching attendance logs:", e);
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not load attendance history.",
-          });
-        } finally {
+      setLoadingLogs(true);
+      try {
+        const userIdNumber = Number(numericEmployeeId);
+        if (isNaN(userIdNumber)) {
+          setAttendanceLogs([]);
           setLoadingLogs(false);
+          return;
         }
+        const logsQuery = query(
+          collection(db, 'attendance_log'),
+          where('userId', '==', userIdNumber),
+          orderBy('date', 'desc')
+        );
+        const querySnapshot = await getDocs(logsQuery);
+        let logs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
+        setAttendanceLogs(logs);
+      } catch (e) {
+        console.error("Error fetching attendance logs:", e);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not load attendance history.",
+        });
+      } finally {
+        setLoadingLogs(false);
+      }
     };
-      
+  
     const fetchLeaveRequests = async (employeeDocId: string) => {
-        setLoadingLeaves(true);
-        try {
-            const leavesQuery = query(
-            collection(db, 'leaveRequests'),
-            where('requestingEmployeeDocId', '==', employeeDocId),
-            orderBy('startDate', 'desc')
-            );
-            const querySnapshot = await getDocs(leavesQuery);
-            const leaves = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequest));
-            setLeaveRequests(leaves);
-        } catch(e) {
-            console.error("Error fetching leave requests:", e);
-        } finally {
-            setLoadingLeaves(false);
-        }
+      setLoadingLeaves(true);
+      try {
+        const leavesQuery = query(
+          collection(db, 'leaveRequests'),
+          where('requestingEmployeeDocId', '==', employeeDocId),
+          orderBy('startDate', 'desc')
+        );
+        const querySnapshot = await getDocs(leavesQuery);
+        const leaves = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequest));
+        setLeaveRequests(leaves);
+      } catch (e) {
+        console.error("Error fetching leave requests:", e);
+      } finally {
+        setLoadingLeaves(false);
+      }
     };
-
+  
     fetchEmployeeData();
   }, [identifier, toast]);
   

@@ -692,8 +692,8 @@ const BatchEmployeeSchema = z.object({
   employeeId: z.any().optional().nullable(),
   name: z.string().min(1, "Name is required"),
   nameAr: z.string().optional().nullable(),
-  childrenAtNIS: z.enum(['Yes', 'No']).optional().nullable(),
-  
+  childrenAtNIS: z.enum(["Yes", "No"]).optional().nullable(),
+
   nisEmail: z.preprocess(
     (val) => (val === "" || val === null ? undefined : val),
     z.string().email().optional().nullable()
@@ -717,64 +717,55 @@ const BatchEmployeeSchema = z.object({
   gender: z.string().optional().nullable(),
   nationalId: z.any().optional().nullable(),
   religion: z.string().optional().nullable(),
-  emergencyContactName: z.string().optional().nullable(),
-  emergencyContactRelationship: z.string().optional().nullable(),
+  emergencyContactName: z.any().optional().nullable(),
+  emergencyContactRelationship: z.any().optional().nullable(),
   emergencyContactNumber: z.any().optional().nullable(),
-  reportLine1: z.string().optional().nullable(),
-  reportLine2: z.string().optional().nullable(),
+  reportLine1: z.any().optional().nullable(),
+  reportLine2: z.any().optional().nullable(),
 });
 
 const keyMap: Record<string, string> = {
-  // Main Identifiers
   "Employee ID": "employeeId",
-  "ID": "employeeId",
-  "Name": "name",
+  ID: "employeeId",
+  Name: "name",
   "Full Name": "name",
   "اسم الموظف": "nameAr",
   "NIS Email": "nisEmail",
   "Work Email": "nisEmail",
   "Personal Email": "personalEmail",
-
-  // Personal Details
-  "childrenAtNIS": "childrenAtNIS",
-  "Phone": "phone",
-  "Mobile": "phone",
+  childrenAtNIS: "childrenAtNIS",
+  Phone: "phone",
+  Mobile: "phone",
   "Date Of Birth": "dateOfBirth",
-  "DOB": "dateOfBirth",
-  "Gender": "gender",
+  DOB: "dateOfBirth",
+  Gender: "gender",
   "National ID": "nationalId",
-  "Religion": "religion",
-
-  // Work Details
-  "Title": "title",
-  "Role": "role",
+  Religion: "religion",
+  Title: "title",
+  Role: "role",
   "Job Title": "role",
-  "Department": "department",
-  "Campus": "campus",
-  "Stage": "stage",
-  "Subject": "subject",
-  "Status": "status",
+  Department: "department",
+  Campus: "campus",
+  Stage: "stage",
+  Subject: "subject",
+  Status: "status",
   "joining Date": "joiningDate",
   "Hire Date": "joiningDate",
-
-  // Emergency Contact
   "Emergency Contact Name": "emergencyContactName",
   "Emergency Contact Relationship": "emergencyContactRelationship",
   "Emergency Contact Number": "emergencyContactNumber",
-  
-  // Reporting Lines
-  "ReportLine1": "reportLine1",
-  "Manager": "reportLine1",
-  "ReportLine2": "reportLine2"
+  ReportLine1: "reportLine1",
+  Manager: "reportLine1",
+  ReportLine2: "reportLine2",
 };
 
 function normalizeHeader(header: string): string {
   if (!header) return "";
   return header
-    .replace(/[\r\n\t]+/g, " ") 
-    .replace(/["']/g, "")       
-    .replace(/\s+/g, " ")      
-    .trim();                   
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/["']/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function cleanValue(value: any): any {
@@ -793,20 +784,16 @@ function cleanValue(value: any): any {
     if (trimmedValue.match(/^\d{4}-\d{2}-\d{2}/) && !isNaN(parsedDate.getTime())) {
       return parsedDate;
     }
-     if (trimmedValue.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}/) && !isNaN(parsedDate.getTime())) {
+    if (trimmedValue.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}/) && !isNaN(parsedDate.getTime())) {
       return parsedDate;
     }
     return trimmedValue;
   }
-  
+
   return value;
 }
 
-export async function batchCreateEmployeesAction(
-  prevState: BatchCreateEmployeesState,
-  formData: FormData
-): Promise<BatchCreateEmployeesState> {
-
+export async function batchCreateEmployeesAction(prevState: any, formData: FormData) {
   const recordsJson = formData.get("recordsJson");
   if (!recordsJson || typeof recordsJson !== "string") {
     return { errors: { file: ["No data received from file."] }, success: false };
@@ -855,24 +842,37 @@ export async function batchCreateEmployeesAction(
     const batch = writeBatch(db);
     const employeeCollectionRef = collection(db, "employee");
     let createdCount = 0;
+    let updatedCount = 0;
     let skippedCount = 0;
     
-    // Pre-fetch all emails to avoid querying in a loop
-    const allEmailsSnapshot = await getDocs(query(employeeCollectionRef, where("email", "!=", null)));
-    const existingEmails = new Set(allEmailsSnapshot.docs.map(d => d.data().email));
+    // Get the current highest employee ID to ensure new ones are unique
+    const latestIdQuery = query(employeeCollectionRef, orderBy("employeeId", "desc"), limit(1));
+    const latestIdSnapshot = await getDocs(latestIdQuery);
+    let nextEmployeeId = 1001;
+    if (!latestIdSnapshot.empty) {
+      const latestId = parseInt(latestIdSnapshot.docs[0].data().employeeId, 10);
+      if (!isNaN(latestId)) {
+        nextEmployeeId = latestId + 1;
+      }
+    }
+
 
     for (const record of validRecords) {
-      if (!record.nisEmail || existingEmails.has(record.nisEmail)) {
+      const emailToUse = record.nisEmail || record.personalEmail;
+
+      if (!emailToUse) {
         skippedCount++;
         continue;
       }
-      
-      const countSnapshot = await getCountFromServer(employeeCollectionRef);
-      const employeeCount = countSnapshot.data().count + createdCount;
-      const employeeId = record.employeeId ? String(record.employeeId) : (1001 + employeeCount).toString();
 
+      // Is the employee present?
+      const existingQuery = query(employeeCollectionRef, where("email", "==", emailToUse));
+      const existingSnapshot = await getDocs(existingQuery);
 
-      const docRef = doc(employeeCollectionRef);
+      const employeeId = record.employeeId
+        ? String(record.employeeId)
+        : (nextEmployeeId++).toString();
+
       const nameParts = record.name.trim().split(/\s+/);
       const firstName = nameParts[0] || "";
       const lastName = nameParts.slice(1).join(" ");
@@ -883,7 +883,7 @@ export async function batchCreateEmployeesAction(
         firstName,
         lastName,
         nameAr: record.nameAr || null,
-        email: record.nisEmail,
+        email: record.nisEmail || null,
         personalEmail: record.personalEmail || null,
         phone: record.phone ? String(record.phone) : null,
         childrenAtNIS: record.childrenAtNIS || null,
@@ -901,35 +901,54 @@ export async function batchCreateEmployeesAction(
         emergencyContact: {
           name: record.emergencyContactName || null,
           relationship: record.emergencyContactRelationship || null,
-          number: record.emergencyContactNumber ? String(record.emergencyContactNumber) : null,
+          number: record.emergencyContactNumber
+            ? String(record.emergencyContactNumber)
+            : null,
         },
-        dateOfBirth: record.dateOfBirth && !isNaN(new Date(record.dateOfBirth).getTime()) ? Timestamp.fromDate(new Date(record.dateOfBirth)) : null,
-        joiningDate: record.joiningDate && !isNaN(new Date(record.joiningDate).getTime()) ? Timestamp.fromDate(new Date(record.joiningDate)) : serverTimestamp(),
+        dateOfBirth:
+          record.dateOfBirth && !isNaN(new Date(record.dateOfBirth).getTime())
+            ? Timestamp.fromDate(new Date(record.dateOfBirth))
+            : null,
+        joiningDate:
+          record.joiningDate && !isNaN(new Date(record.joiningDate).getTime())
+            ? Timestamp.fromDate(new Date(record.joiningDate))
+            : serverTimestamp(),
         reportLine1: record.reportLine1 || null,
         reportLine2: record.reportLine2 || null,
-        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdAt: existingSnapshot.empty
+          ? serverTimestamp()
+          : existingSnapshot.docs[0].data().createdAt || serverTimestamp(),
         hourlyRate: 0,
         documents: [],
         photoURL: null,
       };
 
-      batch.set(docRef, newEmployeeData);
-      createdCount++;
+      if (!existingSnapshot.empty) {
+        const existingDocRef = existingSnapshot.docs[0].ref;
+        batch.update(existingDocRef, newEmployeeData);
+        updatedCount++;
+      } else {
+        const newDocRef = doc(employeeCollectionRef);
+        batch.set(newDocRef, newEmployeeData);
+        createdCount++;
+      }
     }
 
     await batch.commit();
-
     revalidatePath("/employees");
+
     return {
       success: true,
-      message: `Import complete. ${createdCount} employees created. ${skippedCount} employees were skipped (already exist or missing email).`,
+      message: `Import complete. ${createdCount} employees created. ${updatedCount} employees updated. ${skippedCount} skipped (missing email).`,
     };
-
   } catch (error: any) {
     console.error("Error in batchCreateEmployeesAction:", error);
     return {
       success: false,
-      errors: { form: [error.message || "Unknown error during Firestore write operation."] },
+      errors: {
+        form: [error.message || "Unknown error during Firestore write operation."],
+      },
     };
   }
 }
