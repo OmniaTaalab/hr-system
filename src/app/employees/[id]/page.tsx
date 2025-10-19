@@ -259,11 +259,12 @@ function EmployeeProfileContent() {
       try {
         const leavesQuery = query(
           collection(db, 'leaveRequests'),
-          where('requestingEmployeeDocId', '==', employeeDocId),
-          orderBy('startDate', 'desc')
+          where('requestingEmployeeDocId', '==', employeeDocId)
         );
         const querySnapshot = await getDocs(leavesQuery);
         const leaves = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequest));
+        // Sort client-side
+        leaves.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
         setLeaveRequests(leaves);
       } catch (e) {
         console.error("Error fetching leave requests:", e);
