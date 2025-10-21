@@ -726,37 +726,28 @@ const BatchEmployeeSchema = z.object({
 
 const keyMap: Record<string, string> = {
   "Employee ID": "employeeId",
-  ID: "employeeId",
-  Name: "name",
-  "Full Name": "name",
-  "NameAr": "NameAr",
+  "Name": "name",
+  "NameAr": "nameAr",
+  "childrenAtNIS": "childrenAtNIS",
   "NIS Email": "nisEmail",
-  "Work Email": "nisEmail",
-  "Personal Email": "personalEmail",
-  childrenAtNIS: "childrenAtNIS",
-  Phone: "phone",
-  Mobile: "phone",
+  "Title": "title",
+  "Department": "department",
+  "Campus": "campus",
+  "Stage": "stage",
+  "Status": "status",
+  "Subject": "subject",
+  "personal Email": "personalEmail",
+  "Phone": "phone",
   "Date Of Birth": "dateOfBirth",
-  DOB: "dateOfBirth",
-  Gender: "gender",
-  "National ID": "nationalId",
-  Religion: "religion",
-  Title: "title",
-  Role: "role",
-  "Job Title": "role",
-  Department: "department",
-  Campus: "campus",
-  Stage: "stage",
-  Subject: "subject",
-  Status: "status",
   "joining Date": "joiningDate",
-  "Hire Date": "joiningDate",
+  "Gender": "gender",
+  "National ID": "nationalId",
+  "Religion": "religion",
   "Emergency Contact Name": "emergencyContactName",
   "Emergency Contact Relationship": "emergencyContactRelationship",
   "Emergency Contact Number": "emergencyContactNumber",
-  ReportLine1: "reportLine1",
-  Manager: "reportLine1",
-  ReportLine2: "reportLine2",
+  "ReportLine1": "reportLine1",
+  "ReportLine2": "reportLine2",
 };
 
 function normalizeHeader(header: string): string {
@@ -840,39 +831,47 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
       },
     };
   }
-
   const validRecords = validation.data;
   if (validRecords.length === 0) {
-    return { success: false, errors: { file: ["No valid records found in the file."] } };
+    return {
+      success: false,
+      errors: { file: ["No valid records found in the file."] },
+    };
   }
-
+  
   try {
     const batch = writeBatch(db);
     const employeeCollectionRef = collection(db, "employee");
     let createdCount = 0;
-    let updatedCount = 0;
+    let replacedCount = 0;
     let skippedCount = 0;
-    
+  
     const countSnapshot = await getCountFromServer(employeeCollectionRef);
     let nextEmployeeId = 1001 + countSnapshot.data().count;
-
+  
     for (const record of validRecords) {
       const emailToUse = record.nisEmail || record.personalEmail;
-
+  
       if (!emailToUse) {
         skippedCount++;
         continue;
       }
-      
-      const q = query(employeeCollectionRef, where("email", "==", emailToUse));
-      const existingSnapshot = await getDocs(q);
-
-      const employeeId = record.employeeId ? String(record.employeeId) : (nextEmployeeId++).toString();
-
+  
+      // 🔍 check both nisEmail and personalEmail
+      const q1 = query(employeeCollectionRef, where("email", "==", emailToUse));
+      const q2 = query(employeeCollectionRef, where("personalEmail", "==", emailToUse));
+  
+      const [snapshot1, snapshot2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+      const existingSnapshot = !snapshot1.empty ? snapshot1 : !snapshot2.empty ? snapshot2 : null;
+  
+      const employeeId = record.employeeId
+        ? String(record.employeeId)
+        : (nextEmployeeId++).toString();
+  
       const nameParts = record.name.trim().split(/\s+/);
       const firstName = nameParts[0] || "";
       const lastName = nameParts.slice(1).join(" ");
-
+  
       const newEmployeeData = {
         employeeId,
         name: record.name,
@@ -899,34 +898,47 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
           relationship: record.emergencyContactRelationship || null,
           number: record.emergencyContactNumber ? String(record.emergencyContactNumber) : null,
         },
-        dateOfBirth: record.dateOfBirth && !isNaN(new Date(record.dateOfBirth).getTime()) ? Timestamp.fromDate(new Date(record.dateOfBirth)) : null,
-        joiningDate: record.joiningDate && !isNaN(new Date(record.joiningDate).getTime()) ? Timestamp.fromDate(new Date(record.joiningDate)) : serverTimestamp(),
+        dateOfBirth:
+          record.dateOfBirth && !isNaN(new Date(record.dateOfBirth).getTime())
+            ? Timestamp.fromDate(new Date(record.dateOfBirth))
+            : null,
+        joiningDate:
+          record.joiningDate && !isNaN(new Date(record.joiningDate).getTime())
+            ? Timestamp.fromDate(new Date(record.joiningDate))
+            : serverTimestamp(),
         reportLine1: record.reportLine1 || null,
         reportLine2: record.reportLine2 || null,
+        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        createdAt: existingSnapshot.empty ? serverTimestamp() : existingSnapshot.docs[0].data().createdAt || serverTimestamp(),
         hourlyRate: 0,
         documents: [],
         photoURL: null,
       };
-
-      if (!existingSnapshot.empty) {
-        const existingDocRef = existingSnapshot.docs[0].ref;
-        batch.update(existingDocRef, newEmployeeData);
-        updatedCount++;
+  
+      if (existingSnapshot) {
+        // 🧹 delete the old record first
+        const oldRef = existingSnapshot.docs[0].ref;
+        batch.delete(oldRef);
+  
+        // ➕ then create a new one
+        const newDocRef = doc(employeeCollectionRef);
+        batch.set(newDocRef, newEmployeeData);
+  
+        replacedCount++;
       } else {
+        // ➕ create new
         const newDocRef = doc(employeeCollectionRef);
         batch.set(newDocRef, newEmployeeData);
         createdCount++;
       }
     }
-
+  
     await batch.commit();
     revalidatePath("/employees");
-
+  
     return {
       success: true,
-      message: `Import complete. ${createdCount} employees created. ${updatedCount} employees updated. ${skippedCount} skipped (missing email).`,
+      message: `Import complete. ${createdCount} employees created. ${replacedCount} replaced. ${skippedCount} skipped (missing email).`,
     };
   } catch (error: any) {
     console.error("Error in batchCreateEmployeesAction:", error);
@@ -937,4 +949,4 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
       },
     };
   }
-}
+};

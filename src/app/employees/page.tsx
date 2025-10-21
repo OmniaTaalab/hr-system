@@ -1448,6 +1448,29 @@ function EmployeeManagementContent() {
       description: "The employee list has been exported to Excel.",
     });
   };
+
+  const handleDownloadTemplate = () => {
+    const headers = [
+      "Employee ID", "Name", "NameAr", "childrenAtNIS", "NIS Email", "Title",
+      "Department", "Campus", "Stage", "Status", "Subject", "personal Email",
+      "Phone", "Date Of Birth", "joining Date", "Gender", "National ID", "Religion",
+      "Emergency Contact Name", "Emergency Contact Relationship", "Emergency Contact Number",
+      "ReportLine1", "ReportLine2"
+    ];
+    const worksheet = XLSX.utils.aoa_to_sheet([headers]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Employee Import Template");
+
+    // Adjust column widths
+    const columnWidths = headers.map(header => ({ wch: header.length + 5 }));
+    worksheet['!cols'] = columnWidths;
+
+    XLSX.writeFile(workbook, "Employee_Import_Template.xlsx");
+    toast({
+      title: "Template Downloaded",
+      description: "The employee import template has been downloaded.",
+    });
+  };
   
   return (
     <div className="space-y-8">
@@ -1491,18 +1514,22 @@ function EmployeeManagementContent() {
                 {isLoadingProfile ? (
                     <Skeleton className="h-10 w-[190px]" />
                 ) : canManageEmployees && (
-                    <div className="flex gap-2 w-full sm:w-auto">
-                        <Button className="w-full sm:w-auto" onClick={() => setIsBatchImportOpen(true)}>
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                        <Button className="w-full" onClick={handleDownloadTemplate} variant="outline">
+                           <Download className="mr-2 h-4 w-4" />
+                           Download Template
+                        </Button>
+                        <Button className="w-full" onClick={() => setIsBatchImportOpen(true)}>
                            <UploadCloud className="mr-2 h-4 w-4" />
                            Import Excel
                         </Button>
-                        <Button className="w-full sm:w-auto" onClick={handleExportExcel} variant="outline">
+                        <Button className="w-full" onClick={handleExportExcel} variant="outline">
                            <FileDown className="mr-2 h-4 w-4" />
                            Export to Excel
                         </Button>
                         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                           <DialogTrigger asChild>
-                            <Button className="w-full sm:w-auto">
+                            <Button className="w-full">
                                 <PlusCircle className="mr-2 h-4 w-4" />
                                 Add New Employee
                               </Button>
