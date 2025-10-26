@@ -6,7 +6,7 @@ import React, { useActionState, useEffect } from "react";
 import SettingsPageWrapper from '../settings-page-wrapper';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, AlertTriangle } from "lucide-react";
 import {
   syncGroupNamesFromEmployeesAction,
   syncRolesFromEmployeesAction,
@@ -16,13 +16,16 @@ import {
   syncMachineNamesFromAttendanceLogsAction,
   syncReportLine1FromEmployeesAction,
   syncReportLine2FromEmployeesAction,
-  type SyncState
+  correctAttendanceNamesAction,
+  type SyncState,
+  type CorrectionState,
 } from "@/app/actions/settings-actions";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/components/layout/app-layout";
 
 
 const initialSyncState: SyncState = { success: false, message: null };
+const initialCorrectionState: CorrectionState = { success: false, message: null };
 
 function SyncButton({
   label,
@@ -70,6 +73,56 @@ function SyncButton({
   );
 }
 
+function CorrectionButton({
+    label,
+    action,
+    isPending,
+    state,
+    actorDetails,
+    description
+}: {
+    label: string,
+    action: (formData: FormData) => void,
+    isPending: boolean,
+    state: CorrectionState,
+    actorDetails: { id?: string, email?: string, role?: string },
+    description: string,
+}) {
+    const { toast } = useToast();
+    
+    useEffect(() => {
+        if (state?.message) {
+            toast({
+                title: state.success ? "Correction Complete" : "Correction Failed",
+                description: state.message,
+                variant: state.success ? "default" : "destructive",
+            });
+        }
+    }, [state, toast]);
+
+    const handleAction = () => {
+        const formData = new FormData();
+        if(actorDetails.id) formData.append('actorId', actorDetails.id);
+        if(actorDetails.email) formData.append('actorEmail', actorDetails.email);
+        if(actorDetails.role) formData.append('actorRole', actorDetails.role);
+        action(formData);
+    }
+    
+    return (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg bg-destructive/5 border-destructive/20 gap-4">
+            <div>
+                <p className="font-medium text-destructive">{label}</p>
+                <p className="text-sm text-muted-foreground mt-1">{description}</p>
+            </div>
+            <form action={handleAction} className="w-full sm:w-auto">
+                <Button size="sm" variant="destructive" className="w-full" disabled={isPending}>
+                    {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <AlertTriangle className="mr-2 h-4 w-4" />}
+                    Run Correction
+                </Button>
+            </form>
+        </div>
+    );
+}
 
 export default function SyncDataPage() {
   const { profile } = useUserProfile();
@@ -83,7 +136,7 @@ export default function SyncDataPage() {
   const [syncMachineState, syncMachineAction, isSyncMachinePending] = useActionState(syncMachineNamesFromAttendanceLogsAction, initialSyncState);
   const [syncReportLine1State, syncReportLine1Action, isSyncReportLine1Pending] = useActionState(syncReportLine1FromEmployeesAction, initialSyncState);
   const [syncReportLine2State, syncReportLine2Action, isSyncReportLine2Pending] = useActionState(syncReportLine2FromEmployeesAction, initialSyncState);
-
+  const [correctionState, correctionAction, isCorrectionPending] = useActionState(correctAttendanceNamesAction, initialCorrectionState);
 
   return (
     <div className="space-y-8">
@@ -92,10 +145,11 @@ export default function SyncDataPage() {
             Sync Data
           </h1>
           <p className="text-muted-foreground">
-            Manually synchronize lists from source collections to improve application performance.
+            Manually synchronize lists and perform data corrections.
           </p>
       </header>
        <SettingsPageWrapper>
+        <div className="space-y-8">
           <Card>
             <CardHeader>
               <CardTitle>Data Synchronization</CardTitle>
@@ -163,6 +217,26 @@ export default function SyncDataPage() {
                 />
             </CardContent>
           </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Data Correction</CardTitle>
+              <CardDescription>
+                Run these potentially long-running tasks to clean up inconsistent data in your database. Use with caution.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <CorrectionButton
+                    label="Correct Attendance Log Names"
+                    description="Scans recent attendance logs and replaces numeric employee IDs in the 'employeeName' field with the correct name from the employee record. This fixes display issues in the attendance logs table."
+                    action={correctionAction}
+                    isPending={isCorrectionPending}
+                    state={correctionState}
+                    actorDetails={actorDetails}
+                />
+            </CardContent>
+          </Card>
+        </div>
       </SettingsPageWrapper>
     </div>
   );
