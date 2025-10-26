@@ -234,7 +234,11 @@ function DashboardPageContent() {
 
         if (!lastLogSnapshot.empty) {
           const lastAttendanceDateString = lastLogSnapshot.docs[0].data().date as string;
-          const dateObject = parseISO(lastAttendanceDateString);
+          
+          // Correctly parse the YYYY-MM-DD string
+          const [year, month, day] = lastAttendanceDateString.split('-').map(Number);
+          const dateObject = new Date(year, month - 1, day);
+          
           setLastAttendanceDate(format(dateObject, 'PPP'));
           
           const attendanceOnDateQuery = query(collection(db, "attendance_log"), where("date", "==", lastAttendanceDateString));
