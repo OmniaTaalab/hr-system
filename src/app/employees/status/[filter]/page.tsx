@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppLayout, useUserProfile } from '@/components/layout/app-layout';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { collection, getDocs, query, where } from 'firebase/firestore';
@@ -35,7 +36,7 @@ const filterTitles = {
     late: { title: "Late Arrivals Today", icon: Clock },
 };
 
-function EmployeeStatusPage() {
+function EmployeeStatusContent() {
     const { profile, loading: profileLoading } = useUserProfile();
     const router = useRouter();
     const params = useParams();
@@ -133,7 +134,7 @@ function EmployeeStatusPage() {
     const { title, icon: Icon } = filterTitles[filter] || { title: "Employee List", icon: User };
     const formattedDate = date ? format(new Date(date.replace(/-/g, '/')), "PPP") : "";
 
-    if (profileLoading) {
+    if (profileLoading || isLoading) {
         return (
             <div className="flex justify-center items-center h-full">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -144,80 +145,80 @@ function EmployeeStatusPage() {
     if (!canViewPage) return null;
 
     return (
-        <AppLayout>
-            <div className="space-y-8">
-                <Button variant="outline" size="sm" onClick={() => router.back()}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to Dashboard
-                </Button>
-                <header>
-                    <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
-                        <Icon className="mr-3 h-8 w-8 text-primary" />
-                        {title}
-                    </h1>
-                    <p className="text-muted-foreground">
-                        Showing results for {formattedDate}.
-                    </p>
-                </header>
+        <div className="space-y-8">
+            <Button variant="outline" size="sm" onClick={() => router.back()}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Dashboard
+            </Button>
+            <header>
+                <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
+                    <Icon className="mr-3 h-8 w-8 text-primary" />
+                    {title}
+                </h1>
+                <p className="text-muted-foreground">
+                    Showing results for {formattedDate}.
+                </p>
+            </header>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>{employeeList.length} Employees Found</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoading ? (
-                             <div className="flex justify-center items-center h-64">
-                                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                            </div>
-                        ) : error ? (
-                            <div className="text-center text-destructive py-10">
-                                <AlertTriangle className="mx-auto h-12 w-12" />
-                                <h3 className="mt-4 text-lg font-semibold">{error}</h3>
-                            </div>
-                        ) : employeeList.length === 0 ? (
-                             <div className="text-center text-muted-foreground py-10">
-                                <h3 className="text-xl font-semibold">No Employees to Display</h3>
-                                <p className="mt-2">There are no employees matching this status for the selected date.</p>
-                            </div>
-                        ) : (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Name</TableHead>
-                                        <TableHead>Role</TableHead>
-                                        <TableHead>Campus</TableHead>
-                                        <TableHead>Status</TableHead>
+            <Card>
+                <CardHeader>
+                    <CardTitle>{employeeList.length} Employees Found</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {error ? (
+                        <div className="text-center text-destructive py-10">
+                            <AlertTriangle className="mx-auto h-12 w-12" />
+                            <h3 className="mt-4 text-lg font-semibold">{error}</h3>
+                        </div>
+                    ) : employeeList.length === 0 ? (
+                         <div className="text-center text-muted-foreground py-10">
+                            <h3 className="text-xl font-semibold">No Employees to Display</h3>
+                            <p className="mt-2">There are no employees matching this status for the selected date.</p>
+                        </div>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Name</TableHead>
+                                    <TableHead>Role</TableHead>
+                                    <TableHead>Campus</TableHead>
+                                    <TableHead>Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {employeeList.map((employee) => (
+                                    <TableRow key={employee.id}>
+                                        <TableCell>
+                                            <Link href={`/employees/${employee.employeeId}`} className="flex items-center gap-3 hover:underline">
+                                                <Avatar>
+                                                    <AvatarImage src={employee.photoURL || undefined} alt={employee.name} />
+                                                    <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
+                                                </Avatar>
+                                                {employee.name}
+                                            </Link>
+                                        </TableCell>
+                                        <TableCell>{employee.role || '-'}</TableCell>
+                                        <TableCell>{employee.campus || '-'}</TableCell>
+                                        <TableCell>
+                                            <Badge variant={employee.status === "Active" ? "secondary" : "outline"}>
+                                                {employee.status}
+                                            </Badge>
+                                        </TableCell>
                                     </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {employeeList.map((employee) => (
-                                        <TableRow key={employee.id}>
-                                            <TableCell>
-                                                <Link href={`/employees/${employee.employeeId}`} className="flex items-center gap-3 hover:underline">
-                                                    <Avatar>
-                                                        <AvatarImage src={employee.photoURL || undefined} alt={employee.name} />
-                                                        <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
-                                                    </Avatar>
-                                                    {employee.name}
-                                                </Link>
-                                            </TableCell>
-                                            <TableCell>{employee.role || '-'}</TableCell>
-                                            <TableCell>{employee.campus || '-'}</TableCell>
-                                            <TableCell>
-                                                <Badge variant={employee.status === "Active" ? "secondary" : "outline"}>
-                                                    {employee.status}
-                                                </Badge>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
-        </AppLayout>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
     );
 }
 
-export default EmployeeStatusPage;
+export default function EmployeeStatusPage() {
+    return (
+        <AppLayout>
+            <EmployeeStatusContent />
+        </AppLayout>
+    );
+}
