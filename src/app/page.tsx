@@ -111,8 +111,8 @@ function DashboardPageContent() {
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const [todaysAttendance, setTodaysAttendance] = useState<number | null>(null);
   const [absentToday, setAbsentToday] = useState<number | null>(null);
-  const [lastAttendanceDate, setLastAttendanceDate] = useState<string | null>(null);
-  const [lastDateString, setLastDateString] = useState<string | null>(null);
+  const [attendanceDate, setAttendanceDate] = useState<string | null>(null);
+  const [dateStringForLink, setDateStringForLink] = useState<string | null>(null);
   const [pendingLeaveRequests, setPendingLeaveRequests] = useState<number | null>(null);
   const [approvedLeaveRequests, setApprovedLeaveRequests] = useState<number | null>(null);
   const [rejectedLeaveRequests, setRejectedLeaveRequests] = useState<number | null>(null);
@@ -223,35 +223,19 @@ function DashboardPageContent() {
         setIsLoadingTotalLeaves(false);
       }
     };
-    const fetchLastDayAttendance = async () => {
+    const fetchDailyAttendance = async () => {
       setIsLoadingTodaysAttendance(true);
       setIsLoadingLateAttendance(true);
       setIsLoadingAbsentToday(true);
     
       try {
-        const lastLogQuery = query(
-          collection(db, "attendance_log"),
-          orderBy("date", "desc"),
-          limit(1)
-        );
-        const lastLogSnapshot = await getDocs(lastLogQuery);
-    
-        if (lastLogSnapshot.empty) {
-          setTodaysAttendance(0);
-          setLateAttendance(0);
-          setAbsentToday(0);
-          setLastAttendanceDate(null);
-          setLastDateString(null);
-          return;
-        }
-    
-        const lastDateStr = lastLogSnapshot.docs[0].data().date as string;
-        setLastDateString(lastDateStr);
-        const [y, m, d] = lastDateStr.split("-").map(Number);
-        setLastAttendanceDate(format(new Date(y, m - 1, d), "PPP"));
+        const today = new Date();
+        const dateStr = format(today, 'yyyy-MM-dd');
+        setDateStringForLink(dateStr);
+        setAttendanceDate(format(today, "PPP"));
     
         const attendanceSnapshot = await getDocs(
-          query(collection(db, "attendance_log"), where("date", "==", lastDateStr))
+          query(collection(db, "attendance_log"), where("date", "==", dateStr))
         );
     
         const userCheckIns: Record<number, string[]> = {};
@@ -305,7 +289,7 @@ function DashboardPageContent() {
         setAbsentToday(absentCount);
     
       } catch (error) {
-        console.error("Error in fetchLastDayAttendance:", error);
+        console.error("Error in fetchDailyAttendance:", error);
         setTodaysAttendance(0);
         setLateAttendance(0);
         setAbsentToday(0);
@@ -363,7 +347,7 @@ function DashboardPageContent() {
 
 
     fetchCounts();
-    fetchLastDayAttendance();
+    fetchDailyAttendance();
     fetchCampusData();
     fetchHolidays();
   }, [profile, isLoadingProfile]);
@@ -382,9 +366,9 @@ function DashboardPageContent() {
       title: "Today's Attendance",
       iconName: "UserCheck",
       statistic: todaysAttendance ?? 0,
-      statisticLabel: lastAttendanceDate ? `As of ${lastAttendanceDate}` : 'No attendance data',
+      statisticLabel: attendanceDate ? `As of ${attendanceDate}` : 'No attendance data',
       isLoadingStatistic: isLoadingTodaysAttendance,
-      href: `/employees/status/present?date=${lastDateString || ''}`,
+      href: `/employees/status/present?date=${dateStringForLink || ''}`,
       linkText: "View Employees",
       adminOnly: true,
     },
@@ -392,9 +376,9 @@ function DashboardPageContent() {
       title: "Absent Today",
       iconName: "UserX",
       statistic: absentToday ?? 0,
-      statisticLabel: lastAttendanceDate ? `As of ${lastAttendanceDate}` : 'No attendance data',
+      statisticLabel: attendanceDate ? `As of ${attendanceDate}` : 'No attendance data',
       isLoadingStatistic: isLoadingAbsentToday,
-      href: `/employees/status/absent?date=${lastDateString || ''}`,
+      href: `/employees/status/absent?date=${dateStringForLink || ''}`,
       linkText: "View Employees",
       adminOnly: true,
     },
@@ -402,9 +386,9 @@ function DashboardPageContent() {
       title: "Late Arrivals",
       iconName: "Clock",
       statistic: lateAttendance ?? 0,
-      statisticLabel: lastAttendanceDate ? `Late check-ins after 7:30 AM` : 'No attendance data',
+      statisticLabel: attendanceDate ? `Late check-ins after 7:30 AM` : 'No attendance data',
       isLoadingStatistic: isLoadingLateAttendance,
-      href: `/employees/status/late?date=${lastDateString || ''}`,
+      href: `/employees/status/late?date=${dateStringForLink || ''}`,
       linkText: "View Employees",
       adminOnly: true,
     },
