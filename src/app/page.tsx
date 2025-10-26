@@ -235,34 +235,58 @@ function DashboardPageContent() {
         if (!lastLogSnapshot.empty) {
           const lastAttendanceDateString = lastLogSnapshot.docs[0].data().date as string;
           
-          // Correctly parse the YYYY-MM-DD string
           const [year, month, day] = lastAttendanceDateString.split('-').map(Number);
           const dateObject = new Date(year, month - 1, day);
-          
           setLastAttendanceDate(format(dateObject, 'PPP'));
           
           const attendanceOnDateQuery = query(collection(db, "attendance_log"), where("date", "==", lastAttendanceDateString));
           const attendanceSnapshot = await getDocs(attendanceOnDateQuery);
           
-          const presentUserIds = new Set<number>();
-          const lateUserIds = new Set<number>();
-
+          const userCheckIns: { [userId: number]: string[] } = {};
           attendanceSnapshot.docs.forEach(doc => {
             const data = doc.data();
-            presentUserIds.add(data.userId);
-            if (data.check_in && data.check_in > "07:30") {
-                lateUserIds.add(data.userId);
+            if (data.check_in) {
+              if (!userCheckIns[data.userId]) {
+                userCheckIns[data.userId] = [];
+              }
+              userCheckIns[data.userId].push(data.check_in);
             }
           });
+
+          const presentUserIds = new Set(Object.keys(userCheckIns).map(Number));
+          const lateUserIds = new Set<number>();
+          
+          for (const userId in userCheckIns) {
+            const checkIns = userCheckIns[userId].sort();
+            if (checkIns[0] && checkIns[0] > "07:30") {
+              lateUserIds.add(Number(userId));
+            }
+          }
           
           setTodaysAttendance(presentUserIds.size);
           setLateAttendance(lateUserIds.size);
 
-          // Calculate absent users
           const activeEmployeesQuery = query(collection(db, "employee"), where("status", "in", ["Active", "On Leave"]));
-          const activeEmployeesSnapshot = await getCountFromServer(activeEmployeesQuery);
-          const totalActiveEmployees = activeEmployeesSnapshot.data().count;
-          setAbsentToday(totalActiveEmployees - presentUserIds.size);
+          const activeEmployeesSnapshot = await getDocs(activeEmployeesQuery);
+          
+          const activeEmployeeIds = new Set<number>();
+          activeEmployeesSnapshot.forEach(doc => {
+            const employeeIdStr = doc.data().employeeId;
+            if (employeeIdStr) {
+                const employeeIdNum = Number(employeeIdStr);
+                if (!isNaN(employeeIdNum)) {
+                    activeEmployeeIds.add(employeeIdNum);
+                }
+            }
+          });
+
+          let absentCount = 0;
+          activeEmployeeIds.forEach(id => {
+            if (!presentUserIds.has(id)) {
+              absentCount++;
+            }
+          });
+          setAbsentToday(absentCount);
 
         } else {
           setTodaysAttendance(0);
