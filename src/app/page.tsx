@@ -384,7 +384,6 @@ function DashboardPageContent() {
       href: `/employees/status/present?date=${lastDateString || ''}`,
       linkText: "View Employees",
       adminOnly: true,
-
     },
     {
       title: "Absent Today",
@@ -405,7 +404,6 @@ function DashboardPageContent() {
       href: `/employees/status/late?date=${lastDateString || ''}`,
       linkText: "View Employees",
       adminOnly: true,
-
     },
     {
       title: "Pending Leaves",
@@ -423,7 +421,6 @@ function DashboardPageContent() {
       isLoadingStatistic: isLoadingApprovedLeaves,
       href: "/leave/all-requests",
       linkText: "View Approved",
-
     },
     {
       title: "Rejected Leaves",
@@ -432,7 +429,6 @@ function DashboardPageContent() {
       isLoadingStatistic: isLoadingRejectedLeaves,
       href: "/leave/all-requests",
       linkText: "View Rejected",
-
     },
      {
       title: "All Leave Requests",
@@ -442,7 +438,6 @@ function DashboardPageContent() {
       href: "/leave/all-requests",
       linkText: "View All Requests",
       adminOnly: true,
-
     },
   ];
   
