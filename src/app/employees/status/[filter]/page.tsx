@@ -15,6 +15,7 @@ import { Loader2, ArrowLeft, User, UserCheck, UserX, Clock, AlertTriangle } from
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { useUserProfile } from '@/components/layout/app-layout';
+import { cn } from "@/lib/utils";
 
 
 interface Employee {
@@ -24,6 +25,7 @@ interface Employee {
   role: string;
   campus: string;
   photoURL?: string;
+  status?: "Active" | "deactivated" | "On Leave";
   [key: string]: any;
 }
 
@@ -198,26 +200,29 @@ function EmployeeStatusContent() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {employeeList.map((employee) => (
-                                    <TableRow key={employee.id}>
-                                        <TableCell>
-                                            <Link href={`/employees/${employee.employeeId}`} className="flex items-center gap-3 hover:underline">
-                                                <Avatar>
-                                                    <AvatarImage src={employee.photoURL || undefined} alt={employee.name} />
-                                                    <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
-                                                </Avatar>
-                                                {employee.name}
-                                            </Link>
-                                        </TableCell>
-                                        <TableCell>{employee.role || '-'}</TableCell>
-                                        <TableCell>{employee.campus || '-'}</TableCell>
-                                        <TableCell>
-                                            <Badge variant={employee.status === "Active" ? "secondary" : "outline"}>
-                                                {employee.status}
-                                            </Badge>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                {employeeList.map((employee) => {
+                                    const status = employee.status || "Active";
+                                    return (
+                                        <TableRow key={employee.id}>
+                                            <TableCell>
+                                                <Link href={`/employees/${employee.employeeId}`} className="flex items-center gap-3 hover:underline">
+                                                    <Avatar>
+                                                        <AvatarImage src={employee.photoURL || undefined} alt={employee.name} />
+                                                        <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
+                                                    </Avatar>
+                                                    {employee.name}
+                                                </Link>
+                                            </TableCell>
+                                            <TableCell>{employee.role || '-'}</TableCell>
+                                            <TableCell>{employee.campus || '-'}</TableCell>
+                                            <TableCell>
+                                                <Badge variant={status === "Active" ? "secondary" : status === "deactivated" ? "destructive" : "outline"} className={cn({'bg-green-100 text-green-800': status === 'Active'})}>
+                                                    {status}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
                             </TableBody>
                         </Table>
                     )}
