@@ -31,6 +31,12 @@ interface AttendanceLog {
   machine?: string;
 }
 
+interface Employee {
+    id: string;
+    name: string;
+    employeeId: string;
+}
+
 interface Machine {
     id: string;
     name: string;
@@ -87,6 +93,7 @@ function DeleteLogDialog({ log, actorProfile }: { log: AttendanceLog; actorProfi
 
 function AttendanceLogsContent() {
   const [allLogs, setAllLogs] = useState<AttendanceLog[]>([]);
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
@@ -109,6 +116,20 @@ function AttendanceLogsContent() {
   const isDateFiltered = !!selectedDate;
   const isMachineFiltered = machineFilter !== "All";
 
+  // Fetch employees to map IDs to names
+    useEffect(() => {
+        if (!canViewPage) return;
+        const q = query(collection(db, "employee"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const employeeData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            setAllEmployees(employeeData);
+        }, (error) => {
+            console.error("Error fetching employees:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch employee data for name mapping.' });
+        });
+        return () => unsubscribe();
+    }, [canViewPage, toast]);
+    
   // Fetch unique machines from the new 'machineNames' collection
   useEffect(() => {
     if (!canViewPage) return;
@@ -257,20 +278,31 @@ function AttendanceLogsContent() {
 
 
   const displayedRecords = useMemo(() => {
-    let records = allLogs;
+        if (allEmployees.length === 0) return allLogs;
 
-    // Search term filter is applied client-side on the current page's data
-    if (searchTerm) {
-      const lowercasedFilter = searchTerm.toLowerCase();
-      records = records.filter(record =>
-        record.employeeName.toLowerCase().includes(lowercasedFilter) ||
-        record.userId.toString().includes(lowercasedFilter) ||
-        record.date.toLowerCase().includes(lowercasedFilter)
-      );
-    }
-    
-    return records;
-  }, [allLogs, searchTerm]);
+        const employeeMap = new Map(allEmployees.map(emp => [emp.employeeId, emp.name]));
+
+        let records = allLogs.map(log => {
+            const employeeNameFromMap = employeeMap.get(log.userId.toString());
+            // Use name from map if available and if log.employeeName is a number or missing
+            const finalEmployeeName = employeeNameFromMap && (!log.employeeName || !isNaN(Number(log.employeeName)))
+                ? employeeNameFromMap
+                : log.employeeName;
+
+            return { ...log, employeeName: finalEmployeeName };
+        });
+
+        if (searchTerm) {
+            const lowercasedFilter = searchTerm.toLowerCase();
+            records = records.filter(record =>
+                (record.employeeName && record.employeeName.toLowerCase().includes(lowercasedFilter)) ||
+                record.userId.toString().includes(lowercasedFilter) ||
+                record.date.toLowerCase().includes(lowercasedFilter)
+            );
+        }
+
+        return records;
+    }, [allLogs, allEmployees, searchTerm]);
 
   const handleExportExcel = () => {
     if (displayedRecords.length === 0) {
@@ -477,3 +509,5 @@ export default function AttendanceLogsPage() {
         </AppLayout>
     )
 }
+
+    
