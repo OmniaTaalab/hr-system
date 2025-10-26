@@ -76,7 +76,6 @@ function EmployeeStatusContent() {
                 
                 const allEmployeesSnap = await getDocs(query(employeesCollection, where("status", "in", ["Active", "On Leave"])));
                 const allEmployees = allEmployeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-                const allEmployeeMap = new Map(allEmployees.map(e => [e.employeeId, e]));
 
                 const attendanceSnap = await getDocs(query(collection(db, "attendance_log"), where("date", "==", date)));
                 
@@ -108,12 +107,15 @@ function EmployeeStatusContent() {
                         const [hh, mm] = t.split(":").map(Number);
                         return hh * 60 + mm;
                     };
+                    // Ensure each late employee is only added once
+                    const lateIds = new Set<string>();
                     Object.entries(userCheckIns).forEach(([id, times]) => {
                         const earliest = times.map(timeToMinutes).sort((a, b) => a - b)[0];
                         if (earliest > timeToMinutes("07:30")) {
-                            targetEmployeeIds.push(id);
+                            lateIds.add(id);
                         }
                     });
+                    targetEmployeeIds = Array.from(lateIds);
                 }
                 
                 // Now, fetch all employees that match the target IDs.
