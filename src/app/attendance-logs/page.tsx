@@ -1,24 +1,25 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useActionState } from 'react';
 import { AppLayout, useUserProfile } from '@/components/layout/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
 import { collection, query, orderBy, limit, getDocs, startAfter, endBefore, limitToLast, DocumentSnapshot, where, QueryConstraint } from 'firebase/firestore';
-import { Loader2, BookOpenCheck, Search, AlertTriangle, ArrowRight, ArrowLeft, Filter, Calendar as CalendarIcon, X, FileDown } from 'lucide-react';
+import { Loader2, BookOpenCheck, Search, AlertTriangle, ArrowRight, ArrowLeft, Filter, Calendar as CalendarIcon, X, FileDown, Trash2, MoreHorizontal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
-
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { deleteAttendanceLogAction, type DeleteAttendanceLogState } from '@/app/actions/attendance-actions';
 
 interface AttendanceLog {
   id: string;
@@ -36,6 +37,53 @@ interface Machine {
 }
 
 const PAGE_SIZE = 50;
+const initialDeleteState: DeleteAttendanceLogState = { success: false };
+
+function DeleteLogDialog({ log, actorProfile }: { log: AttendanceLog; actorProfile: any }) {
+    const { toast } = useToast();
+    const [deleteState, deleteAction, isDeletePending] = useActionState(deleteAttendanceLogAction, initialDeleteState);
+
+    useEffect(() => {
+        if (deleteState.message) {
+            toast({
+                title: deleteState.success ? "Success" : "Error",
+                description: deleteState.message,
+                variant: deleteState.success ? "default" : "destructive",
+            });
+        }
+    }, [deleteState, toast]);
+
+    return (
+        <AlertDialog>
+            <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <form action={deleteAction} onClick={(e) => e.stopPropagation()}>
+                    <input type="hidden" name="logId" value={log.id} />
+                    <input type="hidden" name="actorId" value={actorProfile?.id} />
+                    <input type="hidden" name="actorEmail" value={actorProfile?.email} />
+                    <input type="hidden" name="actorRole" value={actorProfile?.role} />
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete the log for <strong>{log.employeeName}</strong> on <strong>{log.date}</strong>. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {deleteState?.errors?.form && <p className="text-sm text-destructive mt-2">{deleteState.errors.form.join(', ')}</p>}
+                    <AlertDialogFooter className="mt-4">
+                        <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+                        <AlertDialogAction type="submit" disabled={isDeletePending} className="bg-destructive hover:bg-destructive/90">
+                            {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Delete"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </form>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
 
 function AttendanceLogsContent() {
   const [allLogs, setAllLogs] = useState<AttendanceLog[]>([]);
@@ -362,27 +410,29 @@ function AttendanceLogsContent() {
                               <TableHead>Check In</TableHead>
                               <TableHead>Check Out</TableHead>
                               <TableHead>Machine Name</TableHead>
-                              <TableHead className="text-right">History</TableHead>
+                              <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
                           {displayedRecords.map((record) => (
                               <TableRow 
                                 key={record.id} 
-                                onClick={() => router.push(`/attendance-logs/${record.userId}`)}
-                                className="cursor-pointer hover:bg-muted/50"
+                                className="group"
                               >
-                                  <TableCell>{record.userId}</TableCell>
-                                  <TableCell className="font-medium">{record.employeeName}</TableCell>
-                                  <TableCell>{record.date}</TableCell>
-                                  <TableCell>{record.check_in || '-'}</TableCell>
-                                  <TableCell>{record.check_out || '-'}</TableCell>
-                                  <TableCell>{record.machine || '-'}</TableCell>
+                                  <TableCell onClick={() => router.push(`/attendance-logs/${record.userId}`)} className="cursor-pointer">{record.userId}</TableCell>
+                                  <TableCell onClick={() => router.push(`/attendance-logs/${record.userId}`)} className="cursor-pointer font-medium">{record.employeeName}</TableCell>
+                                  <TableCell onClick={() => router.push(`/attendance-logs/${record.userId}`)} className="cursor-pointer">{record.date}</TableCell>
+                                  <TableCell onClick={() => router.push(`/attendance-logs/${record.userId}`)} className="cursor-pointer">{record.check_in || '-'}</TableCell>
+                                  <TableCell onClick={() => router.push(`/attendance-logs/${record.userId}`)} className="cursor-pointer">{record.check_out || '-'}</TableCell>
+                                  <TableCell onClick={() => router.push(`/attendance-logs/${record.userId}`)} className="cursor-pointer">{record.machine || '-'}</TableCell>
                                   <TableCell className="text-right">
-                                    <Button variant="ghost" size="sm">
-                                      View All
-                                      <ArrowRight className="ml-2 h-4 w-4" />
-                                    </Button>
+                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end">
+                                      <Button variant="ghost" size="sm" onClick={() => router.push(`/attendance-logs/${record.userId}`)}>
+                                        View All
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                      </Button>
+                                      <DeleteLogDialog log={record} actorProfile={profile} />
+                                    </div>
                                   </TableCell>
                               </TableRow>
                           ))}
@@ -427,6 +477,3 @@ export default function AttendanceLogsPage() {
         </AppLayout>
     )
 }
-
-    
-    
