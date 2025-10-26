@@ -223,83 +223,104 @@ function DashboardPageContent() {
         setIsLoadingTotalLeaves(false);
       }
     };
-    const fetchDailyAttendance = async () => {
-      setIsLoadingTodaysAttendance(true);
-      setIsLoadingLateAttendance(true);
-      setIsLoadingAbsentToday(true);
+    async function fetchDailyAttendance(db: any, {
+      setTodaysAttendance,
+      setAbsentToday,
+      setLateAttendance,
+      setAttendanceDate,        // للعرض "Oct 26, 2025" مثلاً
+      setDateStringForLink,     // للروابط yyyy-MM-dd
+      setIsLoadingTodaysAttendance,
+      setIsLoadingAbsentToday,
+      setIsLoadingLateAttendance,
+    }: {
+      setTodaysAttendance: (n: number) => void;
+      setAbsentToday: (n: number) => void;
+      setLateAttendance: (n: number) => void;
+      setAttendanceDate?: (s: string) => void;
+      setDateStringForLink?: (s: string) => void;
+      setIsLoadingTodaysAttendance?: (b: boolean) => void;
+      setIsLoadingAbsentToday?: (b: boolean) => void;
+      setIsLoadingLateAttendance?: (b: boolean) => void;
+    }) {
+      setIsLoadingTodaysAttendance?.(true);
+      setIsLoadingAbsentToday?.(true);
+      setIsLoadingLateAttendance?.(true);
     
       try {
-        const today = new Date();
-        const dateStr = format(today, 'yyyy-MM-dd');
-        setDateStringForLink(dateStr);
-        setAttendanceDate(format(today, "PPP"));
+        // ✅ تاريخ النهارده بتوقيت القاهرة
+        const now = new Date();
+        const cairoNow = new Date(now.toLocaleString("en-US", { timeZone: "Africa/Cairo" }));
+        const dateStr = format(cairoNow, "yyyy-MM-dd");
+        setDateStringForLink?.(dateStr);
+        setAttendanceDate?.(format(cairoNow, "PPP"));
     
-        const attendanceSnapshot = await getDocs(
+        // ✅ احضر حضور النهارده فقط
+        const attSnap = await getDocs(
           query(collection(db, "attendance_log"), where("date", "==", dateStr))
         );
     
+        // userId → list of check_in HH:mm
         const userCheckIns: Record<number, string[]> = {};
+        attSnap.docs.forEach(doc => {
+          const d = doc.data();
+          if (!d?.check_in) return;
+          const uid = Number(d.userId);
+          if (Number.isNaN(uid)) return;
     
-        attendanceSnapshot.docs.forEach(doc => {
-          const data = doc.data();
-          if (!data.check_in) return;
-          if (!userCheckIns[data.userId]) {
-            userCheckIns[data.userId] = [];
-          }
-          userCheckIns[data.userId].push(data.check_in.substring(0, 5));
+          const t = String(d.check_in).substring(0, 5); // HH:mm
+          if (!/^\d{1,2}:\d{2}$/.test(t)) return;
+    
+          (userCheckIns[uid] ||= []).push(t);
         });
     
+        // ✅ عدد الحضور (unique userIds)
         const presentIds = new Set(Object.keys(userCheckIns).map(Number));
         setTodaysAttendance(presentIds.size);
     
-        const timeToMinutes = (t: string) => {
-          const [hh, mm] = t.split(":").map(Number);
-          return hh * 60 + mm;
+        // ✅ المتأخرين = أول بصمة > 07:30
+        const toMin = (t: string) => {
+          const [h, m] = t.split(":").map(Number);
+          return h * 60 + m;
         };
+        const cutoff = toMin("07:30");
+        let lateCount = 0;
     
-        const lateIds = new Set<number>();
-    
-        Object.entries(userCheckIns).forEach(([id, times]) => {
-          const earliest = times
-            .map(timeToMinutes)
-            .sort((a, b) => a - b)[0];
-    
-          if (earliest > timeToMinutes("07:30")) {
-            lateIds.add(Number(id));
-          }
+        Object.values(userCheckIns).forEach(times => {
+          const earliest = times.map(toMin).sort((a, b) => a - b)[0];
+          if (earliest > cutoff) lateCount++;
         });
+        setLateAttendance(lateCount);
     
-        setLateAttendance(lateIds.size);
-    
+        // ✅ جميع الموظفين الفعّالين (اختاري Active فقط أو Active + On Leave)
         const empSnap = await getDocs(
           query(collection(db, "employee"), where("status", "in", ["Active", "On Leave"]))
+          // لو عايزة Active فقط: استخدمي ["Active"]
         );
     
         const activeIds = new Set<number>();
         empSnap.forEach(doc => {
-          const idNum = Number(doc.data().employeeId);
-          if (!isNaN(idNum)) activeIds.add(idNum);
+          const idNum = Number(doc.data()?.employeeId);
+          if (!Number.isNaN(idNum)) activeIds.add(idNum);
         });
     
-        let absentCount = 0;
+        // ✅ الغياب = الفعّالين − الحضور
+        let absent = 0;
         activeIds.forEach(id => {
-          if (!presentIds.has(id)) absentCount++;
+          if (!presentIds.has(id)) absent++;
         });
+        setAbsentToday(absent);
     
-        setAbsentToday(absentCount);
-    
-      } catch (error) {
-        console.error("Error in fetchDailyAttendance:", error);
+      } catch (e) {
+        console.error("fetchDailyAttendanceCounts error:", e);
         setTodaysAttendance(0);
-        setLateAttendance(0);
         setAbsentToday(0);
+        setLateAttendance(0);
       } finally {
-        setIsLoadingTodaysAttendance(false);
-        setIsLoadingLateAttendance(false);
-        setIsLoadingAbsentToday(false);
+        setIsLoadingTodaysAttendance?.(false);
+        setIsLoadingAbsentToday?.(false);
+        setIsLoadingLateAttendance?.(false);
       }
-    };
-    
+    }
     const fetchCampusData = async () => {
         setIsLoadingCampusData(true);
       try {
