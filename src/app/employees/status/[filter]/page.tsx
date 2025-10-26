@@ -2,9 +2,9 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { AppLayout, useUserProfile } from '@/components/layout/app-layout';
+import { AppLayout } from '@/components/layout/app-layout';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, QueryConstraint } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, User, UserCheck, UserX, Clock, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
+import { useUserProfile } from '@/components/layout/app-layout';
+
 
 interface Employee {
   id: string;
@@ -68,12 +70,12 @@ function EmployeeStatusContent() {
             setIsLoading(true);
             setError(null);
             try {
-                // 1. Get all active employees
-                const empSnap = await getDocs(query(collection(db, "employee"), where("status", "in", ["Active", "On Leave"])));
-                const allEmployees = empSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+                const employeesCollection = collection(db, "employee");
+                
+                const allEmployeesSnap = await getDocs(query(employeesCollection, where("status", "in", ["Active", "On Leave"])));
+                const allEmployees = allEmployeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
                 const allEmployeeMap = new Map(allEmployees.map(e => [e.employeeId, e]));
 
-                // 2. Get attendance data for the specified date
                 const attendanceSnap = await getDocs(query(collection(db, "attendance_log"), where("date", "==", date)));
                 
                 const userCheckIns: Record<string, string[]> = {};
@@ -89,14 +91,14 @@ function EmployeeStatusContent() {
                 
                 const presentEmployeeIds = new Set(Object.keys(userCheckIns));
                 
-                let filteredEmployeeIds: Set<string> = new Set();
-                
+                let targetEmployeeIds: string[] = [];
+
                 if (filter === 'present') {
-                    filteredEmployeeIds = presentEmployeeIds;
+                    targetEmployeeIds = Array.from(presentEmployeeIds);
                 } else if (filter === 'absent') {
                     allEmployees.forEach(emp => {
                         if (!presentEmployeeIds.has(emp.employeeId)) {
-                            filteredEmployeeIds.add(emp.employeeId);
+                            targetEmployeeIds.push(emp.employeeId);
                         }
                     });
                 } else if (filter === 'late') {
@@ -107,17 +109,27 @@ function EmployeeStatusContent() {
                     Object.entries(userCheckIns).forEach(([id, times]) => {
                         const earliest = times.map(timeToMinutes).sort((a, b) => a - b)[0];
                         if (earliest > timeToMinutes("07:30")) {
-                            filteredEmployeeIds.add(id);
+                            targetEmployeeIds.push(id);
                         }
                     });
                 }
-
-                const finalEmployeeList = Array.from(filteredEmployeeIds)
-                    .map(id => allEmployeeMap.get(id))
-                    .filter((emp): emp is Employee => !!emp)
-                    .sort((a, b) => a.name.localeCompare(b.name));
                 
-                setEmployeeList(finalEmployeeList);
+                // Now, fetch all employees that match the target IDs.
+                const finalEmployeeList: Employee[] = [];
+                // Firestore 'in' query has a limit of 30 values. We must batch.
+                const CHUNK_SIZE = 30;
+                for (let i = 0; i < targetEmployeeIds.length; i += CHUNK_SIZE) {
+                    const chunk = targetEmployeeIds.slice(i, i + CHUNK_SIZE);
+                    if (chunk.length > 0) {
+                        const q = query(employeesCollection, where('employeeId', 'in', chunk));
+                        const snapshot = await getDocs(q);
+                        snapshot.forEach(doc => {
+                           finalEmployeeList.push({ id: doc.id, ...doc.data() } as Employee);
+                        });
+                    }
+                }
+                
+                setEmployeeList(finalEmployeeList.sort((a,b) => a.name.localeCompare(b.name)));
 
             } catch (err) {
                 console.error(`Error fetching data for ${filter}:`, err);
