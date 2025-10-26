@@ -1,10 +1,11 @@
 
+
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Loader2, CalendarCheck2, Briefcase, Clock, User } from "lucide-react";
+import { ArrowRight, Loader2, CalendarCheck2, Briefcase, Clock, User, UserX } from "lucide-react";
 import Link from "next/link";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useMemo } from "react";
@@ -110,6 +111,7 @@ const chartConfig = {
 function DashboardPageContent() {
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const [todaysAttendance, setTodaysAttendance] = useState<number | null>(null);
+  const [absentToday, setAbsentToday] = useState<number | null>(null);
   const [lastAttendanceDate, setLastAttendanceDate] = useState<string | null>(null);
   const [pendingLeaveRequests, setPendingLeaveRequests] = useState<number | null>(null);
   const [approvedLeaveRequests, setApprovedLeaveRequests] = useState<number | null>(null);
@@ -122,6 +124,7 @@ function DashboardPageContent() {
 
   const [isLoadingTotalEmp, setIsLoadingTotalEmp] = useState(true);
   const [isLoadingTodaysAttendance, setIsLoadingTodaysAttendance] = useState(true);
+  const [isLoadingAbsentToday, setIsLoadingAbsentToday] = useState(true);
   const [isLoadingPendingLeaves, setIsLoadingPendingLeaves] = useState(true);
   const [isLoadingApprovedLeaves, setIsLoadingApprovedLeaves] = useState(true);
   const [isLoadingRejectedLeaves, setIsLoadingRejectedLeaves] = useState(true);
@@ -224,6 +227,7 @@ function DashboardPageContent() {
     const fetchLastDayAttendance = async () => {
       setIsLoadingTodaysAttendance(true);
       setIsLoadingLateAttendance(true);
+      setIsLoadingAbsentToday(true);
       try {
         const lastLogQuery = query(collection(db, "attendance_log"), orderBy("date", "desc"), limit(1));
         const lastLogSnapshot = await getDocs(lastLogQuery);
@@ -236,32 +240,41 @@ function DashboardPageContent() {
           const attendanceOnDateQuery = query(collection(db, "attendance_log"), where("date", "==", lastAttendanceDateString));
           const attendanceSnapshot = await getDocs(attendanceOnDateQuery);
           
-          const uniqueUserIds = new Set<number>();
+          const presentUserIds = new Set<number>();
           const lateUserIds = new Set<number>();
 
           attendanceSnapshot.docs.forEach(doc => {
             const data = doc.data();
-            uniqueUserIds.add(data.userId);
+            presentUserIds.add(data.userId);
             if (data.check_in && data.check_in > "07:30") {
                 lateUserIds.add(data.userId);
             }
           });
           
-          setTodaysAttendance(uniqueUserIds.size);
+          setTodaysAttendance(presentUserIds.size);
           setLateAttendance(lateUserIds.size);
+
+          // Calculate absent users
+          const activeEmployeesQuery = query(collection(db, "employee"), where("status", "in", ["Active", "On Leave"]));
+          const activeEmployeesSnapshot = await getCountFromServer(activeEmployeesQuery);
+          const totalActiveEmployees = activeEmployeesSnapshot.data().count;
+          setAbsentToday(totalActiveEmployees - presentUserIds.size);
 
         } else {
           setTodaysAttendance(0);
           setLateAttendance(0);
+          setAbsentToday(0);
           setLastAttendanceDate(null);
         }
       } catch (error) {
         console.error("Error fetching today's attendance:", error);
         setTodaysAttendance(0);
         setLateAttendance(0);
+        setAbsentToday(0);
       } finally {
         setIsLoadingTodaysAttendance(false);
         setIsLoadingLateAttendance(false);
+        setIsLoadingAbsentToday(false);
       }
     };
     
@@ -327,7 +340,7 @@ function DashboardPageContent() {
     },
     {
       title: "Today's Attendance",
-      iconName: "Briefcase",
+      iconName: "UserCheck",
       statistic: todaysAttendance ?? 0,
       statisticLabel: lastAttendanceDate ? `As of ${lastAttendanceDate}` : 'No attendance data',
       isLoadingStatistic: isLoadingTodaysAttendance,
@@ -335,6 +348,16 @@ function DashboardPageContent() {
       linkText: "View Attendance Logs",
       adminOnly: true,
 
+    },
+    {
+      title: "Absent Today",
+      iconName: "UserX",
+      statistic: absentToday ?? 0,
+      statisticLabel: lastAttendanceDate ? `As of ${lastAttendanceDate}` : 'No attendance data',
+      isLoadingStatistic: isLoadingAbsentToday,
+      href: "/attendance-logs",
+      linkText: "View Attendance Logs",
+      adminOnly: true,
     },
      {
       title: "Late Arrivals",
