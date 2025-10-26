@@ -76,6 +76,7 @@ function EmployeeStatusContent() {
                 
                 const allEmployeesSnap = await getDocs(query(employeesCollection, where("status", "in", ["Active", "On Leave"])));
                 const allEmployees = allEmployeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+                const allEmployeeIdMap = new Map(allEmployees.map(e => [e.employeeId, e]));
 
                 const attendanceSnap = await getDocs(query(collection(db, "attendance_log"), where("date", "==", date)));
                 
@@ -92,14 +93,14 @@ function EmployeeStatusContent() {
                 
                 const presentEmployeeIds = new Set(Object.keys(userCheckIns));
                 
-                let targetEmployeeIds: string[] = [];
+                let targetEmployeeIds = new Set<string>();
 
                 if (filter === 'present') {
-                    targetEmployeeIds = Array.from(presentEmployeeIds);
+                    presentEmployeeIds.forEach(id => targetEmployeeIds.add(id));
                 } else if (filter === 'absent') {
                     allEmployees.forEach(emp => {
                         if (!presentEmployeeIds.has(emp.employeeId)) {
-                            targetEmployeeIds.push(emp.employeeId);
+                            targetEmployeeIds.add(emp.employeeId);
                         }
                     });
                 } else if (filter === 'late') {
@@ -107,33 +108,22 @@ function EmployeeStatusContent() {
                         const [hh, mm] = t.split(":").map(Number);
                         return hh * 60 + mm;
                     };
-                    // Ensure each late employee is only added once
                     const lateIds = new Set<string>();
                     Object.entries(userCheckIns).forEach(([id, times]) => {
                         const earliest = times.map(timeToMinutes).sort((a, b) => a - b)[0];
                         if (earliest > timeToMinutes("07:30")) {
-                            lateIds.add(id);
+                           lateIds.add(id);
                         }
                     });
-                    targetEmployeeIds = Array.from(lateIds);
+                    targetEmployeeIds = lateIds;
                 }
                 
-                // Now, fetch all employees that match the target IDs.
-                const finalEmployeeList: Employee[] = [];
-                // Firestore 'in' query has a limit of 30 values. We must batch.
-                const CHUNK_SIZE = 30;
-                for (let i = 0; i < targetEmployeeIds.length; i += CHUNK_SIZE) {
-                    const chunk = targetEmployeeIds.slice(i, i + CHUNK_SIZE);
-                    if (chunk.length > 0) {
-                        const q = query(employeesCollection, where('employeeId', 'in', chunk));
-                        const snapshot = await getDocs(q);
-                        snapshot.forEach(doc => {
-                           finalEmployeeList.push({ id: doc.id, ...doc.data() } as Employee);
-                        });
-                    }
-                }
+                const finalEmployeeList = Array.from(targetEmployeeIds)
+                    .map(id => allEmployeeIdMap.get(id))
+                    .filter((emp): emp is Employee => !!emp)
+                    .sort((a,b) => a.name.localeCompare(b.name));
                 
-                setEmployeeList(finalEmployeeList.sort((a,b) => a.name.localeCompare(b.name)));
+                setEmployeeList(finalEmployeeList);
 
             } catch (err) {
                 console.error(`Error fetching data for ${filter}:`, err);
