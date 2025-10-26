@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -20,7 +18,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 
 interface Employee {
   id: string;
@@ -113,6 +111,7 @@ function DashboardPageContent() {
   const [todaysAttendance, setTodaysAttendance] = useState<number | null>(null);
   const [absentToday, setAbsentToday] = useState<number | null>(null);
   const [lastAttendanceDate, setLastAttendanceDate] = useState<string | null>(null);
+  const [lastDateString, setLastDateString] = useState<string | null>(null);
   const [pendingLeaveRequests, setPendingLeaveRequests] = useState<number | null>(null);
   const [approvedLeaveRequests, setApprovedLeaveRequests] = useState<number | null>(null);
   const [rejectedLeaveRequests, setRejectedLeaveRequests] = useState<number | null>(null);
@@ -223,79 +222,89 @@ function DashboardPageContent() {
         setIsLoadingTotalLeaves(false);
       }
     };
-
     const fetchLastDayAttendance = async () => {
       setIsLoadingTodaysAttendance(true);
       setIsLoadingLateAttendance(true);
       setIsLoadingAbsentToday(true);
+    
       try {
-        const lastLogQuery = query(collection(db, "attendance_log"), orderBy("date", "desc"), limit(1));
+        const lastLogQuery = query(
+          collection(db, "attendance_log"),
+          orderBy("date", "desc"),
+          limit(1)
+        );
         const lastLogSnapshot = await getDocs(lastLogQuery);
-
-        if (!lastLogSnapshot.empty) {
-          const lastAttendanceDateString = lastLogSnapshot.docs[0].data().date as string;
-          
-          const [year, month, day] = lastAttendanceDateString.split('-').map(Number);
-          const dateObject = new Date(year, month - 1, day);
-          setLastAttendanceDate(format(dateObject, 'PPP'));
-          
-          const attendanceOnDateQuery = query(collection(db, "attendance_log"), where("date", "==", lastAttendanceDateString));
-          const attendanceSnapshot = await getDocs(attendanceOnDateQuery);
-          
-          const userCheckIns: { [userId: number]: string[] } = {};
-          attendanceSnapshot.docs.forEach(doc => {
-            const data = doc.data();
-            if (data.check_in) {
-              if (!userCheckIns[data.userId]) {
-                userCheckIns[data.userId] = [];
-              }
-              userCheckIns[data.userId].push(data.check_in);
-            }
-          });
-
-          const presentUserIds = new Set(Object.keys(userCheckIns).map(Number));
-          const lateUserIds = new Set<number>();
-          
-          for (const userId in userCheckIns) {
-            const checkIns = userCheckIns[userId].sort();
-            if (checkIns[0] && checkIns[0] > "07:30") {
-              lateUserIds.add(Number(userId));
-            }
-          }
-          
-          setTodaysAttendance(presentUserIds.size);
-          setLateAttendance(lateUserIds.size);
-
-          const activeEmployeesQuery = query(collection(db, "employee"), where("status", "in", ["Active", "On Leave"]));
-          const activeEmployeesSnapshot = await getDocs(activeEmployeesQuery);
-          
-          const activeEmployeeIds = new Set<number>();
-          activeEmployeesSnapshot.forEach(doc => {
-            const employeeIdStr = doc.data().employeeId;
-            if (employeeIdStr) {
-                const employeeIdNum = Number(employeeIdStr);
-                if (!isNaN(employeeIdNum)) {
-                    activeEmployeeIds.add(employeeIdNum);
-                }
-            }
-          });
-
-          let absentCount = 0;
-          activeEmployeeIds.forEach(id => {
-            if (!presentUserIds.has(id)) {
-              absentCount++;
-            }
-          });
-          setAbsentToday(absentCount);
-
-        } else {
+    
+        if (lastLogSnapshot.empty) {
           setTodaysAttendance(0);
           setLateAttendance(0);
           setAbsentToday(0);
           setLastAttendanceDate(null);
+          setLastDateString(null);
+          return;
         }
+    
+        const lastDateStr = lastLogSnapshot.docs[0].data().date as string;
+        setLastDateString(lastDateStr);
+        const [y, m, d] = lastDateStr.split("-").map(Number);
+        setLastAttendanceDate(format(new Date(y, m - 1, d), "PPP"));
+    
+        const attendanceSnapshot = await getDocs(
+          query(collection(db, "attendance_log"), where("date", "==", lastDateStr))
+        );
+    
+        const userCheckIns: Record<number, string[]> = {};
+    
+        attendanceSnapshot.docs.forEach(doc => {
+          const data = doc.data();
+          if (!data.check_in) return;
+          if (!userCheckIns[data.userId]) {
+            userCheckIns[data.userId] = [];
+          }
+          userCheckIns[data.userId].push(data.check_in.substring(0, 5));
+        });
+    
+        const presentIds = new Set(Object.keys(userCheckIns).map(Number));
+        setTodaysAttendance(presentIds.size);
+    
+        const timeToMinutes = (t: string) => {
+          const [hh, mm] = t.split(":").map(Number);
+          return hh * 60 + mm;
+        };
+    
+        const lateIds = new Set<number>();
+    
+        Object.entries(userCheckIns).forEach(([id, times]) => {
+          const earliest = times
+            .map(timeToMinutes)
+            .sort((a, b) => a - b)[0];
+    
+          if (earliest > timeToMinutes("07:30")) {
+            lateIds.add(Number(id));
+          }
+        });
+    
+        setLateAttendance(lateIds.size);
+    
+        const empSnap = await getDocs(
+          query(collection(db, "employee"), where("status", "in", ["Active", "On Leave"]))
+        );
+    
+        const activeIds = new Set<number>();
+        empSnap.forEach(doc => {
+          const idNum = Number(doc.data().employeeId);
+          if (!isNaN(idNum)) activeIds.add(idNum);
+        });
+    
+        let absentCount = 0;
+        activeIds.forEach(id => {
+          if (!presentIds.has(id)) absentCount++;
+        });
+    
+        setAbsentToday(absentCount);
+    
       } catch (error) {
-        console.error("Error fetching today's attendance:", error);
+        console.error("Error in fetchLastDayAttendance:", error);
         setTodaysAttendance(0);
         setLateAttendance(0);
         setAbsentToday(0);
@@ -372,8 +381,8 @@ function DashboardPageContent() {
       statistic: todaysAttendance ?? 0,
       statisticLabel: lastAttendanceDate ? `As of ${lastAttendanceDate}` : 'No attendance data',
       isLoadingStatistic: isLoadingTodaysAttendance,
-      href: "/attendance-logs",
-      linkText: "View Attendance Logs",
+      href: `/employees/status/present?date=${lastDateString || ''}`,
+      linkText: "View Employees",
       adminOnly: true,
 
     },
@@ -383,8 +392,8 @@ function DashboardPageContent() {
       statistic: absentToday ?? 0,
       statisticLabel: lastAttendanceDate ? `As of ${lastAttendanceDate}` : 'No attendance data',
       isLoadingStatistic: isLoadingAbsentToday,
-      href: "/attendance-logs",
-      linkText: "View Attendance Logs",
+      href: `/employees/status/absent?date=${lastDateString || ''}`,
+      linkText: "View Employees",
       adminOnly: true,
     },
      {
@@ -393,8 +402,8 @@ function DashboardPageContent() {
       statistic: lateAttendance ?? 0,
       statisticLabel: lastAttendanceDate ? `Late check-ins after 7:30 AM` : 'No attendance data',
       isLoadingStatistic: isLoadingLateAttendance,
-      href: "/attendance-logs",
-      linkText: "View Attendance Logs",
+      href: `/employees/status/late?date=${lastDateString || ''}`,
+      linkText: "View Employees",
       adminOnly: true,
 
     },
