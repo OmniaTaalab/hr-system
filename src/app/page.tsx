@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -324,7 +325,9 @@ function DashboardPageContent() {
 
         const counts: { [key: string]: number } = {};
         employees.forEach(emp => {
-          counts[emp.campus] = (counts[emp.campus] || 0) + 1;
+          if (emp.campus) {
+             counts[emp.campus] = (counts[emp.campus] || 0) + 1;
+          }
         });
 
         const formattedData = Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a,b) => b.count - a.count);
