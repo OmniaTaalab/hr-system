@@ -1291,6 +1291,7 @@ function EmployeeManagementContent() {
       listToFilter = listToFilter.filter(employee => {
           const searchableFields = [
               employee.name,
+              employee.employeeId,
               employee.department,
               employee.role,
               employee.stage,
@@ -1504,7 +1505,7 @@ function EmployeeManagementContent() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Search by name, email, title, department..."
+                  placeholder="Search by ID, name, email, title, department..."
                   className="w-full pl-10"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
