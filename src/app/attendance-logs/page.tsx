@@ -158,11 +158,12 @@ function AttendanceLogsContent() {
       const logsCollection = collection(db, "attendance_log");
       let queryConstraints: QueryConstraint[] = [];
       
-      // Only order by date if NOT filtering by machine, to avoid composite index requirement.
-      if (!isMachineFiltered) {
+      const shouldPaginate = !isMachineFiltered && !isDateFiltered;
+
+      if (shouldPaginate) {
         queryConstraints.push(orderBy("date", "desc"));
       }
-
+      
       // Add filters if they are selected
       if (isDateFiltered && selectedDate) {
         const dateString = format(selectedDate, 'yyyy-MM-dd');
@@ -171,8 +172,6 @@ function AttendanceLogsContent() {
       if (isMachineFiltered) {
         queryConstraints.push(where("machine", "==", machineFilter));
       }
-      
-      const shouldPaginate = !isMachineFiltered && !isDateFiltered;
 
       if (shouldPaginate) {
         if (page === 'first') {
@@ -181,12 +180,12 @@ function AttendanceLogsContent() {
             queryConstraints.push(startAfter(lastVisible), limit(PAGE_SIZE));
         } else if (page === 'prev' && firstVisible) {
             // To go to previous page, we need to reverse the order, get the last items, then reverse them back
-            const prevConstraints = [orderBy("date"), endBefore(firstVisible), limitToLast(PAGE_SIZE)];
+            const prevConstraints = [orderBy("date", "desc"), endBefore(firstVisible), limitToLast(PAGE_SIZE)];
             if (machineFilter !== "All") prevConstraints.push(where("machine", "==", machineFilter));
             if(selectedDate) prevConstraints.push(where("date", "==", format(selectedDate, 'yyyy-MM-dd')));
             const prevQuery = query(logsCollection, ...prevConstraints);
             const prevSnapshots = await getDocs(prevQuery);
-            const prevLogsData = prevSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog)).reverse();
+            const prevLogsData = prevSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
             setAllLogs(prevLogsData);
             if (!prevSnapshots.empty) {
                 setFirstVisible(prevSnapshots.docs[0]);
@@ -204,8 +203,8 @@ function AttendanceLogsContent() {
       const documentSnapshots = await getDocs(finalQuery);
       let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
       
-      // If we filtered by machine, we sort client-side.
-      if(isMachineFiltered) {
+      // If we filtered by machine or date, we sort client-side.
+      if(!shouldPaginate) {
         logsData.sort((a, b) => b.date.localeCompare(a.date));
       }
 
@@ -278,31 +277,28 @@ function AttendanceLogsContent() {
 
 
   const displayedRecords = useMemo(() => {
-        if (allEmployees.length === 0) return allLogs;
+    if (allEmployees.length === 0) return allLogs;
 
-        const employeeMap = new Map(allEmployees.map(emp => [emp.employeeId, emp.name]));
+    const employeeMap = new Map(allEmployees.map(emp => [String(emp.employeeId), emp.name]));
 
-        let records = allLogs.map(log => {
-            const employeeNameFromMap = employeeMap.get(log.userId.toString());
-            // Use name from map if available and if log.employeeName is a number or missing
-            const finalEmployeeName = employeeNameFromMap && (!log.employeeName || !isNaN(Number(log.employeeName)))
-                ? employeeNameFromMap
-                : log.employeeName;
+    let records = allLogs.map(log => {
+      const employeeNameFromMap = employeeMap.get(String(log.userId));
+      const finalEmployeeName = employeeNameFromMap || log.employeeName;
 
-            return { ...log, employeeName: finalEmployeeName };
-        });
+      return { ...log, employeeName: finalEmployeeName };
+    });
 
-        if (searchTerm) {
-            const lowercasedFilter = searchTerm.toLowerCase();
-            records = records.filter(record =>
-                (record.employeeName && record.employeeName.toLowerCase().includes(lowercasedFilter)) ||
-                record.userId.toString().includes(lowercasedFilter) ||
-                record.date.toLowerCase().includes(lowercasedFilter)
-            );
-        }
+    if (searchTerm) {
+        const lowercasedFilter = searchTerm.toLowerCase();
+        records = records.filter(record =>
+            (record.employeeName && record.employeeName.toLowerCase().includes(lowercasedFilter)) ||
+            record.userId.toString().includes(lowercasedFilter) ||
+            record.date.toLowerCase().includes(lowercasedFilter)
+        );
+    }
 
-        return records;
-    }, [allLogs, allEmployees, searchTerm]);
+    return records;
+  }, [allLogs, allEmployees, searchTerm]);
 
   const handleExportExcel = () => {
     if (displayedRecords.length === 0) {
@@ -472,7 +468,7 @@ function AttendanceLogsContent() {
                   </Table>
                )}
           </CardContent>
-           {(!isDateFiltered && !isMachineFiltered) && (
+           {(!isDateFiltered && !isMachineFiltered && !searchTerm) && (
             <CardContent>
               <div className="flex items-center justify-end space-x-2 py-4">
                   <Button
@@ -509,5 +505,3 @@ export default function AttendanceLogsPage() {
         </AppLayout>
     )
 }
-
-    
