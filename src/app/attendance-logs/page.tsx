@@ -160,30 +160,21 @@ function AttendanceLogsContent() {
       
       const shouldPaginate = !isMachineFiltered && !isDateFiltered;
 
-      if (shouldPaginate) {
-        queryConstraints.push(orderBy("date", "desc"));
-      }
-      
-      // Add filters if they are selected
+      // When filtering by date, we fetch all logs for that day and then filter client-side for machine.
+      // This avoids needing a composite index for (date, machine).
       if (isDateFiltered && selectedDate) {
         const dateString = format(selectedDate, 'yyyy-MM-dd');
         queryConstraints.push(where("date", "==", dateString));
       }
-      if (isMachineFiltered) {
-        queryConstraints.push(where("machine", "==", machineFilter));
-      }
 
       if (shouldPaginate) {
+        queryConstraints.push(orderBy("date", "desc"));
         if (page === 'first') {
             queryConstraints.push(limit(PAGE_SIZE));
         } else if (page === 'next' && lastVisible) {
             queryConstraints.push(startAfter(lastVisible), limit(PAGE_SIZE));
         } else if (page === 'prev' && firstVisible) {
-            // To go to previous page, we need to reverse the order, get the last items, then reverse them back
-            const prevConstraints = [orderBy("date", "desc"), endBefore(firstVisible), limitToLast(PAGE_SIZE)];
-            if (machineFilter !== "All") prevConstraints.push(where("machine", "==", machineFilter));
-            if(selectedDate) prevConstraints.push(where("date", "==", format(selectedDate, 'yyyy-MM-dd')));
-            const prevQuery = query(logsCollection, ...prevConstraints);
+            const prevQuery = query(logsCollection, orderBy("date", "desc"), endBefore(firstVisible), limitToLast(PAGE_SIZE));
             const prevSnapshots = await getDocs(prevQuery);
             const prevLogsData = prevSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
             setAllLogs(prevLogsData);
@@ -191,7 +182,7 @@ function AttendanceLogsContent() {
                 setFirstVisible(prevSnapshots.docs[0]);
                 setLastVisible(prevSnapshots.docs[prevSnapshots.docs.length - 1]);
             }
-            setIsLastPage(false); // Can always go forward from a previous page
+            setIsLastPage(false);
             setIsLoading(false);
             return;
         } else {
@@ -203,21 +194,28 @@ function AttendanceLogsContent() {
       const documentSnapshots = await getDocs(finalQuery);
       let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
       
-      // If we filtered by machine or date, we sort client-side.
-      if(!shouldPaginate) {
-        logsData.sort((a, b) => b.date.localeCompare(a.date));
+      // Client-side filtering for machine if needed
+      if (isMachineFiltered) {
+        logsData = logsData.filter(log => log.machine === machineFilter);
+      }
+      
+      // Always sort client-side if any filter is active
+      if(isDateFiltered || isMachineFiltered) {
+        logsData.sort((a, b) => {
+            const dateComp = b.date.localeCompare(a.date);
+            if(dateComp !== 0) return dateComp;
+            if(a.check_in && b.check_in) return a.check_in.localeCompare(b.check_in);
+            return 0;
+        });
       }
 
-      if (!documentSnapshots.empty) {
+      if (!documentSnapshots.empty || (isMachineFiltered && logsData.length > 0)) {
         setAllLogs(logsData);
         if (shouldPaginate) {
             setFirstVisible(documentSnapshots.docs[0]);
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
             
             const nextPageCheckConstraints = [orderBy("date", "desc"), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
-            if(isMachineFiltered) nextPageCheckConstraints.push(where("machine", "==", machineFilter));
-            if(isDateFiltered && selectedDate) nextPageCheckConstraints.push(where("date", "==", format(selectedDate, 'yyyy-MM-dd')));
-
             const nextQuery = query(logsCollection, ...nextPageCheckConstraints);
             const nextSnapshot = await getDocs(nextQuery);
             setIsLastPage(nextSnapshot.empty);
@@ -505,3 +503,5 @@ export default function AttendanceLogsPage() {
         </AppLayout>
     )
 }
+
+    
