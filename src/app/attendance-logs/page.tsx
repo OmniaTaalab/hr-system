@@ -158,7 +158,7 @@ function AttendanceLogsContent() {
       const logsCollection = collection(db, "attendance_log");
       let queryConstraints: QueryConstraint[] = [];
       
-      const shouldPaginate = !isMachineFiltered && !isDateFiltered;
+      const shouldPaginate = !isMachineFiltered && !isDateFiltered && !searchTerm;
 
       // When filtering by date, we fetch all logs for that day and then filter client-side for machine.
       // This avoids needing a composite index for (date, machine).
@@ -166,6 +166,10 @@ function AttendanceLogsContent() {
         const dateString = format(selectedDate, 'yyyy-MM-dd');
         queryConstraints.push(where("date", "==", dateString));
       }
+      if (isMachineFiltered) {
+        queryConstraints.push(where("machine", "==", machineFilter));
+      }
+
 
       if (shouldPaginate) {
         queryConstraints.push(orderBy("date", "desc"));
@@ -193,11 +197,6 @@ function AttendanceLogsContent() {
       const finalQuery = query(logsCollection, ...queryConstraints);
       const documentSnapshots = await getDocs(finalQuery);
       let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
-      
-      // Client-side filtering for machine if needed
-      if (isMachineFiltered) {
-        logsData = logsData.filter(log => log.machine === machineFilter);
-      }
       
       // Always sort client-side if any filter is active
       if(isDateFiltered || isMachineFiltered) {
@@ -241,7 +240,7 @@ function AttendanceLogsContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDate, machineFilter, toast, lastVisible, firstVisible, isDateFiltered, isMachineFiltered]);
+  }, [selectedDate, machineFilter, toast, lastVisible, firstVisible, isDateFiltered, isMachineFiltered, searchTerm]);
 
   useEffect(() => {
     if (!canViewPage) {
