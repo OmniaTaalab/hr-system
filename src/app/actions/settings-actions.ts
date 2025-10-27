@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, doc, Timestamp, setDoc, getDoc, updateDoc, writeBatch, limit, startAfter, orderBy } from 'firebase/firestore';
 import { logSystemEvent } from '@/lib/system-log';
-import { subDays } from 'date-fns';
 
 // --- HOLIDAY SETTINGS ---
 
@@ -520,7 +519,56 @@ export async function syncSubjectsFromEmployeesAction(prevState: SyncState, form
 }
 
 export async function syncMachineNamesFromAttendanceLogsAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
-    return runSync(formData, (actorDetails) => syncListFromSource("attendance_log", "machine", "machineNames", actorDetails));
+  const actorId = formData.get('actorId') as string;
+  const actorEmail = formData.get('actorEmail') as string;
+  const actorRole = formData.get('actorRole') as string;
+  const actorDetails = { actorId, actorEmail, actorRole };
+
+  try {
+    const machineNames = new Set<string>();
+    
+    // Fetch a large number of recent logs to get machine names
+    const logsQuery = query(collection(db, "attendance_log"), orderBy("date", "desc"), limit(10000));
+    const logsSnapshot = await getDocs(logsQuery);
+    
+    logsSnapshot.forEach(doc => {
+      const machine = doc.data().machine;
+      if (machine) {
+        machineNames.add(machine);
+      }
+    });
+
+    const targetCollection = "machineNames";
+    const targetCollectionRef = collection(db, targetCollection);
+    const targetSnapshot = await getDocs(targetCollectionRef);
+    const existingTargetNames = new Set(targetSnapshot.docs.map(doc => doc.data().name));
+
+    const newValues = [...machineNames].filter(name => !existingTargetNames.has(name));
+
+    if (newValues.length === 0) {
+      return { success: true, message: `The "${targetCollection}" list is already up-to-date.` };
+    }
+
+    const batch = writeBatch(db);
+    for (const name of newValues) {
+      const newDocRef = doc(targetCollectionRef);
+      batch.set(newDocRef, { name });
+    }
+    await batch.commit();
+
+    await logSystemEvent("Sync List", { ...actorDetails, sourceCollection: "attendance_log", targetCollection, itemsAdded: newValues.length });
+
+    return {
+      success: true,
+      message: `Successfully added ${newValues.length} new machine(s) to the list.`
+    };
+  } catch (error: any) {
+    console.error(`Error syncing to machineNames:`, error);
+    return {
+      success: false,
+      message: `Failed to sync machineNames. An unexpected error occurred: ${error.message}`
+    };
+  }
 }
 
 export async function syncReportLine1FromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
@@ -531,103 +579,94 @@ export async function syncReportLine2FromEmployeesAction(prevState: SyncState, f
     return runSync(formData, (actorDetails) => syncListFromSource("employee", "reportLine2", "reportLines2", actorDetails));
 }
 
-// --- DATA CORRECTION ACTIONS ---
+// --- DATA CORRECTION ---
 
 export type CorrectionState = {
-  message?: string | null;
-  success?: boolean;
+    message?: string | null;
+    success?: boolean;
+    errors?: { form?: string[] };
 };
 
 export async function correctAttendanceNamesAction(
-  prevState: CorrectionState,
-  formData: FormData
+    prevState: CorrectionState,
+    formData: FormData
 ): Promise<CorrectionState> {
-  const actorId = formData.get('actorId') as string;
-  const actorEmail = formData.get('actorEmail') as string;
-  const actorRole = formData.get('actorRole') as string;
+    const actorId = formData.get('actorId') as string;
+    const actorEmail = formData.get('actorEmail') as string;
+    const actorRole = formData.get('actorRole') as string;
 
-  try {
-    // 1. Create a map of employeeId -> name
-    const employeesSnapshot = await getDocs(collection(db, "employee"));
-    const employeeMap = new Map<string, string>();
-    employeesSnapshot.forEach(doc => {
-      const data = doc.data();
-      if (data.employeeId && data.name) {
-        employeeMap.set(String(data.employeeId), data.name);
-      }
-    });
-    if (employeeMap.size === 0) {
-      return { success: false, message: "No employees found to create a name map." };
-    }
-
-    // 2. Query attendance logs, optionally for the last 90 days
-    let attendanceQuery;
     try {
-        const ninetyDaysAgo = subDays(new Date(), 90);
-        attendanceQuery = query(collection(db, "attendance_log"), where("date", ">=", ninetyDaysAgo.toISOString().split('T')[0]));
-    } catch (e) {
-        // This will fail if the index doesn't exist. Fallback to querying all.
-        console.warn("Could not query by date (index likely missing). Falling back to scanning all attendance logs.");
-        attendanceQuery = query(collection(db, "attendance_log"));
-    }
-    
-    const logsSnapshot = await getDocs(attendanceQuery);
-    if (logsSnapshot.empty) {
-      return { success: true, message: "No attendance logs found in the specified date range." };
-    }
-
-    let batch = writeBatch(db);
-    let updatedCount = 0;
-    let opsInBatch = 0;
-    const BATCH_LIMIT = 450;
-    
-    // 3. Iterate and batch updates
-    for (const logDoc of logsSnapshot.docs) {
-      const logData = logDoc.data();
-      const currentName = String(logData.employeeName);
-
-      // Check if the current name is a key in our employeeId map
-      if (employeeMap.has(currentName)) {
-        const correctName = employeeMap.get(currentName)!;
-        // Check if an update is actually needed
-        if (currentName !== correctName) {
-          batch.update(logDoc.ref, { employeeName: correctName });
-          updatedCount++;
-          opsInBatch++;
-
-          if (opsInBatch >= BATCH_LIMIT) {
-            await batch.commit();
-            batch = writeBatch(db);
-            opsInBatch = 0;
-          }
+        const BATCH_SIZE = 250;
+        let logsUpdated = 0;
+        
+        // 1. Get all employees and create a map from employeeId -> name
+        const employeesSnapshot = await getDocs(collection(db, "employee"));
+        const employeeIdToNameMap = new Map<string, string>();
+        employeesSnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.employeeId && data.name) {
+                employeeIdToNameMap.set(String(data.employeeId), data.name);
+            }
+        });
+        
+        if (employeeIdToNameMap.size === 0) {
+            return { success: false, message: "No employees found to map IDs to names." };
         }
-      }
-    }
-    
-    // 4. Commit any remaining writes
-    if (opsInBatch > 0) {
-      await batch.commit();
-    }
-    
-    await logSystemEvent("Data Correction", { 
-        actorId, 
-        actorEmail, 
-        actorRole, 
-        correctionType: "AttendanceLogNames",
-        scannedCount: logsSnapshot.size,
-        updatedCount
-    });
 
-    return { 
-      success: true, 
-      message: `Data correction complete. Scanned ${logsSnapshot.size} attendance logs and updated ${updatedCount} records.` 
-    };
+        // 2. Query for attendance logs where employeeName might be incorrect (i.e., is a number)
+        const logsQuery = query(
+            collection(db, "attendance_log"), 
+            // This is a simplification. Firestore can't directly query for "is a number".
+            // We'll have to fetch and check client-side, but we do it in batches.
+            orderBy("date", "desc"),
+            limit(5000) // Process the last 5000 logs for efficiency
+        );
+        const logsSnapshot = await getDocs(logsQuery);
+        
+        const batch = writeBatch(db);
+        let batchWrites = 0;
 
-  } catch (error: any) {
-    console.error("Error correcting attendance names:", error);
-    return {
-      success: false,
-      message: `An unexpected error occurred: ${error.message}`,
-    };
-  }
+        for (const doc of logsSnapshot.docs) {
+            const logData = doc.data();
+            const currentName = logData.employeeName;
+            const employeeId = String(logData.userId);
+
+            // Check if name is numeric, which is the likely issue
+            if (currentName && !isNaN(Number(currentName)) && employeeIdToNameMap.has(employeeId)) {
+                const correctName = employeeIdToNameMap.get(employeeId);
+                
+                // If the correct name is different, update it
+                if (correctName && correctName !== currentName) {
+                    batch.update(doc.ref, { employeeName: correctName });
+                    logsUpdated++;
+                    batchWrites++;
+                    
+                    if (batchWrites >= 499) { // Firestore batch limit is 500 writes
+                        await batch.commit();
+                        //batch = writeBatch(db); // Re-initialize batch
+                        //batchWrites = 0;
+                         return { success: true, message: `Corrected ${logsUpdated} log entries so far. Please run again to process more.` };
+                    }
+                }
+            }
+        }
+        
+        if (batchWrites > 0) {
+            await batch.commit();
+        }
+
+        if (logsUpdated === 0) {
+            return { success: true, message: "No attendance log names needed correction in the recent logs." };
+        }
+        
+        await logSystemEvent("Correct Attendance Names", { actorId, actorEmail, actorRole, logsUpdated });
+
+        return { success: true, message: `Successfully corrected ${logsUpdated} attendance log entries.` };
+    } catch (error: any) {
+        console.error("Error correcting attendance names:", error);
+        return {
+            success: false,
+            message: `Failed to correct names: ${error.message}`
+        };
+    }
 }
