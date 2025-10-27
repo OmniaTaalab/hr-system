@@ -16,13 +16,17 @@ import {
   syncMachineNamesFromAttendanceLogsAction,
   syncReportLine1FromEmployeesAction,
   syncReportLine2FromEmployeesAction,
+  correctAttendanceNamesAction,
   type SyncState,
+  type CorrectionState,
 } from "@/app/actions/settings-actions";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/components/layout/app-layout";
 
 
 const initialSyncState: SyncState = { success: false, message: null };
+const initialCorrectionState: CorrectionState = { success: false, message: null };
+
 
 function SyncButton({
   label,
@@ -70,6 +74,61 @@ function SyncButton({
   );
 }
 
+function CorrectionButton({
+  label,
+  description,
+  action,
+  isPending,
+  state,
+  actorDetails
+}: {
+  label: string;
+  description: string;
+  action: (formData: FormData) => void;
+  isPending: boolean;
+  state: CorrectionState;
+  actorDetails: { id?: string, email?: string, role?: string }
+}) {
+    const { toast } = useToast();
+  
+    useEffect(() => {
+        if (state?.message) {
+            toast({
+                title: state.success ? "Correction Ran" : "Correction Failed",
+                description: state.message,
+                variant: state.success ? "default" : "destructive",
+                duration: 10000,
+            });
+        }
+    }, [state, toast]);
+
+    const handleAction = () => {
+        const formData = new FormData();
+        if(actorDetails.id) formData.append('actorId', actorDetails.id);
+        if(actorDetails.email) formData.append('actorEmail', actorDetails.email);
+        if(actorDetails.role) formData.append('actorRole', actorDetails.role);
+        action(formData);
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>{label}</CardTitle>
+                <CardDescription>{description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <form action={handleAction}>
+                    <Button variant="outline" disabled={isPending}>
+                         {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        Run Correction
+                    </Button>
+                </form>
+            </CardContent>
+        </Card>
+    );
+}
+
+
 
 export default function SyncDataPage() {
   const { profile } = useUserProfile();
@@ -83,6 +142,7 @@ export default function SyncDataPage() {
   const [syncMachineState, syncMachineAction, isSyncMachinePending] = useActionState(syncMachineNamesFromAttendanceLogsAction, initialSyncState);
   const [syncReportLine1State, syncReportLine1Action, isSyncReportLine1Pending] = useActionState(syncReportLine1FromEmployeesAction, initialSyncState);
   const [syncReportLine2State, syncReportLine2Action, isSyncReportLine2Pending] = useActionState(syncReportLine2FromEmployeesAction, initialSyncState);
+  const [correctionState, correctionAction, isCorrectionPending] = useActionState(correctAttendanceNamesAction, initialCorrectionState);
   
 
   return (
@@ -164,6 +224,16 @@ export default function SyncDataPage() {
                 />
             </CardContent>
           </Card>
+          
+          <CorrectionButton
+            label="Correct Attendance Log Names"
+            description="Scans recent attendance logs and corrects entries where the employee name was recorded as a numeric ID instead of their actual name. This is useful for cleaning up data from certain attendance machines."
+            action={correctionAction}
+            isPending={isCorrectionPending}
+            state={correctionState}
+            actorDetails={actorDetails}
+           />
+
         </div>
       </SettingsPageWrapper>
     </div>

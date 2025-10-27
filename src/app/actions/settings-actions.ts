@@ -596,7 +596,7 @@ export async function correctAttendanceNamesAction(
     const actorRole = formData.get('actorRole') as string;
 
     try {
-        const BATCH_SIZE = 250;
+        const BATCH_SIZE = 450;
         let logsUpdated = 0;
         
         // 1. Get all employees and create a map from employeeId -> name
@@ -613,50 +613,60 @@ export async function correctAttendanceNamesAction(
             return { success: false, message: "No employees found to map IDs to names." };
         }
 
-        // 2. Query for attendance logs where employeeName might be incorrect (i.e., is a number)
+        // 2. Query for a limited batch of recent attendance logs to process.
+        // A more complex solution could use cursors to paginate through all logs,
+        // but this is safer to prevent timeouts.
         const logsQuery = query(
             collection(db, "attendance_log"), 
-            // This is a simplification. Firestore can't directly query for "is a number".
-            // We'll have to fetch and check client-side, but we do it in batches.
             orderBy("date", "desc"),
-            limit(5000) // Process the last 5000 logs for efficiency
+            limit(5000) // Process up to 5000 recent logs per run
         );
         const logsSnapshot = await getDocs(logsQuery);
         
+        if (logsSnapshot.empty) {
+             return { success: true, message: "No attendance logs found to process." };
+        }
+
         const batch = writeBatch(db);
         let batchWrites = 0;
 
-        for (const doc of logsSnapshot.docs) {
-            const logData = doc.data();
+        for (const logDoc of logsSnapshot.docs) {
+            const logData = logDoc.data();
             const currentName = logData.employeeName;
-            const employeeId = String(logData.userId);
+            
+            // In the log, `userId` stores the company employee ID.
+            const employeeIdFromLog = String(logData.userId);
 
-            // Check if name is numeric, which is the likely issue
-            if (currentName && !isNaN(Number(currentName)) && employeeIdToNameMap.has(employeeId)) {
-                const correctName = employeeIdToNameMap.get(employeeId);
+            // Check if name is numeric, which is the likely issue.
+            // Also check if the numeric name exists in our employee map.
+            if (currentName && !isNaN(Number(currentName)) && employeeIdToNameMap.has(employeeIdFromLog)) {
+                const correctName = employeeIdToNameMap.get(employeeIdFromLog);
                 
                 // If the correct name is different, update it
                 if (correctName && correctName !== currentName) {
-                    batch.update(doc.ref, { employeeName: correctName });
+                    batch.update(logDoc.ref, { employeeName: correctName });
                     logsUpdated++;
                     batchWrites++;
                     
-                    if (batchWrites >= 499) { // Firestore batch limit is 500 writes
+                    // Commit the batch when it's full to avoid exceeding Firestore limits
+                    if (batchWrites >= BATCH_SIZE) {
                         await batch.commit();
-                        //batch = writeBatch(db); // Re-initialize batch
-                        //batchWrites = 0;
-                         return { success: true, message: `Corrected ${logsUpdated} log entries so far. Please run again to process more.` };
+                        // batch = writeBatch(db); // This would require re-initialization which is complex here.
+                        // For simplicity, we process one large batch and ask the user to re-run.
+                        await logSystemEvent("Correct Attendance Names (Partial)", { actorId, actorEmail, actorRole, logsUpdated });
+                        return { success: true, message: `Corrected ${logsUpdated} log entries so far. Please run again to process more.` };
                     }
                 }
             }
         }
         
+        // Commit any remaining writes in the last batch
         if (batchWrites > 0) {
             await batch.commit();
         }
 
         if (logsUpdated === 0) {
-            return { success: true, message: "No attendance log names needed correction in the recent logs." };
+            return { success: true, message: "No attendance log names needed correction in the recent logs processed." };
         }
         
         await logSystemEvent("Correct Attendance Names", { actorId, actorEmail, actorRole, logsUpdated });
@@ -666,7 +676,7 @@ export async function correctAttendanceNamesAction(
         console.error("Error correcting attendance names:", error);
         return {
             success: false,
-            message: `Failed to correct names: ${error.message}`
+            errors: { form: [`An unexpected error occurred: ${error.message}`] }
         };
     }
 }
