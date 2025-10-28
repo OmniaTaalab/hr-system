@@ -1642,15 +1642,14 @@ function EmployeeManagementContent() {
                     <TableCell>{employee.stage || '-'}</TableCell>
                     <TableCell>{employee.campus || '-'}</TableCell>
                     <TableCell>
-                    <Badge
-    className={cn({
-      'bg-green-100 text-green-800': employee.status === 'Active',
-      'bg-red-100 text-red-800': employee.status === 'deactivated',
-      'bg-gray-100 text-gray-800': !employee.status || (employee.status !== 'Active' && employee.status !== 'deactivated'),
-    })}
-  >
-    {employee.status || "Active"}
-  </Badge>
+                      <Badge
+                        className={cn({
+                          'bg-green-100 text-green-800': employee.status !== 'deactivated',
+                          'bg-red-100 text-red-800': employee.status === 'deactivated',
+                        })}
+                      >
+                        {employee.status === 'deactivated' ? 'Deactivated' : 'Active'}
+                      </Badge>
                     </TableCell>
                     {canManageEmployees && (
                       <TableCell className="text-right">
@@ -2031,3 +2030,4 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
