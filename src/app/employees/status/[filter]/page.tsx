@@ -94,27 +94,36 @@ function EmployeeStatusContent() {
                 let targetEmployeeIds = new Set<string>();
 
                 if (filter === 'present') {
-                    presentEmployeeIds.forEach(id => targetEmployeeIds.add(id));
-                } else if (filter === 'absent') {
+                    // ✅ Show employees who have Check-In ONLY (Check-Out not required)
+                    Object.keys(userAttendance).forEach(id => {
+                      const attendance = userAttendance[id];
+                      if (attendance?.checkIns?.length > 0) {
+                        targetEmployeeIds.add(id);
+                      }
+                    });
+                  }
+                  else if (filter === 'absent') {
                     allEmployees.forEach(emp => {
-                        if (!presentEmployeeIds.has(emp.employeeId)) {
-                            targetEmployeeIds.add(emp.employeeId);
-                        }
+                      if (!presentEmployeeIds.has(emp.employeeId)) {
+                        targetEmployeeIds.add(emp.employeeId);
+                      }
                     });
-                } else if (filter === 'late') {
+                  }
+                  else if (filter === 'late') {
                     const timeToMinutes = (t: string) => {
-                        const [hh, mm] = t.split(":").map(Number);
-                        return hh * 60 + mm;
+                      const [hh, mm] = t.split(":").map(Number);
+                      return hh * 60 + mm;
                     };
-                    const lateIds = new Set<string>();
+                  
                     Object.entries(userAttendance).forEach(([id, times]) => {
-                         const earliestCheckIn = times.checkIns.sort()[0];
-                        if (earliestCheckIn && timeToMinutes(earliestCheckIn.substring(0,5)) > timeToMinutes("07:30")) {
-                           lateIds.add(id);
-                        }
+                      const earliestCheckIn = [...times.checkIns].sort((a, b) => timeToMinutes(a) - timeToMinutes(b))[0];
+                  
+                      // ✅ Late only if check-in exists AND after 07:30
+                      if (earliestCheckIn && timeToMinutes(earliestCheckIn.substring(0, 5)) > timeToMinutes("07:30")) {
+                        targetEmployeeIds.add(id);
+                      }
                     });
-                    targetEmployeeIds = lateIds;
-                }
+                  }
                 
                 const finalEmployeeList = Array.from(targetEmployeeIds)
                     .map(id => {

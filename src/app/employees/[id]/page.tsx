@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -18,6 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface EmergencyContact {
   name: string;
@@ -432,10 +434,15 @@ function EmployeeProfileContent() {
                   <div className="text-center md:text-left">
                       <CardTitle className="font-headline text-3xl">{employee.name}</CardTitle>
                       <CardDescription className="text-lg text-primary">{employee.role}</CardDescription>
-                       {employee.status === 'deactivated' && (
-                          <Badge variant="destructive" className="mt-2">
-                              deactivated on {safeToDate(employee.leavingDate) ? format(safeToDate(employee.leavingDate)!, 'PPP') : 'N/A'}
+                       {employee.status && (
+                        <div className="mt-2">
+                          <Badge
+                            variant={employee.status === 'deactivated' ? 'destructive' : 'secondary'}
+                            className={cn(employee.status !== 'deactivated' && 'bg-green-100 text-green-800')}
+                          >
+                            {employee.status === 'deactivated' ? 'Deactivated' : 'Active'}
                           </Badge>
+                        </div>
                       )}
                   </div>
               </CardHeader>
@@ -463,7 +470,7 @@ function EmployeeProfileContent() {
                    <DetailItem icon={Users} label="Report Line 1" value={employee.reportLine1 || "-"} />
                    <DetailItem icon={Users} label="Report Line 2" value={employee.reportLine2 || "-"} />
                    <DetailItem icon={Activity} label="Status">
-                     <Badge variant={employee.status === "deactivated" ? "destructive" : "secondary"} className={employee.status === 'Active' ? 'bg-green-100 text-green-800' : ''}>
+                     <Badge variant={employee.status === "deactivated" ? "destructive" : "secondary"} className={employee.status !== 'deactivated' ? 'bg-green-100 text-green-800' : ''}>
                        {employee.status || "Active"}
                      </Badge>
                    </DetailItem>

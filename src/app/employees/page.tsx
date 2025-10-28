@@ -1642,11 +1642,9 @@ function EmployeeManagementContent() {
                     <TableCell>{employee.stage || '-'}</TableCell>
                     <TableCell>{employee.campus || '-'}</TableCell>
                     <TableCell>
-                      <Badge
-                        className={cn({
-                          'bg-green-100 text-green-800': employee.status !== 'deactivated',
-                          'bg-red-100 text-red-800': employee.status === 'deactivated',
-                        })}
+                       <Badge
+                        variant={employee.status === 'deactivated' ? 'destructive' : 'secondary'}
+                        className={cn(employee.status !== 'deactivated' && 'bg-green-100 text-green-800')}
                       >
                         {employee.status === 'deactivated' ? 'Deactivated' : 'Active'}
                       </Badge>
