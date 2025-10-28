@@ -20,6 +20,8 @@ import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { deleteAttendanceLogAction, type DeleteAttendanceLogState } from '@/app/actions/attendance-actions';
+import { correctAttendanceNamesAction, type CorrectionState } from "@/app/actions/settings-actions";
+
 
 interface AttendanceLog {
   id: string;
@@ -44,6 +46,8 @@ interface Machine {
 
 const PAGE_SIZE = 50;
 const initialDeleteState: DeleteAttendanceLogState = { success: false };
+const initialCorrectionState: CorrectionState = { success: false, message: null };
+
 
 function DeleteLogDialog({ log, actorProfile }: { log: AttendanceLog; actorProfile: any }) {
     const { toast } = useToast();
@@ -110,6 +114,9 @@ function AttendanceLogsContent() {
   const [isLoadingMachines, setIsLoadingMachines] = useState(true);
   
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  
+  const [correctionState, correctionAction, isCorrectionPending] = useActionState(correctAttendanceNamesAction, initialCorrectionState);
+
 
   const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
   
@@ -130,26 +137,45 @@ function AttendanceLogsContent() {
         return () => unsubscribe();
     }, [canViewPage, toast]);
     
-  // Fetch unique machines from the new 'machineNames' collection
+  // Fetch unique machines from the 'attendance_log' collection
   useEffect(() => {
     if (!canViewPage) return;
     setIsLoadingMachines(true);
     const fetchMachines = async () => {
         try {
-            const machinesCollection = collection(db, "machineNames");
-            const q = query(machinesCollection, orderBy("name"));
-            const snapshot = await getDocs(q);
-            const machineData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Machine));
+            // Fetch all logs to extract machine names
+            const logsCollection = collection(db, "attendance_log");
+            const snapshot = await getDocs(logsCollection);
+            const machineNames = new Set<string>();
+            snapshot.forEach(doc => {
+                const machine = doc.data().machine;
+                if(machine) {
+                    machineNames.add(machine);
+                }
+            });
+            const machineData = Array.from(machineNames).map((name, index) => ({ id: `${index}`, name }));
             setMachines(machineData);
         } catch (error) {
             console.error("Error fetching machine names:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch machine names. Try syncing them in Settings > Sync Data.' });
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch machine names.' });
         } finally {
             setIsLoadingMachines(false);
         }
     };
     fetchMachines();
   }, [canViewPage, toast]);
+
+    // Toast for correction action
+    useEffect(() => {
+        if (correctionState?.message) {
+            toast({
+                title: correctionState.success ? "Correction Ran" : "Correction Failed",
+                description: correctionState.message,
+                variant: correctionState.success ? "default" : "destructive",
+                duration: 10000,
+            });
+        }
+    }, [correctionState, toast]);
 
 
   const fetchLogs = useCallback(async (page: 'first' | 'next' | 'prev' = 'first') => {
@@ -160,12 +186,11 @@ function AttendanceLogsContent() {
       
       const shouldPaginate = !isMachineFiltered && !isDateFiltered && !searchTerm;
 
-      // When filtering by date, we fetch all logs for that day and then filter client-side for machine.
-      // This avoids needing a composite index for (date, machine).
       if (isDateFiltered && selectedDate) {
         const dateString = format(selectedDate, 'yyyy-MM-dd');
         queryConstraints.push(where("date", "==", dateString));
       }
+      
       if (isMachineFiltered) {
         queryConstraints.push(where("machine", "==", machineFilter));
       }
@@ -272,6 +297,13 @@ function AttendanceLogsContent() {
     setSelectedDate(null);
   };
 
+    const handleCorrection = () => {
+        const formData = new FormData();
+        if(profile?.id) formData.append('actorId', profile.id);
+        if(profile?.email) formData.append('actorEmail', profile.email);
+        if(profile?.role) formData.append('actorRole', profile.role);
+        correctionAction(formData);
+    }
 
   const displayedRecords = useMemo(() => {
     if (allEmployees.length === 0) return allLogs;
@@ -371,7 +403,7 @@ function AttendanceLogsContent() {
                       ? 'A detailed list of all check-in/out events across all employees.' 
                       : `A detailed list of all check-in/out events for the selected machine.`}
               </CardDescription>
-               <div className="flex flex-col sm:flex-row gap-4 pt-2">
+               <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
                   <div className="relative flex-grow">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -382,11 +414,10 @@ function AttendanceLogsContent() {
                           onChange={(e) => setSearchTerm(e.target.value)}
                       />
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                      <Filter className="h-4 w-4 text-muted-foreground hidden sm:block"/>
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("w-full sm:w-[240px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
+                          <Button variant="outline" className={cn("w-full sm:w-auto justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
                               <CalendarIcon className="mr-2 h-4 w-4" />
                               {selectedDate ? format(selectedDate, 'PPP') : <span>Filter by date...</span>}
                           </Button>
@@ -397,7 +428,7 @@ function AttendanceLogsContent() {
                       </Popover>
                       {selectedDate && <Button variant="ghost" size="icon" onClick={clearDateFilter}><X className="h-4 w-4" /></Button>}
                       <Select value={machineFilter} onValueChange={setMachineFilter} disabled={isLoadingMachines}>
-                          <SelectTrigger className="w-full sm:w-[200px]">
+                          <SelectTrigger className="w-full sm:w-auto">
                               <SelectValue placeholder="Filter by machine" />
                           </SelectTrigger>
                           <SelectContent>
@@ -411,6 +442,12 @@ function AttendanceLogsContent() {
                         <FileDown className="mr-2 h-4 w-4" />
                         Export Excel
                       </Button>
+                      <form action={handleCorrection}>
+                        <Button variant="outline" disabled={isCorrectionPending} className="w-full sm:w-auto">
+                            {isCorrectionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                            Correct Names
+                        </Button>
+                      </form>
                   </div>
                </div>
           </CardHeader>
@@ -502,5 +539,3 @@ export default function AttendanceLogsPage() {
         </AppLayout>
     )
 }
-
-    
