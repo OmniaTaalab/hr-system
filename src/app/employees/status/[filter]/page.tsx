@@ -38,6 +38,18 @@ const filterTitles = {
     late: { title: "Late Arrivals Today", icon: Clock },
 };
 
+function formatTime(timeStr: string | null | undefined): string {
+    if (!timeStr) return '-';
+    // Assuming timeStr is "HH:MM:SS"
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    if (isNaN(hours) || isNaN(minutes)) return '-';
+
+    const date = new Date();
+    date.setHours(hours, minutes);
+    
+    return format(date, "h:mm a");
+}
+
 function EmployeeStatusContent() {
     const { profile, loading: profileLoading } = useUserProfile();
     const router = useRouter();
@@ -82,11 +94,14 @@ function EmployeeStatusContent() {
                 attendanceSnap.forEach(doc => {
                     const data = doc.data();
                     const userIdStr = String(data.userId);
-                    if (!userAttendance[userIdStr]) {
-                        userAttendance[userIdStr] = { checkIns: [], checkOuts: [] };
+                     // Only process logs for employees that actually exist
+                    if (allEmployeeIdMap.has(userIdStr)) {
+                        if (!userAttendance[userIdStr]) {
+                            userAttendance[userIdStr] = { checkIns: [], checkOuts: [] };
+                        }
+                        if (data.check_in) userAttendance[userIdStr].checkIns.push(data.check_in);
+                        if (data.check_out) userAttendance[userIdStr].checkOuts.push(data.check_out);
                     }
-                    if (data.check_in) userAttendance[userIdStr].checkIns.push(data.check_in);
-                    if (data.check_out) userAttendance[userIdStr].checkOuts.push(data.check_out);
                 });
                 
                 const presentEmployeeIds = new Set(Object.keys(userAttendance));
@@ -94,22 +109,20 @@ function EmployeeStatusContent() {
                 let targetEmployeeIds = new Set<string>();
 
                 if (filter === 'present') {
-                    // ✅ Show employees who have Check-In ONLY (Check-Out not required)
+                    // Show employees who have Check-In ONLY (Check-Out not required)
                     Object.keys(userAttendance).forEach(id => {
                       const attendance = userAttendance[id];
                       if (attendance?.checkIns?.length > 0) {
                         targetEmployeeIds.add(id);
                       }
                     });
-                  }
-                  else if (filter === 'absent') {
+                } else if (filter === 'absent') {
                     allEmployees.forEach(emp => {
                       if (!presentEmployeeIds.has(emp.employeeId)) {
                         targetEmployeeIds.add(emp.employeeId);
                       }
                     });
-                  }
-                  else if (filter === 'late') {
+                } else if (filter === 'late') {
                     const timeToMinutes = (t: string) => {
                       const [hh, mm] = t.split(":").map(Number);
                       return hh * 60 + mm;
@@ -118,26 +131,25 @@ function EmployeeStatusContent() {
                     Object.entries(userAttendance).forEach(([id, times]) => {
                       const earliestCheckIn = [...times.checkIns].sort((a, b) => timeToMinutes(a) - timeToMinutes(b))[0];
                   
-                      // ✅ Late only if check-in exists AND after 07:30
+                      // Late only if check-in exists AND after 07:30
                       if (earliestCheckIn && timeToMinutes(earliestCheckIn.substring(0, 5)) > timeToMinutes("07:30")) {
                         targetEmployeeIds.add(id);
                       }
                     });
-                  }
+                }
                 
-                const finalEmployeeList = Array.from(targetEmployeeIds)
-                    .map(id => {
-                        const emp = allEmployeeIdMap.get(id);
-                        if (!emp) return null;
-                        
-                        const attendance = userAttendance[id];
-                        const checkIn = attendance?.checkIns.sort()[0] || undefined;
-                        const checkOut = attendance?.checkOuts.sort().pop() || undefined;
+                const finalEmployeeList = Array.from(targetEmployeeIds).map(id => {
+                  const emp = allEmployeeIdMap.get(id);
+                  if (!emp) return null; // Should not happen with the new logic, but good practice
 
-                        return { ...emp, checkIn, checkOut };
-                    })
-                    .filter((emp): emp is Employee => !!emp)
-                    .sort((a,b) => a.name.localeCompare(b.name));
+                  return {
+                    ...emp,
+                    checkIn: userAttendance[id]?.checkIns?.sort()[0],
+                    checkOut: userAttendance[id]?.checkOuts?.sort().pop(),
+                  };
+                })
+                .filter((e): e is Employee => e !== null) // Filter out any nulls
+                .sort((a, b) => a.name.localeCompare(b.name));
                 
                 setEmployeeList(finalEmployeeList);
 
@@ -218,8 +230,8 @@ function EmployeeStatusContent() {
                                                 {employee.name}
                                             </Link>
                                         </TableCell>
-                                        <TableCell>{employee.checkIn || '-'}</TableCell>
-                                        <TableCell>{employee.checkOut || '-'}</TableCell>
+                                        <TableCell>{formatTime(employee.checkIn)}</TableCell>
+                                        <TableCell>{formatTime(employee.checkOut)}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
