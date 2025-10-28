@@ -22,11 +22,9 @@ interface Employee {
   id: string;
   employeeId: string;
   name: string;
-  role: string;
-  campus: string;
   photoURL?: string;
-  status?: "Active" | "deactivated" | "On Leave";
-  [key: string]: any;
+  checkIn?: string;
+  checkOut?: string;
 }
 
 const getInitials = (name: string) => {
@@ -80,18 +78,18 @@ function EmployeeStatusContent() {
 
                 const attendanceSnap = await getDocs(query(collection(db, "attendance_log"), where("date", "==", date)));
                 
-                const userCheckIns: Record<string, string[]> = {};
+                const userAttendance: Record<string, { checkIns: string[], checkOuts: string[] }> = {};
                 attendanceSnap.forEach(doc => {
                     const data = doc.data();
                     const userIdStr = String(data.userId);
-                    if (!data.check_in) return;
-                    if (!userCheckIns[userIdStr]) {
-                        userCheckIns[userIdStr] = [];
+                    if (!userAttendance[userIdStr]) {
+                        userAttendance[userIdStr] = { checkIns: [], checkOuts: [] };
                     }
-                    userCheckIns[userIdStr].push(data.check_in.substring(0, 5));
+                    if (data.check_in) userAttendance[userIdStr].checkIns.push(data.check_in);
+                    if (data.check_out) userAttendance[userIdStr].checkOuts.push(data.check_out);
                 });
                 
-                const presentEmployeeIds = new Set(Object.keys(userCheckIns));
+                const presentEmployeeIds = new Set(Object.keys(userAttendance));
                 
                 let targetEmployeeIds = new Set<string>();
 
@@ -109,9 +107,9 @@ function EmployeeStatusContent() {
                         return hh * 60 + mm;
                     };
                     const lateIds = new Set<string>();
-                    Object.entries(userCheckIns).forEach(([id, times]) => {
-                        const earliest = times.map(timeToMinutes).sort((a, b) => a - b)[0];
-                        if (earliest > timeToMinutes("07:30")) {
+                    Object.entries(userAttendance).forEach(([id, times]) => {
+                         const earliestCheckIn = times.checkIns.sort()[0];
+                        if (earliestCheckIn && timeToMinutes(earliestCheckIn.substring(0,5)) > timeToMinutes("07:30")) {
                            lateIds.add(id);
                         }
                     });
@@ -119,7 +117,16 @@ function EmployeeStatusContent() {
                 }
                 
                 const finalEmployeeList = Array.from(targetEmployeeIds)
-                    .map(id => allEmployeeIdMap.get(id))
+                    .map(id => {
+                        const emp = allEmployeeIdMap.get(id);
+                        if (!emp) return null;
+                        
+                        const attendance = userAttendance[id];
+                        const checkIn = attendance?.checkIns.sort()[0] || undefined;
+                        const checkOut = attendance?.checkOuts.sort().pop() || undefined;
+
+                        return { ...emp, checkIn, checkOut };
+                    })
                     .filter((emp): emp is Employee => !!emp)
                     .sort((a,b) => a.name.localeCompare(b.name));
                 
@@ -186,35 +193,26 @@ function EmployeeStatusContent() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Name</TableHead>
-                                    <TableHead>Role</TableHead>
-                                    <TableHead>Campus</TableHead>
-                                    <TableHead>Status</TableHead>
+                                    <TableHead>Check In</TableHead>
+                                    <TableHead>Check Out</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {employeeList.map((employee) => {
-                                    const status = employee.status || "Active";
-                                    return (
-                                        <TableRow key={employee.id}>
-                                            <TableCell>
-                                                <Link href={`/employees/${employee.employeeId}`} className="flex items-center gap-3 hover:underline">
-                                                    <Avatar>
-                                                        <AvatarImage src={employee.photoURL || undefined} alt={employee.name} />
-                                                        <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
-                                                    </Avatar>
-                                                    {employee.name}
-                                                </Link>
-                                            </TableCell>
-                                            <TableCell>{employee.role || '-'}</TableCell>
-                                            <TableCell>{employee.campus || '-'}</TableCell>
-                                            <TableCell>
-                                                <Badge variant={status === "Active" ? "secondary" : status === "deactivated" ? "destructive" : "outline"} className={cn({'bg-green-100 text-green-800': status === 'Active'})}>
-                                                    {status}
-                                                </Badge>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
+                                {employeeList.map((employee) => (
+                                    <TableRow key={employee.id}>
+                                        <TableCell>
+                                            <Link href={`/employees/${employee.employeeId}`} className="flex items-center gap-3 hover:underline">
+                                                <Avatar>
+                                                    <AvatarImage src={employee.photoURL || undefined} alt={employee.name} />
+                                                    <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
+                                                </Avatar>
+                                                {employee.name}
+                                            </Link>
+                                        </TableCell>
+                                        <TableCell>{employee.checkIn || '-'}</TableCell>
+                                        <TableCell>{employee.checkOut || '-'}</TableCell>
+                                    </TableRow>
+                                ))}
                             </TableBody>
                         </Table>
                     )}
