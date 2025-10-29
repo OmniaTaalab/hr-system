@@ -613,10 +613,12 @@ const BatchEmployeeSchema = z.object({
   ),
 
   personalEmail: z.preprocess(
-    (val) => (val === "" || val === null ? undefined : val),
-    z.string().optional().nullable()
+    (val) => {
+      if (val === null || val === undefined) return null;
+      return String(val).trim(); // ✅ Always convert to string
+    },
+    z.string().nullable()
   ),
-
   phone: z.any().optional().nullable(),
   department: z.string().optional().nullable(),
   role: z.string().optional().nullable(),

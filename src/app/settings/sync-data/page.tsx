@@ -17,11 +17,11 @@ import {
   syncReportLine2FromEmployeesAction,
   correctAttendanceNamesAction,
   type SyncState,
-  type CorrectionState,
 } from "@/app/actions/settings-actions";
 import { 
     deduplicateEmployeesAction,
-    type DeduplicationState 
+    type DeduplicationState,
+    type CorrectionState
 } from "@/lib/firebase/admin-actions";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/components/layout/app-layout";
@@ -145,7 +145,7 @@ export default function SyncDataPage() {
   const actorDetails = { id: profile?.id, email: profile?.email, role: profile?.role };
 
   const [syncGroupState, syncGroupAction, isSyncGroupPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
-  const [syncRoleState, syncRoleAction, isSyncRolePending] = useActionState(syncRolesFromEmployeesAction, initialSyncState);
+  const [syncRoleState, syncRoleAction, isSyncRolesPending] = useActionState(syncRolesFromEmployeesAction, initialSyncState);
   const [syncCampusState, syncCampusAction, isSyncCampusPending] = useActionState(syncCampusesFromEmployeesAction, initialSyncState);
   const [syncStageState, syncStageAction, isSyncStagePending] = useActionState(syncStagesFromEmployeesAction, initialSyncState);
   const [syncSubjectState, syncSubjectAction, isSyncSubjectPending] = useActionState(syncSubjectsFromEmployeesAction, initialSyncState);
@@ -181,7 +181,7 @@ export default function SyncDataPage() {
                     label="Sync Roles from Employees"
                     action={syncRoleAction}
                     isPending={isSyncRolesPending}
-                    state={syncRolesState}
+                    state={syncRoleState}
                     actorDetails={actorDetails}
                 />
                  <SyncButton 
@@ -195,14 +195,14 @@ export default function SyncDataPage() {
                     label="Sync Stages from Employees"
                     action={syncStageAction}
                     isPending={isSyncStagePending}
-                    state={syncStagesState}
+                    state={syncStageState}
                     actorDetails={actorDetails}
                 />
                  <SyncButton 
                     label="Sync Subjects from Employees"
                     action={syncSubjectAction}
                     isPending={isSyncSubjectPending}
-                    state={syncSubjectsState}
+                    state={syncSubjectState}
                     actorDetails={actorDetails}
                 />
                  <SyncButton 
