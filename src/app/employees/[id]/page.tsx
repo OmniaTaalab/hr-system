@@ -617,6 +617,7 @@ function EmployeeProfileContent() {
                               <TableHead>Date</TableHead>
                               <TableHead>Check-In</TableHead>
                               <TableHead>Check-Out</TableHead>
+                              <TableHead>POINT</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -625,6 +626,7 @@ function EmployeeProfileContent() {
                                   <TableCell>{record.date}</TableCell>
                                   <TableCell>{record.check_in || '-'}</TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
+                                  <TableCell></TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
