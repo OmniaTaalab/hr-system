@@ -1163,19 +1163,7 @@ function EmployeeManagementContent() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const employeeData = snapshot.docs.map(doc => {
             const data = doc.data();
-            // Convert Firestore Timestamps to JS Dates
-            const convertedData: Partial<Employee> = {};
-            if (data.dateOfBirth instanceof Timestamp) {
-                convertedData.dateOfBirth = data.dateOfBirth.toDate();
-            }
-            if (data.joiningDate instanceof Timestamp) {
-              convertedData.joiningDate = data.joiningDate.toDate();
-            }
-             if (data.leavingDate instanceof Timestamp) {
-                convertedData.leavingDate = data.leavingDate.toDate();
-            }
-
-            return { id: doc.id, ...data, ...convertedData } as Employee;
+            return { id: doc.id, ...data } as Employee;
         });
         setAllEmployees(employeeData);
         setIsLoading(false);
@@ -1190,7 +1178,7 @@ function EmployeeManagementContent() {
     });
 
     return () => unsubscribe();
-  }, [hasFullView, isLoadingProfile, toast]);
+}, [hasFullView, isLoadingProfile, toast]);
 
   
   useEffect(() => {
@@ -1646,7 +1634,7 @@ function EmployeeManagementContent() {
                         variant={employee.status === 'deactivated' ? 'destructive' : 'secondary'}
                         className={cn(employee.status !== 'deactivated' && 'bg-green-100 text-green-800')}
                       >
-                        {employee.status === 'deactivated' ? 'Deactivated' : 'Active'}
+                        {employee.status || "Active"}
                       </Badge>
                     </TableCell>
                     {canManageEmployees && (
@@ -2028,4 +2016,5 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
 
