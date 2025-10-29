@@ -269,7 +269,7 @@ const UpdateEmployeeFormSchema = z.object({
   phone: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactRelationship: z.string().optional(),
-  emergencyContactNumber: zstring().optional(),
+  emergencyContactNumber: z.string().optional(),
   reportLine1: z.string().optional(),
   reportLine2: z.string().optional(),
   hourlyRate: z.preprocess(
@@ -844,26 +844,20 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
     let createdCount = 0;
     let updatedCount = 0;
 
-    // Prefetch all employee IDs for quick lookup
     const allEmployeesSnapshot = await getDocs(query(employeeCollectionRef));
     const employeeIdToDocIdMap = new Map<string, string>();
     allEmployeesSnapshot.forEach(doc => {
       const data = doc.data();
       if (data.employeeId) {
-        employeeIdToDocIdMap.set(String(data.employeeId), doc.id);
+        employeeIdToDocIdMap.set(String(data.employeeId).trim(), doc.id);
       }
     });
-    
+
     let nextEmployeeId = 1001 + allEmployeesSnapshot.size;
 
     for (const record of validRecords) {
+        const recordEmployeeId = record.employeeId ? String(record.employeeId).trim() : null;
         let docRef;
-        const recordEmployeeId = record.employeeId ? String(record.employeeId) : null;
-        let existingDocId = null;
-
-        if (recordEmployeeId) {
-            existingDocId = employeeIdToDocIdMap.get(recordEmployeeId);
-        }
 
         const nameParts = record.name.trim().split(/\s+/);
         const firstName = nameParts[0] || "";
@@ -906,7 +900,8 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
           photoURL: null,
         };
 
-        if (existingDocId) {
+        if (recordEmployeeId && employeeIdToDocIdMap.has(recordEmployeeId)) {
+            const existingDocId = employeeIdToDocIdMap.get(recordEmployeeId)!;
             docRef = doc(employeeCollectionRef, existingDocId);
             batch.update(docRef, newEmployeeData);
             updatedCount++;
