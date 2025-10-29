@@ -377,6 +377,34 @@ function EmployeeProfileContent() {
     return `${format(joiningDate, "PPP")} (${period})`;
   }, [employee?.joiningDate]);
 
+  const getAttendancePoint = (checkIn: string | null): string => {
+      if (!checkIn) {
+        return "-";
+      }
+
+      // Check-in format is HH:MM:SS AM/PM or HH:MM
+      const timeParts = checkIn.split(":");
+      let hours = parseInt(timeParts[0], 10);
+      const minutes = parseInt(timeParts[1], 10);
+      
+      const isPM = checkIn.toLowerCase().includes('pm');
+      if (isPM && hours < 12) {
+          hours += 12;
+      }
+      if (!isPM && hours === 12) { // Handle 12:xx AM
+          hours = 0;
+      }
+
+      const checkInMinutes = hours * 60 + minutes;
+      const targetMinutes = 7 * 60 + 30; // 7:30 AM
+
+      if (checkInMinutes < targetMinutes) {
+          return "1/1";
+      } else {
+          return "0.5/1";
+      }
+  };
+
 
   if (loading || profileLoading) {
     return (
@@ -626,7 +654,7 @@ function EmployeeProfileContent() {
                                   <TableCell>{record.date}</TableCell>
                                   <TableCell>{record.check_in || '-'}</TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
-                                  <TableCell></TableCell>
+                                  <TableCell>{getAttendancePoint(record.check_in)}</TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
