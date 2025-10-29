@@ -34,9 +34,8 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   updateEmployeeAction, type UpdateEmployeeState, 
   deleteEmployeeAction, type DeleteEmployeeState,
-  createEmployeeAction, type CreateEmployeeState,
   deactivateEmployeeAction, type DeactivateEmployeeState,
-  batchCreateEmployeesAction, type BatchCreateEmployeesState
+  batchCreateEmployeesAction,
 } from "@/lib/firebase/admin-actions";
 import { 
   createAuthUserForEmployeeAction, type CreateAuthUserState,
@@ -117,11 +116,6 @@ export interface Employee {
 }
 
 
-const initialAddEmployeeState: CreateEmployeeState = {
-  message: null,
-  errors: {},
-};
-
 const initialEditEmployeeState: UpdateEmployeeState = {
   message: null,
   errors: {},
@@ -157,7 +151,11 @@ const initialDeactivateState: DeactivateEmployeeState = {
     success: false,
 };
 
-const initialBatchCreateState: BatchCreateEmployeesState = {
+const initialBatchCreateState: {
+    message: string | null;
+    errors: Record<string, any>;
+    success: boolean;
+} = {
     message: null,
     errors: {},
     success: false,
@@ -194,7 +192,6 @@ function safeToDate(timestamp: any): Date | undefined {
 function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const { profile } = useUserProfile();
-  const [serverState, formAction, isPending] = useActionState(createEmployeeAction, initialAddEmployeeState);
   const { roles, stage: stages, systems, campuses, reportLines1, isLoading: isLoadingLists } = useOrganizationLists();
   
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
@@ -254,26 +251,6 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
     }
   };
 
-  useEffect(() => {
-    if (!serverState) return;
-
-    if (serverState.success && serverState.employeeId) {
-        toast({ title: "Employee Added", description: serverState.message });
-        handleFileUpload(serverState.employeeId).then(() => {
-          onSuccess();
-        });
-        addFormRef.current?.reset();
-        setDateOfBirth(undefined);
-        setJoiningDate(undefined);
-    } else if (!serverState.success && serverState.message) {
-        toast({
-          variant: "destructive",
-          title: "Failed to Add Employee",
-          description: serverState.message
-        });
-    }
-  }, [serverState, toast, onSuccess]);
-
   // Combobox component for report lines
   const ReportLineCombobox = ({ value, setValue, options, isLoading, placeholder }: { value: string, setValue: (val: string) => void, options: string[], isLoading: boolean, placeholder: string }) => {
     const [open, setOpen] = useState(false);
@@ -332,257 +309,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
           Enter the new employee's details. An employee ID will be generated automatically.
         </DialogDescription>
       </DialogHeader>
-      <form id="add-employee-form" ref={addFormRef} action={formAction} className="flex flex-col overflow-hidden">
-        <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
-        <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
-        <input type="hidden" name="role" value={role} />
-        <input type="hidden" name="campus" value={campus} />
-        <input type="hidden" name="gender" value={gender} />
-        <input type="hidden" name="stage" value={stage} />
-        <input type="hidden" name="childrenAtNIS" value={childrenAtNIS} />
-        <input type="hidden" name="reportLine1" value={reportLine1} />
-        <input type="hidden" name="reportLine2" value={reportLine2} />
-        <input type="hidden" name="actorId" value={profile?.id} />
-        <input type="hidden" name="actorEmail" value={profile?.email} />
-        <input type="hidden" name="actorRole" value={profile?.role} />
-
-        <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
-          <div className="space-y-6 p-4 pr-6">
-            
-            {/* Personal Information */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center"><UserCircle2 className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="add-name">Full Name (English)</Label>
-                  <Input id="add-name" name="name" placeholder="e.g., John Doe" required />
-                  {serverState?.errors?.name && <p className="text-sm text-destructive">{serverState.errors.name.join(', ')}</p>}
-                </div>
-                 <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="add-name-ar">Full Name (Arabic)</Label>
-                  <Input id="add-name-ar" name="nameAr" dir="rtl" />
-                  {serverState?.errors?.nameAr && <p className="text-sm text-destructive">{serverState.errors.nameAr.join(', ')}</p>}
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="add-personalEmail">Personal Email</Label>
-                  <Input id="add-personalEmail" name="personalEmail" type="email" />
-                  {serverState?.errors?.personalEmail && <p className="text-sm text-destructive">{serverState.errors.personalEmail.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-personalPhone">Personal Phone</Label>
-                  <Input id="add-personalPhone" name="personalPhone" placeholder="Numbers only" />
-                  {serverState?.errors?.personalPhone && <p className="text-sm text-destructive">{serverState.errors.personalPhone.join(', ')}</p>}
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="add-emergencyContactName">Emergency Contact Name</Label>
-                  <Input id="add-emergencyContactName" name="emergencyContactName" />
-                  {serverState?.errors?.emergencyContactName && <p className="text-sm text-destructive">{serverState.errors.emergencyContactName.join(', ')}</p>}
-                </div>
-                 <div className="space-y-2">
-                  <Label htmlFor="add-emergencyContactRelationship">Relationship</Label>
-                  <Input id="add-emergencyContactRelationship" name="emergencyContactRelationship" />
-                  {serverState?.errors?.emergencyContactRelationship && <p className="text-sm text-destructive">{serverState.errors.emergencyContactRelationship.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-emergencyContactNumber">Contact Number</Label>
-                  <Input id="add-emergencyContactNumber" name="emergencyContactNumber" placeholder="Numbers only" />
-                  {serverState?.errors?.emergencyContactNumber && <p className="text-sm text-destructive">{serverState.errors.emergencyContactNumber.join(', ')}</p>}
-                </div>
-              </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div className="space-y-2">
-                    <Label>Date of Birth</Label>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={2025} initialFocus />
-                        </PopoverContent>
-                    </Popover>
-                    {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label>Gender</Label>
-                    <Select onValueChange={setGender} value={gender}>
-                        <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="Male">Male</SelectItem>
-                            <SelectItem value="Female">Female</SelectItem>
-                        </SelectContent>
-                    </Select>
-                     {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
-                  </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div className="space-y-2">
-                    <Label>Religion</Label>
-                    <Input name="religion" />
-                    {serverState?.errors?.religion && <p className="text-sm text-destructive">{serverState.errors.religion.join(', ')}</p>}
-                  </div>
-                   <div className="space-y-2">
-                    <Label>National ID</Label>
-                    <Input name="nationalId" />
-                    {serverState?.errors?.nationalId && <p className="text-sm text-destructive">{serverState.errors.nationalId.join(', ')}</p>}
-                  </div>
-              </div>
-               <div className="space-y-2">
-                  <Label>Do they have children enrolled at NIS?</Label>
-                  <RadioGroup name="childrenAtNIS" value={childrenAtNIS} onValueChange={(val) => setChildrenAtNIS(val as 'Yes' | 'No')} className="flex items-center space-x-4">
-                      <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="Yes" id="children-yes" />
-                          <Label htmlFor="children-yes">Yes</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="No" id="children-no" />
-                          <Label htmlFor="children-no">No</Label>
-                      </div>
-                  </RadioGroup>
-                  {serverState?.errors?.childrenAtNIS && <p className="text-sm text-destructive">{serverState.errors.childrenAtNIS.join(', ')}</p>}
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Work Information */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="add-nisEmail">NIS Email</Label>
-                  <Input id="add-nisEmail" name="nisEmail" type="email" />
-                  {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
-                </div>
-                 <div className="space-y-2">
-                    <Label>Date of Entry</Label>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !joiningDate && "text-muted-foreground")}>
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {joiningDate ? format(joiningDate, "PPP") : <span>Pick a date</span>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} captionLayout="dropdown-buttons" fromYear={1990} toYear={2025} initialFocus />
-                        </PopoverContent>
-                    </Popover>
-                    {serverState?.errors?.joiningDate && <p className="text-sm text-destructive">{serverState.errors.joiningDate.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-title">Title</Label>
-                  <Input id="add-title" name="title" />
-                  {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
-                </div>
-                 <div className="space-y-2">
-                    <Label>Subject</Label>
-                    <Input name="subject" />
-                    {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="add-department">Department</Label>
-                    <Input id="add-department" name="department" />
-                    {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label>Campus</Label>
-                     <Select onValueChange={setCampus} value={campus} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger>
-                        <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                    {serverState?.errors?.campus && <p className="text-sm text-destructive">{serverState.errors.campus.join(', ')}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Stage</Label>
-                    <Select onValueChange={setStage} value={stage} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
-                        <SelectContent>{stages.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                     {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Role</Label>
-                    <Select onValueChange={setRole} value={role} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
-                        <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                     {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
-                  </div>
-                 
-              </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="add-reportLine1">Report Line 1</Label>
-                    <ReportLineCombobox
-                      value={reportLine1}
-                      setValue={setReportLine1}
-                      options={reportLineOptions}
-                      isLoading={isLoadingLists}
-                      placeholder="Select a Manager"
-                    />
-                    {serverState?.errors?.reportLine1 && <p className="text-sm text-destructive">{serverState.errors.reportLine1.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="add-reportLine2">Report Line 2</Label>
-                    <ReportLineCombobox
-                      value={reportLine2}
-                      setValue={setReportLine2}
-                      options={reportLineOptions}
-                      isLoading={isLoadingLists}
-                      placeholder="Select a Manager"
-                    />
-                    {serverState?.errors?.reportLine2 && <p className="text-sm text-destructive">{serverState.errors.reportLine2.join(', ')}</p>}
-                </div>
-              </div>
-            </div>
-
-            <Separator />
-
-             {/* Documents Section */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center"><File className="mr-2 h-5 w-5 text-primary" />Documents</h3>
-              <p className="text-sm text-muted-foreground">Upload CV, National ID, and other relevant documents. Files will be uploaded after the employee is created.</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="cv-upload">CV</Label>
-                    <Input id="cv-upload" type="file" onChange={(e) => setCvFile(e.target.files?.[0] || null)} className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" disabled={isPending} />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="national-id-upload">National ID</Label>
-                    <Input id="national-id-upload" type="file" onChange={(e) => setNationalIdFile(e.target.files?.[0] || null)} className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" disabled={isPending} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="other-docs-upload">Other Documents</Label>
-                <Input id="other-docs-upload" type="file" multiple onChange={(e) => setOtherFiles(Array.from(e.target.files || []))} className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" disabled={isPending} />
-              </div>
-
-            </div>
-
-            {serverState?.errors?.form && (
-              <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
-                <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-                <span>{serverState?.errors?.form?.join(', ')}</span>
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-        <DialogFooter className="pt-4 flex-shrink-0 border-t">
-          <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-          <Button type="submit" form="add-employee-form" disabled={isPending || isLoadingLists}>
-              {isPending ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adding...</>
-              ) : "Add Employee"}
-          </Button>
-        </DialogFooter>
-      </form>
+      
     </>
   );
 }
@@ -1604,6 +1331,7 @@ function EmployeeManagementContent() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>ID</TableHead>
                 <TableHead>Title</TableHead>
                 <TableHead>Subject</TableHead>
                 <TableHead>Stage</TableHead>
@@ -1625,6 +1353,7 @@ function EmployeeManagementContent() {
                         {employee.name || '-'}
                       </Link>
                     </TableCell>
+                    <TableCell>{employee.employeeId || '-'}</TableCell>
                     <TableCell>{employee.title || '-'}</TableCell>
                     <TableCell>{employee.subject || '-'}</TableCell>
                     <TableCell>{employee.stage || '-'}</TableCell>
@@ -1695,7 +1424,7 @@ function EmployeeManagementContent() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={canManageEmployees ? 7 : 6} className="h-24 text-center">
+                  <TableCell colSpan={canManageEmployees ? 8 : 7} className="h-24 text-center">
                     {allEmployees.length === 0 ? "No employees found." : "No employees match your current filters."}
                   </TableCell>
                 </TableRow>
@@ -2016,5 +1745,6 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
 
 
