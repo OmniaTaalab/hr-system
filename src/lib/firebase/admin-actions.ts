@@ -563,35 +563,6 @@ export async function deactivateEmployeeAction(
 }
 
 
-// --- NEW ACTION FOR USER-FACING PROFILE CREATION ---
-
-const CreateProfileFormSchema = z.object({
-  userId: z.string().min(1, "User ID is required."),
-  email: z.string().email(),
-  firstName: z.string().min(1, "First name is required."),
-  lastName: z.string().min(1, "Last name is required."),
-  department: z.string().min(1, "Department is required."),
-  role: z.string().min(1, "Role is required."),
-  stage: z.string().optional(),
-  phone: z.string().min(1, "Phone number is required.").regex(/^\d+$/, "Phone number must contain only numbers."),
-  dateOfBirth: z.coerce.date({ required_error: "Date of birth is required." }),
-});
-
-export type CreateProfileState = {
-  errors?: {
-    firstName?: string[];
-    lastName?: string[];
-    department?: string[];
-    role?: string[];
-    stage?: string[];
-    phone?: string[];
-    dateOfBirth?: string[];
-    form?: string[];
-  };
-  message?: string | null;
-  success?: boolean;
-};
-
 export type BatchCreateEmployeesState = {
     errors?: {
         file?: string[];
@@ -773,14 +744,12 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
 
     for (const record of validRecords) {
         const recordEmployeeId = record.employeeId ? String(record.employeeId).trim() : null;
-        let docRef;
-
+        
         const nameParts = record.name.trim().split(/\s+/);
         const firstName = nameParts[0] || "";
         const lastName = nameParts.slice(1).join(" ");
 
         const newEmployeeData = {
-          employeeId: recordEmployeeId || (nextEmployeeId++).toString(),
           name: record.name,
           firstName,
           lastName,
@@ -818,12 +787,13 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
 
         if (recordEmployeeId && employeeIdToDocIdMap.has(recordEmployeeId)) {
             const existingDocId = employeeIdToDocIdMap.get(recordEmployeeId)!;
-            docRef = doc(employeeCollectionRef, existingDocId);
-            batch.update(docRef, newEmployeeData);
+            const docRef = doc(employeeCollectionRef, existingDocId);
+            batch.set(docRef, newEmployeeData, { merge: true }); // Use merge: true
             updatedCount++;
         } else {
-            docRef = doc(employeeCollectionRef);
-            batch.set(docRef, newEmployeeData);
+            const docRef = doc(employeeCollectionRef);
+             const dataWithId = { ...newEmployeeData, employeeId: recordEmployeeId || (nextEmployeeId++).toString() };
+            batch.set(docRef, dataWithId);
             createdCount++;
         }
     }
@@ -932,4 +902,95 @@ export async function deduplicateEmployeesAction(
       errors: { form: ["An unexpected error occurred while removing duplicates."] },
     };
   }
+}
+
+export type CorrectionState = {
+    message?: string | null;
+    success?: boolean;
+    errors?: { form?: string[] };
+};
+
+export async function correctAttendanceNamesAction(
+    prevState: CorrectionState,
+    formData: FormData
+): Promise<CorrectionState> {
+    const actorId = formData.get('actorId') as string;
+    const actorEmail = formData.get('actorEmail') as string;
+    const actorRole = formData.get('actorRole') as string;
+
+    try {
+        const BATCH_SIZE = 450;
+        let logsUpdated = 0;
+        
+        // 1. Get all employees and create a map from employeeId -> name
+        const employeesSnapshot = await getDocs(collection(db, "employee"));
+        const employeeIdToNameMap = new Map<string, string>();
+        employeesSnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.employeeId && data.name) {
+                employeeIdToNameMap.set(String(data.employeeId), data.name);
+            }
+        });
+        
+        if (employeeIdToNameMap.size === 0) {
+            return { success: false, message: "No employees found to map IDs to names." };
+        }
+
+        // 2. Query for a limited batch of recent attendance logs to process.
+        const logsQuery = query(
+            collection(db, "attendance_log"), 
+            orderBy("date", "desc"),
+            limit(5000) // Process up to 5000 recent logs per run
+        );
+        const logsSnapshot = await getDocs(logsQuery);
+        
+        if (logsSnapshot.empty) {
+             return { success: true, message: "No attendance logs found to process." };
+        }
+
+        let batch = writeBatch(db);
+        let batchWrites = 0;
+
+        for (const logDoc of logsSnapshot.docs) {
+            const logData = logDoc.data();
+            const currentName = logData.employeeName;
+            
+            // In the log, `userId` stores the company employee ID.
+            const employeeIdFromLog = String(logData.userId);
+
+            if (currentName && !isNaN(Number(currentName)) && employeeIdToNameMap.has(employeeIdFromLog)) {
+                const correctName = employeeIdToNameMap.get(employeeIdFromLog);
+                
+                if (correctName && correctName !== currentName) {
+                    batch.update(logDoc.ref, { employeeName: correctName });
+                    logsUpdated++;
+                    batchWrites++;
+                    
+                    if (batchWrites >= BATCH_SIZE) {
+                        await batch.commit();
+                        batch = writeBatch(db);
+                        batchWrites = 0;
+                    }
+                }
+            }
+        }
+        
+        if (batchWrites > 0) {
+            await batch.commit();
+        }
+
+        if (logsUpdated === 0) {
+            return { success: true, message: "No attendance log names needed correction in the recent logs processed." };
+        }
+        
+        await logSystemEvent("Correct Attendance Names", { actorId, actorEmail, actorRole, logsUpdated });
+
+        return { success: true, message: `Successfully corrected ${logsUpdated} attendance log entries.` };
+    } catch (error: any) {
+        console.error("Error correcting attendance names:", error);
+        return {
+            success: false,
+            errors: { form: [`An unexpected error occurred: ${error.message}`] }
+        };
+    }
 }
