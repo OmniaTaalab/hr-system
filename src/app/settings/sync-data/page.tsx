@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useActionState, useEffect } from "react";
@@ -17,10 +16,12 @@ import {
   syncReportLine1FromEmployeesAction,
   syncReportLine2FromEmployeesAction,
   correctAttendanceNamesAction,
-  deduplicateEmployeesAction,
   type SyncState,
   type CorrectionState,
-  type DeduplicationState,
+} from "@/app/actions/settings-actions";
+import { 
+    deduplicateEmployeesAction,
+    type DeduplicationState 
 } from "@/lib/firebase/admin-actions";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/components/layout/app-layout";
@@ -179,8 +180,8 @@ export default function SyncDataPage() {
                 <SyncButton 
                     label="Sync Roles from Employees"
                     action={syncRoleAction}
-                    isPending={isSyncRolePending}
-                    state={syncRoleState}
+                    isPending={isSyncRolesPending}
+                    state={syncRolesState}
                     actorDetails={actorDetails}
                 />
                  <SyncButton 
@@ -194,14 +195,14 @@ export default function SyncDataPage() {
                     label="Sync Stages from Employees"
                     action={syncStageAction}
                     isPending={isSyncStagePending}
-                    state={syncStageState}
+                    state={syncStagesState}
                     actorDetails={actorDetails}
                 />
                  <SyncButton 
                     label="Sync Subjects from Employees"
                     action={syncSubjectAction}
                     isPending={isSyncSubjectPending}
-                    state={syncSubjectState}
+                    state={syncSubjectsState}
                     actorDetails={actorDetails}
                 />
                  <SyncButton 

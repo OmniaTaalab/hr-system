@@ -9,7 +9,7 @@ import * as XLSX from "xlsx";
 import { revalidatePath } from "next/cache";
 import { db } from '@/lib/firebase/config';
 import { adminAuth, adminStorage } from '@/lib/firebase/admin-config';
-import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc, getDoc, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc, getDoc, writeBatch, orderBy, startAfter } from 'firebase/firestore';
 import { logSystemEvent } from '../system-log';
 
 export async function getAllAuthUsers() {
@@ -592,92 +592,6 @@ export type CreateProfileState = {
   success?: boolean;
 };
 
-export async function createEmployeeProfileAction(
-  prevState: CreateProfileState,
-  formData: FormData
-): Promise<CreateProfileState> {
-  
-  const validatedFields = CreateProfileFormSchema.safeParse({
-    userId: formData.get('userId'),
-    email: formData.get('email'),
-    firstName: formData.get('firstName'),
-    lastName: formData.get('lastName'),
-    department: formData.get('department'),
-    role: formData.get('role'),
-    stage: formData.get('stage'),
-    phone: formData.get('phone'),
-    dateOfBirth: formData.get('dateOfBirth'),
-  });
-
-  if (!validatedFields.success) {
-    return {
-      success: false,
-      errors: validatedFields.error.flatten().fieldErrors,
-      message: 'Validation failed. Please check your input.',
-    };
-  }
-
-  const { userId, email, firstName, lastName, department, role, stage, phone, dateOfBirth } = validatedFields.data;
-  const name = `${firstName} ${lastName}`;
-
-  try {
-    const employeeCollectionRef = collection(db, "employee");
-
-    // Check if a profile already exists for this userId
-    const userQuery = query(employeeCollectionRef, where("userId", "==", userId), limit(1));
-    const userSnapshot = await getDocs(userQuery);
-    if (!userSnapshot.empty) {
-      return { success: false, errors: { form: ["A profile already exists for this user."] } };
-    }
-
-    // Check if email is used by another employee record (edge case)
-    const emailQuery = query(employeeCollectionRef, where("email", "==", email), limit(1));
-    const emailSnapshot = await getDocs(emailQuery);
-    if (!emailSnapshot.empty) {
-        return { success: false, errors: { form: ["This email is already linked to another employee profile."] } };
-    }
-    
-    // Generate a unique employee ID
-    const countSnapshot = await getCountFromServer(employeeCollectionRef);
-    const employeeCount = countSnapshot.data().count;
-    const employeeId = (1001 + employeeCount).toString();
-
-    const employeeData = {
-      name,
-      firstName,
-      lastName,
-      email,
-      userId,
-      employeeId,
-      phone,
-      dateOfBirth: Timestamp.fromDate(dateOfBirth),
-      department,
-      role,
-      stage: stage || "Unassigned",
-      status: "Active",
-      system: "Unassigned",
-      campus: "Unassigned",
-      photoURL: null,
-      hourlyRate: 0,
-      joiningDate: serverTimestamp(),
-      leavingDate: null,
-      documents: [],
-      createdAt: serverTimestamp(),
-    };
-
-    const newDoc = await addDoc(employeeCollectionRef, employeeData);
-
-    await logSystemEvent("Create Employee Profile", { actorId: userId, actorEmail: email, actorRole: "Employee", newEmployeeId: newDoc.id, newEmployeeName: name, changes: { newData: employeeData } });
-    
-    return { success: true, message: `Your profile has been created successfully!` };
-  } catch (error: any) {
-    console.error("Error creating user profile:", error);
-    return {
-      success: false,
-      errors: { form: [`Failed to create profile: ${error.message}`] },
-    };
-  }
-}
 export type BatchCreateEmployeesState = {
     errors?: {
         file?: string[];
@@ -807,7 +721,7 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
   if (parsedRecords.length === 0) {
     return { success: false, errors: { file: ["No data found in Excel file."] } };
   }
-
+  
   const mappedData = parsedRecords.map((row: Record<string, any>) => {
     const cleanedRow: Record<string, any> = {};
     Object.keys(row).forEach((key) => {

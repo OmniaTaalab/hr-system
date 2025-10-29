@@ -519,56 +519,7 @@ export async function syncSubjectsFromEmployeesAction(prevState: SyncState, form
 }
 
 export async function syncMachineNamesFromAttendanceLogsAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
-  const actorId = formData.get('actorId') as string;
-  const actorEmail = formData.get('actorEmail') as string;
-  const actorRole = formData.get('actorRole') as string;
-  const actorDetails = { actorId, actorEmail, actorRole };
-
-  try {
-    const machineNames = new Set<string>();
-    
-    // Fetch a large number of recent logs to get machine names
-    const logsQuery = query(collection(db, "attendance_log"), orderBy("date", "desc"), limit(10000));
-    const logsSnapshot = await getDocs(logsQuery);
-    
-    logsSnapshot.forEach(doc => {
-      const machine = doc.data().machine;
-      if (machine) {
-        machineNames.add(machine);
-      }
-    });
-
-    const targetCollection = "machineNames";
-    const targetCollectionRef = collection(db, targetCollection);
-    const targetSnapshot = await getDocs(targetCollectionRef);
-    const existingTargetNames = new Set(targetSnapshot.docs.map(doc => doc.data().name));
-
-    const newValues = [...machineNames].filter(name => !existingTargetNames.has(name));
-
-    if (newValues.length === 0) {
-      return { success: true, message: `The "${targetCollection}" list is already up-to-date.` };
-    }
-
-    const batch = writeBatch(db);
-    for (const name of newValues) {
-      const newDocRef = doc(targetCollectionRef);
-      batch.set(newDocRef, { name });
-    }
-    await batch.commit();
-
-    await logSystemEvent("Sync List", { ...actorDetails, sourceCollection: "attendance_log", targetCollection, itemsAdded: newValues.length });
-
-    return {
-      success: true,
-      message: `Successfully added ${newValues.length} new machine(s) to the list.`
-    };
-  } catch (error: any) {
-    console.error(`Error syncing to machineNames:`, error);
-    return {
-      success: false,
-      message: `Failed to sync machineNames. An unexpected error occurred: ${error.message}`
-    };
-  }
+    return runSync(formData, (actorDetails) => syncListFromSource("attendance_log", "machine", "machineNames", actorDetails));
 }
 
 export async function syncReportLine1FromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
@@ -578,8 +529,6 @@ export async function syncReportLine1FromEmployeesAction(prevState: SyncState, f
 export async function syncReportLine2FromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
     return runSync(formData, (actorDetails) => syncListFromSource("employee", "reportLine2", "reportLines2", actorDetails));
 }
-
-// --- DATA CORRECTION ---
 
 export type CorrectionState = {
     message?: string | null;
@@ -614,8 +563,6 @@ export async function correctAttendanceNamesAction(
         }
 
         // 2. Query for a limited batch of recent attendance logs to process.
-        // A more complex solution could use cursors to paginate through all logs,
-        // but this is safer to prevent timeouts.
         const logsQuery = query(
             collection(db, "attendance_log"), 
             orderBy("date", "desc"),
@@ -627,7 +574,7 @@ export async function correctAttendanceNamesAction(
              return { success: true, message: "No attendance logs found to process." };
         }
 
-        const batch = writeBatch(db);
+        let batch = writeBatch(db);
         let batchWrites = 0;
 
         for (const logDoc of logsSnapshot.docs) {
@@ -637,30 +584,23 @@ export async function correctAttendanceNamesAction(
             // In the log, `userId` stores the company employee ID.
             const employeeIdFromLog = String(logData.userId);
 
-            // Check if name is numeric, which is the likely issue.
-            // Also check if the numeric name exists in our employee map.
             if (currentName && !isNaN(Number(currentName)) && employeeIdToNameMap.has(employeeIdFromLog)) {
                 const correctName = employeeIdToNameMap.get(employeeIdFromLog);
                 
-                // If the correct name is different, update it
                 if (correctName && correctName !== currentName) {
                     batch.update(logDoc.ref, { employeeName: correctName });
                     logsUpdated++;
                     batchWrites++;
                     
-                    // Commit the batch when it's full to avoid exceeding Firestore limits
                     if (batchWrites >= BATCH_SIZE) {
                         await batch.commit();
-                        // batch = writeBatch(db); // This would require re-initialization which is complex here.
-                        // For simplicity, we process one large batch and ask the user to re-run.
-                        await logSystemEvent("Correct Attendance Names (Partial)", { actorId, actorEmail, actorRole, logsUpdated });
-                        return { success: true, message: `Corrected ${logsUpdated} log entries so far. Please run again to process more.` };
+                        batch = writeBatch(db);
+                        batchWrites = 0;
                     }
                 }
             }
         }
         
-        // Commit any remaining writes in the last batch
         if (batchWrites > 0) {
             await batch.commit();
         }
