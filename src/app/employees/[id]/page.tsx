@@ -377,33 +377,50 @@ function EmployeeProfileContent() {
     return `${format(joiningDate, "PPP")} (${period})`;
   }, [employee?.joiningDate]);
 
-  const getAttendancePoint = (checkIn: string | null): string => {
-      if (!checkIn) {
-        return "-";
-      }
-
-      // Check-in format is HH:MM:SS AM/PM or HH:MM
-      const timeParts = checkIn.split(":");
-      let hours = parseInt(timeParts[0], 10);
-      const minutes = parseInt(timeParts[1], 10);
-      
-      const isPM = checkIn.toLowerCase().includes('pm');
-      if (isPM && hours < 12) {
-          hours += 12;
-      }
-      if (!isPM && hours === 12) { // Handle 12:xx AM
-          hours = 0;
-      }
-
-      const checkInMinutes = hours * 60 + minutes;
-      const targetMinutes = 7 * 60 + 30; // 7:30 AM
-
-      if (checkInMinutes < targetMinutes) {
-          return "1/1";
-      } else {
-          return "0.5/1";
-      }
+  const getAttendancePointValue = (checkIn: string | null): number => {
+    if (!checkIn) return 0;
+    const timeParts = checkIn.split(":");
+    let hours = parseInt(timeParts[0], 10);
+    const minutes = parseInt(timeParts[1], 10);
+    const isPM = checkIn.toLowerCase().includes('pm');
+    if (isPM && hours < 12) hours += 12;
+    if (!isPM && hours === 12) hours = 0;
+    const checkInMinutes = hours * 60 + minutes;
+    const targetMinutes = 7 * 60 + 30; // 7:30 AM
+    return checkInMinutes < targetMinutes ? 1 : 0.5;
   };
+  
+  const getAttendancePointDisplay = (checkIn: string | null): string => {
+      const value = getAttendancePointValue(checkIn);
+      if (value === 0) return "-";
+      return `${value}/1`;
+  };
+
+  const totalAttendanceScore = useMemo(() => {
+    if (!attendanceLogs || attendanceLogs.length === 0) {
+      return null;
+    }
+    let totalPoints = 0;
+    let daysWithCheckIn = 0;
+    attendanceLogs.forEach(log => {
+        if (log.check_in) {
+            daysWithCheckIn++;
+            totalPoints += getAttendancePointValue(log.check_in);
+        }
+    });
+
+    if (daysWithCheckIn === 0) return null;
+
+    const percentage = (totalPoints / daysWithCheckIn) * 100;
+    const scoreOutOf10 = (percentage / 10).toFixed(1);
+    
+    return {
+        score: totalPoints,
+        maxScore: daysWithCheckIn,
+        percentage: percentage.toFixed(1),
+        scoreOutOf10: scoreOutOf10
+    };
+  }, [attendanceLogs]);
 
 
   if (loading || profileLoading) {
@@ -623,13 +640,23 @@ function EmployeeProfileContent() {
 
             <Card className="shadow-lg">
               <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <BookOpenCheck className="mr-2 h-6 w-6 text-primary" />
-                    Attendance History
-                  </CardTitle>
-                  <CardDescription>
-                    A log of all check-in and check-out events for this employee.
-                  </CardDescription>
+                  <div className="flex justify-between items-start">
+                    <div>
+                        <CardTitle className="flex items-center">
+                            <BookOpenCheck className="mr-2 h-6 w-6 text-primary" />
+                            Attendance History
+                        </CardTitle>
+                        <CardDescription>
+                            A log of all check-in and check-out events for this employee.
+                        </CardDescription>
+                    </div>
+                    {totalAttendanceScore && (
+                        <div className="text-right">
+                            <p className="text-sm font-medium text-muted-foreground">Total Score</p>
+                            <p className="text-2xl font-bold text-primary">{totalAttendanceScore.scoreOutOf10} / 10</p>
+                        </div>
+                    )}
+                  </div>
               </CardHeader>
               <CardContent>
                 {loadingLogs ? (
@@ -654,7 +681,7 @@ function EmployeeProfileContent() {
                                   <TableCell>{record.date}</TableCell>
                                   <TableCell>{record.check_in || '-'}</TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
-                                  <TableCell>{getAttendancePoint(record.check_in)}</TableCell>
+                                  <TableCell>{getAttendancePointDisplay(record.check_in)}</TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
