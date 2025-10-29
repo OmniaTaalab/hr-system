@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -247,14 +248,16 @@ function EmployeeStatusContent() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>#</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Check In</TableHead>
                   <TableHead>Check Out</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {employeeList.map((e) => (
+                {employeeList.map((e, index) => (
                   <TableRow key={e.employeeId}>
+                    <TableCell>{index + 1}</TableCell>
                     <TableCell>
                       <Link
                         href={`/employees/${e.employeeId}`}
