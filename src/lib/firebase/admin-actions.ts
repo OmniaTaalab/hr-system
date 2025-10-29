@@ -269,7 +269,7 @@ const UpdateEmployeeFormSchema = z.object({
   phone: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactRelationship: z.string().optional(),
-  emergencyContactNumber: z.string().optional(),
+  emergencyContactNumber: zstring().optional(),
   reportLine1: z.string().optional(),
   reportLine2: z.string().optional(),
   hourlyRate: z.preprocess(
@@ -385,20 +385,19 @@ export async function updateEmployeeAction(
     const dataToUpdate: { [key: string]: any } = {};
     let emergencyContact: { [key: string]: any } | undefined = undefined;
 
-    // Build the dataToUpdate object carefully, only including defined values from the schema
-     Object.keys(updateData).forEach(key => {
-        const value = (updateData as any)[key];
-        
-        if (value !== undefined) {
-             if (key.startsWith('emergencyContact')) {
-                if (!emergencyContact) emergencyContact = { ...(currentEmployeeData.emergencyContact || {}) };
-                const fieldName = key.replace('emergencyContact', '').charAt(0).toLowerCase() + key.slice('emergencyContact'.length + 1);
-                emergencyContact[fieldName] = value;
-             } else {
-                 dataToUpdate[key] = value;
-             }
-        }
-    });
+    for (const key of Object.keys(updateData)) {
+      const value = (updateData as any)[key];
+      
+      if (value !== undefined) {
+          if (key.startsWith('emergencyContact')) {
+            if (!emergencyContact) emergencyContact = { ...(currentEmployeeData.emergencyContact || {}) };
+            const fieldName = key.replace('emergencyContact', '').charAt(0).toLowerCase() + key.slice('emergencyContact'.length + 1);
+            emergencyContact[fieldName] = value;
+          } else {
+              dataToUpdate[key] = value;
+          }
+      }
+    }
     
     if (emergencyContact) {
       dataToUpdate.emergencyContact = emergencyContact;
@@ -843,94 +842,79 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
     const batch = writeBatch(db);
     const employeeCollectionRef = collection(db, "employee");
     let createdCount = 0;
-    let replacedCount = 0;
-    let skippedCount = 0;
-  
-    const countSnapshot = await getCountFromServer(employeeCollectionRef);
-    let nextEmployeeId = 1001 + countSnapshot.data().count;
-  
+    let updatedCount = 0;
+
+    // Prefetch all employee IDs for quick lookup
+    const allEmployeesSnapshot = await getDocs(query(employeeCollectionRef));
+    const employeeIdToDocIdMap = new Map<string, string>();
+    allEmployeesSnapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.employeeId) {
+        employeeIdToDocIdMap.set(String(data.employeeId), doc.id);
+      }
+    });
+    
+    let nextEmployeeId = 1001 + allEmployeesSnapshot.size;
+
     for (const record of validRecords) {
-      const emailToUse = record.nisEmail || record.personalEmail;
-  
-      if (!emailToUse) {
-        skippedCount++;
-        continue;
-      }
-  
-      // 🔍 check both nisEmail and personalEmail
-      const q1 = query(employeeCollectionRef, where("email", "==", emailToUse));
-      const q2 = query(employeeCollectionRef, where("personalEmail", "==", emailToUse));
-  
-      const [snapshot1, snapshot2] = await Promise.all([getDocs(q1), getDocs(q2)]);
-      const existingSnapshot = !snapshot1.empty ? snapshot1 : !snapshot2.empty ? snapshot2 : null;
-  
-      const employeeId = record.employeeId
-        ? String(record.employeeId)
-        : (nextEmployeeId++).toString();
-  
-      const nameParts = record.name.trim().split(/\s+/);
-      const firstName = nameParts[0] || "";
-      const lastName = nameParts.slice(1).join(" ");
-  
-      const newEmployeeData = {
-        employeeId,
-        name: record.name,
-        firstName,
-        lastName,
-        nameAr: record.nameAr || null,
-        email: record.nisEmail || null,
-        personalEmail: record.personalEmail || null,
-        phone: record.phone ? String(record.phone) : null,
-        childrenAtNIS: record.childrenAtNIS || null,
-        title: record.title || null,
-        role: record.role || null,
-        department: record.department || null,
-        stage: record.stage || null,
-        campus: record.campus || null,
-        subject: record.subject || null,
-        system: "Unassigned",
-        gender: record.gender || null,
-        nationalId: record.nationalId ? String(record.nationalId) : null,
-        religion: record.religion || null,
-        status: record.status || "Active",
-        emergencyContact: {
-          name: record.emergencyContactName || null,
-          relationship: record.emergencyContactRelationship || null,
-          number: record.emergencyContactNumber ? String(record.emergencyContactNumber) : null,
-        },
-        dateOfBirth:
-          record.dateOfBirth && !isNaN(new Date(record.dateOfBirth).getTime())
-            ? Timestamp.fromDate(new Date(record.dateOfBirth))
-            : null,
-        joiningDate:
-          record.joiningDate && !isNaN(new Date(record.joiningDate).getTime())
-            ? Timestamp.fromDate(new Date(record.joiningDate))
-            : serverTimestamp(),
-        reportLine1: record.reportLine1 || null,
-        reportLine2: record.reportLine2 || null,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        hourlyRate: 0,
-        documents: [],
-        photoURL: null,
-      };
-  
-      if (existingSnapshot) {
-        // 🧹 delete the old record first
-        const oldRef = existingSnapshot.docs[0].ref;
-        batch.delete(oldRef);
-  
-        // ➕ then create a new one
-        const newDocRef = doc(employeeCollectionRef);
-        batch.set(newDocRef, newEmployeeData);
-  
-        replacedCount++;
-      } else {
-        // ➕ create new
-        const newDocRef = doc(employeeCollectionRef);
-        batch.set(newDocRef, newEmployeeData);
-        createdCount++;
-      }
+        let docRef;
+        const recordEmployeeId = record.employeeId ? String(record.employeeId) : null;
+        let existingDocId = null;
+
+        if (recordEmployeeId) {
+            existingDocId = employeeIdToDocIdMap.get(recordEmployeeId);
+        }
+
+        const nameParts = record.name.trim().split(/\s+/);
+        const firstName = nameParts[0] || "";
+        const lastName = nameParts.slice(1).join(" ");
+
+        const newEmployeeData = {
+          employeeId: recordEmployeeId || (nextEmployeeId++).toString(),
+          name: record.name,
+          firstName,
+          lastName,
+          nameAr: record.nameAr || null,
+          email: record.nisEmail || null,
+          personalEmail: record.personalEmail || null,
+          phone: record.phone ? String(record.phone) : null,
+          childrenAtNIS: record.childrenAtNIS || null,
+          title: record.title || null,
+          role: record.role || null,
+          department: record.department || null,
+          stage: record.stage || null,
+          campus: record.campus || null,
+          subject: record.subject || null,
+          system: "Unassigned",
+          gender: record.gender || null,
+          nationalId: record.nationalId ? String(record.nationalId) : null,
+          religion: record.religion || null,
+          status: record.status || "Active",
+          emergencyContact: {
+            name: record.emergencyContactName || null,
+            relationship: record.emergencyContactRelationship || null,
+            number: record.emergencyContactNumber ? String(record.emergencyContactNumber) : null,
+          },
+          dateOfBirth: record.dateOfBirth && !isNaN(new Date(record.dateOfBirth).getTime()) ? Timestamp.fromDate(new Date(record.dateOfBirth)) : null,
+          joiningDate: record.joiningDate && !isNaN(new Date(record.joiningDate).getTime()) ? Timestamp.fromDate(new Date(record.joiningDate)) : serverTimestamp(),
+          reportLine1: record.reportLine1 || null,
+          reportLine2: record.reportLine2 || null,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          hourlyRate: 0,
+          documents: [],
+          photoURL: null,
+        };
+
+        if (existingDocId) {
+            docRef = doc(employeeCollectionRef, existingDocId);
+            batch.update(docRef, newEmployeeData);
+            updatedCount++;
+        } else {
+            docRef = doc(employeeCollectionRef);
+            batch.set(docRef, newEmployeeData);
+            createdCount++;
+        }
     }
   
     await batch.commit();
@@ -938,7 +922,7 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
   
     return {
       success: true,
-      message: `Import complete. ${createdCount} employees created. ${replacedCount} replaced. ${skippedCount} skipped (missing email).`,
+      message: `Import complete. ${createdCount} employees created, ${updatedCount} employees updated.`,
     };
   } catch (error: any) {
     console.error("Error in batchCreateEmployeesAction:", error);
@@ -949,4 +933,92 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
       },
     };
   }
+}
+
+export type DeduplicationState = {
+  errors?: { form?: string[] };
+  message?: string | null;
+  success?: boolean;
 };
+
+export async function deduplicateEmployeesAction(
+  prevState: DeduplicationState,
+  formData: FormData
+): Promise<DeduplicationState> {
+  try {
+    const employeeCollectionRef = collection(db, "employee");
+    const snapshot = await getDocs(employeeCollectionRef);
+
+    const seenEmployeeIds = new Map<string, { docId: string, timestamp: Timestamp }>();
+    const seenEmails = new Map<string, { docId: string, timestamp: Timestamp }>();
+    const docsToDelete = new Set<string>();
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const employeeId = data.employeeId;
+      const email = data.email;
+      const docId = doc.id;
+      const createdAt = data.createdAt || Timestamp.now(); // Fallback timestamp
+
+      // De-duplicate by employeeId
+      if (employeeId) {
+        if (seenEmployeeIds.has(employeeId)) {
+          const existing = seenEmployeeIds.get(employeeId)!;
+          // Keep the newest record
+          if (createdAt > existing.timestamp) {
+            docsToDelete.add(existing.docId);
+            seenEmployeeIds.set(employeeId, { docId, timestamp: createdAt });
+          } else {
+            docsToDelete.add(docId);
+          }
+        } else {
+          seenEmployeeIds.set(employeeId, { docId, timestamp: createdAt });
+        }
+      }
+
+      // De-duplicate by email
+      if (email) {
+        if (seenEmails.has(email)) {
+          const existing = seenEmails.get(email)!;
+          // Keep the newest record
+          if (createdAt > existing.timestamp) {
+            docsToDelete.add(existing.docId);
+            seenEmails.set(email, { docId, timestamp: createdAt });
+          } else {
+            docsToDelete.add(docId);
+          }
+        } else {
+          seenEmails.set(email, { docId, timestamp: createdAt });
+        }
+      }
+    }
+
+    if (docsToDelete.size === 0) {
+      return { success: true, message: "No duplicate employees found." };
+    }
+
+    const batch = writeBatch(db);
+    docsToDelete.forEach(docId => {
+      batch.delete(doc(employeeCollectionRef, docId));
+    });
+
+    await batch.commit();
+
+    await logSystemEvent("Deduplicate Employees", {
+        actorId: formData.get('actorId') as string,
+        actorEmail: formData.get('actorEmail') as string,
+        actorRole: formData.get('actorRole') as string,
+        duplicatesRemoved: docsToDelete.size
+    });
+
+    revalidatePath("/employees");
+    return { success: true, message: `Successfully removed ${docsToDelete.size} duplicate employee records.` };
+
+  } catch (error: any) {
+    console.error("Error deduplicating employees:", error);
+    return {
+      success: false,
+      errors: { form: ["An unexpected error occurred while removing duplicates."] },
+    };
+  }
+}

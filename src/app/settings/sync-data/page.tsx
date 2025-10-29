@@ -17,15 +17,18 @@ import {
   syncReportLine1FromEmployeesAction,
   syncReportLine2FromEmployeesAction,
   correctAttendanceNamesAction,
+  deduplicateEmployeesAction,
   type SyncState,
   type CorrectionState,
-} from "@/app/actions/settings-actions";
+  type DeduplicationState,
+} from "@/lib/firebase/admin-actions";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/components/layout/app-layout";
 
 
 const initialSyncState: SyncState = { success: false, message: null };
 const initialCorrectionState: CorrectionState = { success: false, message: null };
+const initialDeduplicationState: DeduplicationState = { success: false, message: null };
 
 
 function SyncButton({
@@ -86,7 +89,7 @@ function CorrectionButton({
   description: string;
   action: (formData: FormData) => void;
   isPending: boolean;
-  state: CorrectionState;
+  state: CorrectionState | DeduplicationState;
   actorDetails: { id?: string, email?: string, role?: string }
 }) {
     const { toast } = useToast();
@@ -94,7 +97,7 @@ function CorrectionButton({
     useEffect(() => {
         if (state?.message) {
             toast({
-                title: state.success ? "Correction Ran" : "Correction Failed",
+                title: state.success ? "Action Successful" : "Action Failed",
                 description: state.message,
                 variant: state.success ? "default" : "destructive",
                 duration: 10000,
@@ -120,9 +123,15 @@ function CorrectionButton({
                 <form action={handleAction}>
                     <Button variant="outline" disabled={isPending}>
                          {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                        Run Correction
+                        Run Action
                     </Button>
                 </form>
+                 {state?.errors?.form && (
+                    <p className="mt-2 text-sm text-destructive flex items-center">
+                        <AlertTriangle className="mr-2 h-4 w-4" />
+                        {state.errors.form.join(', ')}
+                    </p>
+                )}
             </CardContent>
         </Card>
     );
@@ -143,6 +152,7 @@ export default function SyncDataPage() {
   const [syncReportLine1State, syncReportLine1Action, isSyncReportLine1Pending] = useActionState(syncReportLine1FromEmployeesAction, initialSyncState);
   const [syncReportLine2State, syncReportLine2Action, isSyncReportLine2Pending] = useActionState(syncReportLine2FromEmployeesAction, initialSyncState);
   const [correctionState, correctionAction, isCorrectionPending] = useActionState(correctAttendanceNamesAction, initialCorrectionState);
+  const [deduplicationState, deduplicationAction, isDeduplicationPending] = useActionState(deduplicateEmployeesAction, initialDeduplicationState);
   
 
   return (
@@ -231,6 +241,14 @@ export default function SyncDataPage() {
             action={correctionAction}
             isPending={isCorrectionPending}
             state={correctionState}
+            actorDetails={actorDetails}
+           />
+           <CorrectionButton
+            label="Remove Duplicate Employees"
+            description="Scans all employee records and removes duplicates based on either the same Employee ID or the same email address, keeping only the most recently created record."
+            action={deduplicationAction}
+            isPending={isDeduplicationPending}
+            state={deduplicationState}
             actorDetails={actorDetails}
            />
 
