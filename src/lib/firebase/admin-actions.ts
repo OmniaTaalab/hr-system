@@ -117,141 +117,6 @@ export type CreateEmployeeState = {
   employeeId?: string; // Return the new employee's document ID
 };
 
-export async function createEmployeeAction(
-  prevState: CreateEmployeeState,
-  formData: FormData
-): Promise<CreateEmployeeState> {
-  // Validate form data
-  const validatedFields = CreateEmployeeFormSchema.safeParse({
-    // Personal
-    name: formData.get('name') ?? "",
-    nameAr: formData.get('nameAr') ?? "",
-    childrenAtNIS: formData.get('childrenAtNIS') ?? "",
-    personalEmail: formData.get('personalEmail') ?? "",
-    personalPhone: formData.get('personalPhone') ?? "",
-    emergencyContactName: formData.get('emergencyContactName') ?? "",
-    emergencyContactRelationship: formData.get('emergencyContactRelationship') ?? "",
-    emergencyContactNumber: formData.get('emergencyContactNumber') ?? "",
-    dateOfBirth: formData.get('dateOfBirth') || undefined,
-    gender: formData.get('gender') ?? "",
-    nationalId: formData.get('nationalId') ?? "",
-    religion: formData.get('religion') ?? "",
-
-    // Work
-    nisEmail: formData.get('nisEmail') ?? "",
-    joiningDate: formData.get('joiningDate') || undefined,
-    title: formData.get('title') ?? "",
-    department: formData.get('department') ?? "",
-    role: formData.get('role') ?? "",
-    stage: formData.get('stage') ?? "",
-    campus: formData.get('campus') ?? "",
-    reportLine1: formData.get('reportLine1') ?? "",
-    reportLine2: formData.get('reportLine2') ?? "",
-    subject: formData.get('subject') ?? "",
-    actorId: formData.get('actorId') ?? "",
-    actorEmail: formData.get('actorEmail') ?? "",
-    actorRole: formData.get('actorRole') ?? "",
-  });
-
-  if (!validatedFields.success) {
-    return {
-      success: false,
-      errors: validatedFields.error.flatten().fieldErrors,
-      message: 'Validation failed. Please check the fields with errors.',
-    };
-  }
-
-  const { 
-    name, nameAr, childrenAtNIS, personalEmail, personalPhone, emergencyContactName,
-    emergencyContactRelationship, emergencyContactNumber, dateOfBirth, gender,
-    nationalId, religion, nisEmail, joiningDate, title, department, role, stage, campus,
-    reportLine1, reportLine2, subject, actorId, actorEmail, actorRole
-  } = validatedFields.data;
-
-  const nameParts = name.trim().split(/\s+/);
-  const firstName = nameParts[0] || '';
-  const lastName = nameParts.slice(1).join(' ');
-
-  try {
-    const employeeCollectionRef = collection(db, "employee");
-
-    if (nisEmail) {
-      const emailQuery = query(employeeCollectionRef, where("email", "==", nisEmail), limit(1));
-      const emailSnapshot = await getDocs(emailQuery);
-      if (!emailSnapshot.empty) {
-        return { 
-          success: false, 
-          errors: { nisEmail: ["An employee with this NIS email already exists."] }, 
-          message: "Duplicate email found." 
-        };
-      }
-    }
-
-    const countSnapshot = await getCountFromServer(employeeCollectionRef);
-    const employeeCount = countSnapshot.data().count;
-    const employeeId = (1001 + employeeCount).toString();
-
-    const newEmployeeData = {
-      employeeId,
-      name,
-      firstName,
-      lastName,
-      nameAr,
-      email: nisEmail,
-      personalEmail,
-      phone: personalPhone,
-      childrenAtNIS,
-      title,
-      role,
-      department,
-      stage,
-      campus,
-      subject,
-      system: "Unassigned",
-      gender,
-      nationalId,
-      religion,
-      status: "Active",
-      emergencyContact: {
-        name: emergencyContactName,
-        relationship: emergencyContactRelationship,
-        number: emergencyContactNumber,
-      },
-      dateOfBirth: dateOfBirth ? Timestamp.fromDate(new Date(dateOfBirth)) : null,
-      joiningDate: joiningDate ? Timestamp.fromDate(new Date(joiningDate)) : serverTimestamp(),
-      reportLine1,
-      reportLine2,
-      createdAt: serverTimestamp(),
-      hourlyRate: 0,
-      documents: [],
-      photoURL: null,
-    };
-
-    const newEmployeeDoc = await addDoc(employeeCollectionRef, newEmployeeData);
-
-    await logSystemEvent("Create Employee", {
-      actorId,
-      actorEmail,
-      actorRole,
-      employeeId: newEmployeeDoc.id,
-      employeeName: name,
-    });
-
-    return {
-      success: true,
-      message: "Employee created successfully!",
-      employeeId: newEmployeeDoc.id,
-    };
-
-  } catch (error: any) {
-    console.error("Error creating employee:", error);
-    return {
-      success: false,
-      message: `Failed to create employee: ${error.message}`,
-    };
-  }
-}
-
 
 // Schema for validating form data for updating an employee
 const UpdateEmployeeFormSchema = z.object({
@@ -840,42 +705,51 @@ export async function deduplicateEmployeesAction(
       const email = data.email;
       const docId = doc.id;
       const createdAt = data.createdAt || Timestamp.now(); // Fallback timestamp
+      const name = data.name;
+
+      // Mark docs with no name for deletion
+      if (!name || name.trim() === '') {
+        docsToDelete.add(docId);
+        continue; // Skip other checks for this doc
+      }
 
       // De-duplicate by employeeId
       if (employeeId) {
-        if (seenEmployeeIds.has(employeeId)) {
-          const existing = seenEmployeeIds.get(employeeId)!;
+        const trimmedEmployeeId = String(employeeId).trim();
+        if (seenEmployeeIds.has(trimmedEmployeeId)) {
+          const existing = seenEmployeeIds.get(trimmedEmployeeId)!;
           // Keep the newest record
-          if (createdAt > existing.timestamp) {
+          if (createdAt.toMillis() > existing.timestamp.toMillis()) {
             docsToDelete.add(existing.docId);
-            seenEmployeeIds.set(employeeId, { docId, timestamp: createdAt });
+            seenEmployeeIds.set(trimmedEmployeeId, { docId, timestamp: createdAt });
           } else {
             docsToDelete.add(docId);
           }
         } else {
-          seenEmployeeIds.set(employeeId, { docId, timestamp: createdAt });
+          seenEmployeeIds.set(trimmedEmployeeId, { docId, timestamp: createdAt });
         }
       }
 
       // De-duplicate by email
       if (email) {
-        if (seenEmails.has(email)) {
-          const existing = seenEmails.get(email)!;
+        const trimmedEmail = String(email).trim().toLowerCase();
+        if (seenEmails.has(trimmedEmail)) {
+          const existing = seenEmails.get(trimmedEmail)!;
           // Keep the newest record
-          if (createdAt > existing.timestamp) {
+          if (createdAt.toMillis() > existing.timestamp.toMillis()) {
             docsToDelete.add(existing.docId);
-            seenEmails.set(email, { docId, timestamp: createdAt });
+            seenEmails.set(trimmedEmail, { docId, timestamp: createdAt });
           } else {
             docsToDelete.add(docId);
           }
         } else {
-          seenEmails.set(email, { docId, timestamp: createdAt });
+          seenEmails.set(trimmedEmail, { docId, timestamp: createdAt });
         }
       }
     }
 
     if (docsToDelete.size === 0) {
-      return { success: true, message: "No duplicate employees found." };
+      return { success: true, message: "No duplicate or invalid employees found." };
     }
 
     const batch = writeBatch(db);
@@ -893,7 +767,7 @@ export async function deduplicateEmployeesAction(
     });
 
     revalidatePath("/employees");
-    return { success: true, message: `Successfully removed ${docsToDelete.size} duplicate employee records.` };
+    return { success: true, message: `Successfully removed ${docsToDelete.size} duplicate or invalid employee records.` };
 
   } catch (error: any) {
     console.error("Error deduplicating employees:", error);
@@ -903,7 +777,6 @@ export async function deduplicateEmployeesAction(
     };
   }
 }
-
 export type CorrectionState = {
     message?: string | null;
     success?: boolean;
