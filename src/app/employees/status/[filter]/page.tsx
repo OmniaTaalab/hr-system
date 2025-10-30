@@ -1,8 +1,7 @@
-
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { AppLayout } from "@/components/layout/app-layout";
+import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
@@ -33,15 +32,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { useUserProfile } from "@/components/layout/app-layout";
 
 interface Employee {
   id: string;
   employeeId: string;
-  name: string;
+  name?: string;
   photoURL?: string;
-  checkIn?: string;
-  checkOut?: string;
+  status?: string;
 }
 
 interface AttendanceInfo {
@@ -50,8 +47,17 @@ interface AttendanceInfo {
   name?: string;
 }
 
+interface Row {
+  id: string;
+  employeeId: string;
+  name: string;
+  photoURL?: string;
+  checkIn?: string | null;
+  checkOut?: string | null;
+}
+
 const getInitials = (name: string) =>
-  name ? name.split(" ").map((n) => n[0]).join("").toUpperCase() : "U";
+  name ? name.split(/\s+/).map((n) => n[0]).join("").toUpperCase() : "U";
 
 const filterTitles = {
   present: { title: "Employees Present Today", icon: UserCheck },
@@ -59,23 +65,31 @@ const filterTitles = {
   late: { title: "Late Arrivals Today", icon: Clock },
 };
 
+export default function EmployeeStatusPage() {
+  return (
+    <AppLayout>
+      <EmployeeStatusContent />
+    </AppLayout>
+  );
+}
+
 function EmployeeStatusContent() {
   const { profile, loading: profileLoading } = useUserProfile();
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
 
-  const filter = params.filter as keyof typeof filterTitles;
-  const date = searchParams.get("date");
+  const filter = (params.filter as "present" | "absent" | "late") ?? "present";
+  const dateParam = (searchParams.get("date") || "").trim();
 
-  const [employeeList, setEmployeeList] = useState<Employee[]>([]);
+  const [rows, setRows] = useState<Row[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const canViewPage =
     !profileLoading &&
     profile &&
-    ["admin", "hr"].includes(profile.role?.toLowerCase());
+    ["admin", "hr"].includes((profile.role || "").toLowerCase());
 
   useEffect(() => {
     if (profileLoading) return;
@@ -84,109 +98,120 @@ function EmployeeStatusContent() {
       return;
     }
 
-    const today = format(new Date(), "yyyy-MM-dd");
-    const targetDate = date && date.trim() !== "" ? date : today;
+    const todayISO = format(new Date(), "yyyy-MM-dd");
+    const targetDate = dateParam || todayISO;
 
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
+
       try {
-        const employeesSnap = await getDocs(collection(db, "employee"));
-        const allEmployees = employeesSnap.docs.map(
-          (doc) => ({ id: doc.id, ...doc.data() } as Employee)
+        // 🧩 1) Get only Active employees
+        const empSnap = await getDocs(
+          query(collection(db, "employee"), where("status", "==", "Active"))
         );
-        const employeesMap = new Map(
-          allEmployees.map((e) => [e.employeeId, e])
-        );
-
-        const attendanceSnap = await getDocs(
-          query(
-            collection(db, "attendance_log"),
-            where("date", "==", targetDate)
-          )
-        );
-
-        const userAttendance: Record<string, AttendanceInfo> = {};
-
-        attendanceSnap.forEach((doc) => {
-          const data: any = doc.data();
-          const uid = String(data.userId);
-
-          if (!userAttendance[uid]) {
-            userAttendance[uid] = { checkIns: [], checkOuts: [] };
-          }
-
-          if (data.check_in)
-            userAttendance[uid].checkIns.push(data.check_in);
-          if (data.check_out)
-            userAttendance[uid].checkOuts.push(data.check_out);
-
-          if (data.name) userAttendance[uid].name = data.name;
+        const allEmployees: Employee[] = empSnap.docs.map((doc) => {
+          const d = doc.data() as any;
+          return {
+            id: doc.id,
+            employeeId: String(d.employeeId ?? "").trim(),
+            name: d.name ?? "",
+            photoURL: d.photoURL ?? undefined,
+          };
         });
 
-        const presentIds = new Set(Object.keys(userAttendance));
-        let targetIds = new Set<string>();
+        const empMap = new Map(allEmployees.map((e) => [e.employeeId, e]));
+
+        // 🕒 2) Attendance for the selected date
+        const attSnap = await getDocs(
+          query(collection(db, "attendance_log"), where("date", "==", targetDate))
+        );
+
+        const attData: Record<string, AttendanceInfo> = {};
+        attSnap.forEach((doc) => {
+          const data = doc.data() as any;
+          const uid = String(data.userId ?? "").trim();
+          if (!uid) return;
+
+          if (!attData[uid]) attData[uid] = { checkIns: [], checkOuts: [] };
+          if (data.check_in) attData[uid].checkIns.push(data.check_in);
+          if (data.check_out) attData[uid].checkOuts.push(data.check_out);
+          if (data.name) attData[uid].name = data.name;
+        });
+
+        const presentIds = new Set(
+          Object.entries(attData)
+            .filter(([, v]) => v.checkIns.length > 0)
+            .map(([id]) => id)
+        );
+
+        // 🌴 3) Approved leaves (exclude from absence)
+        let approvedLeaveIds = new Set<string>();
+        try {
+          const leaveSnap = await getDocs(
+            query(
+              collection(db, "leaveRequests"),
+              where("status", "==", "Approved"),
+              where("date", "==", targetDate)
+            )
+          );
+          leaveSnap.forEach((doc) => {
+            const d = doc.data() as any;
+            const eid = String(d.employeeId ?? "").trim();
+            if (eid) approvedLeaveIds.add(eid);
+          });
+        } catch (e) {
+          console.warn("Leave collection missing:", e);
+        }
+
+        // 🎯 4) Filter target IDs based on filter type
+        const targetIds = new Set<string>();
 
         if (filter === "present") {
-          presentIds.forEach((id) => {
-            if (userAttendance[id]?.checkIns.length > 0) {
-              targetIds.add(id);
-            }
-          });
-        } else if (filter === "absent") {
-          allEmployees.forEach((emp) => {
-            if (!presentIds.has(emp.employeeId)) {
-              targetIds.add(emp.employeeId);
-            }
-          });
+          presentIds.forEach((id) => targetIds.add(id));
         } else if (filter === "late") {
-          const conv = (t: string) => {
+          const toMin = (t: string) => {
             const [h, m] = t.split(":").map(Number);
             return h * 60 + m;
           };
 
           presentIds.forEach((id) => {
-            const att = userAttendance[id];
-            const earliest = [...att.checkIns].sort(
-              (a, b) => conv(a) - conv(b)
-            )[0];
-
-            if (
-              earliest &&
-              conv(earliest.substring(0, 5)) > conv("07:30")
-            ) {
-              targetIds.add(id);
+            const ins = (attData[id]?.checkIns || []).map((t) => t.substring(0, 5));
+            const earliest = ins.sort()[0];
+            if (earliest && toMin(earliest) > toMin("07:30")) targetIds.add(id);
+          });
+        } else if (filter === "absent") {
+          allEmployees.forEach((e) => {
+            const eid = e.employeeId;
+            if (!eid) return;
+            if (!presentIds.has(eid) && !approvedLeaveIds.has(eid)) {
+              targetIds.add(eid);
             }
           });
         }
 
-        const finalList: Employee[] = Array.from(targetIds)
-          .map((id) => {
-            const emp = employeesMap.get(id);
-            const att = userAttendance[id];
+        // 🧾 5) Build the table rows
+        const dataRows: Row[] = Array.from(targetIds).map((eid) => {
+          const emp = empMap.get(eid);
+          const att = attData[eid];
+          const sortedIns = (att?.checkIns || []).slice().sort();
+          const sortedOuts = (att?.checkOuts || []).slice().sort();
 
-            if (!att) return null;
+          return {
+            id: emp?.id || eid,
+            employeeId: eid,
+            name: att?.name || emp?.name || `User ${eid}`,
+            photoURL: emp?.photoURL,
+            checkIn: sortedIns[0] ?? null,
+            checkOut: sortedOuts.pop() ?? null,
+          };
+        });
 
-            const sortedIns = att.checkIns.sort();
-            const sortedOuts = att.checkOuts.sort();
+        dataRows.sort((a, b) =>
+          (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+        );
 
-            return {
-              id: emp?.id || id,
-              employeeId: id,
-              name: att.name || emp?.name || `User ${id}`,
-              photoURL: emp?.photoURL,
-              checkIn: sortedIns[0],
-              checkOut: sortedOuts.pop(),
-            } as Employee;
-          })
-          .filter((e): e is Employee => e !== null)
-          .sort((a, b) =>
-            a.name.localeCompare(b.name, undefined, {
-              sensitivity: "base",
-            })
-          );
-
-        setEmployeeList(finalList);
+        setRows(dataRows);
       } catch (err) {
         console.error(err);
         setError("An error occurred while fetching employee data.");
@@ -196,14 +221,11 @@ function EmployeeStatusContent() {
     };
 
     fetchData();
-  }, [filter, date, profileLoading, canViewPage, router]);
+  }, [filter, dateParam, profileLoading, canViewPage, router]);
 
-  const { title, icon: Icon } =
-    filterTitles[filter] || ({ title: "Employee List", icon: User } as any);
-
-  const today = format(new Date(), "yyyy-MM-dd");
+  const meta = filterTitles[filter] || { title: "Employee List", icon: User };
   const formattedDate = format(
-    new Date((date || today) + "T00:00:00"),
+    new Date((dateParam || format(new Date(), "yyyy-MM-dd")) + "T00:00:00"),
     "PPP"
   );
 
@@ -214,7 +236,6 @@ function EmployeeStatusContent() {
       </div>
     );
   }
-
   if (!canViewPage) return null;
 
   return (
@@ -226,8 +247,8 @@ function EmployeeStatusContent() {
 
       <header>
         <h1 className="text-3xl font-bold flex items-center gap-3">
-          <Icon className="h-8 w-8 text-primary" />
-          {title}
+          <meta.icon className="h-8 w-8 text-primary" />
+          {meta.title}
         </h1>
         <p className="text-muted-foreground">
           Showing results for {formattedDate}
@@ -236,7 +257,7 @@ function EmployeeStatusContent() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{employeeList.length} Employees Found</CardTitle>
+          <CardTitle>{rows.length} Employees Found</CardTitle>
         </CardHeader>
         <CardContent>
           {error ? (
@@ -255,9 +276,9 @@ function EmployeeStatusContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {employeeList.map((e, index) => (
+                {rows.map((e, i) => (
                   <TableRow key={e.employeeId}>
-                    <TableCell>{index + 1}</TableCell>
+                    <TableCell>{i + 1}</TableCell>
                     <TableCell>
                       <Link
                         href={`/employees/${e.employeeId}`}
@@ -265,15 +286,13 @@ function EmployeeStatusContent() {
                       >
                         <Avatar>
                           <AvatarImage src={e.photoURL} />
-                          <AvatarFallback>
-                            {getInitials(e.name)}
-                          </AvatarFallback>
+                          <AvatarFallback>{getInitials(e.name)}</AvatarFallback>
                         </Avatar>
                         {e.name}
                       </Link>
                     </TableCell>
-                    <TableCell>{e.checkIn || "—"}</TableCell>
-                    <TableCell>{e.checkOut || "—"}</TableCell>
+                    <TableCell>{e.checkIn ?? "—"}</TableCell>
+                    <TableCell>{e.checkOut ?? "—"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -282,13 +301,5 @@ function EmployeeStatusContent() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-export default function EmployeeStatusPage() {
-  return (
-    <AppLayout>
-      <EmployeeStatusContent />
-    </AppLayout>
   );
 }

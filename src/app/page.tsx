@@ -225,94 +225,118 @@ function DashboardPageContent() {
       }
     };
     
-    const fetchDailyAttendance = async (db: any, { setTodaysAttendance, setAbsentToday, setLateAttendance, setAttendanceDate, setDateStringForLink }: any) => {
-      setIsLoadingTodaysAttendance(true);
-      setIsLoadingLateAttendance(true);
-      setIsLoadingAbsentToday(true);
-  
-      try {
-          // Find the most recent log date
-          const mostRecentLogQuery = query(collection(db, "attendance_log"), orderBy("date", "desc"), limit(1));
-          const mostRecentLogSnapshot = await getDocs(mostRecentLogQuery);
-          
-          if (mostRecentLogSnapshot.empty) {
-              setTodaysAttendance(0);
-              setLateAttendance(0);
-              setAbsentToday(0);
-              setAttendanceDate("No attendance data yet");
-              setDateStringForLink('');
-              return;
-          }
+ const fetchDailyAttendance = async (
+  db: any,
+  { setTodaysAttendance, setAbsentToday, setLateAttendance, setAttendanceDate, setDateStringForLink }: any
+) => {
+  setIsLoadingTodaysAttendance(true);
+  setIsLoadingLateAttendance(true);
+  setIsLoadingAbsentToday(true);
 
-          const lastLogDateStr = mostRecentLogSnapshot.docs[0].data().date;
-          
-          setDateStringForLink(lastLogDateStr);
-          // Assuming lastLogDateStr is "YYYY-MM-DD", convert to a more readable format
-          setAttendanceDate(format(new Date(lastLogDateStr.replace(/-/g, '/')), 'PPP'));
-  
-          const attendanceSnapshot = await getDocs(query(collection(db, "attendance_log"), where("date", "==", lastLogDateStr)));
-  
-          const userCheckIns: Record<number, string[]> = {};
-          attendanceSnapshot.forEach(doc => {
-              const data = doc.data();
-              if (data.check_in && data.userId) {
-                  const userIdNum = Number(data.userId);
-                  if (!isNaN(userIdNum)) {
-                      if (!userCheckIns[userIdNum]) {
-                          userCheckIns[userIdNum] = [];
-                      }
-                      userCheckIns[userIdNum].push(data.check_in.substring(0, 5));
-                  }
-              }
-          });
-  
-          const presentIds = new Set(Object.keys(userCheckIns).map(Number));
-          setTodaysAttendance(presentIds.size);
-  
-          const timeToMinutes = (t: string) => {
-              const [hh, mm] = t.split(":").map(Number);
-              return hh * 60 + mm;
-          };
-  
-          const lateIds = new Set<number>();
-          Object.entries(userCheckIns).forEach(([id, times]) => {
-              const earliest = Math.min(...times.map(timeToMinutes));
-              if (earliest > timeToMinutes("07:30")) {
-                  lateIds.add(Number(id));
-              }
-          });
-          setLateAttendance(lateIds.size);
-  
-          const empSnap = await getDocs(query(collection(db, "employee"), where("status", "in", ["Active", "On Leave"])));
-  
-          const activeIds = new Set<number>();
-          empSnap.forEach(doc => {
-              const idNum = Number(doc.data().employeeId);
-              if (!isNaN(idNum)) {
-                  activeIds.add(idNum);
-              }
-          });
-  
-          let absentCount = 0;
-          activeIds.forEach(id => {
-              if (!presentIds.has(id)) {
-                  absentCount++;
-              }
-          });
-          setAbsentToday(absentCount);
-  
-      } catch (error) {
-          console.error("Error in fetchDailyAttendance:", error);
-          setTodaysAttendance(0);
-          setLateAttendance(0);
-          setAbsentToday(0);
-          setAttendanceDate("Error loading data");
-      } finally {
-          setIsLoadingTodaysAttendance(false);
-          setIsLoadingLateAttendance(false);
-          setIsLoadingAbsentToday(false);
+  try {
+    // 1️⃣ جلب آخر يوم مسجل في attendance_log
+    const mostRecentLogQuery = query(
+      collection(db, "attendance_log"),
+      orderBy("date", "desc"),
+      limit(1)
+    );
+    const mostRecentLogSnapshot = await getDocs(mostRecentLogQuery);
+
+    if (mostRecentLogSnapshot.empty) {
+      setTodaysAttendance(0);
+      setLateAttendance(0);
+      setAbsentToday(0);
+      setAttendanceDate("No attendance data yet");
+      setDateStringForLink("");
+      return;
+    }
+
+    const lastLogDateStr = mostRecentLogSnapshot.docs[0].data().date;
+    setDateStringForLink(lastLogDateStr);
+    setAttendanceDate(format(new Date(lastLogDateStr.replace(/-/g, "/")), "PPP"));
+
+    // 2️⃣ جلب كل الحضور في هذا اليوم
+    const attendanceSnapshot = await getDocs(
+      query(collection(db, "attendance_log"), where("date", "==", lastLogDateStr))
+    );
+
+    const userCheckIns: Record<number, string[]> = {};
+    attendanceSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.check_in && data.userId) {
+        const userIdNum = Number(data.userId);
+        if (!isNaN(userIdNum)) {
+          if (!userCheckIns[userIdNum]) userCheckIns[userIdNum] = [];
+          userCheckIns[userIdNum].push(data.check_in.substring(0, 5));
+        }
       }
+    });
+
+    const presentIds = new Set(Object.keys(userCheckIns).map(Number));
+    setTodaysAttendance(presentIds.size);
+
+    // 3️⃣ حساب المتأخرين بعد 7:30
+    const timeToMinutes = (t: string) => {
+      const [hh, mm] = t.split(":").map(Number);
+      return hh * 60 + mm;
     };
+    const lateIds = new Set<number>();
+    Object.entries(userCheckIns).forEach(([id, times]) => {
+      const earliest = Math.min(...times.map(timeToMinutes));
+      if (earliest > timeToMinutes("07:30")) {
+        lateIds.add(Number(id));
+      }
+    });
+    setLateAttendance(lateIds.size);
+
+    // 4️⃣ جلب الموظفين النشطين فقط
+    const empSnap = await getDocs(
+      query(collection(db, "employee"), where("status", "==", "Active"))
+    );
+
+    const activeIds = new Set<number>();
+    empSnap.forEach((doc) => {
+      const idNum = Number(doc.data().employeeId);
+      if (!isNaN(idNum)) activeIds.add(idNum);
+    });
+
+    // 5️⃣ جلب الموظفين اللي عندهم إجازة Approved في نفس اليوم
+    const leaveRequestsSnap = await getDocs(
+      query(
+        collection(db, "leaveRequests"),
+        where("status", "==", "Approved"),
+        where("date", "==", lastLogDateStr)
+      )
+    );
+
+    const approvedLeaveIds = new Set<number>();
+    leaveRequestsSnap.forEach((doc) => {
+      const data = doc.data();
+      const empId = Number(data.employeeId);
+      if (!isNaN(empId)) approvedLeaveIds.add(empId);
+    });
+
+    // 6️⃣ حساب الغياب (Active فقط، غير حاضر، وغير عنده إجازة Approved)
+    let absentCount = 0;
+    activeIds.forEach((id) => {
+      if (!presentIds.has(id) && !approvedLeaveIds.has(id)) {
+        absentCount++;
+      }
+    });
+
+    setAbsentToday(absentCount);
+  } catch (error) {
+    console.error("Error in fetchDailyAttendance:", error);
+    setTodaysAttendance(0);
+    setLateAttendance(0);
+    setAbsentToday(0);
+    setAttendanceDate("Error loading data");
+  } finally {
+    setIsLoadingTodaysAttendance(false);
+    setIsLoadingLateAttendance(false);
+    setIsLoadingAbsentToday(false);
+  }
+};
 
 
     const fetchCampusData = async () => {

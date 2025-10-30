@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -10,7 +9,7 @@ import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, lim
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home } from 'lucide-react';
-import { format, getYear, getMonth, getDate, intervalToDuration, formatDistanceToNow } from 'date-fns';
+import { format, getYear, getMonth, getDate, intervalToDuration, formatDistanceToNow, eachDayOfInterval, startOfDay } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -62,11 +61,22 @@ interface Employee {
   [key: string]: any; // Allow other properties
 }
 
-interface AttendanceLog {
+interface HistoryEntry {
   id: string;
+  date: string;
   check_in: string | null;
   check_out: string | null;
-  date: string;
+  type: 'attendance' | 'leave';
+}
+
+interface AttendanceLog extends HistoryEntry {
+  type: 'attendance';
+}
+
+interface LeaveLog extends HistoryEntry {
+  type: 'leave';
+  check_in: null;
+  check_out: null;
 }
 
 interface LeaveRequest {
@@ -136,8 +146,8 @@ function EmployeeProfileContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const [attendanceLogs, setAttendanceLogs] = useState<AttendanceLog[]>([]);
-  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [attendanceAndLeaveHistory, setAttendanceAndLeaveHistory] = useState<HistoryEntry[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [loadingLeaves, setLoadingLeaves] = useState(false);
@@ -171,7 +181,7 @@ function EmployeeProfileContent() {
           if (docSnap.exists()) {
              const empData = { id: docSnap.id, ...docSnap.data() } as Employee;
              setEmployee(empData);
-             fetchAttendanceLogs(empData.employeeId);
+             fetchHistory(empData.employeeId, empData.id);
              fetchLeaveRequests(empData.id);
              setLoading(false);
              return; // Exit after successful doc ID fetch
@@ -183,7 +193,7 @@ function EmployeeProfileContent() {
           const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
           setEmployee(employeeData);
   
-          fetchAttendanceLogs(employeeData.employeeId);
+          fetchHistory(employeeData.employeeId, employeeData.id);
           fetchLeaveRequests(employeeData.id);
         } else {
           setError('Employee not found.');
@@ -200,59 +210,97 @@ function EmployeeProfileContent() {
       }
     };
   
-    const fetchAttendanceLogs = async (numericEmployeeId: string) => {
-      if (!numericEmployeeId) {
-        setAttendanceLogs([]);
-        return;
-      }
-      setLoadingLogs(true);
-      try {
-        const userIdNumber = Number(numericEmployeeId);
-        if (isNaN(userIdNumber)) {
-          setAttendanceLogs([]);
-          setLoadingLogs(false);
-          return;
+    const fetchHistory = async (numericEmployeeId: string, employeeDocId: string) => {
+        if (!numericEmployeeId || !employeeDocId) {
+            setAttendanceAndLeaveHistory([]);
+            return;
         }
-        const logsQuery = query(
-          collection(db, 'attendance_log'),
-          where('userId', '==', userIdNumber)
-        );
-        const querySnapshot = await getDocs(logsQuery);
-        let logs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
-        
-        // Group by date to get first check-in and last check-out
-        const groupedLogs: { [key: string]: { check_ins: string[], check_outs: string[], date: string } } = {};
-        logs.forEach(log => {
-          if (!groupedLogs[log.date]) {
-            groupedLogs[log.date] = { check_ins: [], check_outs: [], date: log.date };
-          }
-          if (log.check_in) groupedLogs[log.date].check_ins.push(log.check_in);
-          if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
-        });
+        setLoadingHistory(true);
+        try {
+            const userIdNumber = Number(numericEmployeeId);
+            if (isNaN(userIdNumber)) {
+                setAttendanceAndLeaveHistory([]);
+                setLoadingHistory(false);
+                return;
+            }
 
-        const processedLogs = Object.values(groupedLogs).map(group => {
-            group.check_ins.sort();
-            group.check_outs.sort();
-            return {
-                id: group.date,
-                date: group.date,
-                check_in: group.check_ins[0] || null,
-                check_out: group.check_outs.length > 0 ? group.check_outs[group.check_outs.length - 1] : null,
-            };
-        }).sort((a, b) => b.date.localeCompare(a.date));
+            // Fetch attendance logs
+            const logsQuery = query(
+                collection(db, 'attendance_log'),
+                where('userId', '==', userIdNumber)
+            );
+            const attendanceSnapshot = await getDocs(logsQuery);
+            const attendanceLogs = attendanceSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
 
+            // Group by date to get first check-in and last check-out
+            const groupedLogs: { [key: string]: { check_ins: string[], check_outs: string[], date: string } } = {};
+            attendanceLogs.forEach(log => {
+                if (!groupedLogs[log.date]) {
+                    groupedLogs[log.date] = { check_ins: [], check_outs: [], date: log.date };
+                }
+                if (log.check_in) groupedLogs[log.date].check_ins.push(log.check_in);
+                if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
+            });
 
-        setAttendanceLogs(processedLogs);
-      } catch (e) {
-        console.error("Error fetching attendance logs:", e);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Could not load attendance history.",
-        });
-      } finally {
-        setLoadingLogs(false);
-      }
+            const processedAttendance: AttendanceLog[] = Object.values(groupedLogs).map(group => {
+                group.check_ins.sort();
+                group.check_outs.sort();
+                return {
+                    id: group.date,
+                    date: group.date,
+                    check_in: group.check_ins[0] || null,
+                    check_out: group.check_outs.length > 0 ? group.check_outs[group.check_outs.length - 1] : null,
+                    type: 'attendance'
+                };
+            });
+
+            // Fetch approved leave requests
+            const leavesQuery = query(
+                collection(db, 'leaveRequests'),
+                where('requestingEmployeeDocId', '==', employeeDocId),
+                where('status', '==', 'Approved')
+            );
+            const leaveSnapshot = await getDocs(leavesQuery);
+            const processedLeaves: LeaveLog[] = [];
+            leaveSnapshot.forEach(doc => {
+                const leave = doc.data() as LeaveRequest;
+                const start = startOfDay(leave.startDate.toDate());
+                const end = startOfDay(leave.endDate.toDate());
+                const leaveDays = eachDayOfInterval({ start, end });
+                leaveDays.forEach(day => {
+                    processedLeaves.push({
+                        id: `${doc.id}-${format(day, 'yyyy-MM-dd')}`,
+                        date: format(day, 'yyyy-MM-dd'),
+                        type: 'leave',
+                        check_in: null,
+                        check_out: null
+                    });
+                });
+            });
+
+            // Merge and de-duplicate
+            const mergedHistoryMap = new Map<string, HistoryEntry>();
+            processedAttendance.forEach(att => mergedHistoryMap.set(att.date, att));
+            processedLeaves.forEach(leave => {
+                // Leave data takes precedence over attendance on the same day
+                mergedHistoryMap.set(leave.date, leave);
+            });
+
+            const mergedHistory = Array.from(mergedHistoryMap.values());
+            mergedHistory.sort((a, b) => b.date.localeCompare(a.date));
+
+            setAttendanceAndLeaveHistory(mergedHistory);
+
+        } catch (e) {
+            console.error("Error fetching history:", e);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Could not load history.",
+            });
+        } finally {
+            setLoadingHistory(false);
+        }
     };
   
     const fetchLeaveRequests = async (employeeDocId: string) => {
@@ -377,12 +425,13 @@ function EmployeeProfileContent() {
     return `${format(joiningDate, "PPP")} (${period})`;
   }, [employee?.joiningDate]);
 
-  const getAttendancePointValue = (checkIn: string | null): number => {
-    if (!checkIn) return 0;
-    const timeParts = checkIn.split(":");
+  const getAttendancePointValue = (entry: HistoryEntry): number => {
+    if (entry.type === 'leave') return 1;
+    if (!entry.check_in) return 0;
+    const timeParts = entry.check_in.split(":");
     let hours = parseInt(timeParts[0], 10);
     const minutes = parseInt(timeParts[1], 10);
-    const isPM = checkIn.toLowerCase().includes('pm');
+    const isPM = entry.check_in.toLowerCase().includes('pm');
     if (isPM && hours < 12) hours += 12;
     if (!isPM && hours === 12) hours = 0;
     const checkInMinutes = hours * 60 + minutes;
@@ -390,37 +439,41 @@ function EmployeeProfileContent() {
     return checkInMinutes < targetMinutes ? 1 : 0.5;
   };
   
-  const getAttendancePointDisplay = (checkIn: string | null): string => {
-      const value = getAttendancePointValue(checkIn);
+  const getAttendancePointDisplay = (entry: HistoryEntry): string => {
+      if (entry.type === 'leave') return "1/1";
+      const value = getAttendancePointValue(entry);
       if (value === 0) return "-";
       return `${value}/1`;
   };
 
   const totalAttendanceScore = useMemo(() => {
-    if (!attendanceLogs || attendanceLogs.length === 0) {
+    if (!attendanceAndLeaveHistory || attendanceAndLeaveHistory.length === 0) {
       return null;
     }
     let totalPoints = 0;
-    let daysWithCheckIn = 0;
-    attendanceLogs.forEach(log => {
-        if (log.check_in) {
-            daysWithCheckIn++;
-            totalPoints += getAttendancePointValue(log.check_in);
+    let daysWithRecord = 0;
+    attendanceAndLeaveHistory.forEach(entry => {
+        if (entry.type === 'attendance' && entry.check_in) {
+            daysWithRecord++;
+            totalPoints += getAttendancePointValue(entry);
+        } else if (entry.type === 'leave') {
+            daysWithRecord++;
+            totalPoints += 1;
         }
     });
 
-    if (daysWithCheckIn === 0) return null;
+    if (daysWithRecord === 0) return null;
 
-    const percentage = (totalPoints / daysWithCheckIn) * 100;
+    const percentage = (totalPoints / daysWithRecord) * 100;
     const scoreOutOf10 = (percentage / 10).toFixed(1);
     
     return {
         score: totalPoints,
-        maxScore: daysWithCheckIn,
+        maxScore: daysWithRecord,
         percentage: percentage.toFixed(1),
         scoreOutOf10: scoreOutOf10
     };
-  }, [attendanceLogs]);
+  }, [attendanceAndLeaveHistory]);
 
 
   if (loading || profileLoading) {
@@ -659,12 +712,12 @@ function EmployeeProfileContent() {
                   </div>
               </CardHeader>
               <CardContent>
-                {loadingLogs ? (
+                {loadingHistory ? (
                     <div className="flex justify-center items-center h-40">
                       <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
-                ) : attendanceLogs.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-10">No attendance logs found for this employee.</p>
+                ) : attendanceAndLeaveHistory.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-10">No attendance or leave history found for this employee.</p>
                 ) : (
                   <Table>
                       <TableHeader>
@@ -676,12 +729,12 @@ function EmployeeProfileContent() {
                           </TableRow>
                       </TableHeader>
                       <TableBody>
-                          {attendanceLogs.map((record) => (
+                          {attendanceAndLeaveHistory.map((record) => (
                               <TableRow key={record.id}>
                                   <TableCell>{record.date}</TableCell>
-                                  <TableCell>{record.check_in || '-'}</TableCell>
+                                  <TableCell>{record.type === 'leave' ? <Badge variant="outline" className="border-blue-500 text-blue-500">Approved Leave</Badge> : record.check_in || '-'}</TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
-                                  <TableCell>{getAttendancePointDisplay(record.check_in)}</TableCell>
+                                  <TableCell>{getAttendancePointDisplay(record)}</TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
@@ -702,3 +755,5 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
+    
