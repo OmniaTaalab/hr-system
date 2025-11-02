@@ -6,15 +6,18 @@ import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { BarChartBig, AlertTriangle, Loader2 } from "lucide-react";
+import { BarChartBig, AlertTriangle, Loader2, Eye } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 interface Employee {
     id: string;
+    employeeId: string;
     name: string;
     role: string;
     department: string;
@@ -115,9 +118,7 @@ function KpisContent() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Name</TableHead>
-                                    <TableHead>Role</TableHead>
-                                    <TableHead>Department</TableHead>
-                                    <TableHead>Campus</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -130,9 +131,14 @@ function KpisContent() {
                                             </Avatar>
                                             {employee.name}
                                         </TableCell>
-                                        <TableCell>{employee.role || '-'}</TableCell>
-                                        <TableCell>{employee.department || '-'}</TableCell>
-                                        <TableCell>{employee.campus || '-'}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button asChild variant="outline" size="sm">
+                                                <Link href={`/employees/${employee.employeeId}`}>
+                                                    <Eye className="mr-2 h-4 w-4" />
+                                                    View
+                                                </Link>
+                                            </Button>
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
