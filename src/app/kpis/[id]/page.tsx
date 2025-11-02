@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useActionState } from "react";
+import React, { useState, useEffect, useActionState, useMemo } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save } from "lucide-react";
 import { useParams } from 'next/navigation';
@@ -79,11 +79,26 @@ function KpiCard({ title, kpiType, employeeId }: { title: string, kpiType: 'eleo
             }
         }
     }, [addState, toast]);
+    
+    const performancePercentage = useMemo(() => {
+        if (data.length === 0) {
+            return 0;
+        }
+        const totalPoints = data.reduce((acc, item) => acc + item.points, 0);
+        const maxPoints = data.length * 6;
+        return (totalPoints / maxPoints) * 100;
+    }, [data]);
+
 
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>{title}</CardTitle>
+                <div className="space-y-1.5">
+                    <CardTitle>{title}</CardTitle>
+                    <CardDescription>
+                        {data.length > 0 ? `Overall Performance: ${performancePercentage.toFixed(1)}%` : "No entries yet."}
+                    </CardDescription>
+                </div>
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger asChild>
                         <Button size="icon">
