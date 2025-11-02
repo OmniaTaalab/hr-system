@@ -1,39 +1,82 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { AppLayout } from "@/components/layout/app-layout";
-import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import React, { useState, useEffect, useActionState } from "react";
+import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
+import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { db } from '@/lib/firebase/config';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot, orderBy, Timestamp } from 'firebase/firestore';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { addKpiEntryAction, type KpiEntryState } from "@/app/actions/kpi-actions";
+import { useToast } from "@/hooks/use-toast";
+
 
 interface Employee {
   id: string;
   name: string;
 }
 
-function KpiCard({ title }: { title: string }) {
-    const data = [
-        { date: "12 Dec 2023", points: "5 points" },
-        { date: "12 Dec 2023", points: "5 points" },
-        { date: "12 Dec 2023", points: "5 points" },
-        { date: "12 Dec 2023", points: "5 points" },
-        { date: "12 Dec 2023", points: "5 points" },
-    ];
+interface KpiEntry {
+    id: string;
+    date: Timestamp;
+    points: number;
+}
+
+const initialKpiState: KpiEntryState = { success: false, message: null, errors: {} };
+
+
+function KpiCard({ title, kpiType, employeeId }: { title: string, kpiType: 'eleot' | 'tot', employeeId: string }) {
+    const { toast } = useToast();
+    const [data, setData] = useState<KpiEntry[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+    
+    const [addState, addAction, isAddPending] = useActionState(addKpiEntryAction, initialKpiState);
+
+    useEffect(() => {
+        setIsLoading(true);
+        const q = query(
+            collection(db, kpiType),
+            where("employeeDocId", "==", employeeId),
+            orderBy("date", "desc")
+        );
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const kpiData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
+            setData(kpiData);
+            setIsLoading(false);
+        }, (error) => {
+            console.error(`Error fetching ${kpiType} data:`, error);
+            setIsLoading(false);
+        });
+        return () => unsubscribe();
+    }, [kpiType, employeeId]);
+    
+    useEffect(() => {
+        if (addState?.message) {
+            toast({
+                title: addState.success ? "Success" : "Error",
+                description: addState.message,
+                variant: addState.success ? "default" : "destructive",
+            });
+            if (addState.success) {
+                setIsDialogOpen(false);
+                setSelectedDate(undefined);
+            }
+        }
+    }, [addState, toast]);
 
     return (
         <Card>
@@ -46,88 +89,107 @@ function KpiCard({ title }: { title: string }) {
                         </Button>
                     </DialogTrigger>
                     <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Add New Entry to {title}</DialogTitle>
-                            <DialogDescription>
-                                Select a date and enter the points for this entry.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="date" className="text-right">Date</Label>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            variant={"outline"}
-                                            className={cn(
-                                            "w-[240px] pl-3 text-left font-normal col-span-3",
-                                            !selectedDate && "text-muted-foreground"
-                                            )}
-                                        >
-                                            {selectedDate ? (
-                                            format(selectedDate, "PPP")
-                                            ) : (
-                                            <span>Pick a date</span>
-                                            )}
-                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar
-                                            mode="single"
-                                            selected={selectedDate}
-                                            onSelect={setSelectedDate}
-                                            initialFocus
-                                        />
-                                    </PopoverContent>
-                                </Popover>
+                        <form action={addAction}>
+                            <input type="hidden" name="kpiType" value={kpiType} />
+                            <input type="hidden" name="employeeDocId" value={employeeId} />
+                            <input type="hidden" name="date" value={selectedDate?.toISOString() ?? ''} />
+                            <DialogHeader>
+                                <DialogTitle>Add New Entry to {title}</DialogTitle>
+                                <DialogDescription>
+                                    Select a date and enter the points for this entry.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="grid gap-4 py-4">
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="date" className="text-right">Date</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant={"outline"}
+                                                className={cn(
+                                                "w-[240px] pl-3 text-left font-normal col-span-3",
+                                                !selectedDate && "text-muted-foreground"
+                                                )}
+                                            >
+                                                {selectedDate ? (
+                                                format(selectedDate, "PPP")
+                                                ) : (
+                                                <span>Pick a date</span>
+                                                )}
+                                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                            <Calendar
+                                                mode="single"
+                                                selected={selectedDate}
+                                                onSelect={setSelectedDate}
+                                                initialFocus
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                     {addState?.errors?.date && <p className="col-start-2 col-span-3 text-sm text-destructive">{addState.errors.date.join(', ')}</p>}
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="points" className="text-right">Point</Label>
+                                    <Input
+                                        id="points"
+                                        name="points"
+                                        type="number"
+                                        max="6"
+                                        placeholder="Point /6"
+                                        className="col-span-3"
+                                        required
+                                    />
+                                    {addState?.errors?.points && <p className="col-start-2 col-span-3 text-sm text-destructive">{addState.errors.points.join(', ')}</p>}
+                                </div>
                             </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="points" className="text-right">Point</Label>
-                                <Input
-                                    id="points"
-                                    type="number"
-                                    max="6"
-                                    placeholder="Point /6"
-                                    className="col-span-3"
-                                />
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                            <Button type="submit">Confirm</Button>
-                        </DialogFooter>
+                            {addState?.errors?.form && <p className="text-sm text-destructive text-center mb-2">{addState.errors.form.join(', ')}</p>}
+                            <DialogFooter>
+                                <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                                <Button type="submit" disabled={isAddPending}>
+                                    {isAddPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                    Confirm
+                                </Button>
+                            </DialogFooter>
+                        </form>
                     </DialogContent>
                 </Dialog>
             </CardHeader>
             <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Point</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {data.map((item, index) => (
-                            <TableRow key={index}>
-                                <TableCell>{item.date}</TableCell>
-                                <TableCell>{item.points}</TableCell>
+                {isLoading ? (
+                    <div className="flex justify-center items-center h-40">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                ) : data.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-10">No entries yet.</p>
+                ) : (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Point</TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {data.map((item) => (
+                                <TableRow key={item.id}>
+                                    <TableCell>{format(item.date.toDate(), 'PPP')}</TableCell>
+                                    <TableCell>{item.points} / 6</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                )}
             </CardContent>
             <CardFooter className="flex justify-between items-center text-sm text-muted-foreground">
-                <span>Showing 1-5 from 100</span>
+                <span>Showing 1-{data.length} from {data.length}</span>
                 <div className="flex items-center gap-1">
-                    <Button variant="outline" size="icon" className="h-8 w-8">
+                    <Button variant="outline" size="icon" className="h-8 w-8" disabled>
                         <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <Button variant="outline" size="icon" className="h-8 w-8 bg-primary text-primary-foreground">1</Button>
-                    <Button variant="outline" size="icon" className="h-8 w-8">2</Button>
-                    <span>...</span>
-                    <Button variant="outline" size="icon" className="h-8 w-8">
+                    <Button variant="outline" size="icon" className="h-8 w-8" disabled>
                         <ChevronRight className="h-4 w-4" />
                     </Button>
                 </div>
@@ -200,8 +262,8 @@ export default function KpiDashboardPage() {
           )}
         </header>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <KpiCard title="ELEOT(10%)" />
-            <KpiCard title="TOT(10%)" />
+            <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeId={employeeId} />
+            <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employeeId} />
         </div>
       </div>
     </AppLayout>
