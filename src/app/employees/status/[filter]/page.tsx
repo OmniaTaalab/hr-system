@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -32,6 +33,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
+import { Badge } from "@/components/ui/badge";
 
 interface Employee {
   id: string;
@@ -39,6 +41,7 @@ interface Employee {
   name?: string;
   photoURL?: string;
   status?: string;
+  badgeNumber?: string;
 }
 
 interface AttendanceInfo {
@@ -54,6 +57,7 @@ interface Row {
   photoURL?: string;
   checkIn?: string | null;
   checkOut?: string | null;
+  badgeNumber?: string;
 }
 
 const getInitials = (name: string) =>
@@ -117,6 +121,7 @@ function EmployeeStatusContent() {
             employeeId: String(d.employeeId ?? "").trim(),
             name: d.name ?? "",
             photoURL: d.photoURL ?? undefined,
+            badgeNumber: d.badgeNumber ?? "N/A",
           };
         });
 
@@ -204,6 +209,7 @@ function EmployeeStatusContent() {
             photoURL: emp?.photoURL,
             checkIn: sortedIns[0] ?? null,
             checkOut: sortedOuts.pop() ?? null,
+            badgeNumber: emp?.badgeNumber,
           };
         });
 
@@ -288,7 +294,10 @@ function EmployeeStatusContent() {
                           <AvatarImage src={e.photoURL} />
                           <AvatarFallback>{getInitials(e.name)}</AvatarFallback>
                         </Avatar>
-                        {e.name}
+                        <div>
+                            {e.name}
+                            {e.badgeNumber && <Badge variant="secondary" className="ml-2">{e.badgeNumber}</Badge>}
+                        </div>
                       </Link>
                     </TableCell>
                     <TableCell>{e.checkIn ?? "—"}</TableCell>
