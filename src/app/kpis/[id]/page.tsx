@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
-import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { db } from '@/lib/firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
@@ -11,6 +11,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 interface Employee {
   id: string;
@@ -25,13 +32,73 @@ function KpiCard({ title }: { title: string }) {
         { date: "12 Dec 2023", points: "5 points" },
         { date: "12 Dec 2023", points: "5 points" },
     ];
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>{title}</CardTitle>
-                <Button size="icon">
-                    <Plus className="h-4 w-4" />
-                </Button>
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button size="icon">
+                            <Plus className="h-4 w-4" />
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Add New Entry to {title}</DialogTitle>
+                            <DialogDescription>
+                                Select a date and enter the points for this entry.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="date" className="text-right">Date</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant={"outline"}
+                                            className={cn(
+                                            "w-[240px] pl-3 text-left font-normal col-span-3",
+                                            !selectedDate && "text-muted-foreground"
+                                            )}
+                                        >
+                                            {selectedDate ? (
+                                            format(selectedDate, "PPP")
+                                            ) : (
+                                            <span>Pick a date</span>
+                                            )}
+                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                        <Calendar
+                                            mode="single"
+                                            selected={selectedDate}
+                                            onSelect={setSelectedDate}
+                                            initialFocus
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="points" className="text-right">Point</Label>
+                                <Input
+                                    id="points"
+                                    type="number"
+                                    max="6"
+                                    placeholder="Point /6"
+                                    className="col-span-3"
+                                />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                            <Button type="submit">Confirm</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </CardHeader>
             <CardContent>
                 <Table>
