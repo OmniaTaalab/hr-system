@@ -48,6 +48,7 @@ interface AttendanceInfo {
   checkIns: string[];
   checkOuts: string[];
   name?: string;
+  badgeNumber?: string;
 }
 
 interface Row {
@@ -135,13 +136,16 @@ function EmployeeStatusContent() {
         const attData: Record<string, AttendanceInfo> = {};
         attSnap.forEach((doc) => {
           const data = doc.data() as any;
-          const uid = String(data.userId ?? "").trim();
+          const uid = String(data.badgeNumber ?? data.userId ?? "").trim();
           if (!uid) return;
 
           if (!attData[uid]) attData[uid] = { checkIns: [], checkOuts: [] };
           if (data.check_in) attData[uid].checkIns.push(data.check_in);
           if (data.check_out) attData[uid].checkOuts.push(data.check_out);
           if (data.name) attData[uid].name = data.name;
+          if(data.badgeNumber) attData[uid].badgeNumber = data.badgeNumber;
+        
+         
         });
 
         const presentIds = new Set(
@@ -205,11 +209,11 @@ function EmployeeStatusContent() {
           return {
             id: emp?.id || eid,
             employeeId: eid,
-            name: emp?.name || att?.name || `User ${eid}`,
+            name: emp?.name || `User ${eid}`,
             photoURL: emp?.photoURL,
             checkIn: sortedIns[0] ?? null,
             checkOut: sortedOuts.pop() ?? null,
-            badgeNumber: emp?.badgeNumber,
+            badgeNumber: eid,
           };
         });
 
@@ -296,7 +300,7 @@ function EmployeeStatusContent() {
                         </Avatar>
                         <div>
                             {e.name}
-                            {e.badgeNumber && <Badge variant="secondary" className="ml-2">{e.badgeNumber}</Badge>}
+                            <Badge variant="secondary" className="ml-2">{e.badgeNumber}</Badge>
                         </div>
                       </Link>
                     </TableCell>
