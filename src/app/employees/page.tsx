@@ -980,14 +980,22 @@ function EmployeeManagementContent() {
   }, [allEmployees]);
   
   const filteredEmployees = useMemo(() => {
+    if (!profile) return [];
+    
     let listToFilter = allEmployees;
     const userRole = profile?.role?.toLowerCase();
     
-    // Non-privileged users should only see themselves
+    // Non-privileged users and non-managers see only themselves.
     if (userRole !== 'admin' && userRole !== 'hr' && userRole !== 'principal') {
-        return listToFilter.filter(emp => emp.id === profile?.id);
+        const isManager = allEmployees.some(emp => emp.reportLine1 === profile.email);
+        if (!isManager) {
+            return listToFilter.filter(emp => emp.id === profile.id);
+        } else {
+            // It's a manager, so filter for their reports, excluding themselves.
+            listToFilter = listToFilter.filter(emp => emp.reportLine1 === profile.email && emp.id !== profile.id);
+        }
     }
-    
+
     if (campusFilter !== "All") listToFilter = listToFilter.filter(emp => emp.campus === campusFilter);
     if (stageFilter !== "All") listToFilter = listToFilter.filter(emp => emp.stage === stageFilter);
     if (subjectFilter !== "All") listToFilter = listToFilter.filter(emp => emp.subject === subjectFilter);
