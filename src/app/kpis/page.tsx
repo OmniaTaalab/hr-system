@@ -186,7 +186,7 @@ function KpisContent() {
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <Button asChild variant="outline" size="icon" className="text-green-600 border-green-600 hover:bg-green-100 hover:text-green-700">
-                                                <Link href={`/employees/${employee.employeeId}`}>
+                                                <Link href={`/kpis/${employee.id}`}>
                                                     <Eye className="h-4 w-4" />
                                                 </Link>
                                             </Button>
