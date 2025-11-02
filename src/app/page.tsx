@@ -234,7 +234,7 @@ function DashboardPageContent() {
   setIsLoadingAbsentToday(true);
 
   try {
-    // 1️⃣ جلب آخر يوم مسجل في attendance_log
+    // 1️⃣ Get the most recent day from attendance_log
     const mostRecentLogQuery = query(
       collection(db, "attendance_log"),
       orderBy("date", "desc"),
@@ -255,71 +255,84 @@ function DashboardPageContent() {
     setDateStringForLink(lastLogDateStr);
     setAttendanceDate(format(new Date(lastLogDateStr.replace(/-/g, "/")), "PPP"));
 
-    // 2️⃣ جلب كل الحضور في هذا اليوم
+    // 2️⃣ Fetch all attendance logs for that day
     const attendanceSnapshot = await getDocs(
       query(collection(db, "attendance_log"), where("date", "==", lastLogDateStr))
     );
 
-    const userCheckIns: Record<number, string[]> = {};
+    const userCheckIns: Record<string, string[]> = {}; // Use string for employeeId
     attendanceSnapshot.forEach((doc) => {
       const data = doc.data();
-      if (data.check_in && data.userId) {
-        const userIdNum = Number(data.userId);
-        if (!isNaN(userIdNum)) {
-          if (!userCheckIns[userIdNum]) userCheckIns[userIdNum] = [];
-          userCheckIns[userIdNum].push(data.check_in.substring(0, 5));
-        }
+      const employeeId = data.userId ? String(data.userId) : null;
+      if (data.check_in && employeeId) {
+        if (!userCheckIns[employeeId]) userCheckIns[employeeId] = [];
+        userCheckIns[employeeId].push(data.check_in.substring(0, 5));
       }
     });
 
-    const presentIds = new Set(Object.keys(userCheckIns).map(Number));
+    const presentIds = new Set(Object.keys(userCheckIns));
     setTodaysAttendance(presentIds.size);
 
-    // 3️⃣ حساب المتأخرين بعد 7:30
+    // 3️⃣ Calculate late arrivals from the present employees
     const timeToMinutes = (t: string) => {
       const [hh, mm] = t.split(":").map(Number);
       return hh * 60 + mm;
     };
-    const lateIds = new Set<number>();
-    Object.entries(userCheckIns).forEach(([id, times]) => {
-      const earliest = Math.min(...times.map(timeToMinutes));
+    let lateCount = 0;
+    presentIds.forEach((id) => {
+      const earliest = Math.min(...userCheckIns[id].map(timeToMinutes));
       if (earliest > timeToMinutes("07:30")) {
-        lateIds.add(Number(id));
+        lateCount++;
       }
     });
-    setLateAttendance(lateIds.size);
+    setLateAttendance(lateCount);
 
-    // 4️⃣ جلب الموظفين النشطين فقط
+
+    // 4️⃣ Fetch all active employees
     const empSnap = await getDocs(
       query(collection(db, "employee"), where("status", "==", "Active"))
     );
 
-    const activeIds = new Set<number>();
+    const activeEmployeeIds = new Set<string>();
     empSnap.forEach((doc) => {
-      const idNum = Number(doc.data().employeeId);
-      if (!isNaN(idNum)) activeIds.add(idNum);
+      const employeeId = doc.data().employeeId;
+      if (employeeId) activeEmployeeIds.add(String(employeeId));
     });
 
-    // 5️⃣ جلب الموظفين اللي عندهم إجازة Approved في نفس اليوم
+
+    // 5️⃣ Fetch approved leaves for the same day
+    const targetDateAsTimestamp = Timestamp.fromDate(new Date(lastLogDateStr.replace(/-/g, "/")));
     const leaveRequestsSnap = await getDocs(
-      query(
-        collection(db, "leaveRequests"),
-        where("status", "==", "Approved"),
-        where("date", "==", lastLogDateStr)
-      )
+        query(
+            collection(db, "leaveRequests"),
+            where("status", "==", "Approved"),
+            where("startDate", "<=", targetDateAsTimestamp)
+        )
     );
-
-    const approvedLeaveIds = new Set<number>();
-    leaveRequestsSnap.forEach((doc) => {
-      const data = doc.data();
-      const empId = Number(data.employeeId);
-      if (!isNaN(empId)) approvedLeaveIds.add(empId);
+    const onLeaveEmployeeIds = new Set<string>();
+    const employeeIdToDocIdMap = new Map<string, string>();
+    empSnap.forEach(doc => {
+        if(doc.data().employeeId) employeeIdToDocIdMap.set(doc.data().employeeId, doc.id);
     });
 
-    // 6️⃣ حساب الغياب (Active فقط، غير حاضر، وغير عنده إجازة Approved)
+    leaveRequestsSnap.forEach((doc) => {
+        const data = doc.data();
+        if (data.endDate.toDate() >= new Date(lastLogDateStr.replace(/-/g, "/"))) {
+           const empDocId = data.requestingEmployeeDocId;
+           // Find employeeId from docId
+           for (const [empId, docId] of employeeIdToDocIdMap.entries()) {
+               if(docId === empDocId) {
+                   onLeaveEmployeeIds.add(empId);
+                   break;
+               }
+           }
+        }
+    });
+
+    // 6️⃣ Calculate absent count
     let absentCount = 0;
-    activeIds.forEach((id) => {
-      if (!presentIds.has(id) && !approvedLeaveIds.has(id)) {
+    activeEmployeeIds.forEach((id) => {
+      if (!presentIds.has(id) && !onLeaveEmployeeIds.has(id)) {
         absentCount++;
       }
     });
@@ -337,6 +350,7 @@ function DashboardPageContent() {
     setIsLoadingAbsentToday(false);
   }
 };
+
 
 
     const fetchCampusData = async () => {
