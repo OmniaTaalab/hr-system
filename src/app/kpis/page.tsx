@@ -6,7 +6,7 @@ import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { BarChartBig, AlertTriangle, Loader2, Eye, Search } from "lucide-react";
+import { BarChartBig, AlertTriangle, Loader2, Eye, Search, ArrowLeft, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
@@ -26,6 +26,8 @@ interface Employee {
     photoURL?: string;
 }
 
+const PAGE_SIZE = 15;
+
 const getInitials = (name?: string) => {
     if (!name) return "U";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
@@ -38,6 +40,7 @@ function KpisContent() {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
 
     const canViewPage = !loading && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
 
@@ -79,6 +82,30 @@ function KpisContent() {
             employee.name.toLowerCase().includes(lowercasedFilter)
         );
     }, [employees, searchTerm]);
+    
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    const totalPages = useMemo(() => Math.ceil(filteredEmployees.length / PAGE_SIZE), [filteredEmployees]);
+    const isLastPage = currentPage >= totalPages;
+
+    const paginatedEmployees = useMemo(() => {
+        const startIndex = (currentPage - 1) * PAGE_SIZE;
+        const endIndex = startIndex + PAGE_SIZE;
+        return filteredEmployees.slice(startIndex, endIndex);
+    }, [filteredEmployees, currentPage]);
+
+    const goToNextPage = () => {
+        if (isLastPage) return;
+        setCurrentPage(prev => prev + 1);
+    };
+
+    const goToPrevPage = () => {
+        if (currentPage === 1) return;
+        setCurrentPage(prev => prev - 1);
+    };
+
 
     if (loading) {
         return (
@@ -135,7 +162,7 @@ function KpisContent() {
                            <Skeleton className="h-10 w-full" />
                            <Skeleton className="h-10 w-full" />
                         </div>
-                    ) : filteredEmployees.length === 0 ? (
+                    ) : paginatedEmployees.length === 0 ? (
                         <p className="text-center text-muted-foreground py-10">
                             {searchTerm ? `No employees found matching "${searchTerm}"` : "No employees found."}
                         </p>
@@ -148,7 +175,7 @@ function KpisContent() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredEmployees.map((employee) => (
+                                {paginatedEmployees.map((employee) => (
                                     <TableRow key={employee.id}>
                                         <TableCell className="font-medium flex items-center gap-3">
                                             <Avatar>
@@ -171,6 +198,31 @@ function KpisContent() {
                         </Table>
                     )}
                 </CardContent>
+                {totalPages > 1 && (
+                    <CardContent>
+                    <div className="flex items-center justify-end space-x-2 py-4">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={goToPrevPage}
+                            disabled={currentPage <= 1 || isLoadingEmployees}
+                        >
+                            <ArrowLeft className="mr-2 h-4 w-4" />
+                            Previous
+                        </Button>
+                        <span className="text-sm font-medium">Page {currentPage} of {totalPages}</span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={goToNextPage}
+                            disabled={isLastPage || isLoadingEmployees}
+                        >
+                            Next
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
+                    </div>
+                    </CardContent>
+                )}
             </Card>
         </div>
     );
