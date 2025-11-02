@@ -269,8 +269,8 @@ export async function updateEmployeeAction(
     }
 
     if (dataToUpdate.firstName || dataToUpdate.lastName) {
-      const newFirstName = dataToUpdate.firstName ?? currentEmployeeData.firstName;
-      const newLastName = dataToUpdate.lastName ?? currentEmployeeData.lastName;
+      const newFirstName = dataToUpdate.firstName ?? currentEmployeeData.firstName ?? '';
+      const newLastName = dataToUpdate.lastName ?? currentEmployeeData.lastName ?? '';
       dataToUpdate.name = `${newFirstName} ${newLastName}`.trim();
     }
     
