@@ -128,23 +128,28 @@ function AllLeaveRequestsContent() {
           
           if (reportsSnapshot.empty) {
             // If they are not a manager for anyone, they should see no requests.
-            // We can pass a condition that will always be false to return no documents.
-            queryConstraints.push(where("requestingEmployeeDocId", "==", "NO_REPORTS_FOUND"));
+            setAllRequests([]);
+            setIsLoading(false);
+            return () => {}; // Return an empty unsubscribe function
+          }
+          
+          const reportIds = reportsSnapshot.docs.map(doc => doc.id);
+          // Firestore 'in' queries are limited to 30 items per query.
+          // For now, assuming a manager has <= 30 direct reports. If more, pagination/multiple queries would be needed.
+          if (reportIds.length > 0) {
+            queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds.slice(0, 30)));
           } else {
-            const reportIds = reportsSnapshot.docs.map(doc => doc.id);
-            // Firestore 'in' queries are limited to 30 items per query.
-            if (reportIds.length > 0) {
-              // We'll apply the filter here. If more than 30 reports, we could do multiple queries,
-              // but for now, we'll assume a manager has <= 30 direct reports.
-              queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds.slice(0, 30)));
-            } else {
-               queryConstraints.push(where("requestingEmployeeDocId", "==", "NO_REPORTS_FOUND"));
-            }
+             // This case is already handled by the empty check, but as a fallback:
+            setAllRequests([]);
+            setIsLoading(false);
+            return () => {};
           }
         } catch (error) {
           console.error("Error finding direct reports:", error);
-          // Fallback to a query that returns nothing to prevent showing all requests on error.
-          queryConstraints.push(where("requestingEmployeeDocId", "==", "ERROR_FETCHING_REPORTS"));
+          // Fallback to returning nothing on error.
+          setAllRequests([]);
+          setIsLoading(false);
+          return () => {};
         }
       }
 
@@ -170,15 +175,14 @@ function AllLeaveRequestsContent() {
       return unsubscribe;
     };
 
-    let unsubscribe: (() => void) | undefined;
-    buildQuery().then(unsub => {
-        if (unsub) unsubscribe = unsub;
-    });
+    let unsubscribePromise = buildQuery();
 
     return () => {
-        if (unsubscribe) {
-            unsubscribe();
-        }
+        unsubscribePromise.then(unsubscribe => {
+            if (unsubscribe) {
+                unsubscribe();
+            }
+        });
     };
   }, [profile, isLoadingProfile, toast, canManageAllRequests]);
 
