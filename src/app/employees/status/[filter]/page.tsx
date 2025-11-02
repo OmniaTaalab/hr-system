@@ -121,7 +121,7 @@ function EmployeeStatusContent() {
             employeeId: String(d.employeeId ?? "").trim(),
             name: d.name ?? "",
             photoURL: d.photoURL ?? undefined,
-            badgeNumber: d.badgeNumber ?? "N/A",
+            badgeNumber: d.badgeNumber,
           };
         });
 
@@ -205,7 +205,7 @@ function EmployeeStatusContent() {
           return {
             id: emp?.id || eid,
             employeeId: eid,
-            name: att?.name || emp?.name || `User ${eid}`,
+            name: emp?.name || att?.name || `User ${eid}`,
             photoURL: emp?.photoURL,
             checkIn: sortedIns[0] ?? null,
             checkOut: sortedOuts.pop() ?? null,
