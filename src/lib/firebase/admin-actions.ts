@@ -287,6 +287,12 @@ export async function updateEmployeeAction(
     if (Object.keys(dataToUpdate).length === 0) {
       return { success: true, message: "No changes were submitted." };
     }
+    if (!dataToUpdate.email && dataToUpdate.nisEmail) {
+  dataToUpdate.email = dataToUpdate.nisEmail;
+}
+delete dataToUpdate.nisEmail;
+
+await updateDoc(employeeRef, dataToUpdate);
     
     await updateDoc(employeeRef, dataToUpdate);
 

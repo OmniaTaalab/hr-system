@@ -1015,7 +1015,6 @@ function EmployeeManagementContent() {
               employee.campus,
               employee.email,
               employee.personalEmail,
-              employee.phone,
               employee.subject,
               employee.title,
               employee.religion,
