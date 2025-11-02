@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BarChartBig, AlertTriangle, Loader2, Eye, Search, ArrowLeft, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase/config";
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, QueryConstraint } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,13 @@ function KpisContent() {
     const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
 
-    const canViewPage = !loading && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
+    const canViewPage = !loading && profile;
+    const isPrivilegedUser = useMemo(() => {
+        if (!profile) return false;
+        const userRole = profile.role?.toLowerCase();
+        return userRole === 'admin' || userRole === 'hr';
+    }, [profile]);
+
 
     useEffect(() => {
         if (loading) return;
@@ -52,10 +58,21 @@ function KpisContent() {
             return;
         }
 
-        const q = query(collection(db, "employee"), orderBy("name"));
-        const unsubscribe = onSnapshot(q, 
+        setIsLoadingEmployees(true);
+        const employeeCollection = collection(db, "employee");
+        let q: QueryConstraint[] = [];
+
+        // If user is not admin/hr, they might be a manager. Filter by reportLine1.
+        if (!isPrivilegedUser && profile?.email) {
+            q.push(where("reportLine1", "==", profile.email));
+        }
+        
+        const finalQuery = query(employeeCollection, ...q);
+
+        const unsubscribe = onSnapshot(finalQuery, 
             (snapshot) => {
                 const employeesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+                employeesData.sort((a, b) => a.name.localeCompare(b.name));
                 setEmployees(employeesData);
                 setIsLoadingEmployees(false);
             },
@@ -71,7 +88,7 @@ function KpisContent() {
         );
 
         return () => unsubscribe();
-    }, [loading, canViewPage, router, toast]);
+    }, [loading, canViewPage, router, toast, isPrivilegedUser, profile?.email]);
 
     const filteredEmployees = useMemo(() => {
         if (!searchTerm) {
@@ -164,7 +181,7 @@ function KpisContent() {
                         </div>
                     ) : paginatedEmployees.length === 0 ? (
                         <p className="text-center text-muted-foreground py-10">
-                            {searchTerm ? `No employees found matching "${searchTerm}"` : "No employees found."}
+                            {employees.length === 0 ? "You do not have any direct reports to evaluate." : (searchTerm ? `No employees found matching "${searchTerm}"` : "No employees found.")}
                         </p>
                     ) : (
                         <Table>

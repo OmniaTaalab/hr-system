@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useActionState, useMemo } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save } from "lucide-react";
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase/config';
 import { doc, getDoc, collection, query, where, onSnapshot, orderBy, Timestamp } from 'firebase/firestore';
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 interface Employee {
   id: string;
   name: string;
+  reportLine1?: string;
 }
 
 interface KpiEntry {
@@ -36,7 +37,7 @@ interface KpiEntry {
 const initialKpiState: KpiEntryState = { success: false, message: null, errors: {} };
 
 
-function KpiCard({ title, kpiType, employeeId }: { title: string, kpiType: 'eleot' | 'tot', employeeId: string }) {
+function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiType: 'eleot' | 'tot', employeeId: string, canEdit: boolean }) {
     const { toast } = useToast();
     const [data, setData] = useState<KpiEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -51,12 +52,11 @@ function KpiCard({ title, kpiType, employeeId }: { title: string, kpiType: 'eleo
         setIsLoading(true);
         const q = query(
             collection(db, kpiType),
-            where("employeeDocId", "==", employeeId)
+            where("employeeDocId", "==", employeeId),
+            orderBy("date", "desc")
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const kpiData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
-            // Sort data on the client side
-            kpiData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
             setData(kpiData);
             setIsLoading(false);
         }, (error) => {
@@ -80,13 +80,14 @@ function KpiCard({ title, kpiType, employeeId }: { title: string, kpiType: 'eleo
         }
     }, [addState, toast]);
     
-    const performancePercentage = useMemo(() => {
+    const performanceScore = useMemo(() => {
         if (data.length === 0) {
             return 0;
         }
         const totalPoints = data.reduce((acc, item) => acc + item.points, 0);
         const maxPoints = data.length * 6;
-        return (totalPoints / maxPoints) * 100;
+        if (maxPoints === 0) return 0;
+        return (totalPoints / maxPoints) * 10;
     }, [data]);
 
 
@@ -96,9 +97,10 @@ function KpiCard({ title, kpiType, employeeId }: { title: string, kpiType: 'eleo
                 <div className="space-y-1.5">
                     <CardTitle>{title}</CardTitle>
                     <CardDescription>
-                        {data.length > 0 ? `Overall Performance: ${performancePercentage.toFixed(1)}%` : "No entries yet."}
+                        {data.length > 0 ? `Overall Performance: ${performanceScore.toFixed(1)} / 10` : "No entries yet."}
                     </CardDescription>
                 </div>
+                {canEdit && (
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger asChild>
                         <Button size="icon">
@@ -175,6 +177,7 @@ function KpiCard({ title, kpiType, employeeId }: { title: string, kpiType: 'eleo
                         </form>
                     </DialogContent>
                 </Dialog>
+                )}
             </CardHeader>
             <CardContent>
                 {isLoading ? (
@@ -220,7 +223,10 @@ function KpiCard({ title, kpiType, employeeId }: { title: string, kpiType: 'eleo
 
 export default function KpiDashboardPage() {
   const params = useParams();
+  const router = useRouter();
   const employeeId = params.id as string;
+  const { profile: currentUserProfile, loading: isLoadingCurrentUser } = useUserProfile();
+
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -252,6 +258,61 @@ export default function KpiDashboardPage() {
 
     fetchEmployee();
   }, [employeeId]);
+  
+  const canViewPage = useMemo(() => {
+      if (isLoadingCurrentUser || !currentUserProfile || !employee) return false;
+      // User can see their own KPIs
+      if (currentUserProfile.id === employee.id) return true;
+      // Admin/HR can see anyone's KPIs
+      const userRole = currentUserProfile.role?.toLowerCase();
+      if (userRole === 'admin' || userRole === 'hr') return true;
+      // Manager can see their report's KPIs
+      if (employee.reportLine1 === currentUserProfile.email) return true;
+
+      return false;
+  }, [isLoadingCurrentUser, currentUserProfile, employee]);
+  
+  const canEditKpis = useMemo(() => {
+      if (isLoadingCurrentUser || !currentUserProfile || !employee) return false;
+      const userRole = currentUserProfile.role?.toLowerCase();
+      if (userRole === 'admin' || userRole === 'hr') return true;
+      if (employee.reportLine1 === currentUserProfile.email) return true;
+      return false;
+  }, [isLoadingCurrentUser, currentUserProfile, employee]);
+
+  useEffect(() => {
+      if (!loading && !isLoadingCurrentUser && !canViewPage) {
+          router.replace('/kpis');
+      }
+  }, [loading, isLoadingCurrentUser, canViewPage, router]);
+
+
+  if (loading || isLoadingCurrentUser) {
+     return (
+       <AppLayout>
+            <div className="flex justify-center items-center h-full">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        </AppLayout>
+     );
+  }
+
+  if (error || !canViewPage) {
+       return (
+         <AppLayout>
+            <div className="space-y-8">
+             <header>
+                <div className="flex items-center text-destructive">
+                    <AlertTriangle className="mr-2 h-6 w-6"/>
+                    <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
+                        {error || "Access Denied"}
+                    </h1>
+                </div>
+            </header>
+            </div>
+        </AppLayout>
+       )
+  }
 
   return (
     <AppLayout>
@@ -261,13 +322,6 @@ export default function KpiDashboardPage() {
             <div className="space-y-2">
                 <Skeleton className="h-10 w-1/2" />
                 <Skeleton className="h-5 w-3/4" />
-            </div>
-          ) : error ? (
-             <div className="flex items-center text-destructive">
-                <AlertTriangle className="mr-2 h-6 w-6"/>
-                <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-                    {error}
-                </h1>
             </div>
           ) : (
             <>
@@ -282,8 +336,8 @@ export default function KpiDashboardPage() {
           )}
         </header>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeId={employeeId} />
-            <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employeeId} />
+            <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeId={employeeId} canEdit={canEditKpis} />
+            <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employeeId} canEdit={canEditKpis} />
         </div>
       </div>
     </AppLayout>
