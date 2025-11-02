@@ -43,6 +43,11 @@ export const navItems: NavItem[] = [
     iconName: 'Trophy',
   },
   {
+    i18nKey: 'sidebar.kpis',
+    href: '/kpis',
+    iconName: 'BarChartBig',
+  },
+  {
     i18nKey: 'sidebar.attendance_logs',
     href: '/attendance-logs',
     iconName: 'BookOpenCheck',

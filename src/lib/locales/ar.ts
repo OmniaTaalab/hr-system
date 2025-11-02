@@ -12,6 +12,7 @@ export default {
     payroll_calculation: 'حساب الرواتب',
     annual_payroll_report: 'تقرير الرواتب السنوي',
     tpi: 'مؤشرات الأداء',
+    kpis: "مؤشرات الأداء الرئيسية",
     attendance_logs: 'سجلات أومنيا',
     job_board: 'لوحة الوظائف',
     job_applications: 'طلبات التوظيف',
