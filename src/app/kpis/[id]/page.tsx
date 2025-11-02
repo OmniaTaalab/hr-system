@@ -52,11 +52,11 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
         setIsLoading(true);
         const q = query(
             collection(db, kpiType),
-            where("employeeDocId", "==", employeeId),
-            orderBy("date", "desc")
+            where("employeeDocId", "==", employeeId)
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const kpiData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
+            kpiData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
             setData(kpiData);
             setIsLoading(false);
         }, (error) => {
@@ -221,7 +221,7 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
     );
 }
 
-export default function KpiDashboardPage() {
+function KpiDashboardContent() {
   const params = useParams();
   const router = useRouter();
   const employeeId = params.id as string;
@@ -289,33 +289,28 @@ export default function KpiDashboardPage() {
 
   if (loading || isLoadingCurrentUser) {
      return (
-       <AppLayout>
-            <div className="flex justify-center items-center h-full">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            </div>
-        </AppLayout>
+        <div className="flex justify-center items-center h-full">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
      );
   }
 
   if (error || !canViewPage) {
        return (
-         <AppLayout>
-            <div className="space-y-8">
-             <header>
-                <div className="flex items-center text-destructive">
-                    <AlertTriangle className="mr-2 h-6 w-6"/>
-                    <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-                        {error || "Access Denied"}
-                    </h1>
-                </div>
-            </header>
+         <div className="space-y-8">
+            <header>
+            <div className="flex items-center text-destructive">
+                <AlertTriangle className="mr-2 h-6 w-6"/>
+                <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
+                    {error || "Access Denied"}
+                </h1>
             </div>
-        </AppLayout>
+        </header>
+        </div>
        )
   }
 
   return (
-    <AppLayout>
       <div className="space-y-8">
         <header>
           {loading ? (
@@ -340,6 +335,14 @@ export default function KpiDashboardPage() {
             <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employeeId} canEdit={canEditKpis} />
         </div>
       </div>
-    </AppLayout>
   );
+}
+
+
+export default function KpiDashboardPage() {
+    return (
+        <AppLayout>
+            <KpiDashboardContent />
+        </AppLayout>
+    );
 }
