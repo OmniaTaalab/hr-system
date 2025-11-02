@@ -3,15 +3,70 @@
 
 import React, { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
-import { BarChartBig, Loader2, AlertTriangle } from "lucide-react";
+import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { db } from '@/lib/firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface Employee {
   id: string;
   name: string;
+}
+
+function KpiCard({ title }: { title: string }) {
+    const data = [
+        { date: "12 Dec 2023", points: "5 points" },
+        { date: "12 Dec 2023", points: "5 points" },
+        { date: "12 Dec 2023", points: "5 points" },
+        { date: "12 Dec 2023", points: "5 points" },
+        { date: "12 Dec 2023", points: "5 points" },
+    ];
+    return (
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>{title}</CardTitle>
+                <Button size="icon">
+                    <Plus className="h-4 w-4" />
+                </Button>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Point</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {data.map((item, index) => (
+                            <TableRow key={index}>
+                                <TableCell>{item.date}</TableCell>
+                                <TableCell>{item.points}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+            <CardFooter className="flex justify-between items-center text-sm text-muted-foreground">
+                <span>Showing 1-5 from 100</span>
+                <div className="flex items-center gap-1">
+                    <Button variant="outline" size="icon" className="h-8 w-8">
+                        <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="icon" className="h-8 w-8 bg-primary text-primary-foreground">1</Button>
+                    <Button variant="outline" size="icon" className="h-8 w-8">2</Button>
+                    <span>...</span>
+                    <Button variant="outline" size="icon" className="h-8 w-8">
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </div>
+            </CardFooter>
+        </Card>
+    );
 }
 
 export default function KpiDashboardPage() {
@@ -77,7 +132,10 @@ export default function KpiDashboardPage() {
             </>
           )}
         </header>
-        {/* Add your KPI dashboard components here */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <KpiCard title="ELEOT(10%)" />
+            <KpiCard title="TOT(10%)" />
+        </div>
       </div>
     </AppLayout>
   );
