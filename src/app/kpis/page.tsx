@@ -1,12 +1,12 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { BarChartBig, AlertTriangle, Loader2, Eye } from "lucide-react";
+import { BarChartBig, AlertTriangle, Loader2, Eye, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { Input } from "@/components/ui/input";
 
 interface Employee {
     id: string;
@@ -36,6 +37,7 @@ function KpisContent() {
     const { toast } = useToast();
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
+    const [searchTerm, setSearchTerm] = useState("");
 
     const canViewPage = !loading && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
 
@@ -67,6 +69,16 @@ function KpisContent() {
 
         return () => unsubscribe();
     }, [loading, canViewPage, router, toast]);
+
+    const filteredEmployees = useMemo(() => {
+        if (!searchTerm) {
+            return employees;
+        }
+        const lowercasedFilter = searchTerm.toLowerCase();
+        return employees.filter(employee =>
+            employee.name.toLowerCase().includes(lowercasedFilter)
+        );
+    }, [employees, searchTerm]);
 
     if (loading) {
         return (
@@ -100,9 +112,21 @@ function KpisContent() {
             <Card>
                 <CardHeader>
                     <CardTitle>All Employees</CardTitle>
-                    <CardDescription>
-                        A list of all employees in the system.
-                    </CardDescription>
+                     <div className="flex justify-between items-center">
+                        <CardDescription>
+                            A list of all employees in the system.
+                        </CardDescription>
+                         <div className="relative w-full max-w-sm">
+                              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                  type="search"
+                                  placeholder="Search by name..."
+                                  className="w-full pl-8"
+                                  value={searchTerm}
+                                  onChange={(e) => setSearchTerm(e.target.value)}
+                              />
+                          </div>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     {isLoadingEmployees ? (
@@ -111,8 +135,10 @@ function KpisContent() {
                            <Skeleton className="h-10 w-full" />
                            <Skeleton className="h-10 w-full" />
                         </div>
-                    ) : employees.length === 0 ? (
-                        <p className="text-center text-muted-foreground py-10">No employees found.</p>
+                    ) : filteredEmployees.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-10">
+                            {searchTerm ? `No employees found matching "${searchTerm}"` : "No employees found."}
+                        </p>
                     ) : (
                         <Table>
                             <TableHeader>
@@ -122,7 +148,7 @@ function KpisContent() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {employees.map((employee) => (
+                                {filteredEmployees.map((employee) => (
                                     <TableRow key={employee.id}>
                                         <TableCell className="font-medium flex items-center gap-3">
                                             <Avatar>
