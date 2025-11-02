@@ -867,12 +867,6 @@ function EmployeeManagementContent() {
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
 
-  const canManageEmployees = useMemo(() => {
-    if (!profile) return false;
-    const userRole = profile.role?.toLowerCase();
-    return userRole === 'admin' || userRole === 'hr';
-  }, [profile]);
-  
   const hasFullView = useMemo(() => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();
@@ -989,9 +983,9 @@ function EmployeeManagementContent() {
     let listToFilter = allEmployees;
     const userRole = profile?.role?.toLowerCase();
     
-    // Server-side equivalent filtering now on client
-    if (userRole === 'principal' && profile?.name) {
-        listToFilter = listToFilter.filter(emp => emp.reportLine1 === profile.name);
+    // Non-privileged users should only see themselves
+    if (userRole !== 'admin' && userRole !== 'hr' && userRole !== 'principal') {
+        return listToFilter.filter(emp => emp.id === profile?.id);
     }
     
     if (campusFilter !== "All") listToFilter = listToFilter.filter(emp => emp.campus === campusFilter);
@@ -1051,6 +1045,15 @@ function EmployeeManagementContent() {
     if (currentPage === 1) return;
     setCurrentPage(prev => prev - 1);
   };
+  
+  const canManageEmployee = useCallback((employee: Employee) => {
+    if (!profile) return false;
+    const userRole = profile.role?.toLowerCase();
+    if (userRole === 'admin' || userRole === 'hr') return true;
+    if (employee.reportLine1 === profile.email) return true;
+    return false;
+  }, [profile]);
+
 
   const openEditDialog = (employee: Employee) => {
     setEditingEmployee(employee);
@@ -1229,7 +1232,7 @@ function EmployeeManagementContent() {
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 {isLoadingProfile ? (
                     <Skeleton className="h-10 w-[190px]" />
-                ) : canManageEmployees && (
+                ) : canManageEmployee({} as Employee) && (
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                         <Button className="w-full" onClick={handleDownloadTemplate} variant="outline">
                            <Download className="mr-2 h-4 w-4" />
@@ -1337,7 +1340,7 @@ function EmployeeManagementContent() {
                 <TableHead>Stage</TableHead>
                 <TableHead>Campus</TableHead>
                 <TableHead>Status</TableHead>
-                {canManageEmployees && <TableHead className="text-right">Actions</TableHead>}
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1366,8 +1369,8 @@ function EmployeeManagementContent() {
                         {employee.status || "Active"}
                       </Badge>
                     </TableCell>
-                    {canManageEmployees && (
                       <TableCell className="text-right">
+                       {canManageEmployee(employee) && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
@@ -1382,7 +1385,7 @@ function EmployeeManagementContent() {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuSub>
-                              <DropdownMenuSubTrigger disabled={!canManageEmployees}>
+                              <DropdownMenuSubTrigger>
                                 <UserPlus className="mr-2 h-4 w-4" />
                                 Login Management
                               </DropdownMenuSubTrigger>
@@ -1403,28 +1406,28 @@ function EmployeeManagementContent() {
                                 </DropdownMenuSubContent>
                               </DropdownMenuPortal>
                             </DropdownMenuSub>
-                            <DropdownMenuItem onSelect={() => openEditDialog(employee)} disabled={!canManageEmployees}>
+                            <DropdownMenuItem onSelect={() => openEditDialog(employee)}>
                               <Edit3 className="mr-2 h-4 w-4" />
                               Edit Employee
                             </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => openDeactivateDialog(employee)} disabled={!canManageEmployees || employee.status === 'deactivated'}>
+                            <DropdownMenuItem onSelect={() => openDeactivateDialog(employee)} disabled={employee.status === 'deactivated'}>
                                <UserMinus className="mr-2 h-4 w-4" />
                                Deactivate Employee
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onSelect={() => openDeleteConfirmDialog(employee)} disabled={!canManageEmployees} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                            <DropdownMenuItem onSelect={() => openDeleteConfirmDialog(employee)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
                               <Trash2 className="mr-2 h-4 w-4" />
                               Delete Employee
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                       )}
                       </TableCell>
-                    )}
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={canManageEmployees ? 8 : 7} className="h-24 text-center">
+                  <TableCell colSpan={8} className="h-24 text-center">
                     {allEmployees.length === 0 ? "No employees found." : "No employees match your current filters."}
                   </TableCell>
                 </TableRow>
@@ -1745,6 +1748,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
-
-

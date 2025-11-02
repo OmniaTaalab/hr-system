@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit, or } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle } from 'lucide-react';
 import { format, getYear, getMonth, getDate, intervalToDuration, formatDistanceToNow, eachDayOfInterval, startOfDay } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -139,7 +139,7 @@ function EmployeeProfileContent() {
   const params = useParams();
   const router = useRouter();
   const identifier = params.id as string;
-  const { profile, loading: profileLoading } = useUserProfile();
+  const { profile: currentUserProfile, loading: profileLoading } = useUserProfile();
   const { toast } = useToast();
 
   const [employee, setEmployee] = useState<Employee | null>(null);
@@ -330,7 +330,25 @@ function EmployeeProfileContent() {
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
   
-  const canView = !profileLoading && profile;
+  const canView = useMemo(() => {
+    if (profileLoading || !currentUserProfile || !employee) return false;
+    const userRole = currentUserProfile.role?.toLowerCase();
+    if (userRole === 'admin' || userRole === 'hr' || currentUserProfile.id === employee.id) {
+        return true;
+    }
+    // Check if current user is the manager of the viewed employee
+    if (employee.reportLine1 === currentUserProfile.email) {
+        return true;
+    }
+    return false;
+  }, [profileLoading, currentUserProfile, employee]);
+  
+
+  useEffect(() => {
+    if (!loading && !profileLoading && !canView) {
+      router.replace('/');
+    }
+  }, [loading, profileLoading, canView, router]);
 
   const handleExportPDF = async () => {
     if (!employee) return;
@@ -505,7 +523,11 @@ function EmployeeProfileContent() {
 
    if (!canView) {
     return (
-        <div className="text-center">You do not have permission to view this page.</div>
+        <div className="flex justify-center items-center h-full flex-col gap-4">
+            <AlertTriangle className="h-12 w-12 text-destructive" />
+            <h2 className="text-xl font-semibold">Access Denied</h2>
+            <p className="text-muted-foreground">You do not have permission to view this profile.</p>
+        </div>
     );
   }
 
@@ -755,5 +777,3 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
-
-    
