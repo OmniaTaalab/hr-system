@@ -40,6 +40,7 @@ function KpiCard({ title, kpiType, employeeId }: { title: string, kpiType: 'eleo
     const { toast } = useToast();
     const [data, setData] = useState<KpiEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const { profile } = useUserProfile();
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [selectedDate, setSelectedDate] = useState<Date | undefined>();
@@ -50,11 +51,12 @@ function KpiCard({ title, kpiType, employeeId }: { title: string, kpiType: 'eleo
         setIsLoading(true);
         const q = query(
             collection(db, kpiType),
-            where("employeeDocId", "==", employeeId),
-            orderBy("date", "desc")
+            where("employeeDocId", "==", employeeId)
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const kpiData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
+            // Sort data on the client side
+            kpiData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
             setData(kpiData);
             setIsLoading(false);
         }, (error) => {
@@ -93,6 +95,9 @@ function KpiCard({ title, kpiType, employeeId }: { title: string, kpiType: 'eleo
                             <input type="hidden" name="kpiType" value={kpiType} />
                             <input type="hidden" name="employeeDocId" value={employeeId} />
                             <input type="hidden" name="date" value={selectedDate?.toISOString() ?? ''} />
+                            <input type="hidden" name="actorId" value={profile?.id || ''} />
+                            <input type="hidden" name="actorEmail" value={profile?.email || ''} />
+                            <input type="hidden" name="actorRole" value={profile?.role || ''} />
                             <DialogHeader>
                                 <DialogTitle>Add New Entry to {title}</DialogTitle>
                                 <DialogDescription>
