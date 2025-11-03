@@ -1,15 +1,14 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from 'next/navigation';
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
-import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit, or } from 'firebase/firestore';
+import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit, or, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle, Trophy } from 'lucide-react';
 import { format, getYear, getMonth, getDate, intervalToDuration, formatDistanceToNow, eachDayOfInterval, startOfDay } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -90,6 +89,13 @@ interface LeaveRequest {
   status: "Pending" | "Approved" | "Rejected";
 }
 
+interface KpiEntry {
+  id: string;
+  date: Timestamp;
+  points: number;
+}
+
+
 function safeToDate(timestamp: any): Date | undefined {
     if (!timestamp) return undefined;
     if (timestamp instanceof Date) return timestamp;
@@ -153,6 +159,11 @@ function EmployeeProfileContent() {
   
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [loadingLeaves, setLoadingLeaves] = useState(false);
+  
+  const [eleotHistory, setEleotHistory] = useState<KpiEntry[]>([]);
+  const [totHistory, setTotHistory] = useState<KpiEntry[]>([]);
+  const [loadingKpis, setLoadingKpis] = useState(false);
+
 
   useEffect(() => {
     if (!identifier) return;
@@ -185,6 +196,7 @@ function EmployeeProfileContent() {
              setEmployee(empData);
              fetchHistory(empData);
              fetchLeaveRequests(empData.id);
+             fetchKpiData(empData.id);
              setLoading(false);
              return; // Exit after successful doc ID fetch
           }
@@ -197,6 +209,7 @@ function EmployeeProfileContent() {
   
           fetchHistory(employeeData);
           fetchLeaveRequests(employeeData.id);
+          fetchKpiData(employeeData.id);
         } else {
           setError('Employee not found.');
         }
@@ -322,7 +335,28 @@ function EmployeeProfileContent() {
         setLoadingLeaves(false);
       }
     };
-  
+    
+    const fetchKpiData = async (employeeDocId: string) => {
+        setLoadingKpis(true);
+        const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", employeeDocId), orderBy("date", "desc"));
+        const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", employeeDocId), orderBy("date", "desc"));
+
+        const eleotUnsubscribe = onSnapshot(eleotQuery, (snapshot) => {
+            setEleotHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry)));
+        }, (error) => console.error("Error fetching ELEOT history:", error));
+        
+        const totUnsubscribe = onSnapshot(totQuery, (snapshot) => {
+            setTotHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry)));
+        }, (error) => console.error("Error fetching TOT history:", error));
+
+        setLoadingKpis(false); // Can set this earlier as listeners will update
+        
+        return () => {
+            eleotUnsubscribe();
+            totUnsubscribe();
+        };
+    };
+
     fetchEmployeeData();
   }, [identifier, toast]);
   
@@ -730,6 +764,50 @@ const calculateAttendanceScore = async (employeeId: string) => {
                     </Button>
                 </CardContent>
             </Card>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="shadow-lg">
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><Trophy className="mr-2 h-5 w-5 text-primary" />ELEOT History</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {loadingKpis ? <Loader2 className="h-6 w-6 animate-spin" /> : eleotHistory.length === 0 ? <p className="text-sm text-muted-foreground">No ELEOT records found.</p> : (
+                            <Table>
+                                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead className="text-right">Points</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                    {eleotHistory.map(entry => (
+                                        <TableRow key={entry.id}>
+                                            <TableCell>{format(entry.date.toDate(), "PPP")}</TableCell>
+                                            <TableCell className="text-right">{entry.points} / 6</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        )}
+                    </CardContent>
+                </Card>
+                 <Card className="shadow-lg">
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><Trophy className="mr-2 h-5 w-5 text-primary" />TOT History</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {loadingKpis ? <Loader2 className="h-6 w-6 animate-spin" /> : totHistory.length === 0 ? <p className="text-sm text-muted-foreground">No TOT records found.</p> : (
+                            <Table>
+                                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead className="text-right">Points</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                    {totHistory.map(entry => (
+                                        <TableRow key={entry.id}>
+                                            <TableCell>{format(entry.date.toDate(), "PPP")}</TableCell>
+                                            <TableCell className="text-right">{entry.points} / 6</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+
 
             {(employee.documents && employee.documents.length > 0) && (
               <Card className="shadow-lg">
