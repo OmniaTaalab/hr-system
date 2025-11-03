@@ -10,7 +10,7 @@ import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, lim
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle } from 'lucide-react';
-import { format, getYear, getMonth, getDate, intervalToDuration, formatDistanceToNow, eachDayOfInterval, startOfDay } from 'date-fns';
+import { format, getYear, getMonth, getDate, intervalToDuration, formatDistanceToNow, eachDayOfInterval, startOfDay, subDays } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -221,32 +221,19 @@ function EmployeeProfileContent() {
     
       setLoadingHistory(true);
       try {
-        // 🔹 أهم تعديل: استخدم String بدل Number
+        // Use String for badgeNumber which can sometimes be numeric
         const idString = String(identifierToUse).trim();
     
-        // 🟩 نحاول أولاً البحث في userId (كـ string)
-        let attendanceSnapshot = await getDocs(
-          query(collection(db, "attendance_log"), where("userId", "==", idString))
+        // Fetch attendance logs based on badgeNumber
+        const attendanceSnapshot = await getDocs(
+          query(collection(db, "attendance_log"), where("badgeNumber", "==", idString))
         );
-    
-        // 🟨 fallback: لو مفيش، نجرب بالـ badgeNumber
-        if (attendanceSnapshot.empty) {
-          attendanceSnapshot = await getDocs(
-            query(collection(db, "attendance_log"), where("badgeNumber", "==", idString))
-          );
-        }
     
         const attendanceLogs = attendanceSnapshot.docs.map(
           (doc) => ({ id: doc.id, ...doc.data() } as AttendanceLog)
         );
     
-        if (attendanceLogs.length === 0) {
-          setAttendanceAndLeaveHistory([]);
-          setLoadingHistory(false);
-          return;
-        }
-    
-        // 🧩 تجميع السجلات حسب التاريخ
+        // Group logs by date to find first check-in and last check-out
         const groupedLogs: { [key: string]: { check_ins: string[]; check_outs: string[]; date: string } } = {};
         attendanceLogs.forEach((log) => {
           if (!groupedLogs[log.date]) {
@@ -256,7 +243,7 @@ function EmployeeProfileContent() {
           if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
         });
     
-        // 🕒 ترتيب check_in / check_out
+        // Sort check-ins/outs to find earliest and latest
         const processedAttendance: AttendanceLog[] = Object.values(groupedLogs).map((group) => {
           group.check_ins.sort();
           group.check_outs.sort();
@@ -272,7 +259,7 @@ function EmployeeProfileContent() {
           };
         });
     
-        // 🟢 الإجازات المعتمدة
+        // Fetch approved leave requests for the employee
         const leavesQuery = query(
           collection(db, "leaveRequests"),
           where("requestingEmployeeDocId", "==", emp.id),
@@ -296,7 +283,7 @@ function EmployeeProfileContent() {
           });
         });
     
-        // 🔄 دمج الحضور والإجازات
+        // Merge attendance and leave data
         const mergedHistoryMap = new Map<string, HistoryEntry>();
         processedAttendance.forEach((att) => mergedHistoryMap.set(att.date, att));
         processedLeaves.forEach((leave) => mergedHistoryMap.set(leave.date, leave));
@@ -482,9 +469,22 @@ function EmployeeProfileContent() {
     if (!attendanceAndLeaveHistory || attendanceAndLeaveHistory.length === 0) {
       return null;
     }
+    
+    // Filter history for the last 30 days
+    const today = new Date();
+    const thirtyDaysAgo = subDays(today, 30);
+    
+    const recentHistory = attendanceAndLeaveHistory.filter(entry => {
+        const entryDate = new Date(entry.date);
+        return entryDate >= thirtyDaysAgo && entryDate <= today;
+    });
+
+    if (recentHistory.length === 0) return null;
+
     let totalPoints = 0;
     let daysWithRecord = 0;
-    attendanceAndLeaveHistory.forEach(entry => {
+
+    recentHistory.forEach(entry => {
         if (entry.type === 'attendance' && entry.check_in) {
             daysWithRecord++;
             totalPoints += getAttendancePointValue(entry);
@@ -741,7 +741,7 @@ function EmployeeProfileContent() {
                     </div>
                     {totalAttendanceScore && (
                         <div className="text-right">
-                            <p className="text-sm font-medium text-muted-foreground">Total Score</p>
+                            <p className="text-sm font-medium text-muted-foreground">Total Score (Last 30 Days)</p>
                             <p className="text-2xl font-bold text-primary">{totalAttendanceScore.scoreOutOf10} / 10</p>
                         </div>
                     )}
