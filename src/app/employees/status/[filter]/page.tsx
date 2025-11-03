@@ -231,7 +231,7 @@ function EmployeeStatusContent() {
 
         // 6️⃣ بناء جدول العرض
         const dataRows: Row[] = Array.from(targetIds).map((employeeId) => {
-          let emp = empByEmployeeId.get(employeeId);
+          const emp = empByEmployeeId.get(employeeId);
           const att = attData[employeeId];
           
           const safeName = toStr(emp?.name) || toStr(att?.name) || `ID: ${employeeId}`;
