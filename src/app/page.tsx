@@ -406,7 +406,10 @@ function DashboardPageContent() {
     {
       title: "Absent Today",
       iconName: "UserX",
-      statistic: absentToday ?? 0,
+      statistic:
+      totalEmployees !== null && todaysAttendance !== null
+        ? Math.max(totalEmployees - todaysAttendance, 0)
+        : 0,
       statisticLabel: attendanceDate ? `As of ${attendanceDate}` : 'No attendance data',
       isLoadingStatistic: isLoadingAbsentToday,
       href: `/employees/status/absent?date=${dateStringForLink || ''}`,

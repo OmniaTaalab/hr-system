@@ -1,8 +1,5 @@
 
-
 'use server';
-
-
 
 import { z } from 'zod';
 import * as XLSX from "xlsx";
@@ -116,6 +113,114 @@ export type CreateEmployeeState = {
   success?: boolean;
   employeeId?: string; // Return the new employee's document ID
 };
+
+
+// --- Create Profile Action (for new users) ---
+export type CreateProfileState = {
+  errors?: {
+    firstName?: string[];
+    lastName?: string[];
+    department?: string[];
+    phone?: string[];
+    role?: string[];
+    stage?: string[];
+    dateOfBirth?: string[];
+    form?: string[];
+  };
+  message?: string | null;
+  success?: boolean;
+};
+
+const CreateProfileSchema = z.object({
+  userId: z.string().min(1, 'User ID is required.'),
+  email: z.string().email('A valid email is required.'),
+  firstName: z.string().min(1, 'First name is required.'),
+  lastName: z.string().min(1, 'Last name is required.'),
+  department: z.string().min(1, 'Department is required.'),
+  phone: z.string().min(1, 'Phone number is required.'),
+  role: z.string().min(1, 'Role is required.'),
+  stage: z.string().optional(),
+  dateOfBirth: z.preprocess((arg) => {
+    if (!arg || typeof arg !== "string" || arg === "") return undefined;
+    return new Date(arg);
+  }, z.date({ required_error: "A valid date of birth is required." })),
+});
+
+export async function createEmployeeProfileAction(
+  prevState: CreateProfileState,
+  formData: FormData
+): Promise<CreateProfileState> {
+  const validatedFields = CreateProfileSchema.safeParse({
+    userId: formData.get('userId'),
+    email: formData.get('email'),
+    firstName: formData.get('firstName'),
+    lastName: formData.get('lastName'),
+    department: formData.get('department'),
+    phone: formData.get('phone'),
+    role: formData.get('role'),
+    stage: formData.get('stage'),
+    dateOfBirth: formData.get('dateOfBirth'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "Validation failed. Please check the form.",
+      success: false,
+    };
+  }
+  
+  const { userId, email, firstName, lastName, ...profileData } = validatedFields.data;
+
+  try {
+    // Check if an employee with this userId or email already exists
+    const q = query(
+      collection(db, "employee"),
+      where("userId", "==", userId)
+    );
+    const existingUser = await getDocs(q);
+    if (!existingUser.empty) {
+      return { success: false, errors: { form: ["An employee profile for this user already exists."] } };
+    }
+    const qEmail = query(
+      collection(db, "employee"),
+      where("email", "==", email)
+    );
+    const existingEmail = await getDocs(qEmail);
+    if (!existingEmail.empty) {
+       return { success: false, errors: { form: ["An employee with this email already exists."] } };
+    }
+
+    const employeeCountSnapshot = await getCountFromServer(collection(db, "employee"));
+    const newEmployeeId = (1001 + employeeCountSnapshot.data().count).toString();
+
+    await addDoc(collection(db, "employee"), {
+      userId,
+      email,
+      name: `${firstName} ${lastName}`.trim(),
+      firstName,
+      lastName,
+      employeeId: newEmployeeId,
+      dateOfBirth: Timestamp.fromDate(profileData.dateOfBirth),
+      department: profileData.department,
+      phone: profileData.phone,
+      role: profileData.role,
+      stage: profileData.stage || null,
+      status: "Active",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    revalidatePath("/profile");
+    return { success: true, message: "Profile created successfully! The page will now refresh." };
+  } catch (error: any) {
+    console.error("Error creating employee profile:", error);
+    return {
+      success: false,
+      errors: { form: ["An unexpected error occurred while creating the profile."] },
+    };
+  }
+}
 
 
 // Schema for validating form data for updating an employee
