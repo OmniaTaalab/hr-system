@@ -1,11 +1,12 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from 'next/navigation';
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
-import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit, or } from 'firebase/firestore';
+import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit, or } from 'firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle } from 'lucide-react';
@@ -44,6 +45,7 @@ interface Employee {
   reportLine1?: string;
   reportLine2?: string;
   employeeId: string; 
+  badgeNumber?: string;
   department: string;
   role: string;
   groupName: string;
@@ -181,7 +183,7 @@ function EmployeeProfileContent() {
           if (docSnap.exists()) {
              const empData = { id: docSnap.id, ...docSnap.data() } as Employee;
              setEmployee(empData);
-             fetchHistory(empData.employeeId, empData.id);
+             fetchHistory(empData);
              fetchLeaveRequests(empData.id);
              setLoading(false);
              return; // Exit after successful doc ID fetch
@@ -193,7 +195,7 @@ function EmployeeProfileContent() {
           const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
           setEmployee(employeeData);
   
-          fetchHistory(employeeData.employeeId, employeeData.id);
+          fetchHistory(employeeData);
           fetchLeaveRequests(employeeData.id);
         } else {
           setError('Employee not found.');
@@ -210,24 +212,25 @@ function EmployeeProfileContent() {
       }
     };
   
-    const fetchHistory = async (numericEmployeeId: string, employeeDocId: string) => {
-        if (!numericEmployeeId || !employeeDocId) {
+    const fetchHistory = async (emp: Employee) => {
+        const identifierToUse = emp.badgeNumber || emp.employeeId;
+        if (!identifierToUse) {
             setAttendanceAndLeaveHistory([]);
             return;
         }
         setLoadingHistory(true);
         try {
-            const userIdNumber = Number(numericEmployeeId);
-            if (isNaN(userIdNumber)) {
+            const idNumber = Number(identifierToUse);
+            if (isNaN(idNumber)) {
                 setAttendanceAndLeaveHistory([]);
                 setLoadingHistory(false);
                 return;
             }
 
-            // Fetch attendance logs
+            // Fetch attendance logs by badgeNumber (stored as userId in attendance_log)
             const logsQuery = query(
                 collection(db, 'attendance_log'),
-                where('userId', '==', userIdNumber)
+                where('userId', '==', idNumber)
             );
             const attendanceSnapshot = await getDocs(logsQuery);
             const attendanceLogs = attendanceSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
@@ -257,7 +260,7 @@ function EmployeeProfileContent() {
             // Fetch approved leave requests
             const leavesQuery = query(
                 collection(db, 'leaveRequests'),
-                where('requestingEmployeeDocId', '==', employeeDocId),
+                where('requestingEmployeeDocId', '==', emp.id),
                 where('status', '==', 'Approved')
             );
             const leaveSnapshot = await getDocs(leavesQuery);
