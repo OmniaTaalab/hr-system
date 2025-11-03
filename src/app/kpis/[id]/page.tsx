@@ -52,9 +52,11 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
 
   useEffect(() => {
     setIsLoading(true);
-    const q = query(collection(db, kpiType), where("employeeDocId", "==", employeeDocId), orderBy("date", "desc"));
+    const q = query(collection(db, kpiType), where("employeeDocId", "==", employeeId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const kpiData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
+      // Sort client-side
+      kpiData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
       setData(kpiData);
       setIsLoading(false);
     }, (error) => {
@@ -62,7 +64,7 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, [kpiType, employeeDocId]);
+  }, [kpiType, employeeId]);
 
   useEffect(() => {
     if (addState?.message) {
@@ -460,7 +462,6 @@ export function AttendanceChartCard({ employeeDocId, employeeId }: { employeeDoc
     );
   }
   
-
 function KpiDashboardContent() {
   const params = useParams();
   const router = useRouter();
