@@ -344,9 +344,6 @@ function EmployeeStatusContent() {
                         </Avatar>
                         <div>
                           {e.name}
-                          <Badge variant="secondary" className="ml-2">
-                              {e.employeeId}
-                          </Badge>
                         </div>
                       </Link>
                     </TableCell>
