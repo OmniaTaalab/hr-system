@@ -213,99 +213,110 @@ function EmployeeProfileContent() {
     };
   
     const fetchHistory = async (emp: Employee) => {
-        const identifierToUse = emp.badgeNumber || emp.employeeId;
-        if (!identifierToUse) {
-            setAttendanceAndLeaveHistory([]);
-            return;
+      const identifierToUse = emp.badgeNumber || emp.employeeId;
+      if (!identifierToUse) {
+        setAttendanceAndLeaveHistory([]);
+        return;
+      }
+    
+      setLoadingHistory(true);
+      try {
+        // 🔹 أهم تعديل: استخدم String بدل Number
+        const idString = String(identifierToUse).trim();
+    
+        // 🟩 نحاول أولاً البحث في userId (كـ string)
+        let attendanceSnapshot = await getDocs(
+          query(collection(db, "attendance_log"), where("userId", "==", idString))
+        );
+    
+        // 🟨 fallback: لو مفيش، نجرب بالـ badgeNumber
+        if (attendanceSnapshot.empty) {
+          attendanceSnapshot = await getDocs(
+            query(collection(db, "attendance_log"), where("badgeNumber", "==", idString))
+          );
         }
-        setLoadingHistory(true);
-        try {
-            const idNumber = Number(identifierToUse);
-            if (isNaN(idNumber)) {
-                setAttendanceAndLeaveHistory([]);
-                setLoadingHistory(false);
-                return;
-            }
-
-            // Fetch attendance logs by badgeNumber (stored as userId in attendance_log)
-            const logsQuery = query(
-                collection(db, 'attendance_log'),
-                where('userId', '==', idNumber)
-            );
-            const attendanceSnapshot = await getDocs(logsQuery);
-            const attendanceLogs = attendanceSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
-
-            // Group by date to get first check-in and last check-out
-            const groupedLogs: { [key: string]: { check_ins: string[], check_outs: string[], date: string } } = {};
-            attendanceLogs.forEach(log => {
-                if (!groupedLogs[log.date]) {
-                    groupedLogs[log.date] = { check_ins: [], check_outs: [], date: log.date };
-                }
-                if (log.check_in) groupedLogs[log.date].check_ins.push(log.check_in);
-                if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
-            });
-
-            const processedAttendance: AttendanceLog[] = Object.values(groupedLogs).map(group => {
-                group.check_ins.sort();
-                group.check_outs.sort();
-                return {
-                    id: group.date,
-                    date: group.date,
-                    check_in: group.check_ins[0] || null,
-                    check_out: group.check_outs.length > 0 ? group.check_outs[group.check_outs.length - 1] : null,
-                    type: 'attendance'
-                };
-            });
-
-            // Fetch approved leave requests
-            const leavesQuery = query(
-                collection(db, 'leaveRequests'),
-                where('requestingEmployeeDocId', '==', emp.id),
-                where('status', '==', 'Approved')
-            );
-            const leaveSnapshot = await getDocs(leavesQuery);
-            const processedLeaves: LeaveLog[] = [];
-            leaveSnapshot.forEach(doc => {
-                const leave = doc.data() as LeaveRequest;
-                const start = startOfDay(leave.startDate.toDate());
-                const end = startOfDay(leave.endDate.toDate());
-                const leaveDays = eachDayOfInterval({ start, end });
-                leaveDays.forEach(day => {
-                    processedLeaves.push({
-                        id: `${doc.id}-${format(day, 'yyyy-MM-dd')}`,
-                        date: format(day, 'yyyy-MM-dd'),
-                        type: 'leave',
-                        check_in: null,
-                        check_out: null
-                    });
-                });
-            });
-
-            // Merge and de-duplicate
-            const mergedHistoryMap = new Map<string, HistoryEntry>();
-            processedAttendance.forEach(att => mergedHistoryMap.set(att.date, att));
-            processedLeaves.forEach(leave => {
-                // Leave data takes precedence over attendance on the same day
-                mergedHistoryMap.set(leave.date, leave);
-            });
-
-            const mergedHistory = Array.from(mergedHistoryMap.values());
-            mergedHistory.sort((a, b) => b.date.localeCompare(a.date));
-
-            setAttendanceAndLeaveHistory(mergedHistory);
-
-        } catch (e) {
-            console.error("Error fetching history:", e);
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Could not load history.",
-            });
-        } finally {
-            setLoadingHistory(false);
+    
+        const attendanceLogs = attendanceSnapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() } as AttendanceLog)
+        );
+    
+        if (attendanceLogs.length === 0) {
+          setAttendanceAndLeaveHistory([]);
+          setLoadingHistory(false);
+          return;
         }
+    
+        // 🧩 تجميع السجلات حسب التاريخ
+        const groupedLogs: { [key: string]: { check_ins: string[]; check_outs: string[]; date: string } } = {};
+        attendanceLogs.forEach((log) => {
+          if (!groupedLogs[log.date]) {
+            groupedLogs[log.date] = { check_ins: [], check_outs: [], date: log.date };
+          }
+          if (log.check_in) groupedLogs[log.date].check_ins.push(log.check_in);
+          if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
+        });
+    
+        // 🕒 ترتيب check_in / check_out
+        const processedAttendance: AttendanceLog[] = Object.values(groupedLogs).map((group) => {
+          group.check_ins.sort();
+          group.check_outs.sort();
+          return {
+            id: group.date,
+            date: group.date,
+            check_in: group.check_ins[0] || null,
+            check_out:
+              group.check_outs.length > 0
+                ? group.check_outs[group.check_outs.length - 1]
+                : null,
+            type: "attendance",
+          };
+        });
+    
+        // 🟢 الإجازات المعتمدة
+        const leavesQuery = query(
+          collection(db, "leaveRequests"),
+          where("requestingEmployeeDocId", "==", emp.id),
+          where("status", "==", "Approved")
+        );
+        const leaveSnapshot = await getDocs(leavesQuery);
+        const processedLeaves: LeaveLog[] = [];
+        leaveSnapshot.forEach((doc) => {
+          const leave = doc.data() as LeaveRequest;
+          const start = startOfDay(leave.startDate.toDate());
+          const end = startOfDay(leave.endDate.toDate());
+          const leaveDays = eachDayOfInterval({ start, end });
+          leaveDays.forEach((day) => {
+            processedLeaves.push({
+              id: `${doc.id}-${format(day, "yyyy-MM-dd")}`,
+              date: format(day, "yyyy-MM-dd"),
+              type: "leave",
+              check_in: null,
+              check_out: null,
+            });
+          });
+        });
+    
+        // 🔄 دمج الحضور والإجازات
+        const mergedHistoryMap = new Map<string, HistoryEntry>();
+        processedAttendance.forEach((att) => mergedHistoryMap.set(att.date, att));
+        processedLeaves.forEach((leave) => mergedHistoryMap.set(leave.date, leave));
+    
+        const mergedHistory = Array.from(mergedHistoryMap.values());
+        mergedHistory.sort((a, b) => b.date.localeCompare(a.date));
+    
+        setAttendanceAndLeaveHistory(mergedHistory);
+      } catch (e) {
+        console.error("Error fetching history:", e);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not load history.",
+        });
+      } finally {
+        setLoadingHistory(false);
+      }
     };
-  
+    
     const fetchLeaveRequests = async (employeeDocId: string) => {
       setLoadingLeaves(true);
       try {

@@ -18,7 +18,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { format, startOfYear, endOfYear, getDaysInYear } from "date-fns";
+import { format, startOfYear, endOfYear, getDaysInYear, eachDayOfInterval } from "date-fns";
 import { addKpiEntryAction, type KpiEntryState } from "@/app/actions/kpi-actions";
 import { useToast } from "@/hooks/use-toast";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
@@ -237,11 +237,11 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
 }
 
 function AttendanceChartCard({ employeeId, employeeNumericId }: { employeeId: string; employeeNumericId: string | null }) {
-    const [attendanceData, setAttendanceData] = useState<{ present: number; absent: number; tardy: number }>({ present: 0, absent: 0, tardy: 0 });
+    const [attendanceData, setAttendanceData] = useState<{ present: number; absent: number; tardy: number; totalWorkDays: number }>({ present: 0, absent: 0, tardy: 0, totalWorkDays: 1 });
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (!employeeId || !employeeNumericId) {
+        if (!employeeId) {
             setIsLoading(false);
             return;
         }
@@ -253,28 +253,38 @@ function AttendanceChartCard({ employeeId, employeeNumericId }: { employeeId: st
             const yearEnd = endOfYear(new Date(currentYear, 11, 31));
 
             try {
-                // Fetch attendance logs for the year
-                const attendanceQuery = query(
-                    collection(db, "attendance_log"),
-                    where("userId", "==", Number(employeeNumericId)),
-                    where("date", ">=", format(yearStart, 'yyyy-MM-dd')),
-                    where("date", "<=", format(yearEnd, 'yyyy-MM-dd'))
-                );
-
-                // Fetch holidays for the year
                 const holidaysQuery = query(
                     collection(db, "holidays"),
                     where("date", ">=", Timestamp.fromDate(yearStart)),
                     where("date", "<=", Timestamp.fromDate(yearEnd))
                 );
-
-                // Fetch approved leave for the year
                 const leaveQuery = query(
                     collection(db, "leaveRequests"),
                     where("requestingEmployeeDocId", "==", employeeId),
                     where("status", "==", "Approved"),
                     where("startDate", "<=", Timestamp.fromDate(yearEnd))
                 );
+                
+                // We need employeeId for attendance logs
+                let numericIdForQuery = employeeNumericId;
+                if (!numericIdForQuery) {
+                    const empDoc = await getDoc(doc(db, "employee", employeeId));
+                    if (empDoc.exists()) {
+                        numericIdForQuery = empDoc.data().employeeId;
+                    }
+                }
+                
+                if (!numericIdForQuery) {
+                     throw new Error("Numeric Employee ID not found.");
+                }
+
+                const attendanceQuery = query(
+                    collection(db, "attendance_log"),
+                    where("userId", "==", Number(numericIdForQuery)),
+                    where("date", ">=", format(yearStart, 'yyyy-MM-dd')),
+                    where("date", "<=", format(yearEnd, 'yyyy-MM-dd'))
+                );
+                
 
                 const [attendanceSnapshot, holidaysSnapshot, leaveSnapshot] = await Promise.all([
                     getDocs(attendanceQuery),
@@ -293,35 +303,45 @@ function AttendanceChartCard({ employeeId, employeeNumericId }: { employeeId: st
                     if (checkInTime.length >= 2) {
                         const hours = parseInt(checkInTime[0]);
                         const minutes = parseInt(checkInTime[1]);
-                        // Tardiness: after 7:30 AM
                         if (hours > 7 || (hours === 7 && minutes > 30)) {
                             tardyDays.add(log.date);
                         }
                     }
                 });
-
+                
                 const holidayDates = new Set(holidaysSnapshot.docs.map(doc => format(doc.data().date.toDate(), 'yyyy-MM-dd')));
 
                 const onLeaveDates = new Set<string>();
-                leaveSnapshot.forEach(doc => {
+                 leaveSnapshot.forEach(doc => {
                     const leave = doc.data();
                     if (leave.endDate.toDate() < yearStart) return;
                     let current = leave.startDate.toDate() > yearStart ? leave.startDate.toDate() : yearStart;
                     const end = leave.endDate.toDate() < yearEnd ? leave.endDate.toDate() : yearEnd;
 
-                    while (current <= end) {
-                        onLeaveDates.add(format(current, 'yyyy-MM-dd'));
-                        current.setDate(current.getDate() + 1);
+                    eachDayOfInterval({ start: current, end: end }).forEach(day => {
+                        onLeaveDates.add(format(day, 'yyyy-MM-dd'));
+                    });
+                });
+                
+                const allDaysInYear = eachDayOfInterval({ start: yearStart, end: yearEnd });
+                
+                let workDays = 0;
+                allDaysInYear.forEach(day => {
+                    const dayOfWeek = day.getDay();
+                    const dateStr = format(day, 'yyyy-MM-dd');
+                    // Exclude weekends (Friday, Saturday), holidays, and leave days
+                    if (dayOfWeek !== 5 && dayOfWeek !== 6 && !holidayDates.has(dateStr) && !onLeaveDates.has(dateStr)) {
+                        workDays++;
                     }
                 });
 
-                const totalWorkDays = getDaysInYear(new Date(currentYear, 0, 1)) - holidayDates.size - onLeaveDates.size;
-                const absentCount = totalWorkDays - presentDays.size;
+                const absentCount = workDays - presentDays.size;
 
                 setAttendanceData({
                     present: presentDays.size,
-                    absent: absentCount > 0 ? absentCount : 0, // Ensure not negative
+                    absent: absentCount > 0 ? absentCount : 0,
                     tardy: tardyDays.size,
+                    totalWorkDays: workDays > 0 ? workDays : 1 // Avoid division by zero
                 });
                 
             } catch (error) {
@@ -334,26 +354,29 @@ function AttendanceChartCard({ employeeId, employeeNumericId }: { employeeId: st
         fetchAttendanceData();
     }, [employeeId, employeeNumericId]);
 
-    const chartData = [
-        { name: 'Present', value: attendanceData.present, fill: 'hsl(var(--chart-2))' },
-        { name: 'Absent', value: attendanceData.absent, fill: 'hsl(var(--destructive))' },
-        { name: 'Tardiness', value: attendanceData.tardy, fill: 'hsl(var(--chart-1))' },
-    ];
+    const { present, absent, tardy, totalWorkDays } = attendanceData;
     
-    const totalDays = attendanceData.present + attendanceData.absent;
-    const presentPercentage = totalDays > 0 ? ((attendanceData.present / totalDays) * 100).toFixed(0) : 0;
+    // We only show tardy and the non-tardy present days
+    const presentOnTime = present - tardy;
+    const presentPercentage = totalWorkDays > 0 ? ((present / totalWorkDays) * 100).toFixed(0) : 0;
+    
+    const chartData = [
+        { name: 'Present', value: presentOnTime > 0 ? presentOnTime : 0, fill: 'hsl(var(--chart-2))' },
+        { name: 'Tardiness', value: tardy, fill: 'hsl(var(--chart-1))' },
+        { name: 'Absent', value: absent, fill: 'hsl(var(--destructive))' },
+    ].filter(item => item.value > 0);
 
     const chartConfig = {
-      present: { label: "Present" },
-      absent: { label: "Absent" },
-      tardiness: { label: "Tardiness" },
+      present: { label: "Present", color: "hsl(var(--chart-2))" },
+      absent: { label: "Absent", color: "hsl(var(--destructive))" },
+      tardiness: { label: "Tardiness", color: "hsl(var(--chart-1))" },
     };
 
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Attendance (10%)</CardTitle>
+                <CardTitle>Attendance ({presentPercentage}%)</CardTitle>
                 <CardDescription>Annual attendance summary</CardDescription>
             </CardHeader>
             <CardContent>
@@ -393,7 +416,7 @@ function AttendanceChartCard({ employeeId, employeeNumericId }: { employeeId: st
                                         {payload?.map((entry, index) => (
                                             <div key={`item-${index}`} className="flex items-center gap-1.5">
                                                 <div className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                                                <span className="text-xs text-muted-foreground">{entry.value}</span>
+                                                <span className="text-xs text-muted-foreground capitalize">{entry.value}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -407,129 +430,129 @@ function AttendanceChartCard({ employeeId, employeeNumericId }: { employeeId: st
     );
 }
 
-function KpiDashboardContent() {
-  const params = useParams();
-  const router = useRouter();
-  const employeeId = params.id as string;
-  const { profile: currentUserProfile, loading: isLoadingCurrentUser } = useUserProfile();
+function KpiDashboardPage() {
+    const params = useParams();
+    const router = useRouter();
+    const employeeId = params.id as string;
+    const { profile: currentUserProfile, loading: isLoadingCurrentUser } = useUserProfile();
 
-  const [employee, setEmployee] = useState<Employee | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+    const [employee, setEmployee] = useState<Employee | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!employeeId) {
-      setError("No employee ID provided.");
-      setLoading(false);
-      return;
+    useEffect(() => {
+        if (!employeeId) {
+            setError("No employee ID provided.");
+            setLoading(false);
+            return;
+        }
+
+        const fetchEmployee = async () => {
+            try {
+                const docRef = doc(db, 'employee', employeeId);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    setEmployee({ id: docSnap.id, ...docSnap.data() } as Employee);
+                } else {
+                    setError('Employee not found.');
+                }
+            } catch (e) {
+                console.error("Error fetching employee:", e);
+                setError("Failed to load employee details.");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchEmployee();
+    }, [employeeId]);
+  
+    const canViewPage = useMemo(() => {
+        if (isLoadingCurrentUser || !currentUserProfile || !employee) return false;
+        // User can see their own KPIs
+        if (currentUserProfile.id === employee.id) return true;
+        // Admin/HR can see anyone's KPIs
+        const userRole = currentUserProfile.role?.toLowerCase();
+        if (userRole === 'admin' || userRole === 'hr') return true;
+        // Manager can see their report's KPIs
+        if (employee.reportLine1 === currentUserProfile.email) return true;
+
+        return false;
+    }, [isLoadingCurrentUser, currentUserProfile, employee]);
+  
+    const canEditKpis = useMemo(() => {
+        if (isLoadingCurrentUser || !currentUserProfile || !employee) return false;
+        const userRole = currentUserProfile.role?.toLowerCase();
+        if (userRole === 'admin' || userRole === 'hr') return true;
+        if (employee.reportLine1 === currentUserProfile.email) return true;
+        return false;
+    }, [isLoadingCurrentUser, currentUserProfile, employee]);
+
+    useEffect(() => {
+        if (!loading && !isLoadingCurrentUser && !canViewPage) {
+            router.replace('/kpis');
+        }
+    }, [loading, isLoadingCurrentUser, canViewPage, router]);
+
+
+    if (loading || isLoadingCurrentUser) {
+        return (
+            <AppLayout>
+                <div className="flex justify-center items-center h-full">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                </div>
+            </AppLayout>
+        );
     }
 
-    const fetchEmployee = async () => {
-      try {
-        const docRef = doc(db, 'employee', employeeId);
-        const docSnap = await getDoc(docRef);
+    if (error || !canViewPage) {
+        return (
+            <AppLayout>
+                <div className="space-y-8">
+                    <header>
+                    <div className="flex items-center text-destructive">
+                        <AlertTriangle className="mr-2 h-6 w-6"/>
+                        <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
+                            {error || "Access Denied"}
+                        </h1>
+                    </div>
+                </header>
+                </div>
+            </AppLayout>
+        )
+    }
 
-        if (docSnap.exists()) {
-          setEmployee({ id: docSnap.id, ...docSnap.data() } as Employee);
-        } else {
-          setError('Employee not found.');
-        }
-      } catch (e) {
-        console.error("Error fetching employee:", e);
-        setError("Failed to load employee details.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchEmployee();
-  }, [employeeId]);
-  
-  const canViewPage = useMemo(() => {
-      if (isLoadingCurrentUser || !currentUserProfile || !employee) return false;
-      // User can see their own KPIs
-      if (currentUserProfile.id === employee.id) return true;
-      // Admin/HR can see anyone's KPIs
-      const userRole = currentUserProfile.role?.toLowerCase();
-      if (userRole === 'admin' || userRole === 'hr') return true;
-      // Manager can see their report's KPIs
-      if (employee.reportLine1 === currentUserProfile.email) return true;
-
-      return false;
-  }, [isLoadingCurrentUser, currentUserProfile, employee]);
-  
-  const canEditKpis = useMemo(() => {
-      if (isLoadingCurrentUser || !currentUserProfile || !employee) return false;
-      const userRole = currentUserProfile.role?.toLowerCase();
-      if (userRole === 'admin' || userRole === 'hr') return true;
-      if (employee.reportLine1 === currentUserProfile.email) return true;
-      return false;
-  }, [isLoadingCurrentUser, currentUserProfile, employee]);
-
-  useEffect(() => {
-      if (!loading && !isLoadingCurrentUser && !canViewPage) {
-          router.replace('/kpis');
-      }
-  }, [loading, isLoadingCurrentUser, canViewPage, router]);
-
-
-  if (loading || isLoadingCurrentUser) {
-     return (
-        <div className="flex justify-center items-center h-full">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        </div>
-     );
-  }
-
-  if (error || !canViewPage) {
-       return (
-         <div className="space-y-8">
-            <header>
-            <div className="flex items-center text-destructive">
-                <AlertTriangle className="mr-2 h-6 w-6"/>
-                <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-                    {error || "Access Denied"}
-                </h1>
-            </div>
-        </header>
-        </div>
-       )
-  }
-
-  return (
-      <div className="space-y-8">
-        <header>
-          {loading ? (
-            <div className="space-y-2">
-                <Skeleton className="h-10 w-1/2" />
-                <Skeleton className="h-5 w-3/4" />
-            </div>
-          ) : (
-            <>
-              <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
-                <BarChartBig className="mr-3 h-8 w-8 text-primary" />
-                KPI's Dashboard for {employee?.name}
-              </h1>
-              <p className="text-muted-foreground">
-                This is the KPI dashboard for {employee?.name}.
-              </p>
-            </>
-          )}
-        </header>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeId={employeeId} canEdit={canEditKpis} />
-            <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employeeId} canEdit={canEditKpis} />
-            <AttendanceChartCard employeeId={employeeId} employeeNumericId={employee?.employeeId || null} />
-        </div>
-      </div>
-  );
-}
-
-
-export default function KpiDashboardPage() {
     return (
         <AppLayout>
-            <KpiDashboardContent />
+            <div className="space-y-8">
+                <header>
+                {loading ? (
+                    <div className="space-y-2">
+                        <Skeleton className="h-10 w-1/2" />
+                        <Skeleton className="h-5 w-3/4" />
+                    </div>
+                ) : (
+                    <>
+                    <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
+                        <BarChartBig className="mr-3 h-8 w-8 text-primary" />
+                        KPI's Dashboard for {employee?.name}
+                    </h1>
+                    <p className="text-muted-foreground">
+                        This is the KPI dashboard for {employee?.name}.
+                    </p>
+                    </>
+                )}
+                </header>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeId={employeeId} canEdit={canEditKpis} />
+                    <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employeeId} canEdit={canEditKpis} />
+                    <AttendanceChartCard employeeId={employeeId} employeeNumericId={employee?.employeeId || null} />
+                </div>
+            </div>
         </AppLayout>
     );
 }
+
+
+export default KpiDashboardPage;
