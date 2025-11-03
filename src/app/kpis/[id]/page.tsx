@@ -52,11 +52,9 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
 
   useEffect(() => {
     setIsLoading(true);
-    // Remove orderBy from the query to avoid needing a composite index
     const q = query(collection(db, kpiType), where("employeeDocId", "==", employeeId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const kpiData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
-      // Sort the data on the client side
       kpiData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
       setData(kpiData);
       setIsLoading(false);
