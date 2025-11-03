@@ -6,7 +6,7 @@ import React, { useState, useEffect, useMemo, useActionState, useRef } from "rea
 import { AppLayout } from "@/components/layout/app-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users, FileText } from "lucide-react";
+import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users, FileText, Trophy } from "lucide-react";
 import { auth, db } from "@/lib/firebase/config";
 import { 
   onAuthStateChanged, 
@@ -15,7 +15,7 @@ import {
   reauthenticateWithCredential,
   updatePassword 
 } from "firebase/auth";
-import { collection, query, where, getDocs, limit, type Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, type Timestamp, onSnapshot, orderBy } from 'firebase/firestore';
 import { format, getYear, getMonth, getDate } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +41,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import jsPDF from "jspdf";
 import autoTable from 'jspdf-autotable';
 import { ImageUploader } from "@/components/image-uploader";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 
 
 // Define the Employee interface to include all necessary fields
@@ -60,6 +61,13 @@ interface EmployeeProfile {
   dateOfBirth?: Timestamp;
   joiningDate?: Timestamp;
 }
+
+interface KpiEntry {
+  id: string;
+  date: Timestamp;
+  points: number;
+}
+
 
 interface ProfileDetailItemProps {
   label: string;
@@ -200,6 +208,10 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateProfileDialog, setShowCreateProfileDialog] = useState(false);
+  const [eleotHistory, setEleotHistory] = useState<KpiEntry[]>([]);
+  const [totHistory, setTotHistory] = useState<KpiEntry[]>([]);
+  const [loadingKpis, setLoadingKpis] = useState(true);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -211,29 +223,63 @@ export default function ProfilePage() {
             where("userId", "==", user.uid),
             limit(1)
           );
-          const querySnapshot = await getDocs(q);
+          const unsubscribeProfile = onSnapshot(q, (querySnapshot) => {
+            if (!querySnapshot.empty) {
+              const employeeDoc = querySnapshot.docs[0];
+              const profileData = { id: employeeDoc.id, ...employeeDoc.data() } as EmployeeProfile;
+              setEmployeeProfile(profileData);
+              setShowCreateProfileDialog(false);
+            } else {
+              setEmployeeProfile(null);
+              setError("No employee profile linked to this user account.");
+              setShowCreateProfileDialog(true);
+            }
+            setLoading(false);
+          });
+          return () => unsubscribeProfile();
 
-          if (!querySnapshot.empty) {
-            const employeeDoc = querySnapshot.docs[0];
-            setEmployeeProfile({ id: employeeDoc.id, ...employeeDoc.data() } as EmployeeProfile);
-            setShowCreateProfileDialog(false);
-          } else {
-            setError("No employee profile linked to this user account.");
-            setShowCreateProfileDialog(true);
-          }
         } catch (err) {
           console.error("Error fetching employee profile:", err);
           setError("Failed to fetch employee profile data.");
+          setLoading(false);
         }
       } else {
         setAuthUser(null);
         setEmployeeProfile(null);
         setError("You are not logged in. Please log in to view your profile.");
+        setLoading(false);
       }
-      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!employeeProfile?.id) {
+      setEleotHistory([]);
+      setTotHistory([]);
+      return;
+    }
+    
+    setLoadingKpis(true);
+    const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", employeeProfile.id), orderBy("date", "desc"));
+    const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", employeeProfile.id), orderBy("date", "desc"));
+
+    const eleotUnsubscribe = onSnapshot(eleotQuery, (snapshot) => {
+        setEleotHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry)));
+    }, (error) => console.error("Error fetching ELEOT history:", error));
+    
+    const totUnsubscribe = onSnapshot(totQuery, (snapshot) => {
+        setTotHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry)));
+    }, (error) => console.error("Error fetching TOT history:", error));
+    
+    setLoadingKpis(false);
+
+    return () => {
+        eleotUnsubscribe();
+        totUnsubscribe();
+    };
+}, [employeeProfile?.id]);
+
 
   const getInitials = (name?: string | null) => {
     if (!name) return "U";
@@ -462,6 +508,48 @@ export default function ProfilePage() {
                   </Card>
               </div>
             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="shadow-lg">
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><Trophy className="mr-2 h-5 w-5 text-primary" />ELEOT History</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {loadingKpis ? <Loader2 className="h-6 w-6 animate-spin" /> : eleotHistory.length === 0 ? <p className="text-sm text-muted-foreground">No ELEOT records found.</p> : (
+                            <Table>
+                                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead className="text-right">Points</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                    {eleotHistory.map(entry => (
+                                        <TableRow key={entry.id}>
+                                            <TableCell>{format(entry.date.toDate(), "PPP")}</TableCell>
+                                            <TableCell className="text-right">{entry.points} / 6</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        )}
+                    </CardContent>
+                </Card>
+                 <Card className="shadow-lg">
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><Trophy className="mr-2 h-5 w-5 text-primary" />TOT History</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {loadingKpis ? <Loader2 className="h-6 w-6 animate-spin" /> : totHistory.length === 0 ? <p className="text-sm text-muted-foreground">No TOT records found.</p> : (
+                            <Table>
+                                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead className="text-right">Points</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                    {totHistory.map(entry => (
+                                        <TableRow key={entry.id}>
+                                            <TableCell>{format(entry.date.toDate(), "PPP")}</TableCell>
+                                            <TableCell className="text-right">{entry.points} / 6</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
             <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle>Actions</CardTitle>
@@ -498,3 +586,4 @@ export default function ProfilePage() {
     </AppLayout>
   );
 }
+
