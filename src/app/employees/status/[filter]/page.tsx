@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -64,10 +63,31 @@ interface Row {
 const getInitials = (name: string) =>
   name ? name.split(/\s+/).map((n) => n[0]).join("").toUpperCase() : "U";
 
-const filterTitles = {
+const filterTitles: Record<
+  "present" | "absent" | "late",
+  { title: string; icon: any }
+> = {
   present: { title: "Employees Present Today", icon: UserCheck },
   absent: { title: "Employees Absent Today", icon: UserX },
   late: { title: "Late Arrivals Today", icon: Clock },
+};
+
+const toStr = (v: any) => String(v ?? "").trim();
+
+const parseTimeToMinutes = (t?: string | null) => {
+  if (!t) return null;
+  const s = t.trim().toLowerCase();
+  const match = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?$/i);
+  if (!match) return null;
+  let h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  const ampm = match[4]?.toLowerCase();
+
+  if (ampm) {
+    if (ampm === "pm" && h < 12) h += 12;
+    if (ampm === "am" && h === 12) h = 0;
+  }
+  return h * 60 + m;
 };
 
 export default function EmployeeStatusPage() {
@@ -81,10 +101,13 @@ export default function EmployeeStatusPage() {
 function EmployeeStatusContent() {
   const { profile, loading: profileLoading } = useUserProfile();
   const router = useRouter();
-  const params = useParams();
+  const params = useParams() as { filter?: "present" | "absent" | "late" };
   const searchParams = useSearchParams();
 
-  const filter = (params.filter as "present" | "absent" | "late") ?? "present";
+  const filter = (params?.filter ?? "present") as
+    | "present"
+    | "absent"
+    | "late";
   const dateParam = (searchParams.get("date") || "").trim();
 
   const [rows, setRows] = useState<Row[]>([]);
@@ -111,24 +134,30 @@ function EmployeeStatusContent() {
       setError(null);
 
       try {
-        // 🧩 1) Get only Active employees
+        // 1️⃣ قراءة الموظفين Active
         const empSnap = await getDocs(
           query(collection(db, "employee"), where("status", "==", "Active"))
         );
+
         const allEmployees: Employee[] = empSnap.docs.map((doc) => {
           const d = doc.data() as any;
           return {
             id: doc.id,
-            employeeId: String(d.employeeId ?? "").trim(),
-            name: d.name ?? "",
+            employeeId: toStr(d.employeeId),
+            name: toStr(d.name || d.fullName),
             photoURL: d.photoURL ?? undefined,
-            badgeNumber: d.badgeNumber,
+            badgeNumber: toStr(d.badgeNumber),
           };
         });
 
-        const empMap = new Map(allEmployees.map((e) => [e.employeeId, e]));
+        const empByEmployeeId = new Map(
+          allEmployees.map((e) => [toStr(e.employeeId), e])
+        );
+        const empByBadge = new Map(
+          allEmployees.map((e) => [toStr(e.badgeNumber), e])
+        );
 
-        // 🕒 2) Attendance for the selected date
+        // 2️⃣ قراءة attendance_log
         const attSnap = await getDocs(
           query(collection(db, "attendance_log"), where("date", "==", targetDate))
         );
@@ -136,26 +165,35 @@ function EmployeeStatusContent() {
         const attData: Record<string, AttendanceInfo> = {};
         attSnap.forEach((doc) => {
           const data = doc.data() as any;
-          const uid = String(data.badgeNumber ?? data.userId ?? "").trim();
+          const badge = toStr(data.badgeNumber);
+          const user = toStr(data.userId);
+          const uid = badge || user;
           if (!uid) return;
 
-          if (!attData[uid]) attData[uid] = { checkIns: [], checkOuts: [] };
-          if (data.check_in) attData[uid].checkIns.push(data.check_in);
-          if (data.check_out) attData[uid].checkOuts.push(data.check_out);
-          if (data.name) attData[uid].name = data.name;
-          if(data.badgeNumber) attData[uid].badgeNumber = data.badgeNumber;
-        
-         
+          if (!attData[uid]) {
+            attData[uid] = { checkIns: [], checkOuts: [], badgeNumber: badge };
+          }
+
+          if (data.check_in)
+            attData[uid].checkIns.push(String(data.check_in));
+          if (data.check_out)
+            attData[uid].checkOuts.push(String(data.check_out));
+
+          // 👇 نستخدم الاسم من اللوج لو متوفر
+          if (data.employeeName)
+            attData[uid].name = toStr(data.employeeName);
+          else if (data.name)
+            attData[uid].name = toStr(data.name);
         });
 
-        const presentIds = new Set(
-          Object.entries(attData)
-            .filter(([, v]) => v.checkIns.length > 0)
-            .map(([id]) => id)
-        );
+        // 3️⃣ تحديد الحضور
+        const presentIds = new Set<string>();
+        Object.entries(attData).forEach(([id, info]) => {
+          if ((info.checkIns || []).length > 0) presentIds.add(id);
+        });
 
-        // 🌴 3) Approved leaves (exclude from absence)
-        let approvedLeaveIds = new Set<string>();
+        // 4️⃣ الإجازات المعتمدة
+        const approvedLeaveIds = new Set<string>();
         try {
           const leaveSnap = await getDocs(
             query(
@@ -166,59 +204,89 @@ function EmployeeStatusContent() {
           );
           leaveSnap.forEach((doc) => {
             const d = doc.data() as any;
-            const eid = String(d.employeeId ?? "").trim();
-            if (eid) approvedLeaveIds.add(eid);
+            const empId = toStr(d.employeeId);
+            if (!empId) return;
+            const emp = empByEmployeeId.get(empId);
+            const key = toStr(emp?.badgeNumber || emp?.employeeId || empId);
+            if (key) approvedLeaveIds.add(key);
           });
         } catch (e) {
           console.warn("Leave collection missing:", e);
         }
 
-        // 🎯 4) Filter target IDs based on filter type
+        // 5️⃣ حسب الفلتر المطلوب
         const targetIds = new Set<string>();
-
         if (filter === "present") {
           presentIds.forEach((id) => targetIds.add(id));
         } else if (filter === "late") {
-          const toMin = (t: string) => {
-            const [h, m] = t.split(":").map(Number);
-            return h * 60 + m;
-          };
-
+          const startLimit = parseTimeToMinutes("07:30") ?? 450;
           presentIds.forEach((id) => {
-            const ins = (attData[id]?.checkIns || []).map((t) => t.substring(0, 5));
-            const earliest = ins.sort()[0];
-            if (earliest && toMin(earliest) > toMin("07:30")) targetIds.add(id);
+            const insList = (attData[id]?.checkIns || [])
+              .map((t) => parseTimeToMinutes(t))
+              .filter((v): v is number => typeof v === "number")
+              .sort((a, b) => a - b);
+            const earliest = insList[0];
+            if (typeof earliest === "number" && earliest > startLimit)
+              targetIds.add(id);
           });
         } else if (filter === "absent") {
           allEmployees.forEach((e) => {
-            const eid = e.employeeId;
-            if (!eid) return;
-            if (!presentIds.has(eid) && !approvedLeaveIds.has(eid)) {
-              targetIds.add(eid);
-            }
+            const key = toStr(e.badgeNumber || e.employeeId);
+            if (!key) return;
+            if (!presentIds.has(key) && !approvedLeaveIds.has(key))
+              targetIds.add(key);
           });
         }
 
-        // 🧾 5) Build the table rows
-        const dataRows: Row[] = Array.from(targetIds).map((eid) => {
-          const emp = empMap.get(eid);
-          const att = attData[eid];
-          const sortedIns = (att?.checkIns || []).slice().sort();
-          const sortedOuts = (att?.checkOuts || []).slice().sort();
+        // 6️⃣ بناء جدول العرض
+        const dataRows: Row[] = Array.from(targetIds).map((key) => {
+          let emp = empByBadge.get(key) || empByEmployeeId.get(key);
+          const att = attData[key];
+
+          // ✅ لو الاسم اللي جاي من اللوج كله أرقام، نحاول نطابقه مع badgeNumber
+          const isNumericName =
+            att?.name && /^[0-9]+$/.test(att.name.trim());
+          if (isNumericName) {
+            const numericBadge = att.name.trim();
+            const matchedEmp =
+              empByBadge.get(numericBadge) ||
+              empByEmployeeId.get(numericBadge);
+            if (matchedEmp) emp = matchedEmp;
+          }
+
+          const sortTimes = (arr: string[]) =>
+            arr
+              .slice()
+              .sort((a, b) => {
+                const ma = parseTimeToMinutes(a) ?? 0;
+                const mb = parseTimeToMinutes(b) ?? 0;
+                return ma - mb;
+              });
+
+          const sortedIns = sortTimes(att?.checkIns || []);
+          const sortedOuts = sortTimes(att?.checkOuts || []);
+
+          const safeName =
+            (!isNumericName && toStr(att?.name)) ||
+            toStr(emp?.name) ||
+            (att?.badgeNumber ? `User ${att.badgeNumber}` : "Unknown User");
 
           return {
-            id: emp?.id || eid,
-            employeeId: eid,
-            name: emp?.name || `User ${eid}`,
+            id: emp?.id || key,
+            employeeId: toStr(emp?.employeeId) || key,
+            name: safeName,
             photoURL: emp?.photoURL,
             checkIn: sortedIns[0] ?? null,
-            checkOut: sortedOuts.pop() ?? null,
-            badgeNumber: eid,
+            checkOut:
+              sortedOuts.length ? sortedOuts[sortedOuts.length - 1] : null,
+            badgeNumber: att?.badgeNumber || key,
           };
         });
 
         dataRows.sort((a, b) =>
-          (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+          (a.name || "").localeCompare(b.name || "", undefined, {
+            sensitivity: "base",
+          })
         );
 
         setRows(dataRows);
@@ -287,7 +355,7 @@ function EmployeeStatusContent() {
               </TableHeader>
               <TableBody>
                 {rows.map((e, i) => (
-                  <TableRow key={e.employeeId}>
+                  <TableRow key={`${e.employeeId}-${e.badgeNumber}-${i}`}>
                     <TableCell>{i + 1}</TableCell>
                     <TableCell>
                       <Link
@@ -299,8 +367,12 @@ function EmployeeStatusContent() {
                           <AvatarFallback>{getInitials(e.name)}</AvatarFallback>
                         </Avatar>
                         <div>
-                            {e.name}
-                            <Badge variant="secondary" className="ml-2">{e.badgeNumber}</Badge>
+                          {e.name}
+                          {e.badgeNumber && (
+                            <Badge variant="secondary" className="ml-2">
+                              {e.badgeNumber}
+                            </Badge>
+                          )}
                         </div>
                       </Link>
                     </TableCell>

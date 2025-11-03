@@ -224,133 +224,148 @@ function DashboardPageContent() {
         setIsLoadingTotalLeaves(false);
       }
     };
+    const fetchDailyAttendance = async (
+      db: any,
+      {
+        setTodaysAttendance,
+        setAbsentToday,
+        setLateAttendance,
+        setAttendanceDate,
+        setDateStringForLink,
+      }: any
+    ) => {
+      setIsLoadingTodaysAttendance(true);
+      setIsLoadingLateAttendance(true);
+      setIsLoadingAbsentToday(true);
     
- const fetchDailyAttendance = async (
-  db: any,
-  { setTodaysAttendance, setAbsentToday, setLateAttendance, setAttendanceDate, setDateStringForLink }: any
-) => {
-  setIsLoadingTodaysAttendance(true);
-  setIsLoadingLateAttendance(true);
-  setIsLoadingAbsentToday(true);
-
-  try {
-    // 1️⃣ Get the most recent day from attendance_log
-    const mostRecentLogQuery = query(
-      collection(db, "attendance_log"),
-      orderBy("date", "desc"),
-      limit(1)
-    );
-    const mostRecentLogSnapshot = await getDocs(mostRecentLogQuery);
-
-    if (mostRecentLogSnapshot.empty) {
-      setTodaysAttendance(0);
-      setLateAttendance(0);
-      setAbsentToday(0);
-      setAttendanceDate("No attendance data yet");
-      setDateStringForLink("");
-      return;
-    }
-
-    const lastLogDateStr = mostRecentLogSnapshot.docs[0].data().date;
-    setDateStringForLink(lastLogDateStr);
-    setAttendanceDate(format(new Date(lastLogDateStr.replace(/-/g, "/")), "PPP"));
-
-    // 2️⃣ Fetch all attendance logs for that day
-    const attendanceSnapshot = await getDocs(
-      query(collection(db, "attendance_log"), where("date", "==", lastLogDateStr))
-    );
-
-    const userCheckIns: Record<string, string[]> = {}; // Use string for employeeId
-    attendanceSnapshot.forEach((doc) => {
-      const data = doc.data();
-      const employeeId = data.userId ? String(data.userId) : null;
-      if (data.check_in && employeeId) {
-        if (!userCheckIns[employeeId]) userCheckIns[employeeId] = [];
-        userCheckIns[employeeId].push(data.check_in.substring(0, 5));
-      }
-    });
-
-    const presentIds = new Set(Object.keys(userCheckIns));
-    setTodaysAttendance(presentIds.size);
-
-    // 3️⃣ Calculate late arrivals from the present employees
-    const timeToMinutes = (t: string) => {
-      const [hh, mm] = t.split(":").map(Number);
-      return hh * 60 + mm;
-    };
-    let lateCount = 0;
-    presentIds.forEach((id) => {
-      const earliest = Math.min(...userCheckIns[id].map(timeToMinutes));
-      if (earliest > timeToMinutes("07:30")) {
-        lateCount++;
-      }
-    });
-    setLateAttendance(lateCount);
-
-
-    // 4️⃣ Fetch all active employees
-    const empSnap = await getDocs(
-      query(collection(db, "employee"), where("status", "==", "Active"))
-    );
-
-    const activeEmployeeIds = new Set<string>();
-    empSnap.forEach((doc) => {
-      const employeeId = doc.data().employeeId;
-      if (employeeId) activeEmployeeIds.add(String(employeeId));
-    });
-
-
-    // 5️⃣ Fetch approved leaves for the same day
-    const targetDateAsTimestamp = Timestamp.fromDate(new Date(lastLogDateStr.replace(/-/g, "/")));
-    const leaveRequestsSnap = await getDocs(
-        query(
+      try {
+        // 1️⃣ آخر يوم في attendance_log
+        const mostRecentLogQuery = query(
+          collection(db, "attendance_log"),
+          orderBy("date", "desc"),
+          limit(1)
+        );
+        const mostRecentLogSnapshot = await getDocs(mostRecentLogQuery);
+    
+        if (mostRecentLogSnapshot.empty) {
+          setTodaysAttendance(0);
+          setLateAttendance(0);
+          setAbsentToday(0);
+          setAttendanceDate("No attendance data yet");
+          setDateStringForLink("");
+          return;
+        }
+    
+        const lastLogDateStr = mostRecentLogSnapshot.docs[0].data().date;
+        setDateStringForLink(lastLogDateStr);
+        setAttendanceDate(format(new Date(lastLogDateStr.replace(/-/g, "/")), "PPP"));
+    
+        // 2️⃣ كل لوجات اليوم
+        const attendanceSnapshot = await getDocs(
+          query(collection(db, "attendance_log"), where("date", "==", lastLogDateStr))
+        );
+    
+        // 🧠 دالة لتحويل الوقت لدقائق (يدعم AM/PM)
+        const parseTimeToMinutes = (t: string): number | null => {
+          if (!t) return null;
+          const s = t.trim().toLowerCase();
+          const match = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?$/i);
+          if (!match) return null;
+          let h = parseInt(match[1], 10);
+          const m = parseInt(match[2], 10);
+          const ampm = match[4]?.toLowerCase();
+          if (ampm === "pm" && h < 12) h += 12;
+          if (ampm === "am" && h === 12) h = 0;
+          return h * 60 + m;
+        };
+    
+        // 3️⃣ نخزن الحضور حسب badgeNumber أو userId (distinct)
+        const userCheckIns: Record<string, string[]> = {};
+        attendanceSnapshot.forEach((doc) => {
+          const data = doc.data();
+          const key = String(data.badgeNumber ?? data.userId ?? "").trim();
+          if (!key) return;
+          if (data.check_in) {
+            if (!userCheckIns[key]) userCheckIns[key] = [];
+            userCheckIns[key].push(String(data.check_in));
+          }
+        });
+    
+        const presentIds = new Set(Object.keys(userCheckIns));
+        setTodaysAttendance(presentIds.size);
+    
+        // 4️⃣ حساب المتأخرين (بعد 7:30)
+        const startLimit = parseTimeToMinutes("07:30") ?? 450;
+        let lateCount = 0;
+        presentIds.forEach((id) => {
+          const times = userCheckIns[id]
+            .map((t) => parseTimeToMinutes(t))
+            .filter((v): v is number => typeof v === "number")
+            .sort((a, b) => a - b);
+          const earliest = times[0];
+          if (typeof earliest === "number" && earliest > startLimit) lateCount++;
+        });
+        setLateAttendance(lateCount);
+    
+        // 5️⃣ الموظفين النشطين
+        const empSnap = await getDocs(
+          query(collection(db, "employee"), where("status", "==", "Active"))
+        );
+        const activeEmployeeKeys = new Set<string>();
+        const employeeMap = new Map<string, string>(); // empId -> badgeNumber
+    
+        empSnap.forEach((doc) => {
+          const d = doc.data();
+          const empId = String(d.employeeId ?? "").trim();
+          const badge = String(d.badgeNumber ?? "").trim();
+          const key = badge || empId;
+          if (key) {
+            activeEmployeeKeys.add(key);
+            employeeMap.set(empId, badge);
+          }
+        });
+    
+        // 6️⃣ الإجازات الموافق عليها
+        const targetDate = new Date(lastLogDateStr.replace(/-/g, "/"));
+        const targetDateAsTimestamp = Timestamp.fromDate(targetDate);
+        const leaveRequestsSnap = await getDocs(
+          query(
             collection(db, "leaveRequests"),
             where("status", "==", "Approved"),
             where("startDate", "<=", targetDateAsTimestamp)
-        )
-    );
-    const onLeaveEmployeeIds = new Set<string>();
-    const employeeIdToDocIdMap = new Map<string, string>();
-    empSnap.forEach(doc => {
-        if(doc.data().employeeId) employeeIdToDocIdMap.set(doc.data().employeeId, doc.id);
-    });
-
-    leaveRequestsSnap.forEach((doc) => {
-        const data = doc.data();
-        if (data.endDate.toDate() >= new Date(lastLogDateStr.replace(/-/g, "/"))) {
-           const empDocId = data.requestingEmployeeDocId;
-           // Find employeeId from docId
-           for (const [empId, docId] of employeeIdToDocIdMap.entries()) {
-               if(docId === empDocId) {
-                   onLeaveEmployeeIds.add(empId);
-                   break;
-               }
-           }
-        }
-    });
-
-    // 6️⃣ Calculate absent count
-    let absentCount = 0;
-    activeEmployeeIds.forEach((id) => {
-      if (!presentIds.has(id) && !onLeaveEmployeeIds.has(id)) {
-        absentCount++;
+          )
+        );
+    
+        const onLeaveEmployeeKeys = new Set<string>();
+        leaveRequestsSnap.forEach((doc) => {
+          const data = doc.data();
+          if (data.endDate?.toDate && data.endDate.toDate() >= targetDate) {
+            const empId = String(data.employeeId ?? "").trim();
+            const badge = employeeMap.get(empId);
+            const key = badge || empId;
+            if (key) onLeaveEmployeeKeys.add(key);
+          }
+        });
+    
+        // 7️⃣ حساب الغياب
+        let absentCount = 0;
+        activeEmployeeKeys.forEach((key) => {
+          if (!presentIds.has(key) && !onLeaveEmployeeKeys.has(key)) absentCount++;
+        });
+        setAbsentToday(absentCount);
+      } catch (error) {
+        console.error("Error in fetchDailyAttendance:", error);
+        setTodaysAttendance(0);
+        setLateAttendance(0);
+        setAbsentToday(0);
+        setAttendanceDate("Error loading data");
+      } finally {
+        setIsLoadingTodaysAttendance(false);
+        setIsLoadingLateAttendance(false);
+        setIsLoadingAbsentToday(false);
       }
-    });
-
-    setAbsentToday(absentCount);
-  } catch (error) {
-    console.error("Error in fetchDailyAttendance:", error);
-    setTodaysAttendance(0);
-    setLateAttendance(0);
-    setAbsentToday(0);
-    setAttendanceDate("Error loading data");
-  } finally {
-    setIsLoadingTodaysAttendance(false);
-    setIsLoadingLateAttendance(false);
-    setIsLoadingAbsentToday(false);
-  }
-};
-
+    };
+    
 
 
     const fetchCampusData = async () => {

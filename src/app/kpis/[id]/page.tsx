@@ -3,10 +3,10 @@
 
 import React, { useState, useEffect, useActionState, useMemo } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
-import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save } from "lucide-react";
+import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save, PieChart } from "lucide-react";
 import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase/config';
-import { doc, getDoc, collection, query, where, onSnapshot, orderBy, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot, orderBy, Timestamp, getDocs } from 'firebase/firestore';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,9 +17,11 @@ import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, startOfYear, endOfYear, getDaysInYear } from "date-fns";
 import { addKpiEntryAction, type KpiEntryState } from "@/app/actions/kpi-actions";
 import { useToast } from "@/hooks/use-toast";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { Pie, Cell, ResponsiveContainer, Legend, Label as RechartsLabel } from "recharts";
 
 
 interface Employee {
@@ -52,11 +54,11 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
         setIsLoading(true);
         const q = query(
             collection(db, kpiType),
-            where("employeeDocId", "==", employeeId)
+            where("employeeDocId", "==", employeeId),
+            orderBy("date", "desc")
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const kpiData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
-            kpiData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
             setData(kpiData);
             setIsLoading(false);
         }, (error) => {
@@ -221,6 +223,178 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
     );
 }
 
+function AttendanceChartCard({ employeeId, employeeNumericId }: { employeeId: string; employeeNumericId: string | null }) {
+    const [attendanceData, setAttendanceData] = useState<{ present: number; absent: number; tardy: number }>({ present: 0, absent: 0, tardy: 0 });
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        if (!employeeId || !employeeNumericId) {
+            setIsLoading(false);
+            return;
+        }
+
+        const fetchAttendanceData = async () => {
+            setIsLoading(true);
+            const currentYear = new Date().getFullYear();
+            const yearStart = startOfYear(new Date(currentYear, 0, 1));
+            const yearEnd = endOfYear(new Date(currentYear, 11, 31));
+
+            try {
+                // Fetch attendance logs for the year
+                const attendanceQuery = query(
+                    collection(db, "attendance_log"),
+                    where("userId", "==", Number(employeeNumericId)),
+                    where("date", ">=", format(yearStart, 'yyyy-MM-dd')),
+                    where("date", "<=", format(yearEnd, 'yyyy-MM-dd'))
+                );
+
+                // Fetch holidays for the year
+                const holidaysQuery = query(
+                    collection(db, "holidays"),
+                    where("date", ">=", Timestamp.fromDate(yearStart)),
+                    where("date", "<=", Timestamp.fromDate(yearEnd))
+                );
+
+                // Fetch approved leave for the year
+                const leaveQuery = query(
+                    collection(db, "leaveRequests"),
+                    where("requestingEmployeeDocId", "==", employeeId),
+                    where("status", "==", "Approved"),
+                    where("startDate", "<=", Timestamp.fromDate(yearEnd))
+                );
+
+                const [attendanceSnapshot, holidaysSnapshot, leaveSnapshot] = await Promise.all([
+                    getDocs(attendanceQuery),
+                    getDocs(holidaysQuery),
+                    getDocs(leaveQuery),
+                ]);
+
+                const presentDays = new Set<string>();
+                const tardyDays = new Set<string>();
+
+                attendanceSnapshot.forEach(doc => {
+                    const log = doc.data();
+                    presentDays.add(log.date);
+                    
+                    const checkInTime = log.check_in?.split(":") ?? [];
+                    if (checkInTime.length >= 2) {
+                        const hours = parseInt(checkInTime[0]);
+                        const minutes = parseInt(checkInTime[1]);
+                        // Tardiness: after 7:30 AM
+                        if (hours > 7 || (hours === 7 && minutes > 30)) {
+                            tardyDays.add(log.date);
+                        }
+                    }
+                });
+
+                const holidayDates = new Set(holidaysSnapshot.docs.map(doc => format(doc.data().date.toDate(), 'yyyy-MM-dd')));
+
+                const onLeaveDates = new Set<string>();
+                leaveSnapshot.forEach(doc => {
+                    const leave = doc.data();
+                    if (leave.endDate.toDate() < yearStart) return;
+                    let current = leave.startDate.toDate() > yearStart ? leave.startDate.toDate() : yearStart;
+                    const end = leave.endDate.toDate() < yearEnd ? leave.endDate.toDate() : yearEnd;
+
+                    while (current <= end) {
+                        onLeaveDates.add(format(current, 'yyyy-MM-dd'));
+                        current.setDate(current.getDate() + 1);
+                    }
+                });
+
+                const totalWorkDays = getDaysInYear(new Date(currentYear, 0, 1)) - holidayDates.size - onLeaveDates.size;
+                const absentCount = totalWorkDays - presentDays.size;
+
+                setAttendanceData({
+                    present: presentDays.size,
+                    absent: absentCount > 0 ? absentCount : 0, // Ensure not negative
+                    tardy: tardyDays.size,
+                });
+                
+            } catch (error) {
+                console.error("Error calculating attendance stats:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchAttendanceData();
+    }, [employeeId, employeeNumericId]);
+
+    const chartData = [
+        { name: 'Present', value: attendanceData.present, fill: 'hsl(var(--chart-2))' },
+        { name: 'Absent', value: attendanceData.absent, fill: 'hsl(var(--destructive))' },
+        { name: 'Tardiness', value: attendanceData.tardy, fill: 'hsl(var(--chart-1))' },
+    ];
+    
+    const totalDays = attendanceData.present + attendanceData.absent;
+    const presentPercentage = totalDays > 0 ? ((attendanceData.present / totalDays) * 100).toFixed(0) : 0;
+
+    const chartConfig = {
+      present: { label: "Present" },
+      absent: { label: "Absent" },
+      tardiness: { label: "Tardiness" },
+    };
+
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Attendance (10%)</CardTitle>
+                <CardDescription>Annual attendance summary</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                    <div className="flex justify-center items-center h-[250px]">
+                        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                    </div>
+                ) : (
+                    <ChartContainer config={chartConfig} className="mx-auto aspect-square h-[250px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <ChartTooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
+                                <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={80} strokeWidth={5}>
+                                    {chartData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                                    ))}
+                                    <RechartsLabel
+                                        content={({ viewBox }) => {
+                                            if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                                                return (
+                                                    <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
+                                                        <tspan x={viewBox.cx} y={(viewBox.cy || 0) - 10} className="fill-muted-foreground text-sm">
+                                                            Total present
+                                                        </tspan>
+                                                        <tspan x={viewBox.cx} y={(viewBox.cy || 0) + 15} className="fill-foreground text-2xl font-bold">
+                                                            {presentPercentage}%
+                                                        </tspan>
+                                                    </text>
+                                                );
+                                            }
+                                            return null;
+                                        }}
+                                    />
+                                </Pie>
+                                <Legend content={({ payload }) => (
+                                    <div className="flex justify-center gap-4 mt-4">
+                                        {payload?.map((entry, index) => (
+                                            <div key={`item-${index}`} className="flex items-center gap-1.5">
+                                                <div className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                                                <span className="text-xs text-muted-foreground">{entry.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}/>
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </ChartContainer>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+
 function KpiDashboardContent() {
   const params = useParams();
   const router = useRouter();
@@ -228,6 +402,7 @@ function KpiDashboardContent() {
   const { profile: currentUserProfile, loading: isLoadingCurrentUser } = useUserProfile();
 
   const [employee, setEmployee] = useState<Employee | null>(null);
+  const [employeeNumericId, setEmployeeNumericId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -244,7 +419,9 @@ function KpiDashboardContent() {
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
-          setEmployee({ id: docSnap.id, ...docSnap.data() } as Employee);
+          const data = docSnap.data();
+          setEmployee({ id: docSnap.id, ...data } as Employee);
+          setEmployeeNumericId(data.employeeId || null);
         } else {
           setError('Employee not found.');
         }
@@ -330,9 +507,10 @@ function KpiDashboardContent() {
             </>
           )}
         </header>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeId={employeeId} canEdit={canEditKpis} />
             <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employeeId} canEdit={canEditKpis} />
+            <AttendanceChartCard employeeId={employeeId} employeeNumericId={employeeNumericId} />
         </div>
       </div>
   );
