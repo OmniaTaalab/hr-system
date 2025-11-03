@@ -88,22 +88,13 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
     return (totalPoints / maxPoints) * 10;
   }, [data]);
 
-  const percentageScore = useMemo(() => {
-    if (data.length === 0) return 0;
-    const totalPoints = data.reduce((acc, item) => acc + item.points, 0);
-    const maxPoints = data.length * 6;
-    if (maxPoints === 0) return 0;
-    return (totalPoints / maxPoints) * 100;
-  }, [data]);
-
-
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="space-y-1.5">
-          <CardTitle>{title} ({percentageScore.toFixed(1)}%)</CardTitle>
+          <CardTitle>{title} ({performanceScore.toFixed(1)} / 10)</CardTitle>
           <CardDescription>
-            {data.length > 0 ? `Overall Performance: ${performanceScore.toFixed(1)} / 10` : "No entries yet."}
+            {data.length > 0 ? `Based on ${data.length} entries` : "No entries yet."}
           </CardDescription>
         </div>
         {canEdit && (
@@ -578,3 +569,5 @@ export default function KpiDashboardPage() {
         </AppLayout>
     );
 }
+
+    
