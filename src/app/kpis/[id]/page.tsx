@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useActionState, useMemo } from "react";
@@ -28,6 +29,7 @@ interface Employee {
   id: string;
   name: string;
   reportLine1?: string;
+  employeeId?: string;
 }
 
 interface KpiEntry {
@@ -52,13 +54,16 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
 
     useEffect(() => {
         setIsLoading(true);
+        // The query requires an index on (employeeDocId, date desc). 
+        // As a workaround, we query without ordering and sort client-side.
         const q = query(
             collection(db, kpiType),
-            where("employeeDocId", "==", employeeId),
-            orderBy("date", "desc")
+            where("employeeDocId", "==", employeeId)
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const kpiData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
+            // Sort data by date descending on the client
+            kpiData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
             setData(kpiData);
             setIsLoading(false);
         }, (error) => {
@@ -92,12 +97,20 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
         return (totalPoints / maxPoints) * 10;
     }, [data]);
 
+    const percentageScore = useMemo(() => {
+        if (data.length === 0) return 0;
+        const totalPoints = data.reduce((acc, item) => acc + item.points, 0);
+        const maxPoints = data.length * 6;
+        if (maxPoints === 0) return 0;
+        return (totalPoints / maxPoints) * 100;
+    }, [data]);
+
 
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
                 <div className="space-y-1.5">
-                    <CardTitle>{title}</CardTitle>
+                    <CardTitle>{title} ({percentageScore.toFixed(1)}%)</CardTitle>
                     <CardDescription>
                         {data.length > 0 ? `Overall Performance: ${performanceScore.toFixed(1)} / 10` : "No entries yet."}
                     </CardDescription>
@@ -265,7 +278,7 @@ function AttendanceChartCard({ employeeId, employeeNumericId }: { employeeId: st
 
                 const [attendanceSnapshot, holidaysSnapshot, leaveSnapshot] = await Promise.all([
                     getDocs(attendanceQuery),
-                    getDocs(holidaysQuery),
+                    getDocs(holidaysSnapshot),
                     getDocs(leaveQuery),
                 ]);
 
@@ -394,7 +407,6 @@ function AttendanceChartCard({ employeeId, employeeNumericId }: { employeeId: st
     );
 }
 
-
 function KpiDashboardContent() {
   const params = useParams();
   const router = useRouter();
@@ -402,7 +414,6 @@ function KpiDashboardContent() {
   const { profile: currentUserProfile, loading: isLoadingCurrentUser } = useUserProfile();
 
   const [employee, setEmployee] = useState<Employee | null>(null);
-  const [employeeNumericId, setEmployeeNumericId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -419,9 +430,7 @@ function KpiDashboardContent() {
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
-          const data = docSnap.data();
-          setEmployee({ id: docSnap.id, ...data } as Employee);
-          setEmployeeNumericId(data.employeeId || null);
+          setEmployee({ id: docSnap.id, ...docSnap.data() } as Employee);
         } else {
           setError('Employee not found.');
         }
@@ -510,7 +519,7 @@ function KpiDashboardContent() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeId={employeeId} canEdit={canEditKpis} />
             <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employeeId} canEdit={canEditKpis} />
-            <AttendanceChartCard employeeId={employeeId} employeeNumericId={employeeNumericId} />
+            <AttendanceChartCard employeeId={employeeId} employeeNumericId={employee?.employeeId || null} />
         </div>
       </div>
   );
