@@ -224,6 +224,7 @@ function DashboardPageContent() {
         setIsLoadingTotalLeaves(false);
       }
     };
+
     const fetchDailyAttendance = async (
       db: any,
       {
@@ -234,130 +235,96 @@ function DashboardPageContent() {
         setDateStringForLink,
       }: any
     ) => {
-      setIsLoadingTodaysAttendance(true);
-      setIsLoadingLateAttendance(true);
-      setIsLoadingAbsentToday(true);
-    
-      try {
-        // 1️⃣ الحصول على آخر يوم في attendance_log
-        const mostRecentLogQuery = query(
-          collection(db, "attendance_log"),
-          orderBy("date", "desc"),
-          limit(1)
-        );
-        const mostRecentLogSnapshot = await getDocs(mostRecentLogQuery);
-    
-        if (mostRecentLogSnapshot.empty) {
-          setTodaysAttendance(0);
-          setLateAttendance(0);
-          setAbsentToday(0);
-          setAttendanceDate("No attendance data yet");
-          setDateStringForLink("");
-          return;
-        }
-    
-        const lastLogDateStr = mostRecentLogSnapshot.docs[0].data().date;
-        const targetDate = new Date(lastLogDateStr.replace(/-/g, "/"));
-        setDateStringForLink(lastLogDateStr);
-        setAttendanceDate(format(targetDate, "PPP"));
-    
-        // 🟡 استبعاد الجمعة والسبت
-        const dayOfWeek = targetDate.getDay();
-        if (dayOfWeek === 5 || dayOfWeek === 6) {
-          setTodaysAttendance(0);
-          setLateAttendance(0);
-          setAbsentToday(0);
-          return;
-        }
-    
-        // 2️⃣ الحصول على سجلات الحضور لليوم
-        const attendanceSnapshot = await getDocs(
-          query(collection(db, "attendance_log"), where("date", "==", lastLogDateStr))
-        );
-    
-        // 🧠 تحويل الوقت إلى دقائق (يدعم AM/PM)
-        const parseTimeToMinutes = (t: string): number | null => {
-          if (!t) return null;
-          const match = t.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?$/i);
-          if (!match) return null;
-          let h = parseInt(match[1], 10);
-          const m = parseInt(match[2], 10);
-          const ampm = match[4]?.toLowerCase();
-          if (ampm === "pm" && h < 12) h += 12;
-          if (ampm === "am" && h === 12) h = 0;
-          return h * 60 + m;
-        };
-    
-        // 3️⃣ استخراج كل badgeNumbers اللي سجلوا حضور
-        const attendanceMap = new Map<string, string[]>(); // badgeNumber -> [check_ins]
-        attendanceSnapshot.forEach((doc) => {
-          const data = doc.data();
-          const badge = String(data.badgeNumber ?? "").trim();
-          if (!badge || badge === "null" || badge === "undefined") return;
-          if (!attendanceMap.has(badge)) attendanceMap.set(badge, []);
-          if (data.check_in) attendanceMap.get(badge)!.push(String(data.check_in));
-        });
-    
-        const allPresentBadges = new Set(attendanceMap.keys());
-    
-        // 4️⃣ الموظفين النشطين
-        const empSnap = await getDocs(
-          query(collection(db, "employee"), where("status", "==", "Active"))
-        );
-    
-        const employeeIds = new Set<string>();
-        empSnap.forEach((doc) => {
-          const d = doc.data();
-          const empId = String(d.employeeId ?? "").trim() || `missing-${doc.id}`;
-          employeeIds.add(empId);
-          });
-    
-        // 5️⃣ حساب الحضور / الغياب بالربط بين employeeId و badgeNumber
-        let presentCount = 0;
-        let absentCount = 0;
-        let lateCount = 0;
-    
-        const startLimit = parseTimeToMinutes("07:30") ?? 450;
-    
-        employeeIds.forEach((empId) => {
-          if (allPresentBadges.has(empId)) {
-            // ✅ حاضر
-            presentCount++;
-    
-            // نتحقق من التأخير
-            const checkIns = attendanceMap.get(empId);
-            if (checkIns && checkIns.length > 0) {
-              const times = checkIns
-                .map((t) => parseTimeToMinutes(t))
-                .filter((v): v is number => typeof v === "number")
-                .sort((a, b) => a - b);
-              const earliest = times[0];
-              if (typeof earliest === "number" && earliest > startLimit) lateCount++;
+        setIsLoadingTodaysAttendance(true);
+        setIsLoadingLateAttendance(true);
+        setIsLoadingAbsentToday(true);
+
+        try {
+            // 1. Get total number of active employees
+            const activeEmployeesQuery = query(collection(db, "employee"), where("status", "==", "Active"));
+            const activeEmployeesSnapshot = await getCountFromServer(activeEmployeesQuery);
+            const totalActiveEmployees = activeEmployeesSnapshot.data().count;
+
+            // 2. Find the most recent date in attendance_log
+            const mostRecentLogQuery = query(
+                collection(db, "attendance_log"),
+                orderBy("date", "desc"),
+                limit(1)
+            );
+            const mostRecentLogSnapshot = await getDocs(mostRecentLogQuery);
+
+            if (mostRecentLogSnapshot.empty) {
+                setTodaysAttendance(0);
+                setLateAttendance(0);
+                setAbsentToday(totalActiveEmployees); // All active employees are absent if no logs
+                setAttendanceDate("No attendance data yet");
+                setDateStringForLink("");
+                return;
             }
-          } else {
-            // ❌ غايب
-            absentCount++;
-          }
-        });
-    
-        // ✅ تحديث الواجهة
-        setTodaysAttendance(presentCount);
-        setLateAttendance(lateCount);
-        setAbsentToday(absentCount);
-      } catch (error) {
-        console.error("Error in fetchDailyAttendance:", error);
-        setTodaysAttendance(0);
-        setLateAttendance(0);
-        setAbsentToday(0);
-        setAttendanceDate("Error loading data");
-      } finally {
-        setIsLoadingTodaysAttendance(false);
-        setIsLoadingLateAttendance(false);
-        setIsLoadingAbsentToday(false);
-      }
+
+            const lastLogDateStr = mostRecentLogSnapshot.docs[0].data().date;
+            const targetDate = new Date(lastLogDateStr.replace(/-/g, "/"));
+            setDateStringForLink(lastLogDateStr);
+            setAttendanceDate(format(targetDate, "PPP"));
+
+            // 3. Get all attendance logs for that specific date
+            const attendanceSnapshot = await getDocs(
+                query(collection(db, "attendance_log"), where("date", "==", lastLogDateStr))
+            );
+
+            const parseTimeToMinutes = (t: string): number | null => {
+                if (!t) return null;
+                const match = t.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?$/i);
+                if (!match) return null;
+                let h = parseInt(match[1], 10);
+                const m = parseInt(match[2], 10);
+                const ampm = match[4]?.toLowerCase();
+                if (ampm === "pm" && h < 12) h += 12;
+                if (ampm === "am" && h === 12) h = 0;
+                return h * 60 + m;
+            };
+
+            const presentBadges = new Set<string>();
+            let lateCount = 0;
+            const startLimit = parseTimeToMinutes("07:30") ?? 450;
+            
+            attendanceSnapshot.forEach((doc) => {
+                const data = doc.data();
+                const badge = String(data.badgeNumber ?? "").trim();
+                const checkIn = data.check_in;
+
+                if (badge && checkIn) {
+                    if (!presentBadges.has(badge)) {
+                        presentBadges.add(badge); // Add to presence set
+                        // Only check for lateness the first time we see an employee
+                        const checkInMinutes = parseTimeToMinutes(checkIn);
+                        if (checkInMinutes !== null && checkInMinutes > startLimit) {
+                            lateCount++;
+                        }
+                    }
+                }
+            });
+
+            const presentCount = presentBadges.size;
+            const absentCount = totalActiveEmployees - presentCount;
+
+            setTodaysAttendance(presentCount);
+            setLateAttendance(lateCount);
+            setAbsentToday(absentCount > 0 ? absentCount : 0); // Ensure it's not negative
+
+        } catch (error) {
+            console.error("Error in fetchDailyAttendance:", error);
+            setTodaysAttendance(0);
+            setLateAttendance(0);
+            setAbsentToday(0);
+            setAttendanceDate("Error loading data");
+        } finally {
+            setIsLoadingTodaysAttendance(false);
+            setIsLoadingLateAttendance(false);
+            setIsLoadingAbsentToday(false);
+        }
     };
     
-
     const fetchCampusData = async () => {
         setIsLoadingCampusData(true);
       try {
