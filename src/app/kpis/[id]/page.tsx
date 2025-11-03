@@ -54,15 +54,12 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
 
     useEffect(() => {
         setIsLoading(true);
-        // The query requires an index on (employeeDocId, date desc). 
-        // As a workaround, we query without ordering and sort client-side.
         const q = query(
             collection(db, kpiType),
-            where("employeeDocId", "==", employeeId)
+            where("employeeDocId", "==", employeeId),
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const kpiData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
-            // Sort data by date descending on the client
             kpiData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
             setData(kpiData);
             setIsLoading(false);
@@ -288,7 +285,7 @@ function AttendanceChartCard({ employeeId, employeeNumericId }: { employeeId: st
 
                 const [attendanceSnapshot, holidaysSnapshot, leaveSnapshot] = await Promise.all([
                     getDocs(attendanceQuery),
-                    getDocs(holidaysSnapshot),
+                    getDocs(holidaysQuery),
                     getDocs(leaveQuery),
                 ]);
 
@@ -430,7 +427,7 @@ function AttendanceChartCard({ employeeId, employeeNumericId }: { employeeId: st
     );
 }
 
-function KpiDashboardPage() {
+function KpiDashboardContent() {
     const params = useParams();
     const router = useRouter();
     const employeeId = params.id as string;
@@ -470,12 +467,9 @@ function KpiDashboardPage() {
   
     const canViewPage = useMemo(() => {
         if (isLoadingCurrentUser || !currentUserProfile || !employee) return false;
-        // User can see their own KPIs
         if (currentUserProfile.id === employee.id) return true;
-        // Admin/HR can see anyone's KPIs
         const userRole = currentUserProfile.role?.toLowerCase();
         if (userRole === 'admin' || userRole === 'hr') return true;
-        // Manager can see their report's KPIs
         if (employee.reportLine1 === currentUserProfile.email) return true;
 
         return false;
@@ -498,61 +492,60 @@ function KpiDashboardPage() {
 
     if (loading || isLoadingCurrentUser) {
         return (
-            <AppLayout>
-                <div className="flex justify-center items-center h-full">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                </div>
-            </AppLayout>
+            <div className="flex justify-center items-center h-full">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
         );
     }
 
     if (error || !canViewPage) {
         return (
-            <AppLayout>
-                <div className="space-y-8">
-                    <header>
-                    <div className="flex items-center text-destructive">
-                        <AlertTriangle className="mr-2 h-6 w-6"/>
-                        <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-                            {error || "Access Denied"}
-                        </h1>
-                    </div>
-                </header>
+            <div className="space-y-8">
+                <header>
+                <div className="flex items-center text-destructive">
+                    <AlertTriangle className="mr-2 h-6 w-6"/>
+                    <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
+                        {error || "Access Denied"}
+                    </h1>
                 </div>
-            </AppLayout>
+            </header>
+            </div>
         )
     }
 
     return (
-        <AppLayout>
-            <div className="space-y-8">
-                <header>
-                {loading ? (
-                    <div className="space-y-2">
-                        <Skeleton className="h-10 w-1/2" />
-                        <Skeleton className="h-5 w-3/4" />
-                    </div>
-                ) : (
-                    <>
-                    <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
-                        <BarChartBig className="mr-3 h-8 w-8 text-primary" />
-                        KPI's Dashboard for {employee?.name}
-                    </h1>
-                    <p className="text-muted-foreground">
-                        This is the KPI dashboard for {employee?.name}.
-                    </p>
-                    </>
-                )}
-                </header>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeId={employeeId} canEdit={canEditKpis} />
-                    <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employeeId} canEdit={canEditKpis} />
-                    <AttendanceChartCard employeeId={employeeId} employeeNumericId={employee?.employeeId || null} />
+        <div className="space-y-8">
+            <header>
+            {loading ? (
+                <div className="space-y-2">
+                    <Skeleton className="h-10 w-1/2" />
+                    <Skeleton className="h-5 w-3/4" />
                 </div>
+            ) : (
+                <>
+                <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
+                    <BarChartBig className="mr-3 h-8 w-8 text-primary" />
+                    KPI's Dashboard for {employee?.name}
+                </h1>
+                <p className="text-muted-foreground">
+                    This is the KPI dashboard for {employee?.name}.
+                </p>
+                </>
+            )}
+            </header>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeId={employeeId} canEdit={canEditKpis} />
+                <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employeeId} canEdit={canEditKpis} />
+                <AttendanceChartCard employeeId={employeeId} employeeNumericId={employee?.employeeId || null} />
             </div>
-        </AppLayout>
+        </div>
     );
 }
 
-
-export default KpiDashboardPage;
+export default function KpiDashboardPage() {
+  return (
+    <AppLayout>
+      <KpiDashboardContent />
+    </AppLayout>
+  );
+}
