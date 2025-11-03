@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -47,7 +48,7 @@ interface AttendanceInfo {
   checkIns: string[];
   checkOuts: string[];
   name?: string;
-  badgeNumber?: string;
+  employeeId?: string; // Use company employeeId as the key
 }
 
 interface Row {
@@ -57,7 +58,6 @@ interface Row {
   photoURL?: string;
   checkIn?: string | null;
   checkOut?: string | null;
-  badgeNumber?: string;
 }
 
 const getInitials = (name: string) =>
@@ -153,9 +153,6 @@ function EmployeeStatusContent() {
         const empByEmployeeId = new Map(
           allEmployees.map((e) => [toStr(e.employeeId), e])
         );
-        const empByBadge = new Map(
-          allEmployees.map((e) => [toStr(e.badgeNumber), e])
-        );
 
         // 2️⃣ قراءة attendance_log
         const attSnap = await getDocs(
@@ -165,31 +162,28 @@ function EmployeeStatusContent() {
         const attData: Record<string, AttendanceInfo> = {};
         attSnap.forEach((doc) => {
           const data = doc.data() as any;
-          const badge = toStr(data.badgeNumber);
-          const user = toStr(data.userId);
-          const uid = badge || user;
-          if (!uid) return;
+          const employeeId = toStr(data.userId); // Group by company employeeId
+          if (!employeeId) return;
 
-          if (!attData[uid]) {
-            attData[uid] = { checkIns: [], checkOuts: [], badgeNumber: badge };
+          if (!attData[employeeId]) {
+            attData[employeeId] = { checkIns: [], checkOuts: [], employeeId: employeeId };
           }
 
           if (data.check_in)
-            attData[uid].checkIns.push(String(data.check_in));
+            attData[employeeId].checkIns.push(String(data.check_in));
           if (data.check_out)
-            attData[uid].checkOuts.push(String(data.check_out));
+            attData[employeeId].checkOuts.push(String(data.check_out));
 
-          // 👇 نستخدم الاسم من اللوج لو متوفر
           if (data.employeeName)
-            attData[uid].name = toStr(data.employeeName);
-          else if (data.name)
-            attData[uid].name = toStr(data.name);
+            attData[employeeId].name = toStr(data.employeeName);
         });
 
         // 3️⃣ تحديد الحضور
         const presentIds = new Set<string>();
-        Object.entries(attData).forEach(([id, info]) => {
-          if ((info.checkIns || []).length > 0) presentIds.add(id);
+        Object.keys(attData).forEach((employeeId) => {
+          if ((attData[employeeId]?.checkIns || []).length > 0) {
+            presentIds.add(employeeId);
+          }
         });
 
         // 4️⃣ الإجازات المعتمدة
@@ -199,21 +193,18 @@ function EmployeeStatusContent() {
             query(
               collection(db, "leaveRequests"),
               where("status", "==", "Approved"),
-              where("date", "==", targetDate)
+              where("date", "==", targetDate) // This might need adjustment if leaves span multiple days
             )
           );
           leaveSnap.forEach((doc) => {
             const d = doc.data() as any;
-            const empId = toStr(d.employeeId);
-            if (!empId) return;
-            const emp = empByEmployeeId.get(empId);
-            const key = toStr(emp?.badgeNumber || emp?.employeeId || empId);
-            if (key) approvedLeaveIds.add(key);
+            const empId = toStr(d.employeeId || d.requestingEmployeeId); // Use employeeId first
+            if (empId) approvedLeaveIds.add(empId);
           });
         } catch (e) {
-          console.warn("Leave collection missing:", e);
+          console.warn("Leave collection might be missing or rules are restrictive:", e);
         }
-
+        
         // 5️⃣ حسب الفلتر المطلوب
         const targetIds = new Set<string>();
         if (filter === "present") {
@@ -231,7 +222,7 @@ function EmployeeStatusContent() {
           });
         } else if (filter === "absent") {
           allEmployees.forEach((e) => {
-            const key = toStr(e.badgeNumber || e.employeeId);
+            const key = toStr(e.employeeId);
             if (!key) return;
             if (!presentIds.has(key) && !approvedLeaveIds.has(key))
               targetIds.add(key);
@@ -239,20 +230,11 @@ function EmployeeStatusContent() {
         }
 
         // 6️⃣ بناء جدول العرض
-        const dataRows: Row[] = Array.from(targetIds).map((key) => {
-          let emp = empByBadge.get(key) || empByEmployeeId.get(key);
-          const att = attData[key];
-
-          // ✅ لو الاسم اللي جاي من اللوج كله أرقام، نحاول نطابقه مع badgeNumber
-          const isNumericName =
-            att?.name && /^[0-9]+$/.test(att.name.trim());
-          if (isNumericName) {
-            const numericBadge = att.name.trim();
-            const matchedEmp =
-              empByBadge.get(numericBadge) ||
-              empByEmployeeId.get(numericBadge);
-            if (matchedEmp) emp = matchedEmp;
-          }
+        const dataRows: Row[] = Array.from(targetIds).map((employeeId) => {
+          let emp = empByEmployeeId.get(employeeId);
+          const att = attData[employeeId];
+          
+          const safeName = toStr(emp?.name) || toStr(att?.name) || `ID: ${employeeId}`;
 
           const sortTimes = (arr: string[]) =>
             arr
@@ -266,20 +248,14 @@ function EmployeeStatusContent() {
           const sortedIns = sortTimes(att?.checkIns || []);
           const sortedOuts = sortTimes(att?.checkOuts || []);
 
-          const safeName =
-            (!isNumericName && toStr(att?.name)) ||
-            toStr(emp?.name) ||
-            (att?.badgeNumber ? `User ${att.badgeNumber}` : "Unknown User");
-
           return {
-            id: emp?.id || key,
-            employeeId: toStr(emp?.employeeId) || key,
+            id: emp?.id || employeeId,
+            employeeId: employeeId,
             name: safeName,
             photoURL: emp?.photoURL,
             checkIn: sortedIns[0] ?? null,
             checkOut:
               sortedOuts.length ? sortedOuts[sortedOuts.length - 1] : null,
-            badgeNumber: att?.badgeNumber || key,
           };
         });
 
@@ -355,7 +331,7 @@ function EmployeeStatusContent() {
               </TableHeader>
               <TableBody>
                 {rows.map((e, i) => (
-                  <TableRow key={`${e.employeeId}-${e.badgeNumber}-${i}`}>
+                  <TableRow key={`${e.employeeId}-${i}`}>
                     <TableCell>{i + 1}</TableCell>
                     <TableCell>
                       <Link
@@ -368,11 +344,9 @@ function EmployeeStatusContent() {
                         </Avatar>
                         <div>
                           {e.name}
-                          {e.badgeNumber && (
-                            <Badge variant="secondary" className="ml-2">
-                              {e.badgeNumber}
-                            </Badge>
-                          )}
+                          <Badge variant="secondary" className="ml-2">
+                              {e.employeeId}
+                          </Badge>
                         </div>
                       </Link>
                     </TableCell>
