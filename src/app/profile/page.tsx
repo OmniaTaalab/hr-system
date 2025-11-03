@@ -41,7 +41,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import jsPDF from "jspdf";
 import autoTable from 'jspdf-autotable';
 import { ImageUploader } from "@/components/image-uploader";
-import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 
 // Define the Employee interface to include all necessary fields
@@ -261,8 +261,8 @@ export default function ProfilePage() {
     }
     
     setLoadingKpis(true);
-    const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", employeeProfile.id));
-    const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", employeeProfile.id));
+    const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", employeeProfile.employeeId));
+    const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", employeeProfile.employeeId));
 
     const eleotUnsubscribe = onSnapshot(eleotQuery, (snapshot) => {
         const eleotData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
@@ -282,7 +282,7 @@ export default function ProfilePage() {
         eleotUnsubscribe();
         totUnsubscribe();
     };
-}, [employeeProfile?.id]);
+}, [employeeProfile?.id, employeeProfile?.employeeId]);
 
 
   const getInitials = (name?: string | null) => {
@@ -590,4 +590,5 @@ export default function ProfilePage() {
     </AppLayout>
   );
 }
+
 
