@@ -40,7 +40,7 @@ interface KpiEntry {
 const initialKpiState: KpiEntryState = { success: false, message: null, errors: {} };
 
 
-function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiType: 'eleot' | 'tot', employeeId: string, canEdit: boolean }) {
+function KpiCard({ title, kpiType, employeeDocId, canEdit }: { title: string, kpiType: 'eleot' | 'tot', employeeDocId: string, canEdit: boolean }) {
   const { toast } = useToast();
   const [data, setData] = useState<KpiEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,7 +52,7 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
 
   useEffect(() => {
     setIsLoading(true);
-    const q = query(collection(db, kpiType), where("employeeDocId", "==", employeeId));
+    const q = query(collection(db, kpiType), where("employeeDocId", "==", employeeDocId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const kpiData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
       kpiData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
@@ -63,7 +63,7 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, [kpiType, employeeId]);
+  }, [kpiType, employeeDocId]);
 
   useEffect(() => {
     if (addState?.message) {
@@ -115,7 +115,7 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
             <DialogContent>
               <form action={addAction}>
                 <input type="hidden" name="kpiType" value={kpiType} />
-                <input type="hidden" name="employeeDocId" value={employeeId} />
+                <input type="hidden" name="employeeDocId" value={employeeDocId} />
                 <input type="hidden" name="date" value={selectedDate?.toISOString() ?? ''} />
                 <input type="hidden" name="actorId" value={profile?.id || ''} />
                 <input type="hidden" name="actorEmail" value={profile?.email || ''} />
@@ -234,7 +234,7 @@ export function AttendanceChartCard({ employeeDocId, employeeId }: { employeeDoc
           }
   
           const currentYear = new Date().getFullYear();
-          const startDate = new Date(`${currentYear}-01-01T00:00:00Z`);
+          const startDate = new Date(`2025-09-01T00:00:00Z`);
           const today = new Date();
   
           // 🟢 Attendance logs
@@ -450,7 +450,7 @@ export function AttendanceChartCard({ employeeDocId, employeeId }: { employeeDoc
         </div>
 
         <p className="mt-3 text-xs text-muted-foreground">
-          Attendance for current year (excluding weekends/holidays)
+          Attendance since Sep 1, 2025 (excluding weekends/holidays)
         </p>
       </div>
     </>
@@ -461,6 +461,14 @@ export function AttendanceChartCard({ employeeDocId, employeeId }: { employeeDoc
     );
   }
   
+function KpiDashboardPage() {
+    return (
+        <AppLayout>
+            <KpiDashboardContent />
+        </AppLayout>
+    );
+}
+
 function KpiDashboardContent() {
   const params = useParams();
   const router = useRouter();
@@ -480,7 +488,7 @@ function KpiDashboardContent() {
 
     const fetchEmployee = async () => {
       try {
-        const q = query(collection(db, 'employee'), where("employeeId", "==", companyEmployeeId));
+        const q = query(collection(db, 'employee'), where("employeeId", "==", companyEmployeeId), limit(1));
         const querySnapshot = await getDocs(q);
 
         if (!querySnapshot.empty) {
@@ -560,8 +568,8 @@ function KpiDashboardContent() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {employee && (
             <>
-                <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeId={employee.id} canEdit={canEditKpis} />
-                <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employee.id} canEdit={canEditKpis} />
+                <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeDocId={employee.id} canEdit={canEditKpis} />
+                <KpiCard title="TOT(10%)" kpiType="tot" employeeDocId={employee.id} canEdit={canEditKpis} />
                 <AttendanceChartCard employeeDocId={employee.id} employeeId={employee.employeeId || ""} />
             </>
         )}
@@ -571,10 +579,4 @@ function KpiDashboardContent() {
 }
 
 
-export default function KpiDashboardPage() {
-  return (
-    <AppLayout>
-      <KpiDashboardContent />
-    </AppLayout>
-  );
-}
+export default KpiDashboardPage;
