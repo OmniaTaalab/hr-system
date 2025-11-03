@@ -338,15 +338,19 @@ function EmployeeProfileContent() {
     
     const fetchKpiData = async (employeeDocId: string) => {
         setLoadingKpis(true);
-        const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", employeeDocId), orderBy("date", "desc"));
-        const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", employeeDocId), orderBy("date", "desc"));
+        const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", employeeDocId));
+        const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", employeeDocId));
 
         const eleotUnsubscribe = onSnapshot(eleotQuery, (snapshot) => {
-            setEleotHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry)));
+            const eleotData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
+            eleotData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
+            setEleotHistory(eleotData);
         }, (error) => console.error("Error fetching ELEOT history:", error));
         
         const totUnsubscribe = onSnapshot(totQuery, (snapshot) => {
-            setTotHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry)));
+            const totData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
+            totData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
+            setTotHistory(totData);
         }, (error) => console.error("Error fetching TOT history:", error));
 
         setLoadingKpis(false); // Can set this earlier as listeners will update

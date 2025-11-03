@@ -15,7 +15,7 @@ import {
   reauthenticateWithCredential,
   updatePassword 
 } from "firebase/auth";
-import { collection, query, where, getDocs, limit, type Timestamp, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, type Timestamp, onSnapshot } from 'firebase/firestore';
 import { format, getYear, getMonth, getDate } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -261,15 +261,19 @@ export default function ProfilePage() {
     }
     
     setLoadingKpis(true);
-    const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", employeeProfile.id), orderBy("date", "desc"));
-    const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", employeeProfile.id), orderBy("date", "desc"));
+    const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", employeeProfile.id));
+    const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", employeeProfile.id));
 
     const eleotUnsubscribe = onSnapshot(eleotQuery, (snapshot) => {
-        setEleotHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry)));
+        const eleotData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
+        eleotData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
+        setEleotHistory(eleotData);
     }, (error) => console.error("Error fetching ELEOT history:", error));
     
     const totUnsubscribe = onSnapshot(totQuery, (snapshot) => {
-        setTotHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry)));
+        const totData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
+        totData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
+        setTotHistory(totData);
     }, (error) => console.error("Error fetching TOT history:", error));
     
     setLoadingKpis(false);
