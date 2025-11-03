@@ -6,7 +6,7 @@ import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save } from "lucide-react";
 import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase/config';
-import { doc, getDoc, collection, query, where, onSnapshot, orderBy, Timestamp, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot, orderBy, Timestamp, getDocs, limit } from 'firebase/firestore';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,7 +40,7 @@ interface KpiEntry {
 const initialKpiState: KpiEntryState = { success: false, message: null, errors: {} };
 
 
-function KpiCard({ title, kpiType, employeeDocId, canEdit }: { title: string, kpiType: 'eleot' | 'tot', employeeDocId: string, canEdit: boolean }) {
+function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title: string, kpiType: 'eleot' | 'tot', employeeDocId: string, employeeId: string | undefined, canEdit: boolean }) {
   const { toast } = useToast();
   const [data, setData] = useState<KpiEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,10 +52,9 @@ function KpiCard({ title, kpiType, employeeDocId, canEdit }: { title: string, kp
 
   useEffect(() => {
     setIsLoading(true);
-    const q = query(collection(db, kpiType), where("employeeDocId", "==", employeeDocId));
+    const q = query(collection(db, kpiType), where("employeeDocId", "==", employeeDocId), orderBy("date", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const kpiData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
-      kpiData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
       setData(kpiData);
       setIsLoading(false);
     }, (error) => {
@@ -115,7 +114,7 @@ function KpiCard({ title, kpiType, employeeDocId, canEdit }: { title: string, kp
             <DialogContent>
               <form action={addAction}>
                 <input type="hidden" name="kpiType" value={kpiType} />
-                <input type="hidden" name="employeeDocId" value={employeeDocId} />
+                <input type="hidden" name="employeeDocId" value={employeeId || ''} />
                 <input type="hidden" name="date" value={selectedDate?.toISOString() ?? ''} />
                 <input type="hidden" name="actorId" value={profile?.id || ''} />
                 <input type="hidden" name="actorEmail" value={profile?.email || ''} />
@@ -203,7 +202,7 @@ function KpiCard({ title, kpiType, employeeDocId, canEdit }: { title: string, kp
     </Card>
   );
 }
-export function AttendanceChartCard({ employeeDocId, employeeId }: { employeeDocId: string, employeeId: string }) {
+export function AttendanceChartCard({ employeeDocId, employeeId }: { employeeDocId: string, employeeId: string | undefined }) {
     const [attendanceScore, setAttendanceScore] = useState<{
       score: number;
       maxScore: number;
@@ -461,13 +460,6 @@ export function AttendanceChartCard({ employeeDocId, employeeId }: { employeeDoc
     );
   }
   
-function KpiDashboardPage() {
-    return (
-        <AppLayout>
-            <KpiDashboardContent />
-        </AppLayout>
-    );
-}
 
 function KpiDashboardContent() {
   const params = useParams();
@@ -568,9 +560,9 @@ function KpiDashboardContent() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {employee && (
             <>
-                <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeDocId={employee.id} canEdit={canEditKpis} />
-                <KpiCard title="TOT(10%)" kpiType="tot" employeeDocId={employee.id} canEdit={canEditKpis} />
-                <AttendanceChartCard employeeDocId={employee.id} employeeId={employee.employeeId || ""} />
+                <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
+                <KpiCard title="TOT(10%)" kpiType="tot" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
+                <AttendanceChartCard employeeDocId={employee.id} employeeId={employee.employeeId} />
             </>
         )}
       </div>
@@ -578,5 +570,10 @@ function KpiDashboardContent() {
   );
 }
 
-
-export default KpiDashboardPage;
+export default function KpiDashboardPage() {
+    return (
+        <AppLayout>
+            <KpiDashboardContent />
+        </AppLayout>
+    );
+}
