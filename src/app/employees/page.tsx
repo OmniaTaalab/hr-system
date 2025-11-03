@@ -1029,6 +1029,10 @@ function EmployeeManagementContent() {
     return listToFilter;
   }, [allEmployees, searchTerm, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter]);
   
+  const activeEmployeesCount = useMemo(() => {
+    return filteredEmployees.filter(emp => emp.status !== 'deactivated').length;
+  }, [filteredEmployees]);
+
   const totalPages = useMemo(() => Math.ceil(filteredEmployees.length / PAGE_SIZE), [filteredEmployees]);
   const isLastPage = currentPage >= totalPages;
 
@@ -1209,7 +1213,7 @@ function EmployeeManagementContent() {
             Manage employee records, add new hires, and update details.
           </p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-1 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <Card>
             <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs font-medium sm:text-sm">Total Employees</CardTitle>
@@ -1217,6 +1221,15 @@ function EmployeeManagementContent() {
             </CardHeader>
             <CardContent className="p-3 pt-0">
               <div className="text-lg font-bold sm:text-2xl">{isLoading || isLoadingProfile ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : filteredEmployees.length}</div>
+            </CardContent>
+          </Card>
+           <Card>
+            <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium sm:text-sm">Active Employees</CardTitle>
+              <UserCheck className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="p-3 pt-0">
+              <div className="text-lg font-bold sm:text-2xl">{isLoading || isLoadingProfile ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : activeEmployeesCount}</div>
             </CardContent>
           </Card>
         </div>

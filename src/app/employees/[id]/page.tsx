@@ -443,21 +443,101 @@ function EmployeeProfileContent() {
 
     return `${format(joiningDate, "PPP")} (${period})`;
   }, [employee?.joiningDate]);
+const getAttendancePointValue = (entry: any): number => {
+  if (entry.type === "leave") return 1;
+  if (!entry.check_in) return 0;
 
-  const getAttendancePointValue = (entry: HistoryEntry): number => {
-    if (entry.type === 'leave') return 1;
-    if (!entry.check_in) return 0;
-    const timeParts = entry.check_in.split(":");
-    let hours = parseInt(timeParts[0], 10);
-    const minutes = parseInt(timeParts[1], 10);
-    const isPM = entry.check_in.toLowerCase().includes('pm');
-    if (isPM && hours < 12) hours += 12;
-    if (!isPM && hours === 12) hours = 0;
-    const checkInMinutes = hours * 60 + minutes;
-    const targetMinutes = 7 * 60 + 30; // 7:30 AM
-    return checkInMinutes < targetMinutes ? 1 : 0.5;
+  const timeParts = entry.check_in.split(":");
+  let hours = parseInt(timeParts[0], 10);
+  const minutes = parseInt(timeParts[1], 10);
+  const isPM = entry.check_in.toLowerCase().includes("pm");
+  if (isPM && hours < 12) hours += 12;
+  if (!isPM && hours === 12) hours = 0;
+
+  const checkInMinutes = hours * 60 + minutes;
+  const targetMinutes = 7 * 60 + 30; // 7:30 AM
+  return checkInMinutes < targetMinutes ? 1 : 0.5;
+};
+
+const calculateAttendanceScore = async (employeeId: string) => {
+  const startDate = new Date("2025-09-01T00:00:00Z");
+  const today = new Date();
+
+  // 🟢 Attendance
+  const attendanceQuery = query(
+    collection(db, "attendance_log"),
+    where("badgeNumber", "==", String(employeeId))
+  );
+  const attendanceSnapshot = await getDocs(attendanceQuery);
+
+  const attendanceLogs = attendanceSnapshot.docs.map((d) => ({
+    ...d.data(),
+    type: "attendance",
+  }));
+
+  // 🟢 Leaves
+  const leaveQuery = query(
+    collection(db, "leaveRequests"),
+    where("requestingEmployeeId", "==", String(employeeId))
+  );
+  const leaveSnapshot = await getDocs(leaveQuery);
+
+  const approvedLeaves = leaveSnapshot.docs
+    .map((d) => ({ ...d.data(), type: "leave" }))
+    .filter((l: any) => l.status === "Approved");
+
+  // 🟢 Official holidays
+  const holidaySnapshot = await getDocs(collection(db, "officialHolidays"));
+  const officialHolidays = holidaySnapshot.docs.map((d) => d.data().date); // e.g. ["2025-10-06", "2025-10-27"]
+
+  // 🧮 Loop over each workday
+  let totalDays = 0;
+  let totalPoints = 0;
+
+  const tempDate = new Date(startDate);
+  while (tempDate <= today) {
+    const dateStr = tempDate.toISOString().split("T")[0];
+    const day = tempDate.getDay();
+    
+    const isWeekend = day === 5 || day === 6; // Friday/Saturday
+    const isHoliday = officialHolidays.includes(dateStr);
+    const attendanceForDay = attendanceLogs.find(
+      (log: any) => log.date === dateStr
+    );
+    const leaveForDay = approvedLeaves.find((leave: any) => {
+      const from = leave.startDate?.toDate?.() || new Date(leave.startDate);
+      const to = leave.endDate?.toDate?.() || new Date(leave.endDate);
+      return tempDate >= from && tempDate <= to;
+    });
+
+    // ✅ حساب النقطة حسب الأولوية
+    let points = 0;
+    if (isWeekend || isHoliday) {
+      points = 1; // عطلة رسمية أو ويك إند
+    } else if (leaveForDay) {
+      points = 1; // إجازة معتمدة
+    } else if (attendanceForDay) {
+      points = getAttendancePointValue(attendanceForDay);
+    } else {
+      points = 0; // غياب
+    }
+
+    totalPoints += points;
+    totalDays++;
+    tempDate.setDate(tempDate.getDate() + 1);
+  }
+
+  const percentage = (totalPoints / totalDays) * 100;
+  const scoreOutOf10 = (percentage / 10).toFixed(1);
+
+  return {
+    totalPoints,
+    totalDays,
+    percentage: percentage.toFixed(1),
+    scoreOutOf10,
   };
-  
+};
+
   const getAttendancePointDisplay = (entry: HistoryEntry): string => {
       if (entry.type === 'leave') return "1/1";
       const value = getAttendancePointValue(entry);

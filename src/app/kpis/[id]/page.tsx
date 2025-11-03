@@ -20,7 +20,8 @@ import { format } from "date-fns";
 import { addKpiEntryAction, type KpiEntryState } from "@/app/actions/kpi-actions";
 import { useToast } from "@/hooks/use-toast";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Label as RechartsLabel } from "recharts";
-
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
 
 interface Employee {
   id: string;
@@ -201,164 +202,271 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
     </Card>
   );
 }
-
 export function AttendanceChartCard({ employeeId }: { employeeId: string }) {
-    const [attendanceData, setAttendanceData] = useState<{ present: number; tardy: number; absent: number }>({
-      present: 0,
-      tardy: 0,
-      absent: 0,
-    });
+    const [attendanceScore, setAttendanceScore] = useState<{
+      score: number;
+      maxScore: number;
+      percentage: string;
+      scoreOutOf10: string;
+    } | null>(null);
+  
     const [isLoading, setIsLoading] = useState(true);
+  
+    const [breakdown, setBreakdown] = useState({
+      fullDays: 0,
+      halfDays: 0,
+      leaves: 0,
+      absents: 0,
+    });
+  
+    // ✅ تعريف chartData كـ useState
+    const [chartData, setChartData] = useState<
+      { name: string; value: number; fill: string }[]
+    >([]);
   
     useEffect(() => {
       const fetchAttendanceStats = async () => {
         setIsLoading(true);
         try {
           if (!employeeId) {
-            console.warn("No employeeId provided");
             setIsLoading(false);
             return;
           }
   
-    
-  // ✅ نجيب attendance بناءً على badgeNumber == employeeId
-  const attendanceQuery = query(
-    collection(db, "attendance_log"),
-    where("badgeNumber", "==", String(employeeId))
-  );
-  const attendanceSnapshot = await getDocs(attendanceQuery);
+          const startDate = new Date("2025-09-01T00:00:00Z");
+          const today = new Date();
   
-  // فلترة السجلات يدويًا آخر 30 يوم
-  const today = new Date();
-  const last30Days = new Date();
-  last30Days.setDate(today.getDate() - 30);
+          // 🟢 Attendance logs
+          const attendanceQuery = query(
+            collection(db, "attendance_log"),
+            where("badgeNumber", "==", String(employeeId))
+          );
+          const attendanceSnapshot = await getDocs(attendanceQuery);
+          const attendanceLogs = attendanceSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+            type: "attendance",
+          }));
   
-  const logs = attendanceSnapshot.docs
-    .map((d) => d.data())
-    .filter((log) => {
-      const logDate = new Date(log.date.replace(/-/g, "/")); // "2025-08-24" → Date object
-      return logDate >= last30Days && logDate <= today;
-    });
-  // فلترة السجلات يدويًا آخر 30 يوم
- 
+          // 🟢 Leave requests
+          const leaveQuery = query(
+            collection(db, "leaveRequests"),
+            where("requestingEmployeeId", "==", String(employeeId))
+          );
+          const leaveSnapshot = await getDocs(leaveQuery);
+          const approvedLeaves = leaveSnapshot.docs
+            .map((doc) => ({ ...doc.data(), type: "leave" }))
+            .filter((l: any) => l.status === "Approved");
   
-          if (logs.length === 0) {
-            console.warn(`No attendance logs found for employeeId (badgeNumber): ${employeeId}`);
-            setAttendanceData({ present: 0, tardy: 0, absent: 0 });
-            setIsLoading(false);
-            return;
-          }
+          // 🧮 فلترة التاريخ
+          const filteredAttendance = attendanceLogs.filter((entry: any) => {
+            const entryDate = new Date(entry.date.replace(/-/g, "/"));
+            return entryDate >= startDate && entryDate <= today;
+          });
   
-          let present = 0;
-          let tardy = 0;
+          // 🧩 ندمج الحضور والإجازات
+          const mergedMap = new Map<string, any>();
+          filteredAttendance.forEach((att) => mergedMap.set(att.date, att));
   
-          attendanceSnapshot.forEach((doc) => {
-            const data = doc.data();
-            if (!data?.check_in) return;
-  
-            const [hour, minute, period] = data.check_in.replace(" ", ":").split(":");
-            const h = parseInt(hour);
-            const m = parseInt(minute);
-            const isPM = period?.toLowerCase().includes("pm");
-            const checkIn24 = isPM && h !== 12 ? h + 12 : h === 12 && !isPM ? 0 : h;
-  
-            // بعد 7:30 يعتبر تأخير
-            if (checkIn24 > 7 || (checkIn24 === 7 && m > 30)) {
-              tardy++;
-            } else {
-              present++;
+          approvedLeaves.forEach((leave: any) => {
+            const from = leave.startDate?.toDate?.() || new Date(leave.startDate);
+            const to = leave.endDate?.toDate?.() || new Date(leave.endDate);
+            let d = new Date(from);
+            while (d <= to) {
+              const dateStr = d.toISOString().split("T")[0];
+              mergedMap.set(dateStr, { date: dateStr, type: "leave" });
+              d.setDate(d.getDate() + 1);
             }
           });
   
-          const totalDays = attendanceSnapshot.size;
-          const absent = Math.max(totalDays - (present + tardy), 0);
+          // 🧩 التحليل
+          let onTime = 0; // قبل 7:30
+          let late = 0; // بعد 7:30
+          let absent = 0; // غياب
   
-          setAttendanceData({ present, tardy, absent });
-        } catch (error) {
-          console.error("Error fetching attendance data:", error);
+          const allDays = [];
+          const tempDate = new Date(startDate);
+          while (tempDate <= today) {
+            const day = tempDate.getDay();
+            if (day !== 5 && day !== 6)
+              allDays.push(tempDate.toISOString().split("T")[0]); // استبعاد الجمعة والسبت
+            tempDate.setDate(tempDate.getDate() + 1);
+          }
+  
+          allDays.forEach((dateStr) => {
+            const record = mergedMap.get(dateStr);
+            if (!record) {
+              absent++;
+              return;
+            }
+  
+            if (record.type === "leave") {
+              onTime++; // نعتبر الإجازة حضور كامل
+              return;
+            }
+  
+            if (record.check_in) {
+              const [hRaw, mRaw] = record.check_in.split(":");
+              let hours = parseInt(hRaw);
+              const minutes = parseInt(mRaw);
+              const isPM = record.check_in.toLowerCase().includes("pm");
+              if (isPM && hours < 12) hours += 12;
+              if (!isPM && hours === 12) hours = 0;
+  
+              const totalMinutes = hours * 60 + minutes;
+              const limit = 7 * 60 + 30;
+              if (totalMinutes <= limit) onTime++;
+              else late++;
+            } else {
+              absent++;
+            }
+          });
+  
+          const total = onTime + late + absent;
+          const onTimePercent = ((onTime / total) * 100).toFixed(1);
+          const latePercent = ((late / total) * 100).toFixed(1);
+          const absentPercent = ((absent / total) * 100).toFixed(1);
+  
+          setAttendanceScore({
+            score: total,
+            maxScore: total,
+            percentage: onTimePercent,
+            scoreOutOf10: ((onTime / total) * 10).toFixed(1),
+          });
+  
+          setBreakdown({
+            fullDays: onTime,
+            halfDays: late,
+            leaves: approvedLeaves.length,
+            absents: absent,
+          });
+  
+          // ✅ تحديث الـ chartData بشكل صحيح
+          setChartData([
+            { name: "On Time", value: Number(onTimePercent), fill: "#16a34a" },
+            { name: "Late", value: Number(latePercent), fill: "#eab308" },
+            { name: "Absent", value: Number(absentPercent), fill: "#dc2626" },
+          ]);
+        } catch (err) {
+          console.error("Error:", err);
         } finally {
           setIsLoading(false);
         }
       };
   
-      if (employeeId) fetchAttendanceStats();
+      fetchAttendanceStats();
     }, [employeeId]);
-  
-    const { present, tardy, absent } = attendanceData;
-    const total = present + tardy + absent;
-    const presentPercentage = total > 0 ? ((present / total) * 10).toFixed(0) : "0";
-    const hasData = total > 0;
-  
-    const chartData = hasData
-      ? [
-          { name: "Present", value: present, fill: "#166534" },
-          { name: "Late", value: tardy, fill: "#eab308" },
-          { name: "Absent", value: absent, fill: "#dc2626" },
-        ]
-      : [{ name: "No Data", value: 1, fill: "#e5e7eb" }];
   
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Attendance ({presentPercentage}%)</CardTitle>
-          <CardDescription>Last 30 days attendance summary</CardDescription>
+          <CardTitle>
+            Attendance ({attendanceScore?.percentage ?? "0"}%)
+          </CardTitle>
+          <CardDescription>
+            Attendance since Sep 1, 2025 (excluding weekends)
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center justify-center">
-          {isLoading ? (
-            <div className="flex justify-center items-center h-[250px]">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={60}
-                  outerRadius={90}
-                  stroke="#fff"
-                  strokeWidth={2}
-                >
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                  <RechartsLabel
-                    content={({ viewBox }) => {
-                      if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                        return (
-                          <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
-                            <tspan
-                              x={viewBox.cx}
-                              y={(viewBox.cy || 0) - 10}
-                              className="fill-muted-foreground text-sm"
-                            >
-                              Total present
-                            </tspan>
-                            <tspan
-                              x={viewBox.cx}
-                              y={(viewBox.cy || 0) + 15}
-                              className="fill-foreground text-2xl font-bold"
-                            >
-                              {presentPercentage}%
-                            </tspan>
-                          </text>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                </Pie>
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
+  {isLoading ? (
+    <div className="flex justify-center items-center h-[250px]">
+      <Loader2 className="h-10 w-10 animate-spin text-primary" />
+    </div>
+  ) : (
+    <>
+      <ResponsiveContainer width="100%" height={250}>
+        <PieChart>
+          <Pie
+            data={chartData}
+            dataKey="value"
+            nameKey="name"
+            innerRadius={60}
+            outerRadius={90}
+            stroke="#fff"
+            strokeWidth={2}
+            startAngle={90}
+            endAngle={450}
+          >
+            {chartData.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.fill} />
+            ))}
+            <RechartsLabel
+              content={({ viewBox }) => {
+                if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                  return (
+                    <text
+                      x={viewBox.cx}
+                      y={viewBox.cy}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                    >
+                      <tspan
+                        x={viewBox.cx}
+                        y={(viewBox.cy || 0) - 10}
+                        className="fill-muted-foreground text-sm"
+                      >
+                        On Time
+                      </tspan>
+                      <tspan
+                        x={viewBox.cx}
+                        y={(viewBox.cy || 0) + 10}
+                        className="fill-foreground text-2xl font-bold"
+                      >
+                        {attendanceScore?.scoreOutOf10 ?? "0"}/10
+                      </tspan>
+                    </text>
+                  );
+                }
+                return null;
+              }}
+            />
+          </Pie>
+          <Legend />
+        </PieChart>
+      </ResponsiveContainer>
+
+      {/* ✅ الحساب التفصيلي أسفل الشارت */}
+      <div className="mt-4 w-full text-sm text-center border-t pt-3">
+        <p className="text-muted-foreground mb-1">
+          <span className="font-medium text-foreground">Total Working Days:</span>{" "}
+          {attendanceScore?.maxScore}
+        </p>
+
+        <div className="grid grid-cols-3 gap-2 text-center mt-2">
+          <div className="bg-green-100 dark:bg-green-900/30 rounded-md py-1">
+            <p className="text-green-700 dark:text-green-400 font-semibold">On Time</p>
+            <p className="text-xs text-muted-foreground">
+              {breakdown.fullDays} days ({chartData[0]?.value}%)
+            </p>
+          </div>
+
+          <div className="bg-yellow-100 dark:bg-yellow-900/30 rounded-md py-1">
+            <p className="text-yellow-700 dark:text-yellow-400 font-semibold">Late</p>
+            <p className="text-xs text-muted-foreground">
+              {breakdown.halfDays} days ({chartData[1]?.value}%)
+            </p>
+          </div>
+
+          <div className="bg-red-100 dark:bg-red-900/30 rounded-md py-1">
+            <p className="text-red-700 dark:text-red-400 font-semibold">Absent</p>
+            <p className="text-xs text-muted-foreground">
+              {breakdown.absents} days ({chartData[2]?.value}%)
+            </p>
+          </div>
+        </div>
+
+        <p className="mt-3 text-xs text-muted-foreground">
+          🗓 Attendance since <strong>Sep 1, 2025</strong> (excluding weekends)
+        </p>
+      </div>
+    </>
+  )}
+</CardContent>
+
       </Card>
     );
   }
   
-
 function KpiDashboardContent() {
   const params = useParams();
   const router = useRouter();
