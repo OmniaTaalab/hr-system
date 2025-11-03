@@ -6,7 +6,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from 'next/navigation';
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
-import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit, or } from 'firestore';
+import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit, or } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle } from 'lucide-react';
