@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useActionState, useMemo } from "react";
@@ -51,10 +52,9 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
 
   useEffect(() => {
     setIsLoading(true);
-    const q = query(collection(db, kpiType), where("employeeDocId", "==", employeeId));
+    const q = query(collection(db, kpiType), where("employeeDocId", "==", employeeId), orderBy("date", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const kpiData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
-      kpiData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
       setData(kpiData);
       setIsLoading(false);
     }, (error) => {
@@ -202,7 +202,7 @@ function KpiCard({ title, kpiType, employeeId, canEdit }: { title: string, kpiTy
     </Card>
   );
 }
-export function AttendanceChartCard({ employeeId }: { employeeId: string }) {
+export function AttendanceChartCard({ employeeDocId, employeeId }: { employeeDocId: string, employeeId: string }) {
     const [attendanceScore, setAttendanceScore] = useState<{
       score: number;
       maxScore: number;
@@ -219,7 +219,6 @@ export function AttendanceChartCard({ employeeId }: { employeeId: string }) {
       absents: 0,
     });
   
-    // ✅ تعريف chartData كـ useState
     const [chartData, setChartData] = useState<
       { name: string; value: number; fill: string }[]
     >([]);
@@ -233,14 +232,16 @@ export function AttendanceChartCard({ employeeId }: { employeeId: string }) {
             return;
           }
   
-          const startDate = new Date("2025-09-01T00:00:00Z");
+          const currentYear = new Date().getFullYear();
+          const startDate = new Date(`${currentYear}-01-01T00:00:00Z`);
           const today = new Date();
   
           // 🟢 Attendance logs
           const attendanceQuery = query(
             collection(db, "attendance_log"),
-            where("badgeNumber", "==", String(employeeId))
+            where("userId", "==", employeeId)
           );
+          
           const attendanceSnapshot = await getDocs(attendanceQuery);
           const attendanceLogs = attendanceSnapshot.docs.map((doc) => ({
             id: doc.id,
@@ -251,87 +252,81 @@ export function AttendanceChartCard({ employeeId }: { employeeId: string }) {
           // 🟢 Leave requests
           const leaveQuery = query(
             collection(db, "leaveRequests"),
-            where("requestingEmployeeId", "==", String(employeeId))
+            where("requestingEmployeeDocId", "==", employeeDocId),
+            where("status", "==", "Approved")
           );
+
           const leaveSnapshot = await getDocs(leaveQuery);
           const approvedLeaves = leaveSnapshot.docs
-            .map((doc) => ({ ...doc.data(), type: "leave" }))
-            .filter((l: any) => l.status === "Approved");
-  
-          // 🧮 فلترة التاريخ
-          const filteredAttendance = attendanceLogs.filter((entry: any) => {
-            const entryDate = new Date(entry.date.replace(/-/g, "/"));
-            return entryDate >= startDate && entryDate <= today;
-          });
-  
-          // 🧩 ندمج الحضور والإجازات
-          const mergedMap = new Map<string, any>();
-          filteredAttendance.forEach((att) => mergedMap.set(att.date, att));
-  
-          approvedLeaves.forEach((leave: any) => {
-            const from = leave.startDate?.toDate?.() || new Date(leave.startDate);
-            const to = leave.endDate?.toDate?.() || new Date(leave.endDate);
-            let d = new Date(from);
-            while (d <= to) {
-              const dateStr = d.toISOString().split("T")[0];
-              mergedMap.set(dateStr, { date: dateStr, type: "leave" });
-              d.setDate(d.getDate() + 1);
-            }
-          });
-  
-          // 🧩 التحليل
-          let onTime = 0; // قبل 7:30
-          let late = 0; // بعد 7:30
-          let absent = 0; // غياب
-  
-          const allDays = [];
+            .map((doc) => ({ id: doc.id, ...doc.data(), type: "leave" }));
+
+          // 🟢 Official holidays
+          const holidaySnapshot = await getDocs(collection(db, "holidays"));
+          const officialHolidays = new Set(holidaySnapshot.docs.map(d => d.data().date.toDate().toISOString().split('T')[0]));
+
+
+          // 🧮 Process data
+          let onTime = 0;
+          let late = 0;
+          let absent = 0;
+          let totalWorkingDays = 0;
+          
           const tempDate = new Date(startDate);
           while (tempDate <= today) {
-            const day = tempDate.getDay();
-            if (day !== 5 && day !== 6)
-              allDays.push(tempDate.toISOString().split("T")[0]); // استبعاد الجمعة والسبت
-            tempDate.setDate(tempDate.getDate() + 1);
+              const dateStr = tempDate.toISOString().split("T")[0];
+              const day = tempDate.getDay();
+
+              const isWeekend = day === 5 || day === 6;
+              const isHoliday = officialHolidays.has(dateStr);
+              
+              if (!isWeekend && !isHoliday) {
+                  totalWorkingDays++;
+                  const attendanceForDay = attendanceLogs.find(
+                      (log: any) => log.date === dateStr
+                  );
+
+                  const leaveForDay = approvedLeaves.find((leave: any) => {
+                      const from = leave.startDate.toDate();
+                      const to = leave.endDate.toDate();
+                      from.setHours(0, 0, 0, 0);
+                      to.setHours(23, 59, 59, 999);
+                      return tempDate >= from && tempDate <= to;
+                  });
+
+                  if (leaveForDay) {
+                      onTime++;
+                  } else if (attendanceForDay) {
+                      const [hRaw, mRaw] = (attendanceForDay as any).check_in.split(":");
+                      let hours = parseInt(hRaw);
+                      const isPM = (attendanceForDay as any).check_in.toLowerCase().includes("pm");
+                      if (isPM && hours < 12) hours += 12;
+                      if (!isPM && hours === 12) hours = 0;
+                      
+                      const totalMinutes = hours * 60 + parseInt(mRaw);
+                      const limit = 7 * 60 + 30; // 7:30 AM
+                      
+                      if (totalMinutes <= limit) onTime++;
+                      else late++;
+                  } else {
+                      absent++;
+                  }
+              }
+              tempDate.setDate(tempDate.getDate() + 1);
           }
-  
-          allDays.forEach((dateStr) => {
-            const record = mergedMap.get(dateStr);
-            if (!record) {
-              absent++;
-              return;
-            }
-  
-            if (record.type === "leave") {
-              onTime++; // نعتبر الإجازة حضور كامل
-              return;
-            }
-  
-            if (record.check_in) {
-              const [hRaw, mRaw] = record.check_in.split(":");
-              let hours = parseInt(hRaw);
-              const minutes = parseInt(mRaw);
-              const isPM = record.check_in.toLowerCase().includes("pm");
-              if (isPM && hours < 12) hours += 12;
-              if (!isPM && hours === 12) hours = 0;
-  
-              const totalMinutes = hours * 60 + minutes;
-              const limit = 7 * 60 + 30;
-              if (totalMinutes <= limit) onTime++;
-              else late++;
-            } else {
-              absent++;
-            }
-          });
-  
-          const total = onTime + late + absent;
-          const onTimePercent = ((onTime / total) * 100).toFixed(1);
-          const latePercent = ((late / total) * 100).toFixed(1);
-          const absentPercent = ((absent / total) * 100).toFixed(1);
-  
+         
+          const presentDays = onTime + late;
+          const onTimePercent = totalWorkingDays > 0 ? (onTime / totalWorkingDays) * 100 : 0;
+          const latePercent = totalWorkingDays > 0 ? (late / totalWorkingDays) * 100 : 0;
+          const absentPercent = totalWorkingDays > 0 ? (absent / totalWorkingDays) * 100 : 0;
+          
+          const totalPresentPercent = totalWorkingDays > 0 ? (presentDays / totalWorkingDays) * 100 : 0;
+
+
           setAttendanceScore({
-            score: total,
-            maxScore: total,
-            percentage: onTimePercent,
-            scoreOutOf10: ((onTime / total) * 10).toFixed(1),
+            score: presentDays,
+            maxScore: totalWorkingDays,
+            percentage: totalPresentPercent.toFixed(1),
+            scoreOutOf10: (totalPresentPercent / 10).toFixed(1),
           });
   
           setBreakdown({
@@ -341,21 +336,20 @@ export function AttendanceChartCard({ employeeId }: { employeeId: string }) {
             absents: absent,
           });
   
-          // ✅ تحديث الـ chartData بشكل صحيح
           setChartData([
-            { name: "On Time", value: Number(onTimePercent), fill: "#16a34a" },
-            { name: "Late", value: Number(latePercent), fill: "#eab308" },
-            { name: "Absent", value: Number(absentPercent), fill: "#dc2626" },
+            { name: "Present", value: Number(onTimePercent.toFixed(1)), fill: "#16a34a" },
+            { name: "Late", value: Number(latePercent.toFixed(1)), fill: "#eab308" },
+            { name: "Absent", value: Number(absentPercent.toFixed(1)), fill: "#dc2626" },
           ]);
         } catch (err) {
-          console.error("Error:", err);
+          console.error("Error fetching attendance stats:", err);
         } finally {
           setIsLoading(false);
         }
       };
   
       fetchAttendanceStats();
-    }, [employeeId]);
+    }, [employeeId, employeeDocId]);
   
     return (
       <Card>
@@ -364,7 +358,7 @@ export function AttendanceChartCard({ employeeId }: { employeeId: string }) {
             Attendance ({attendanceScore?.percentage ?? "0"}%)
           </CardTitle>
           <CardDescription>
-            Attendance since Sep 1, 2025 (excluding weekends)
+            Attendance for current year (excluding weekends/holidays)
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center justify-center">
@@ -405,14 +399,14 @@ export function AttendanceChartCard({ employeeId }: { employeeId: string }) {
                         y={(viewBox.cy || 0) - 10}
                         className="fill-muted-foreground text-sm"
                       >
-                        On Time
+                        Total Present
                       </tspan>
                       <tspan
                         x={viewBox.cx}
                         y={(viewBox.cy || 0) + 10}
                         className="fill-foreground text-2xl font-bold"
                       >
-                        {attendanceScore?.scoreOutOf10 ?? "0"}/10
+                        {attendanceScore?.percentage ?? "0"}%
                       </tspan>
                     </text>
                   );
@@ -425,7 +419,6 @@ export function AttendanceChartCard({ employeeId }: { employeeId: string }) {
         </PieChart>
       </ResponsiveContainer>
 
-      {/* ✅ الحساب التفصيلي أسفل الشارت */}
       <div className="mt-4 w-full text-sm text-center border-t pt-3">
         <p className="text-muted-foreground mb-1">
           <span className="font-medium text-foreground">Total Working Days:</span>{" "}
@@ -434,29 +427,29 @@ export function AttendanceChartCard({ employeeId }: { employeeId: string }) {
 
         <div className="grid grid-cols-3 gap-2 text-center mt-2">
           <div className="bg-green-100 dark:bg-green-900/30 rounded-md py-1">
-            <p className="text-green-700 dark:text-green-400 font-semibold">On Time</p>
+            <p className="text-green-700 dark:text-green-400 font-semibold">Present</p>
             <p className="text-xs text-muted-foreground">
-              {breakdown.fullDays} days ({chartData[0]?.value}%)
+              {breakdown.fullDays} days ({chartData.find(d => d.name === 'Present')?.value ?? 0}%)
             </p>
           </div>
 
           <div className="bg-yellow-100 dark:bg-yellow-900/30 rounded-md py-1">
             <p className="text-yellow-700 dark:text-yellow-400 font-semibold">Late</p>
             <p className="text-xs text-muted-foreground">
-              {breakdown.halfDays} days ({chartData[1]?.value}%)
+              {breakdown.halfDays} days ({chartData.find(d => d.name === 'Late')?.value ?? 0}%)
             </p>
           </div>
 
           <div className="bg-red-100 dark:bg-red-900/30 rounded-md py-1">
             <p className="text-red-700 dark:text-red-400 font-semibold">Absent</p>
             <p className="text-xs text-muted-foreground">
-              {breakdown.absents} days ({chartData[2]?.value}%)
+              {breakdown.absents} days ({chartData.find(d => d.name === 'Absent')?.value ?? 0}%)
             </p>
           </div>
         </div>
 
         <p className="mt-3 text-xs text-muted-foreground">
-          🗓 Attendance since <strong>Sep 1, 2025</strong> (excluding weekends)
+          Attendance for current year (excluding weekends/holidays)
         </p>
       </div>
     </>
@@ -470,7 +463,7 @@ export function AttendanceChartCard({ employeeId }: { employeeId: string }) {
 function KpiDashboardContent() {
   const params = useParams();
   const router = useRouter();
-  const employeeId = params.id as string;
+  const employeeDocId = params.id as string;
   const { profile: currentUserProfile, loading: isLoadingCurrentUser } = useUserProfile();
 
   const [employee, setEmployee] = useState<Employee | null>(null);
@@ -478,7 +471,7 @@ function KpiDashboardContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!employeeId) {
+    if (!employeeDocId) {
       setError("No employee ID provided.");
       setLoading(false);
       return;
@@ -486,7 +479,7 @@ function KpiDashboardContent() {
 
     const fetchEmployee = async () => {
       try {
-        const docRef = doc(db, 'employee', employeeId);
+        const docRef = doc(db, 'employee', employeeDocId);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
@@ -503,7 +496,7 @@ function KpiDashboardContent() {
     };
 
     fetchEmployee();
-  }, [employeeId]);
+  }, [employeeDocId]);
 
   const canViewPage = useMemo(() => {
     if (isLoadingCurrentUser || !currentUserProfile || !employee) return false;
@@ -563,9 +556,9 @@ function KpiDashboardContent() {
         </p>
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeId={employeeId} canEdit={canEditKpis} />
-        <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employeeId} canEdit={canEditKpis} />
-        <AttendanceChartCard employeeId={employee?.employeeId || ""} />
+        <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeId={employeeDocId} canEdit={canEditKpis} />
+        <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employeeDocId} canEdit={canEditKpis} />
+        <AttendanceChartCard employeeDocId={employeeDocId} employeeId={employee?.employeeId || ""} />
       </div>
     </div>
   );
