@@ -255,14 +255,13 @@ function AttendanceChartCard({ employeeId, employeeNumericId }: { employeeId: st
                     where("date", ">=", Timestamp.fromDate(yearStart)),
                     where("date", "<=", Timestamp.fromDate(yearEnd))
                 );
+                
+                // Simplified leave query to avoid composite index
                 const leaveQuery = query(
                     collection(db, "leaveRequests"),
-                    where("requestingEmployeeDocId", "==", employeeId),
-                    where("status", "==", "Approved"),
-                    where("startDate", "<=", Timestamp.fromDate(yearEnd))
+                    where("requestingEmployeeDocId", "==", employeeId)
                 );
                 
-                // We need employeeId for attendance logs
                 let numericIdForQuery = employeeNumericId;
                 if (!numericIdForQuery) {
                     const empDoc = await getDoc(doc(db, "employee", employeeId));
@@ -309,15 +308,17 @@ function AttendanceChartCard({ employeeId, employeeNumericId }: { employeeId: st
                 const holidayDates = new Set(holidaysSnapshot.docs.map(doc => format(doc.data().date.toDate(), 'yyyy-MM-dd')));
 
                 const onLeaveDates = new Set<string>();
-                 leaveSnapshot.forEach(doc => {
+                 leaveSnapshot.docs.forEach(doc => {
                     const leave = doc.data();
-                    if (leave.endDate.toDate() < yearStart) return;
-                    let current = leave.startDate.toDate() > yearStart ? leave.startDate.toDate() : yearStart;
-                    const end = leave.endDate.toDate() < yearEnd ? leave.endDate.toDate() : yearEnd;
-
-                    eachDayOfInterval({ start: current, end: end }).forEach(day => {
-                        onLeaveDates.add(format(day, 'yyyy-MM-dd'));
-                    });
+                    // Client-side filtering for status and date range
+                    if (leave.status === "Approved" && leave.endDate.toDate() >= yearStart && leave.startDate.toDate() <= yearEnd) {
+                         eachDayOfInterval({ 
+                             start: leave.startDate.toDate() > yearStart ? leave.startDate.toDate() : yearStart, 
+                             end: leave.endDate.toDate() < yearEnd ? leave.endDate.toDate() : yearEnd
+                         }).forEach(day => {
+                            onLeaveDates.add(format(day, 'yyyy-MM-dd'));
+                        });
+                    }
                 });
                 
                 const allDaysInYear = eachDayOfInterval({ start: yearStart, end: yearEnd });
@@ -549,3 +550,4 @@ export default function KpiDashboardPage() {
     </AppLayout>
   );
 }
+
