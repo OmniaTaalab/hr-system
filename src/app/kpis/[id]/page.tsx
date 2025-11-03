@@ -466,7 +466,7 @@ export function AttendanceChartCard({ employeeDocId, employeeId }: { employeeDoc
 function KpiDashboardContent() {
   const params = useParams();
   const router = useRouter();
-  const employeeDocId = params.id as string;
+  const companyEmployeeId = params.id as string;
   const { profile: currentUserProfile, loading: isLoadingCurrentUser } = useUserProfile();
 
   const [employee, setEmployee] = useState<Employee | null>(null);
@@ -474,7 +474,7 @@ function KpiDashboardContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!employeeDocId) {
+    if (!companyEmployeeId) {
       setError("No employee ID provided.");
       setLoading(false);
       return;
@@ -482,11 +482,12 @@ function KpiDashboardContent() {
 
     const fetchEmployee = async () => {
       try {
-        const docRef = doc(db, 'employee', employeeDocId);
-        const docSnap = await getDoc(docRef);
+        const q = query(collection(db, 'employee'), where("employeeId", "==", companyEmployeeId));
+        const querySnapshot = await getDocs(q);
 
-        if (docSnap.exists()) {
-          setEmployee({ id: docSnap.id, ...docSnap.data() } as Employee);
+        if (!querySnapshot.empty) {
+            const employeeDoc = querySnapshot.docs[0];
+            setEmployee({ id: employeeDoc.id, ...employeeDoc.data() } as Employee);
         } else {
           setError('Employee not found.');
         }
@@ -499,7 +500,7 @@ function KpiDashboardContent() {
     };
 
     fetchEmployee();
-  }, [employeeDocId]);
+  }, [companyEmployeeId]);
 
   const canViewPage = useMemo(() => {
     if (isLoadingCurrentUser || !currentUserProfile || !employee) return false;
@@ -559,9 +560,13 @@ function KpiDashboardContent() {
         </p>
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeId={employeeDocId} canEdit={canEditKpis} />
-        <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employeeDocId} canEdit={canEditKpis} />
-        <AttendanceChartCard employeeDocId={employeeDocId} employeeId={employee?.employeeId || ""} />
+        {employee && (
+            <>
+                <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeId={employee.id} canEdit={canEditKpis} />
+                <KpiCard title="TOT(10%)" kpiType="tot" employeeId={employee.id} canEdit={canEditKpis} />
+                <AttendanceChartCard employeeDocId={employee.id} employeeId={employee.employeeId || ""} />
+            </>
+        )}
       </div>
     </div>
   );
