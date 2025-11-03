@@ -10,7 +10,7 @@ import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, lim
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle } from 'lucide-react';
-import { format, getYear, getMonth, getDate, intervalToDuration, formatDistanceToNow, eachDayOfInterval, startOfDay, subDays } from 'date-fns';
+import { format, getYear, getMonth, getDate, intervalToDuration, formatDistanceToNow, eachDayOfInterval, startOfDay } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -469,33 +469,32 @@ function EmployeeProfileContent() {
     if (!attendanceAndLeaveHistory || attendanceAndLeaveHistory.length === 0) {
       return null;
     }
-    
-    // Filter history for the last 30 days
-    const today = new Date();
-    const thirtyDaysAgo = subDays(today, 30);
-    
+  
+    // Filter history from Sep 1, 2025 onwards
+    const startDate = new Date('2025-09-01T00:00:00Z');
+  
     const recentHistory = attendanceAndLeaveHistory.filter(entry => {
         const entryDate = new Date(entry.date);
-        return entryDate >= thirtyDaysAgo && entryDate <= today;
+        return entryDate >= startDate;
     });
-
+  
     if (recentHistory.length === 0) return null;
-
+  
     let totalPoints = 0;
     let daysWithRecord = 0;
-
+  
     recentHistory.forEach(entry => {
         if (entry.type === 'attendance' && entry.check_in) {
             daysWithRecord++;
             totalPoints += getAttendancePointValue(entry);
         } else if (entry.type === 'leave') {
             daysWithRecord++;
-            totalPoints += 1;
+            totalPoints += 1; // On leave counts as a full point
         }
     });
-
+  
     if (daysWithRecord === 0) return null;
-
+  
     const percentage = (totalPoints / daysWithRecord) * 100;
     const scoreOutOf10 = (percentage / 10).toFixed(1);
     
@@ -741,7 +740,7 @@ function EmployeeProfileContent() {
                     </div>
                     {totalAttendanceScore && (
                         <div className="text-right">
-                            <p className="text-sm font-medium text-muted-foreground">Total Score (Last 30 Days)</p>
+                            <p className="text-sm font-medium text-muted-foreground">Total Score (Since Sep 1, 2025)</p>
                             <p className="text-2xl font-bold text-primary">{totalAttendanceScore.scoreOutOf10} / 10</p>
                         </div>
                     )}
