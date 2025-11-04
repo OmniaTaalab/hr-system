@@ -308,31 +308,31 @@ function AttendanceLogsContent() {
   const displayedRecords = useMemo(() => {
     const employeeMap = new Map(allEmployees.map(emp => [String(emp.employeeId), emp.name]));
     
-    // Group logs by user ID and date
     const groupedLogs = allLogs.reduce((acc, log) => {
+        // Use userId from the log, which corresponds to the company employeeId
         const key = `${log.userId}-${log.date}`;
         if (!acc[key]) {
+            const employeeName = employeeMap.get(String(log.userId)) || log.employeeName;
             acc[key] = {
-                id: log.id, // Use the first log's ID as a key, could be any unique identifier
+                id: log.id,
                 userId: log.userId,
                 date: log.date,
-                employeeName: employeeMap.get(String(log.userId)) || log.employeeName,
-                check_in: [],
-                check_out: [],
+                employeeName: employeeName,
+                check_ins: [],
+                check_outs: [],
                 machines: new Set(),
             };
         }
-        if (log.check_in) acc[key].check_in.push(log.check_in);
-        if (log.check_out) acc[key].check_out.push(log.check_out);
+        if (log.check_in) acc[key].check_ins.push(log.check_in);
+        if (log.check_out) acc[key].check_outs.push(log.check_out);
         if (log.machine) acc[key].machines.add(log.machine);
         
         return acc;
-    }, {} as Record<string, { id: string; userId: number; date: string; employeeName: string; check_in: string[]; check_out: string[]; machines: Set<string>; }>);
+    }, {} as Record<string, { id: string; userId: number; date: string; employeeName: string; check_ins: string[]; check_outs: string[]; machines: Set<string>; }>);
 
-    // Process grouped logs to find first check-in and last check-out
     let processedLogs: AttendanceLog[] = Object.values(groupedLogs).map(group => {
-        const sortedCheckIns = group.check_in.sort();
-        const sortedCheckOuts = group.check_out.sort();
+        const sortedCheckIns = group.check_ins.sort();
+        const sortedCheckOuts = group.check_outs.sort();
         return {
             id: group.id,
             userId: group.userId,
@@ -353,7 +353,6 @@ function AttendanceLogsContent() {
         );
     }
     
-    // Sort final results by date (desc) and then name (asc)
     processedLogs.sort((a, b) => {
         const dateComp = b.date.localeCompare(a.date);
         if (dateComp !== 0) return dateComp;
@@ -573,3 +572,5 @@ export default function AttendanceLogsPage() {
         </AppLayout>
     )
 }
+
+    
