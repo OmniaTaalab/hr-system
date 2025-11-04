@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -47,7 +48,6 @@ interface AttendanceInfo {
   checkIns: string[];
   checkOuts: string[];
   name?: string;
-  employeeId?: string; // Use company employeeId as the key
 }
 
 interface Row {
@@ -157,57 +157,37 @@ function EmployeeStatusContent() {
         const attSnap = await getDocs(
           query(collection(db, "attendance_log"), where("date", "==", targetDate))
         );
-
+        
         const attData: Record<string, AttendanceInfo> = {};
 
         attSnap.forEach((doc) => {
-          const data = doc.data() as any;
+            const data = doc.data() as any;
 
-          // نحدد الـ key الموحد لكل موظف (badgeNumber هو الأساس)
-          const key = toStr(data.badgeNumber || data.employeeId || data.userId);
-          if (!key) return;
+            // Use userId (which is the company employeeId) as the primary key
+            const key = toStr(data.userId);
+            if (!key) return;
 
-          if (!attData[key]) {
-            attData[key] = { checkIns: [], checkOuts: [], name: "", employeeId: key };
-          }
+            if (!attData[key]) {
+                attData[key] = { checkIns: [], checkOuts: [] };
+            }
 
-          // نضيف check-ins و check-outs بدون تكرار
-          const checkIn = String(data.check_in || "").trim();
-          const checkOut = String(data.check_out || "").trim();
+            const checkIn = String(data.check_in || "").trim();
+            const checkOut = String(data.check_out || "").trim();
 
-          if (checkIn && !attData[key].checkIns.includes(checkIn))
-            attData[key].checkIns.push(checkIn);
-          if (checkOut && !attData[key].checkOuts.includes(checkOut))
-            attData[key].checkOuts.push(checkOut);
-
-          // نخزن الاسم لو موجود
-          if (data.employeeName && !attData[key].name)
-            attData[key].name = toStr(data.employeeName);
+            if (checkIn) attData[key].checkIns.push(checkIn);
+            if (checkOut) attData[key].checkOuts.push(checkOut);
+            
+            // Try to get the name from the employee map first
+            const matchedEmp = empByEmployeeId.get(key);
+            if (matchedEmp?.name) {
+                attData[key].name = matchedEmp.name;
+            } else if (data.employeeName && !attData[key].name) {
+                // Fallback to the name from the log if no match is found
+                attData[key].name = toStr(data.employeeName);
+            }
         });
 
-        // 🧩 مطابقة كل موظف مع بياناته من employee collection
-        Object.entries(attData).forEach(([key, info]) => {
-          const badge = toStr(info.employeeId);
-          const matchedEmp = allEmployees.find(
-            (e) =>
-              toStr(e.employeeId) === badge ||
-              toStr(e.badgeNumber) === badge ||
-              toStr(e.name) === info.name
-          );
-
-          if (matchedEmp) {
-            info.name = matchedEmp.name;
-          } else {
-            console.warn(
-              `⚠️ No match found for ${badge} | rawName: ${info.name}`
-            );
-          }
-        });
-
-        // ✅ بناء قائمة IDs فريدة فقط (بدون تكرار)
-        const presentIds = new Set<string>(
-          Object.keys(attData).filter((id) => (attData[id]?.checkIns || []).length > 0)
-        );
+        const presentIds = new Set<string>(Object.keys(attData));
 
         // 4️⃣ الإجازات المعتمدة
         const approvedLeaveIds = new Set<string>();
@@ -252,44 +232,34 @@ function EmployeeStatusContent() {
           });
         }
 
-        // ✅ 6️⃣ بناء جدول العرض بدون تكرار نهائيًا
-        const uniqueIds = Array.from(targetIds);
-        const seen = new Set<string>();
+        // ✅ 6️⃣ بناء جدول العرض
         const dataRows: Row[] = [];
+        targetIds.forEach((employeeId) => {
+            const emp = empByEmployeeId.get(employeeId);
+            const att = attData[employeeId];
 
-        uniqueIds.forEach((employeeId) => {
-          if (seen.has(employeeId)) return;
-          seen.add(employeeId);
+            const safeName = toStr(emp?.name) || toStr(att?.name) || `ID: ${employeeId}`;
 
-          const emp = empByEmployeeId.get(employeeId);
-          const att = attData[employeeId];
-
-          const safeName =
-            toStr(emp?.name) || toStr(att?.name) || `ID: ${employeeId}`;
-
-          const sortTimes = (arr: string[]) =>
-            arr
-              .slice()
-              .sort((a, b) => {
+            const sortTimes = (arr: string[]) => arr.slice().sort((a, b) => {
                 const ma = parseTimeToMinutes(a) ?? 0;
                 const mb = parseTimeToMinutes(b) ?? 0;
                 return ma - mb;
-              });
+            });
 
-          const sortedIns = sortTimes(att?.checkIns || []);
-          const sortedOuts = sortTimes(att?.checkOuts || []);
+            const sortedIns = sortTimes(att?.checkIns || []);
+            const sortedOuts = sortTimes(att?.checkOuts || []);
 
-          const firstIn = sortedIns.length ? sortedIns[0] : null;
-          const lastOut = sortedOuts.length ? sortedOuts[sortedOuts.length - 1] : null;
+            const firstIn = sortedIns.length ? sortedIns[0] : null;
+            const lastOut = sortedOuts.length ? sortedOuts[sortedOuts.length - 1] : null;
 
-          dataRows.push({
-            id: emp?.id || employeeId,
-            employeeId: employeeId,
-            name: safeName,
-            photoURL: emp?.photoURL,
-            checkIn: firstIn,
-            checkOut: lastOut,
-          });
+            dataRows.push({
+                id: emp?.id || employeeId,
+                employeeId: employeeId,
+                name: safeName,
+                photoURL: emp?.photoURL,
+                checkIn: firstIn,
+                checkOut: lastOut,
+            });
         });
 
         dataRows.sort((a, b) =>
