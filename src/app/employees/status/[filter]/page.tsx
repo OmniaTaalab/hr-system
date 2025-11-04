@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -160,31 +159,55 @@ function EmployeeStatusContent() {
         );
 
         const attData: Record<string, AttendanceInfo> = {};
+
         attSnap.forEach((doc) => {
           const data = doc.data() as any;
-          const employeeId = toStr(data.userId); // Group by company employeeId
-          if (!employeeId) return;
 
-          if (!attData[employeeId]) {
-            attData[employeeId] = { checkIns: [], checkOuts: [], employeeId: employeeId };
+          // نحدد الـ key الموحد لكل موظف (badgeNumber هو الأساس)
+          const key = toStr(data.badgeNumber || data.employeeId || data.userId);
+          if (!key) return;
+
+          if (!attData[key]) {
+            attData[key] = { checkIns: [], checkOuts: [], name: "", employeeId: key };
           }
 
-          if (data.check_in)
-            attData[employeeId].checkIns.push(String(data.check_in));
-          if (data.check_out)
-            attData[employeeId].checkOuts.push(String(data.check_out));
+          // نضيف check-ins و check-outs بدون تكرار
+          const checkIn = String(data.check_in || "").trim();
+          const checkOut = String(data.check_out || "").trim();
 
-          if (data.employeeName)
-            attData[employeeId].name = toStr(data.employeeName);
+          if (checkIn && !attData[key].checkIns.includes(checkIn))
+            attData[key].checkIns.push(checkIn);
+          if (checkOut && !attData[key].checkOuts.includes(checkOut))
+            attData[key].checkOuts.push(checkOut);
+
+          // نخزن الاسم لو موجود
+          if (data.employeeName && !attData[key].name)
+            attData[key].name = toStr(data.employeeName);
         });
 
-        // 3️⃣ تحديد الحضور
-        const presentIds = new Set<string>();
-        Object.keys(attData).forEach((employeeId) => {
-          if ((attData[employeeId]?.checkIns || []).length > 0) {
-            presentIds.add(employeeId);
+        // 🧩 مطابقة كل موظف مع بياناته من employee collection
+        Object.entries(attData).forEach(([key, info]) => {
+          const badge = toStr(info.employeeId);
+          const matchedEmp = allEmployees.find(
+            (e) =>
+              toStr(e.employeeId) === badge ||
+              toStr(e.badgeNumber) === badge ||
+              toStr(e.name) === info.name
+          );
+
+          if (matchedEmp) {
+            info.name = matchedEmp.name;
+          } else {
+            console.warn(
+              `⚠️ No match found for ${badge} | rawName: ${info.name}`
+            );
           }
         });
+
+        // ✅ بناء قائمة IDs فريدة فقط (بدون تكرار)
+        const presentIds = new Set<string>(
+          Object.keys(attData).filter((id) => (attData[id]?.checkIns || []).length > 0)
+        );
 
         // 4️⃣ الإجازات المعتمدة
         const approvedLeaveIds = new Set<string>();
@@ -193,18 +216,18 @@ function EmployeeStatusContent() {
             query(
               collection(db, "leaveRequests"),
               where("status", "==", "Approved"),
-              where("date", "==", targetDate) // This might need adjustment if leaves span multiple days
+              where("date", "==", targetDate)
             )
           );
           leaveSnap.forEach((doc) => {
             const d = doc.data() as any;
-            const empId = toStr(d.employeeId || d.requestingEmployeeId); // Use employeeId first
+            const empId = toStr(d.employeeId || d.requestingEmployeeId);
             if (empId) approvedLeaveIds.add(empId);
           });
         } catch (e) {
           console.warn("Leave collection might be missing or rules are restrictive:", e);
         }
-        
+
         // 5️⃣ حسب الفلتر المطلوب
         const targetIds = new Set<string>();
         if (filter === "present") {
@@ -229,12 +252,20 @@ function EmployeeStatusContent() {
           });
         }
 
-        // 6️⃣ بناء جدول العرض
-        const dataRows: Row[] = Array.from(targetIds).map((employeeId) => {
+        // ✅ 6️⃣ بناء جدول العرض بدون تكرار نهائيًا
+        const uniqueIds = Array.from(targetIds);
+        const seen = new Set<string>();
+        const dataRows: Row[] = [];
+
+        uniqueIds.forEach((employeeId) => {
+          if (seen.has(employeeId)) return;
+          seen.add(employeeId);
+
           const emp = empByEmployeeId.get(employeeId);
           const att = attData[employeeId];
-          
-          const safeName = toStr(emp?.name) || toStr(att?.name) || `ID: ${employeeId}`;
+
+          const safeName =
+            toStr(emp?.name) || toStr(att?.name) || `ID: ${employeeId}`;
 
           const sortTimes = (arr: string[]) =>
             arr
@@ -248,15 +279,17 @@ function EmployeeStatusContent() {
           const sortedIns = sortTimes(att?.checkIns || []);
           const sortedOuts = sortTimes(att?.checkOuts || []);
 
-          return {
+          const firstIn = sortedIns.length ? sortedIns[0] : null;
+          const lastOut = sortedOuts.length ? sortedOuts[sortedOuts.length - 1] : null;
+
+          dataRows.push({
             id: emp?.id || employeeId,
             employeeId: employeeId,
             name: safeName,
             photoURL: emp?.photoURL,
-            checkIn: sortedIns[0] ?? null,
-            checkOut:
-              sortedOuts.length ? sortedOuts[sortedOuts.length - 1] : null,
-          };
+            checkIn: firstIn,
+            checkOut: lastOut,
+          });
         });
 
         dataRows.sort((a, b) =>
@@ -342,9 +375,7 @@ function EmployeeStatusContent() {
                           <AvatarImage src={e.photoURL} />
                           <AvatarFallback>{getInitials(e.name)}</AvatarFallback>
                         </Avatar>
-                        <div>
-                          {e.name}
-                        </div>
+                        <div>{e.name}</div>
                       </Link>
                     </TableCell>
                     <TableCell>{e.checkIn ?? "—"}</TableCell>

@@ -306,28 +306,62 @@ function AttendanceLogsContent() {
     }
 
   const displayedRecords = useMemo(() => {
-    if (allEmployees.length === 0) return allLogs;
-
     const employeeMap = new Map(allEmployees.map(emp => [String(emp.employeeId), emp.name]));
+    
+    // Group logs by user ID and date
+    const groupedLogs = allLogs.reduce((acc, log) => {
+        const key = `${log.userId}-${log.date}`;
+        if (!acc[key]) {
+            acc[key] = {
+                id: log.id, // Use the first log's ID as a key, could be any unique identifier
+                userId: log.userId,
+                date: log.date,
+                employeeName: employeeMap.get(String(log.userId)) || log.employeeName,
+                check_in: [],
+                check_out: [],
+                machines: new Set(),
+            };
+        }
+        if (log.check_in) acc[key].check_in.push(log.check_in);
+        if (log.check_out) acc[key].check_out.push(log.check_out);
+        if (log.machine) acc[key].machines.add(log.machine);
+        
+        return acc;
+    }, {} as Record<string, { id: string; userId: number; date: string; employeeName: string; check_in: string[]; check_out: string[]; machines: Set<string>; }>);
 
-    let records = allLogs.map(log => {
-      const employeeNameFromMap = employeeMap.get(String(log.userId));
-      const finalEmployeeName = employeeNameFromMap || log.employeeName;
-
-      return { ...log, employeeName: finalEmployeeName };
+    // Process grouped logs to find first check-in and last check-out
+    let processedLogs: AttendanceLog[] = Object.values(groupedLogs).map(group => {
+        const sortedCheckIns = group.check_in.sort();
+        const sortedCheckOuts = group.check_out.sort();
+        return {
+            id: group.id,
+            userId: group.userId,
+            date: group.date,
+            employeeName: group.employeeName,
+            check_in: sortedCheckIns[0] || null,
+            check_out: sortedCheckOuts.length > 0 ? sortedCheckOuts[sortedCheckOuts.length - 1] : null,
+            machine: Array.from(group.machines).join(', '),
+        };
     });
 
     if (searchTerm) {
         const lowercasedFilter = searchTerm.toLowerCase();
-        records = records.filter(record =>
+        processedLogs = processedLogs.filter(record =>
             (record.employeeName && record.employeeName.toLowerCase().includes(lowercasedFilter)) ||
             record.userId.toString().includes(lowercasedFilter) ||
             record.date.toLowerCase().includes(lowercasedFilter)
         );
     }
+    
+    // Sort final results by date (desc) and then name (asc)
+    processedLogs.sort((a, b) => {
+        const dateComp = b.date.localeCompare(a.date);
+        if (dateComp !== 0) return dateComp;
+        return a.employeeName.localeCompare(b.employeeName);
+    });
 
-    return records;
-  }, [allLogs, allEmployees, searchTerm]);
+    return processedLogs;
+}, [allLogs, allEmployees, searchTerm]);
 
   const handleExportExcel = () => {
     if (displayedRecords.length === 0) {
@@ -478,7 +512,7 @@ function AttendanceLogsContent() {
                       <TableBody>
                           {displayedRecords.map((record) => (
                               <TableRow 
-                                key={record.id} 
+                                key={`${record.userId}-${record.date}`} 
                                 className="group"
                               >
                                   <TableCell onClick={() => router.push(`/attendance-logs/${record.userId}`)} className="cursor-pointer">{record.userId}</TableCell>
