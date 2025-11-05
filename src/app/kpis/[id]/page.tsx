@@ -93,7 +93,7 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="space-y-1">
           <CardTitle>{title}</CardTitle>
-           <p className="text-2xl font-bold text-primary">({performanceScore.toFixed(1)} / 10)</p>
+           <p className="text-lg font-bold text-primary">({performanceScore.toFixed(1)} / 10)</p>
           <CardDescription>
             {data.length > 0 ? `Based on ${data.length} entries` : "No entries yet."}
           </CardDescription>
