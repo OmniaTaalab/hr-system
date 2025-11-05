@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { collection, getDocs, query, where } from "firebase/firestore";
@@ -25,11 +24,9 @@ import { Button } from "@/components/ui/button";
 import {
   Loader2,
   ArrowLeft,
-  User,
   UserCheck,
-  UserX,
-  Clock,
   AlertTriangle,
+  Bug,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -63,15 +60,6 @@ interface Row {
 const getInitials = (name: string) =>
   name ? name.split(/\s+/).map((n) => n[0]).join("").toUpperCase() : "U";
 
-const filterTitles: Record<
-  "present" | "absent" | "late",
-  { title: string; icon: any }
-> = {
-  present: { title: "Employees Present Today", icon: UserCheck },
-  absent: { title: "Active Employees Absent Today", icon: UserX },
-  late: { title: "Late Arrivals Today", icon: Clock },
-};
-
 const toStr = (v: any) => String(v ?? "").trim();
 
 const parseTimeToMinutes = (t?: string | null) => {
@@ -98,18 +86,17 @@ export default function EmployeeStatusPage() {
 function EmployeeStatusContent() {
   const { profile, loading: profileLoading } = useUserProfile();
   const router = useRouter();
-  const params = useParams() as { filter?: "present" | "absent" | "late" };
   const searchParams = useSearchParams();
-
-  const filter = (params?.filter ?? "present") as
-    | "present"
-    | "absent"
-    | "late";
   const dateParam = (searchParams.get("date") || "").trim();
+  const debugMode = searchParams.get("debug") === "1";
 
   const [rows, setRows] = useState<Row[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [unmatchedLogs, setUnmatchedLogs] = useState<
+    { userId: string; badgeNumber: string }[]
+  >([]);
 
   const canViewPage =
     !profileLoading &&
@@ -131,10 +118,10 @@ function EmployeeStatusContent() {
       setError(null);
 
       try {
+        // 📌 1) Get all active employees
         const empSnap = await getDocs(
           query(collection(db, "employee"), where("status", "==", "Active"))
         );
-
         const allEmployees: Employee[] = empSnap.docs.map((doc) => {
           const d = doc.data() as any;
           return {
@@ -148,23 +135,33 @@ function EmployeeStatusContent() {
 
         const empByEmployeeId = new Map(allEmployees.map((e) => [toStr(e.employeeId), e]));
         const empByBadgeNumber = new Map(allEmployees.map((e) => [toStr(e.badgeNumber), e]));
-        
 
+        // 📌 2) Get all attendance logs for the date
         const attSnap = await getDocs(
           query(collection(db, "attendance_log"), where("date", "==", targetDate))
         );
 
         const attData: Record<string, AttendanceInfo> = {};
+        const unmatched: { userId: string; badgeNumber: string }[] = [];
 
         attSnap.forEach((doc) => {
           const data = doc.data() as any;
           const logEmployeeId = toStr(data.userId);
           const logBadgeNumber = toStr(data.badgeNumber);
-          
-          let employeeRecord = empByEmployeeId.get(logEmployeeId) || empByBadgeNumber.get(logBadgeNumber) || empByEmployeeId.get(logBadgeNumber) || empByBadgeNumber.get(logEmployeeId);
-          
-          if (!employeeRecord) return;
-          
+
+          // 🔍 Try to match employee record
+          const employeeRecord =
+            empByEmployeeId.get(logEmployeeId) ||
+            empByBadgeNumber.get(logBadgeNumber) ||
+            empByEmployeeId.get(logBadgeNumber) ||
+            empByBadgeNumber.get(logEmployeeId);
+
+          // ❌ No match found — push to unmatched list
+          if (!employeeRecord) {
+            unmatched.push({ userId: logEmployeeId, badgeNumber: logBadgeNumber });
+            return;
+          }
+
           const key = employeeRecord.employeeId;
 
           if (!attData[key]) {
@@ -181,85 +178,50 @@ function EmployeeStatusContent() {
           if (data.check_out) attData[key].checkOuts.push(String(data.check_out));
         });
 
+        setUnmatchedLogs(unmatched);
+
+        // 📋 Print unmatched employees in console
+        if (unmatched.length > 0) {
+          console.group(`❌ Unmatched Attendance Logs (${unmatched.length})`);
+          console.table(unmatched);
+          console.groupEnd();
+        } else {
+          console.log("✅ All attendance logs matched with employees.");
+        }
+
+        // ✅ Get present employees
         const presentIds = new Set<string>();
         Object.keys(attData).forEach((employeeId) => {
-          if ((attData[employeeId]?.checkIns || []).length > 0) {
-            presentIds.add(employeeId);
-          }
+          const info = attData[employeeId];
+          const hasIn = (info.checkIns || []).length > 0;
+          const hasOut = (info.checkOuts || []).length > 0;
+          if (hasIn || hasOut) presentIds.add(employeeId);
         });
 
-        const approvedLeaveIds = new Set<string>();
-        try {
-          const leaveSnap = await getDocs(
-            query(
-              collection(db, "leaveRequests"),
-              where("status", "==", "Approved"),
-              where("date", "==", targetDate)
-            )
-          );
-          leaveSnap.forEach((doc) => {
-            const d = doc.data() as any;
-            const empId = toStr(d.employeeId || d.requestingEmployeeId);
-            if (empId) approvedLeaveIds.add(empId);
-          });
-        } catch (e) {
-          console.warn("Leave collection might be missing or restricted:", e);
-        }
-
-        const targetIds = new Set<string>();
-        if (filter === "present") {
-          presentIds.forEach((id) => targetIds.add(id));
-        } else if (filter === "late") {
-          const startLimit = parseTimeToMinutes("07:30") ?? 450;
-          presentIds.forEach((id) => {
-            const insList = (attData[id]?.checkIns || [])
-              .map((t) => parseTimeToMinutes(t))
-              .filter((v): v is number => typeof v === "number")
-              .sort((a, b) => a - b);
-            const earliest = insList[0];
-            if (typeof earliest === "number" && earliest > startLimit)
-              targetIds.add(id);
-          });
-        } else if (filter === "absent") {
-          allEmployees.forEach((e) => {
-            const key = toStr(e.employeeId);
-            if (!key) return;
-            if (!presentIds.has(key) && !approvedLeaveIds.has(key))
-              targetIds.add(key);
-          });
-        }
-
-        const uniqueIds = Array.from(targetIds);
-        const seen = new Set<string>();
-        const dataRows: Row[] = [];
-
-        uniqueIds.forEach((employeeId) => {
-          if (seen.has(employeeId)) return;
-          seen.add(employeeId);
-
+        const uniqueIds = Array.from(presentIds);
+        const dataRows: Row[] = uniqueIds.map((employeeId) => {
           const emp = empByEmployeeId.get(employeeId);
           const att = attData[employeeId];
           const safeName = toStr(emp?.name) || toStr(att?.name) || `ID: ${employeeId}`;
-
           const sortTimes = (arr: string[]) =>
             arr.slice().sort((a, b) => (parseTimeToMinutes(a) ?? 0) - (parseTimeToMinutes(b) ?? 0));
-
           const sortedIns = sortTimes(att?.checkIns || []);
           const sortedOuts = sortTimes(att?.checkOuts || []);
           const firstIn = sortedIns[0] || null;
           const lastOut = sortedOuts.length > 0 ? sortedOuts[sortedOuts.length - 1] : null;
 
-          dataRows.push({
+          return {
             id: emp?.id || employeeId,
-            employeeId: employeeId,
+            employeeId,
             name: safeName,
             photoURL: emp?.photoURL,
             checkIn: firstIn,
             checkOut: lastOut,
-          });
+          };
         });
 
-        dataRows.sort((a, b) => (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }));
+        console.log("✅ Total employees present:", dataRows.length);
+        console.log("📋 Present employees list:", dataRows);
 
         setRows(dataRows);
       } catch (err) {
@@ -271,9 +233,8 @@ function EmployeeStatusContent() {
     };
 
     fetchData();
-  }, [filter, dateParam, profileLoading, canViewPage, router]);
+  }, [dateParam, profileLoading, canViewPage, router]);
 
-  const meta = filterTitles[filter] || { title: "Employee List", icon: User };
   const formattedDate = format(
     new Date((dateParam || format(new Date(), "yyyy-MM-dd")) + "T00:00:00"),
     "PPP"
@@ -297,8 +258,8 @@ function EmployeeStatusContent() {
 
       <header>
         <h1 className="text-3xl font-bold flex items-center gap-3">
-          <meta.icon className="h-8 w-8 text-primary" />
-          {meta.title}
+          <UserCheck className="h-8 w-8 text-primary" />
+          Employees Present Today
         </h1>
         <p className="text-muted-foreground">
           Showing results for {formattedDate}
@@ -307,7 +268,7 @@ function EmployeeStatusContent() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{rows.length} Employees Found</CardTitle>
+          <CardTitle>{rows.length} Employees Found (Present)</CardTitle>
         </CardHeader>
         <CardContent>
           {error ? (
