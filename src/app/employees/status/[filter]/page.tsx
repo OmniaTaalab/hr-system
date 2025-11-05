@@ -68,7 +68,7 @@ const filterTitles: Record<
   { title: string; icon: any }
 > = {
   present: { title: "Employees Present Today", icon: UserCheck },
-  absent: { title: "Employees Absent Today", icon: UserX },
+  absent: { title: "Active Employees Absent Today", icon: UserX },
   late: { title: "Late Arrivals Today", icon: Clock },
 };
 
