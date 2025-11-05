@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useActionState, useMemo } from "react";
@@ -349,7 +350,7 @@ export function AttendanceChartCard({ employeeDocId, employeeId }: { employeeDoc
       <Card>
         <CardHeader>
           <CardTitle>
-            Attendance ({attendanceScore?.percentage ?? "0"}%)
+            Attendance ({attendanceScore?.scoreOutOf10 ?? "0.0"} / 10)
           </CardTitle>
           <CardDescription>
             Attendance for current year (excluding weekends/holidays)
