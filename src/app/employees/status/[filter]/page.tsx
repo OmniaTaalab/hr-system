@@ -33,7 +33,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { Badge } from "@/components/ui/badge";
 
 interface Employee {
   id: string;
@@ -48,6 +47,8 @@ interface AttendanceInfo {
   checkIns: string[];
   checkOuts: string[];
   name?: string;
+  userId?: string;
+  badgeNumber?: string;
 }
 
 interface Row {
@@ -81,11 +82,8 @@ const parseTimeToMinutes = (t?: string | null) => {
   let h = parseInt(match[1], 10);
   const m = parseInt(match[2], 10);
   const ampm = match[4]?.toLowerCase();
-
-  if (ampm) {
-    if (ampm === "pm" && h < 12) h += 12;
-    if (ampm === "am" && h === 12) h = 0;
-  }
+  if (ampm === "pm" && h < 12) h += 12;
+  if (ampm === "am" && h === 12) h = 0;
   return h * 60 + m;
 };
 
@@ -133,7 +131,6 @@ function EmployeeStatusContent() {
       setError(null);
 
       try {
-        // 1️⃣ قراءة الموظفين Active
         const empSnap = await getDocs(
           query(collection(db, "employee"), where("status", "==", "Active"))
         );
@@ -149,47 +146,48 @@ function EmployeeStatusContent() {
           };
         });
 
-        const empByEmployeeId = new Map(
-          allEmployees.map((e) => [toStr(e.employeeId), e])
-        );
+        const empByEmployeeId = new Map(allEmployees.map((e) => [toStr(e.employeeId), e]));
+        const empByBadgeNumber = new Map(allEmployees.map((e) => [toStr(e.badgeNumber), e]));
+        
 
-        // 2️⃣ قراءة attendance_log
         const attSnap = await getDocs(
           query(collection(db, "attendance_log"), where("date", "==", targetDate))
         );
-        
+
         const attData: Record<string, AttendanceInfo> = {};
 
         attSnap.forEach((doc) => {
-            const data = doc.data() as any;
+          const data = doc.data() as any;
+          const logEmployeeId = toStr(data.userId);
+          const logBadgeNumber = toStr(data.badgeNumber);
+          
+          let employeeRecord = empByEmployeeId.get(logEmployeeId) || empByBadgeNumber.get(logBadgeNumber) || empByEmployeeId.get(logBadgeNumber) || empByBadgeNumber.get(logEmployeeId);
+          
+          if (!employeeRecord) return;
+          
+          const key = employeeRecord.employeeId;
 
-            // Use userId (which is the company employeeId) as the primary key
-            const key = toStr(data.userId);
-            if (!key) return;
+          if (!attData[key]) {
+            attData[key] = {
+              checkIns: [],
+              checkOuts: [],
+              userId: logEmployeeId,
+              badgeNumber: logBadgeNumber,
+              name: employeeRecord.name,
+            };
+          }
 
-            if (!attData[key]) {
-                attData[key] = { checkIns: [], checkOuts: [] };
-            }
-
-            const checkIn = String(data.check_in || "").trim();
-            const checkOut = String(data.check_out || "").trim();
-
-            if (checkIn) attData[key].checkIns.push(checkIn);
-            if (checkOut) attData[key].checkOuts.push(checkOut);
-            
-            // Try to get the name from the employee map first
-            const matchedEmp = empByEmployeeId.get(key);
-            if (matchedEmp?.name) {
-                attData[key].name = matchedEmp.name;
-            } else if (data.employeeName && !attData[key].name) {
-                // Fallback to the name from the log if no match is found
-                attData[key].name = toStr(data.employeeName);
-            }
+          if (data.check_in) attData[key].checkIns.push(String(data.check_in));
+          if (data.check_out) attData[key].checkOuts.push(String(data.check_out));
         });
 
-        const presentIds = new Set<string>(Object.keys(attData));
+        const presentIds = new Set<string>();
+        Object.keys(attData).forEach((employeeId) => {
+          if ((attData[employeeId]?.checkIns || []).length > 0) {
+            presentIds.add(employeeId);
+          }
+        });
 
-        // 4️⃣ الإجازات المعتمدة
         const approvedLeaveIds = new Set<string>();
         try {
           const leaveSnap = await getDocs(
@@ -205,10 +203,9 @@ function EmployeeStatusContent() {
             if (empId) approvedLeaveIds.add(empId);
           });
         } catch (e) {
-          console.warn("Leave collection might be missing or rules are restrictive:", e);
+          console.warn("Leave collection might be missing or restricted:", e);
         }
 
-        // 5️⃣ حسب الفلتر المطلوب
         const targetIds = new Set<string>();
         if (filter === "present") {
           presentIds.forEach((id) => targetIds.add(id));
@@ -232,41 +229,37 @@ function EmployeeStatusContent() {
           });
         }
 
-        // ✅ 6️⃣ بناء جدول العرض
+        const uniqueIds = Array.from(targetIds);
+        const seen = new Set<string>();
         const dataRows: Row[] = [];
-        targetIds.forEach((employeeId) => {
-            const emp = empByEmployeeId.get(employeeId);
-            const att = attData[employeeId];
 
-            const safeName = toStr(emp?.name) || toStr(att?.name) || `ID: ${employeeId}`;
+        uniqueIds.forEach((employeeId) => {
+          if (seen.has(employeeId)) return;
+          seen.add(employeeId);
 
-            const sortTimes = (arr: string[]) => arr.slice().sort((a, b) => {
-                const ma = parseTimeToMinutes(a) ?? 0;
-                const mb = parseTimeToMinutes(b) ?? 0;
-                return ma - mb;
-            });
+          const emp = empByEmployeeId.get(employeeId);
+          const att = attData[employeeId];
+          const safeName = toStr(emp?.name) || toStr(att?.name) || `ID: ${employeeId}`;
 
-            const sortedIns = sortTimes(att?.checkIns || []);
-            const sortedOuts = sortTimes(att?.checkOuts || []);
+          const sortTimes = (arr: string[]) =>
+            arr.slice().sort((a, b) => (parseTimeToMinutes(a) ?? 0) - (parseTimeToMinutes(b) ?? 0));
 
-            const firstIn = sortedIns.length ? sortedIns[0] : null;
-            const lastOut = sortedOuts.length ? sortedOuts[sortedOuts.length - 1] : null;
+          const sortedIns = sortTimes(att?.checkIns || []);
+          const sortedOuts = sortTimes(att?.checkOuts || []);
+          const firstIn = sortedIns[0] || null;
+          const lastOut = sortedOuts.length > 0 ? sortedOuts[sortedOuts.length - 1] : null;
 
-            dataRows.push({
-                id: emp?.id || employeeId,
-                employeeId: employeeId,
-                name: safeName,
-                photoURL: emp?.photoURL,
-                checkIn: firstIn,
-                checkOut: lastOut,
-            });
+          dataRows.push({
+            id: emp?.id || employeeId,
+            employeeId: employeeId,
+            name: safeName,
+            photoURL: emp?.photoURL,
+            checkIn: firstIn,
+            checkOut: lastOut,
+          });
         });
 
-        dataRows.sort((a, b) =>
-          (a.name || "").localeCompare(b.name || "", undefined, {
-            sensitivity: "base",
-          })
-        );
+        dataRows.sort((a, b) => (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }));
 
         setRows(dataRows);
       } catch (err) {
