@@ -116,6 +116,109 @@ export type CreateEmployeeState = {
 };
 
 
+export async function createEmployeeAction(
+  prevState: CreateEmployeeState,
+  formData: FormData
+): Promise<CreateEmployeeState> {
+  if (!adminAuth) {
+    const errorMessage = "Firebase Admin SDK is not configured.";
+    console.error(errorMessage);
+    return {
+      errors: { form: [errorMessage] },
+      success: false,
+    };
+  }
+
+  const { name, nisEmail, ...otherData } = Object.fromEntries(formData.entries());
+  
+  const fullName = `${formData.get('firstName')} ${formData.get('lastName')}`.trim();
+  const rawData = { ...otherData, name: fullName, nisEmail: formData.get('nisEmail') };
+
+  const validatedFields = CreateEmployeeFormSchema.safeParse(rawData);
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "Validation failed. Please check your inputs.",
+      success: false,
+    };
+  }
+
+  const { 
+    actorId, actorEmail, actorRole,
+    ...employeeData
+  } = validatedFields.data;
+
+  try {
+    const employeeCollection = collection(db, "employee");
+
+    // Check if email is already in use
+    if (employeeData.nisEmail) {
+      const q = query(employeeCollection, where("email", "==", employeeData.nisEmail));
+      const existing = await getDocs(q);
+      if (!existing.empty) {
+        return { success: false, errors: { email: ["This NIS email address is already in use."] }};
+      }
+    }
+    
+    const employeeCountSnapshot = await getCountFromServer(employeeCollection);
+    const newEmployeeId = (1001 + employeeCountSnapshot.data().count).toString();
+
+    const emergencyContact = {
+        name: employeeData.emergencyContactName || null,
+        relationship: employeeData.emergencyContactRelationship || null,
+        number: employeeData.emergencyContactNumber || null,
+    };
+
+    const newEmployeeDoc = {
+      ...employeeData,
+      employeeId: newEmployeeId,
+      name: employeeData.name,
+      email: employeeData.nisEmail || null,
+      phone: employeeData.personalPhone || null,
+      emergencyContact,
+      status: "Active",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      // Ensure date fields are Timestamps
+      dateOfBirth: employeeData.dateOfBirth ? Timestamp.fromDate(employeeData.dateOfBirth) : null,
+      joiningDate: employeeData.joiningDate ? Timestamp.fromDate(employeeData.joiningDate) : null,
+    };
+
+    // Remove the individual emergency contact fields before saving
+    delete (newEmployeeDoc as any).emergencyContactName;
+    delete (newEmployeeDoc as any).emergencyContactRelationship;
+    delete (newEmployeeDoc as any).emergencyContactNumber;
+    delete (newEmployeeDoc as any).personalPhone;
+    delete (newEmployeeDoc as any).nisEmail;
+
+
+    const docRef = await addDoc(employeeCollection, newEmployeeDoc);
+
+    await logSystemEvent("Create Employee", {
+      actorId,
+      actorEmail,
+      actorRole,
+      newEmployeeId: docRef.id,
+      newEmployeeName: newEmployeeDoc.name,
+    });
+    
+    revalidatePath('/employees');
+
+    return {
+      success: true,
+      message: `Employee "${newEmployeeDoc.name}" created successfully.`,
+      employeeId: docRef.id,
+    };
+  } catch (error: any) {
+    console.error("Error creating employee:", error);
+    return {
+      success: false,
+      errors: { form: ["An unexpected error occurred. Please try again."] },
+    };
+  }
+}
+
 // --- Create Profile Action (for new users) ---
 export type CreateProfileState = {
   errors?: {

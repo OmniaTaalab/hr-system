@@ -32,6 +32,7 @@ import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, 
 import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback, useTransition } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
+  createEmployeeAction, type CreateEmployeeState,
   updateEmployeeAction, type UpdateEmployeeState, 
   deleteEmployeeAction, type DeleteEmployeeState,
   deactivateEmployeeAction, type DeactivateEmployeeState,
@@ -117,6 +118,12 @@ export interface Employee {
 }
 
 
+const initialCreateEmployeeState: CreateEmployeeState = {
+  message: null,
+  errors: {},
+  success: false,
+};
+
 const initialEditEmployeeState: UpdateEmployeeState = {
   message: null,
   errors: {},
@@ -200,6 +207,7 @@ function safeToDate(timestamp: any): Date | undefined {
 function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const { profile } = useUserProfile();
+  const [addState, addAction, isAddPending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
   const { roles, stage: stages, systems, campuses, reportLines1, isLoading: isLoadingLists } = useOrganizationLists();
   
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
@@ -210,103 +218,20 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [stage, setStage] = useState("");
   const [childrenAtNIS, setChildrenAtNIS] = useState<'Yes' | 'No'>('No');
 
-  const [reportLine1, setReportLine1] = useState("");
-  const [reportLine2, setReportLine2] = useState("");
-
-  const [cvFile, setCvFile] = useState<File | null>(null);
-  const [nationalIdFile, setNationalIdFile] = useState<File | null>(null);
-  const [otherFiles, setOtherFiles] = useState<File[]>([]);
   const addFormRef = useRef<HTMLFormElement>(null);
 
-  const reportLineOptions = useMemo(() => reportLines1.map(item => item.name), [reportLines1]);
-
-  const handleFileUpload = async (employeeId: string) => {
-    const allFiles = [cvFile, nationalIdFile, ...otherFiles].filter((file): file is File => file !== null);
-
-    if (allFiles.length === 0) return;
-    
-    toast({ title: "Uploading files...", description: `Uploading ${allFiles.length} document(s).`});
-
-    const employeeDocRef = doc(db, "employee", employeeId);
-    
-    try {
-      const uploadPromises = allFiles.map(async (file) => {
-        const filePath = `employee-documents/${employeeId}/${file.name}`;
-        const fileRef = storageRef(storage, filePath);
-        const snapshot = await uploadBytes(fileRef, file);
-        const downloadURL = await getDownloadURL(snapshot.ref);
-        return {
-          name: file.name,
-          url: downloadURL,
-          uploadedAt: Timestamp.now(),
-        };
+  useEffect(() => {
+    if (addState.message) {
+      toast({
+        title: addState.success ? "Success" : "Error",
+        description: addState.message,
+        variant: addState.success ? "default" : "destructive",
       });
-
-      const uploadedFiles = await Promise.all(uploadPromises);
-      
-      await updateDoc(employeeDocRef, {
-        documents: arrayUnion(...uploadedFiles)
-      });
-      
-      toast({ title: "Upload Complete", description: "Documents successfully linked to the new employee." });
-
-    } catch (error: any) {
-       toast({
-        variant: "destructive",
-        title: "File Upload Failed",
-        description: "Could not upload files. You can add them later by editing the employee.",
-      });
+      if (addState.success) {
+        onSuccess(); // Close dialog on success
+      }
     }
-  };
-
-  // Combobox component for report lines
-  const ReportLineCombobox = ({ value, setValue, options, isLoading, placeholder }: { value: string, setValue: (val: string) => void, options: string[], isLoading: boolean, placeholder: string }) => {
-    const [open, setOpen] = useState(false);
-    return (
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="w-full justify-between font-normal"
-            disabled={isLoading}
-          >
-            {value ? value : isLoading ? "Loading..." : placeholder}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-          <Command>
-             <CommandInput placeholder="Search or type email..." />
-            <CommandList>
-                <CommandEmpty>No manager found.</CommandEmpty>
-                <CommandGroup>
-                  {options.map((email) => (
-                    <CommandItem
-                      key={email}
-                      value={email}
-                      onSelect={(currentValue) => {
-                        setValue(currentValue === value ? "" : currentValue);
-                        setOpen(false);
-                      }}
-                    >
-                      <CheckIcon
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          value === email ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      {email}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    );
-  };
+  }, [addState, toast, onSuccess]);
 
 
   return (
@@ -317,7 +242,111 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
           Enter the new employee's details. An employee ID will be generated automatically.
         </DialogDescription>
       </DialogHeader>
-      
+       <form
+        ref={addFormRef}
+        action={addAction}
+        className="flex flex-col overflow-hidden"
+      >
+        <input type="hidden" name="actorId" value={profile?.id} />
+        <input type="hidden" name="actorEmail" value={profile?.email} />
+        <input type="hidden" name="actorRole" value={profile?.role} />
+        {/* Hidden inputs for controlled Selects */}
+        <input type="hidden" name="role" value={role} />
+        <input type="hidden" name="campus" value={campus} />
+        <input type="hidden" name="gender" value={gender || ''} />
+        <input type="hidden" name="stage" value={stage || ''} />
+        <input type="hidden" name="childrenAtNIS" value={childrenAtNIS} />
+        <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
+        <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
+
+        <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
+          <div className="space-y-6 p-4 pr-6">
+            <h3 className="text-lg font-semibold flex items-center"><UserCircle2 className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                  <Label htmlFor="add-firstName">First Name *</Label>
+                  <Input id="add-firstName" name="firstName" required />
+                  {addState?.errors?.name && <p className="text-sm text-destructive">{addState.errors.name.join(', ')}</p>}
+              </div>
+              <div className="space-y-2">
+                  <Label htmlFor="add-lastName">Last Name *</Label>
+                  <Input id="add-lastName" name="lastName" required />
+              </div>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="add-name-ar">Full Name (Arabic)</Label>
+                <Input id="add-name-ar" name="nameAr" dir="rtl" />
+            </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="space-y-2">
+                  <Label htmlFor="add-personalEmail">Personal Email</Label>
+                  <Input id="add-personalEmail" name="personalEmail" type="email" />
+                  {addState?.errors?.personalEmail && <p className="text-sm text-destructive">{addState.errors.personalEmail.join(', ')}</p>}
+                </div>
+                 <div className="space-y-2">
+                  <Label htmlFor="add-phone">Personal Phone</Label>
+                  <Input id="add-phone" name="personalPhone" placeholder="Numbers only" />
+                </div>
+            </div>
+            <div className="space-y-2">
+                <h4 className="font-medium flex items-center text-sm"><PhoneCall className="mr-2 h-4 w-4"/>Emergency Contact</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-md">
+                     <div className="space-y-2"><Label htmlFor="add-emergencyContactName">Name</Label><Input id="add-emergencyContactName" name="emergencyContactName" /></div>
+                     <div className="space-y-2"><Label htmlFor="add-emergencyContactRelationship">Relationship</Label><Input id="add-emergencyContactRelationship" name="emergencyContactRelationship" /></div>
+                     <div className="space-y-2"><Label htmlFor="add-emergencyContactNumber">Number</Label><Input id="add-emergencyContactNumber" name="emergencyContactNumber" /></div>
+                </div>
+            </div>
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="add-dateOfBirth">Date of Birth</Label>
+                    <Popover><PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={2025} initialFocus /></PopoverContent></Popover>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="add-gender">Gender</Label>
+                    <Select value={gender} onValueChange={setGender}><SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger><SelectContent><SelectItem value="Male">Male</SelectItem><SelectItem value="Female">Female</SelectItem><SelectItem value="Other">Other</SelectItem></SelectContent></Select>
+                </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2"><Label htmlFor="add-nationalId">National ID</Label><Input id="add-nationalId" name="nationalId" /></div>
+                <div className="space-y-2"><Label htmlFor="add-religion">Religion</Label><Input id="add-religion" name="religion" /></div>
+            </div>
+             <div className="space-y-2"><Label>Do they have children enrolled at NIS?</Label><RadioGroup name="childrenAtNIS" value={childrenAtNIS} onValueChange={(val) => setChildrenAtNIS(val as 'Yes' | 'No')} className="flex items-center space-x-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="add-children-yes" /><Label htmlFor="add-children-yes">Yes</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="add-children-no" /><Label htmlFor="add-children-no">No</Label></div></RadioGroup></div>
+            <Separator />
+            <h3 className="text-lg font-semibold flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2"><Label htmlFor="add-nisEmail">NIS Email</Label><Input id="add-nisEmail" name="nisEmail" type="email" /><p className="text-xs text-destructive">{addState?.errors?.email && addState.errors.email.join(', ')}</p></div>
+                <div className="space-y-2"><Label htmlFor="add-title">Title</Label><Input id="add-title" name="title" /></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="space-y-2"><Label htmlFor="add-department">Department</Label><Input id="add-department" name="department" /></div>
+              <div className="space-y-2"><Label>Role</Label><Select value={role} onValueChange={setRole} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger><SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent></Select></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Stage</Label><Select value={stage} onValueChange={setStage} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger><SelectContent>{stages.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label>Campus</Label><Select value={campus} onValueChange={setCampus} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger><SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2"><Label htmlFor="add-reportLine1">Report Line 1</Label><Input id="add-reportLine1" name="reportLine1" /></div>
+                <div className="space-y-2"><Label htmlFor="add-reportLine2">Report Line 2</Label><Input id="add-reportLine2" name="reportLine2" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label htmlFor="add-joiningDate">Joining Date</Label><Popover><PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !joiningDate && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{joiningDate ? format(joiningDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} captionLayout="dropdown-buttons" fromYear={new Date().getFullYear() - 20} toYear={2025} initialFocus /></PopoverContent></Popover></div>
+            </div>
+             {(addState?.errors?.form) && (
+              <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
+                <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
+                <span>{addState.errors.form.join(', ')}</span>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+        <DialogFooter className="pt-4 flex-shrink-0 border-t">
+          <DialogClose asChild><Button type="button" variant="outline" onClick={() => onSuccess()}>Cancel</Button></DialogClose>
+          <Button type="submit" disabled={isAddPending}>
+              {isAddPending ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adding...</>) : "Add Employee"}
+          </Button>
+        </DialogFooter>
+      </form>
     </>
   );
 }
