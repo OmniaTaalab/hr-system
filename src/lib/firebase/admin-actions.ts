@@ -117,7 +117,6 @@ export type CreateEmployeeState = {
   employeeId?: string; // Return the new employee's document ID
 };
 
-
 export async function createEmployeeAction(
   prevState: CreateEmployeeState,
   formData: FormData
@@ -133,68 +132,74 @@ export async function createEmployeeAction(
 
   const rawData = Object.fromEntries(formData.entries());
 
-  const validatedFields = CreateEmployeeFormSchema.safeParse(rawData);
-
-  if (!validatedFields.success) {
+  // ✅ فقط نتأكد من وجود nisEmail
+  const nisEmail = rawData["nisEmail"];
+  if (!nisEmail || typeof nisEmail !== "string" || nisEmail.trim() === "") {
     return {
-      errors: validatedFields.error.flatten().fieldErrors,
-      message: "Validation failed. Please check your inputs.",
+      errors: { nisEmail: ["NIS Email is required."] },
+      message: "NIS Email must be provided.",
       success: false,
     };
   }
 
-  const { 
-    actorId, actorEmail, actorRole, firstName, lastName,
-    ...employeeData
-  } = validatedFields.data;
+  // ✅ باقي البيانات غير مطلوبة، هنكمّل الإضافة حتى لو ناقصة
+  const firstName = rawData["firstName"] || "";
+  const lastName = rawData["lastName"] || "";
+  const actorId = rawData["actorId"] || "";
+  const actorEmail = rawData["actorEmail"] || "";
+  const actorRole = rawData["actorRole"] || "";
 
   try {
     const employeeCollection = collection(db, "employee");
 
     // Check if email is already in use
-    if (employeeData.nisEmail) {
-      const q = query(employeeCollection, where("email", "==", employeeData.nisEmail));
-      const existing = await getDocs(q);
-      if (!existing.empty) {
-        return { success: false, errors: { email: ["This NIS email address is already in use."] }};
-      }
+    const q = query(employeeCollection, where("email", "==", nisEmail));
+    const existing = await getDocs(q);
+    if (!existing.empty) {
+      return {
+        success: false,
+        errors: { email: ["This NIS email address is already in use."] },
+      };
     }
-    
+
     const employeeCountSnapshot = await getCountFromServer(employeeCollection);
     const newEmployeeId = (1001 + employeeCountSnapshot.data().count).toString();
 
     const emergencyContact = {
-        name: employeeData.emergencyContactName || null,
-        relationship: employeeData.emergencyContactRelationship || null,
-        number: employeeData.emergencyContactNumber || null,
+      name: rawData["emergencyContactName"] || null,
+      relationship: rawData["emergencyContactRelationship"] || null,
+      number: rawData["emergencyContactNumber"] || null,
     };
-    
+
     const fullName = `${firstName} ${lastName}`.trim();
 
     const newEmployeeDoc = {
-      ...employeeData,
       employeeId: newEmployeeId,
       name: fullName,
       firstName,
       lastName,
-      email: employeeData.nisEmail || null,
-      phone: employeeData.personalPhone || null,
+      email: nisEmail,
+      phone: rawData["personalPhone"] || null,
+      title: rawData["title"] || null,
+      department: rawData["department"] || null,
+      role: rawData["role"] || null,
+      stage: rawData["stage"] || null,
+      campus: rawData["campus"] || null,
+      subject: rawData["subject"] || null,
+      actorId,
+      actorEmail,
+      actorRole,
       emergencyContact,
       status: "Active",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      // Ensure date fields are Timestamps
-      dateOfBirth: employeeData.dateOfBirth ? Timestamp.fromDate(employeeData.dateOfBirth) : null,
-      joiningDate: employeeData.joiningDate ? Timestamp.fromDate(employeeData.joiningDate) : null,
+      dateOfBirth: rawData["dateOfBirth"]
+        ? Timestamp.fromDate(new Date(rawData["dateOfBirth"]))
+        : null,
+      joiningDate: rawData["joiningDate"]
+        ? Timestamp.fromDate(new Date(rawData["joiningDate"]))
+        : null,
     };
-
-    // Remove the individual emergency contact fields before saving
-    delete (newEmployeeDoc as any).emergencyContactName;
-    delete (newEmployeeDoc as any).emergencyContactRelationship;
-    delete (newEmployeeDoc as any).emergencyContactNumber;
-    delete (newEmployeeDoc as any).personalPhone;
-    delete (newEmployeeDoc as any).nisEmail;
-
 
     const docRef = await addDoc(employeeCollection, newEmployeeDoc);
 
@@ -205,8 +210,8 @@ export async function createEmployeeAction(
       newEmployeeId: docRef.id,
       newEmployeeName: newEmployeeDoc.name,
     });
-    
-    revalidatePath('/employees');
+
+    revalidatePath("/employees");
 
     return {
       success: true,

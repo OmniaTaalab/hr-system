@@ -293,13 +293,15 @@ function DashboardPageContent() {
                 const badge = String(data.badgeNumber ?? "").trim();
                 const checkIn = data.check_in;
 
-                if (badge && checkIn) {
+                if (badge) {
                     if (!presentBadges.has(badge)) {
                         presentBadges.add(badge); // Add to presence set
                         // Only check for lateness the first time we see an employee
-                        const checkInMinutes = parseTimeToMinutes(checkIn);
-                        if (checkInMinutes !== null && checkInMinutes > startLimit) {
-                            lateCount++;
+                        if (checkIn) {
+                            const checkInMinutes = parseTimeToMinutes(checkIn);
+                            if (checkInMinutes !== null && checkInMinutes > startLimit) {
+                                lateCount++;
+                            }
                         }
                     }
                 }
@@ -669,3 +671,5 @@ export default function HRDashboardPage() {
     </AppLayout>
   );
 }
+
+    
