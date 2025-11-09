@@ -217,7 +217,7 @@ function DashboardPageContent() {
         ]);
 
         setPendingLeaveRequests(pendingSnapshot.data().count);
-        setApprovedLeaveRequests(approvedSnapshot.data().count);
+        setApprovedLeaveRequests(rejectedSnapshot.data().count);
         setRejectedLeaveRequests(rejectedSnapshot.data().count);
         setTotalLeaveRequests(totalSnapshot.data().count);
       } catch (error) {
@@ -249,10 +249,11 @@ function DashboardPageContent() {
         setIsLoadingAbsentToday(true);
 
         try {
-            // 1. Get total number of active employees
-            const activeEmployeesQuery = query(collection(db, "employee"), where("status", "==", "Active"));
-            const activeEmployeesSnapshot = await getCountFromServer(activeEmployeesQuery);
-            const totalActiveEmployees = activeEmployeesSnapshot.data().count;
+            // 1. Get all employee IDs from the system
+            const allEmployeesSnapshot = await getDocs(query(collection(db, "employee")));
+            const totalSystemEmployees = allEmployeesSnapshot.size;
+            const systemEmployeeIds = new Set(allEmployeesSnapshot.docs.map(doc => String(doc.data().employeeId).trim()));
+
 
             // 2. Find the most recent date in attendance_log
             const mostRecentLogQuery = query(
@@ -265,7 +266,7 @@ function DashboardPageContent() {
             if (mostRecentLogSnapshot.empty) {
                 setTodaysAttendance(0);
                 setLateAttendance(0);
-                setAbsentToday(totalActiveEmployees); // All active employees are absent if no logs
+                setAbsentToday(totalSystemEmployees);
                 setAttendanceDate("No attendance data yet");
                 setDateStringForLink("");
                 return;
@@ -293,21 +294,19 @@ function DashboardPageContent() {
                 return h * 60 + m;
             };
 
-            const presentUserIds = new Set<string>();
+            const presentInSystemIds = new Set<string>();
             let lateCount = 0;
             const startLimit = parseTimeToMinutes("07:30") ?? 450;
             
             attendanceSnapshot.forEach((doc) => {
                 const data = doc.data();
                 const userId = String(data.userId ?? "").trim();
-                const checkIn = data.check_in;
 
-                if (userId) {
-                    if (!presentUserIds.has(userId)) {
-                        presentUserIds.add(userId); // Add to presence set
-                        // Only check for lateness the first time we see an employee
-                        if (checkIn) {
-                            const checkInMinutes = parseTimeToMinutes(checkIn);
+                if (userId && systemEmployeeIds.has(userId)) {
+                    if (!presentInSystemIds.has(userId)) {
+                        presentInSystemIds.add(userId);
+                         if (data.check_in) {
+                            const checkInMinutes = parseTimeToMinutes(data.check_in);
                             if (checkInMinutes !== null && checkInMinutes > startLimit) {
                                 lateCount++;
                             }
@@ -316,10 +315,11 @@ function DashboardPageContent() {
                 }
             });
 
-            const presentCount = presentUserIds.size;
-            setTodaysAttendance(presentCount);
+            const presentInSystemCount = presentInSystemIds.size;
+            setTodaysAttendance(presentInSystemCount);
             setLateAttendance(lateCount);
-            setAbsentToday(Math.max(totalActiveEmployees - presentCount, 0));
+            setAbsentToday(Math.max(totalSystemEmployees - presentInSystemCount, 0));
+
 
         } catch (error) {
             console.error("Error in fetchDailyAttendance:", error);
@@ -421,8 +421,8 @@ function DashboardPageContent() {
       title: "Absent Today",
       iconName: "UserX",
       statistic: absentToday,
-      statisticLabel: attendanceDate ? `From ${activeEmployees ?? 'N/A'} active employees` : 'No attendance data',
-      isLoadingStatistic: isLoadingAbsentToday || isLoadingActiveEmp,
+      statisticLabel: attendanceDate ? `From ${totalEmployees ?? 'N/A'} total employees` : 'No attendance data',
+      isLoadingStatistic: isLoadingAbsentToday || isLoadingTotalEmp,
       href: `/employees/status/absent?date=${dateStringForLink || ''}`,
       linkText: "View Employees",
       adminOnly: true,
@@ -484,7 +484,7 @@ function DashboardPageContent() {
     }
     
     return statisticCards.filter(card => !card.adminOnly);
-  }, [profile, isLoadingProfile, statisticCards, absentToday, activeEmployees, todaysAttendance]);
+  }, [profile, isLoadingProfile, statisticCards, absentToday, activeEmployees, todaysAttendance, totalEmployees]);
 
   const actionCards: DashboardCardProps[] = [
      {

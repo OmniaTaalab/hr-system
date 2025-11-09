@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -27,7 +26,6 @@ import {
   ArrowLeft,
   UserCheck,
   AlertTriangle,
-  Bug,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -50,13 +48,13 @@ interface AttendanceInfo {
 }
 
 interface Row {
-  id: string; // This will be employee doc id or log user id if no match
-  employeeId: string; // This will be the company ID from log or employee record
+  id: string;
+  employeeId: string;
   name: string;
   photoURL?: string;
   checkIn?: string | null;
   checkOut?: string | null;
-  isRegistered: boolean; // Flag to check if user is in employee collection
+  isRegistered: boolean;
 }
 
 const getInitials = (name: string) =>
@@ -96,9 +94,9 @@ function EmployeeStatusContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [unmatchedLogs, setUnmatchedLogs] = useState<
-    { userId: string; badgeNumber: string }[]
-  >([]);
+  const [employeesCount, setEmployeesCount] = useState(0);
+  const [missingCount, setMissingCount] = useState(0);
+  const [presentInSystem, setPresentInSystem] = useState(0); // ✅ جديد
 
   const canViewPage =
     !profileLoading &&
@@ -120,10 +118,7 @@ function EmployeeStatusContent() {
       setError(null);
 
       try {
-        // 📌 1) Get all employees and create maps for quick lookup
-        const empSnap = await getDocs(
-          query(collection(db, "employee"))
-        );
+        const empSnap = await getDocs(query(collection(db, "employee")));
         const allEmployees: Employee[] = empSnap.docs.map((doc) => {
           const d = doc.data() as any;
           return {
@@ -135,20 +130,22 @@ function EmployeeStatusContent() {
           };
         });
 
-        const empByEmployeeId = new Map(allEmployees.map((e) => [toStr(e.employeeId), e]));
+        setEmployeesCount(allEmployees.length);
 
-        // 📌 2) Get all attendance logs for the date
+        const empByEmployeeId = new Map(
+          allEmployees.map((e) => [toStr(e.employeeId), e])
+        );
+
         const attSnap = await getDocs(
           query(collection(db, "attendance_log"), where("date", "==", targetDate))
         );
 
         const attData: Record<string, AttendanceInfo> = {};
-        
+
         attSnap.forEach((doc) => {
           const data = doc.data() as any;
-          const logEmployeeId = toStr(data.userId); // This is the key
-          
-          if(!logEmployeeId) return; // Skip logs without an ID
+          const logEmployeeId = toStr(data.userId);
+          if (!logEmployeeId) return;
 
           if (!attData[logEmployeeId]) {
             attData[logEmployeeId] = {
@@ -156,45 +153,52 @@ function EmployeeStatusContent() {
               checkOuts: [],
               userId: logEmployeeId,
               badgeNumber: toStr(data.badgeNumber),
-              name: toStr(data.employeeName), // Store name from log as fallback
+              name: toStr(data.employeeName),
             };
           }
 
-          if (data.check_in) attData[logEmployeeId].checkIns.push(String(data.check_in));
-          if (data.check_out) attData[logEmployeeId].checkOuts.push(String(data.check_out));
+          if (data.check_in)
+            attData[logEmployeeId].checkIns.push(String(data.check_in));
+          if (data.check_out)
+            attData[logEmployeeId].checkOuts.push(String(data.check_out));
         });
 
-        // 📌 3) Process grouped logs into final rows
         const dataRows: Row[] = Object.keys(attData).map((logEmployeeId) => {
           const info = attData[logEmployeeId];
           const empRecord = empByEmployeeId.get(logEmployeeId);
-          
+
           const sortTimes = (arr: string[]) =>
-            arr.slice().sort((a, b) => (parseTimeToMinutes(a) ?? 0) - (parseTimeToMinutes(b) ?? 0));
-            
+            arr
+              .slice()
+              .sort(
+                (a, b) =>
+                  (parseTimeToMinutes(a) ?? 0) - (parseTimeToMinutes(b) ?? 0)
+              );
+
           const sortedIns = sortTimes(info.checkIns || []);
           const sortedOuts = sortTimes(info.checkOuts || []);
           const firstIn = sortedIns[0] || null;
-          const lastOut = sortedOuts.length > 0 ? sortedOuts[sortedOuts.length - 1] : null;
+          const lastOut =
+            sortedOuts.length > 0
+              ? sortedOuts[sortedOuts.length - 1]
+              : null;
 
           return {
-            id: empRecord?.id || logEmployeeId, // Use doc ID if registered, otherwise log ID
+            id: empRecord?.id || logEmployeeId,
             employeeId: logEmployeeId,
             name: empRecord?.name || info.name || `ID: ${logEmployeeId}`,
             photoURL: empRecord?.photoURL,
             checkIn: firstIn,
             checkOut: lastOut,
-            isRegistered: !!empRecord, // True if employee exists in system
+            isRegistered: !!empRecord,
           };
         });
 
-        console.log("✅ Total unique individuals with logs:", dataRows.length);
-        console.log("📋 Processed individuals list:", dataRows);
-        
-        if (debugMode) {
-          const unregistered = dataRows.filter(r => !r.isRegistered);
-          console.log(`[DEBUG] Unregistered individuals found: ${unregistered.length}`, unregistered);
-        }
+        const missing = dataRows.filter((r) => !r.isRegistered);
+        const presentIn = dataRows.filter((r) => r.isRegistered); // ✅ جديد
+
+        setMissingCount(missing.length);
+        setPresentInSystem(presentIn.length); // ✅ جديد
 
         setRows(dataRows);
       } catch (err) {
@@ -242,6 +246,11 @@ function EmployeeStatusContent() {
       <Card>
         <CardHeader>
           <CardTitle>{rows.length} Employees Found (Present)</CardTitle>
+          <div className="text-sm text-muted-foreground mt-1 space-y-1">
+            <div>Employees in System: {employeesCount}</div>
+            <div>Present in System: {presentInSystem}</div>
+            <div>Present but not in System: {missingCount}</div>
+          </div>
         </CardHeader>
         <CardContent>
           {error ? (
@@ -276,12 +285,12 @@ function EmployeeStatusContent() {
                           <div>{e.name}</div>
                         </Link>
                       ) : (
-                         <div className="flex items-center gap-3 text-muted-foreground cursor-not-allowed">
-                            <Avatar>
-                                <AvatarImage src={e.photoURL} />
-                                <AvatarFallback>{getInitials(e.name)}</AvatarFallback>
-                            </Avatar>
-                            <div>{e.name}</div>
+                        <div className="flex items-center gap-3 text-muted-foreground cursor-not-allowed">
+                          <Avatar>
+                            <AvatarImage src={e.photoURL} />
+                            <AvatarFallback>{getInitials(e.name)}</AvatarFallback>
+                          </Avatar>
+                          <div>{e.name}</div>
                         </div>
                       )}
                     </TableCell>
@@ -297,3 +306,4 @@ function EmployeeStatusContent() {
     </div>
   );
 }
+
