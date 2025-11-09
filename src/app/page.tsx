@@ -110,6 +110,7 @@ const chartConfig = {
 
 function DashboardPageContent() {
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
+  const [activeEmployees, setActiveEmployees] = useState<number | null>(null);
   const [todaysAttendance, setTodaysAttendance] = useState<number | null>(null);
   const [absentToday, setAbsentToday] = useState<number | null>(null);
   const [attendanceDate, setAttendanceDate] = useState<string | null>(null);
@@ -124,6 +125,7 @@ function DashboardPageContent() {
 
 
   const [isLoadingTotalEmp, setIsLoadingTotalEmp] = useState(true);
+  const [isLoadingActiveEmp, setIsLoadingActiveEmp] = useState(true);
   const [isLoadingTodaysAttendance, setIsLoadingTodaysAttendance] = useState(true);
   const [isLoadingAbsentToday, setIsLoadingAbsentToday] = useState(true);
   const [isLoadingPendingLeaves, setIsLoadingPendingLeaves] = useState(true);
@@ -144,29 +146,36 @@ function DashboardPageContent() {
       const userRole = profile?.role?.toLowerCase();
       
       setIsLoadingTotalEmp(true);
+      setIsLoadingActiveEmp(true);
       try {
         let empQuery;
         const employeeCollection = collection(db, "employee");
 
         if (userRole === 'admin' || userRole === 'hr') {
           empQuery = query(employeeCollection);
+          const activeEmpQuery = query(employeeCollection, where("status", "==", "Active"));
+          const [empSnapshot, activeEmpSnapshot] = await Promise.all([
+            getCountFromServer(empQuery),
+            getCountFromServer(activeEmpQuery)
+          ]);
+          setTotalEmployees(empSnapshot.data().count);
+          setActiveEmployees(activeEmpSnapshot.data().count);
         } else if (userRole === 'principal' && profile?.stage) {
           empQuery = query(employeeCollection, where("stage", "==", profile.stage));
-        } else {
-          empQuery = null;
-        }
-        
-        if(empQuery){
-            const empSnapshot = await getCountFromServer(empQuery);
-            setTotalEmployees(empSnapshot.data().count);
+          const empSnapshot = await getCountFromServer(empQuery);
+          setTotalEmployees(empSnapshot.data().count);
+          setActiveEmployees(empSnapshot.data().count); // Assuming filtered employees are active
         } else {
           setTotalEmployees(0);
+          setActiveEmployees(0);
         }
       } catch (error) {
         console.error("Error fetching total employees count:", error);
         setTotalEmployees(0);
+        setActiveEmployees(0);
       } finally {
         setIsLoadingTotalEmp(false);
+        setIsLoadingActiveEmp(false);
       }
 
       setIsLoadingPendingLeaves(true);
@@ -308,11 +317,8 @@ function DashboardPageContent() {
             });
 
             const presentCount = presentBadges.size;
-            const absentCount = totalActiveEmployees - presentCount;
-
             setTodaysAttendance(presentCount);
             setLateAttendance(lateCount);
-            setAbsentToday(absentCount > 0 ? absentCount : 0); // Ensure it's not negative
 
         } catch (error) {
             console.error("Error in fetchDailyAttendance:", error);
@@ -384,6 +390,11 @@ function DashboardPageContent() {
     fetchCampusData();
     fetchHolidays();
   }, [profile, isLoadingProfile]);
+  
+  const finalAbsentCount = useMemo(() => {
+    if (activeEmployees === null || todaysAttendance === null) return 0;
+    return Math.max(activeEmployees - todaysAttendance, 0);
+  }, [activeEmployees, todaysAttendance]);
 
   const statisticCards: DashboardCardProps[] = [
     {
@@ -408,12 +419,9 @@ function DashboardPageContent() {
     {
       title: "Absent Today",
       iconName: "UserX",
-      statistic:
-      totalEmployees !== null && todaysAttendance !== null
-        ? Math.max(totalEmployees - todaysAttendance, 0)
-        : 0,
-      statisticLabel: attendanceDate ? `As of ${attendanceDate}` : 'No attendance data',
-      isLoadingStatistic: isLoadingAbsentToday,
+      statistic: finalAbsentCount,
+      statisticLabel: attendanceDate ? `From ${activeEmployees ?? 'N/A'} active employees` : 'No attendance data',
+      isLoadingStatistic: isLoadingAbsentToday || isLoadingActiveEmp,
       href: `/employees/status/absent?date=${dateStringForLink || ''}`,
       linkText: "View Employees",
       adminOnly: true,
@@ -475,7 +483,7 @@ function DashboardPageContent() {
     }
     
     return statisticCards.filter(card => !card.adminOnly);
-  }, [profile, isLoadingProfile, statisticCards]);
+  }, [profile, isLoadingProfile, statisticCards, finalAbsentCount]);
 
   const actionCards: DashboardCardProps[] = [
      {
@@ -672,4 +680,3 @@ export default function HRDashboardPage() {
   );
 }
 
-    
