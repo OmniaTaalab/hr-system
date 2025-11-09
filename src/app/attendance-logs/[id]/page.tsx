@@ -110,12 +110,27 @@ function UserAttendanceLogContent() {
           }
 
           const groupedLogs: { [key: string]: { check_ins: string[], check_outs: string[] } } = {};
+          
           rawLogs.forEach(log => {
               if (!groupedLogs[log.date]) {
                   groupedLogs[log.date] = { check_ins: [], check_outs: [] };
               }
-              if (log.check_in) groupedLogs[log.date].check_ins.push(log.check_in);
-              if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
+              if (log.check_in) {
+                  const [hourStr] = log.check_in.split(':');
+                  const hour = parseInt(hourStr, 10);
+                  const isPM = log.check_in.toLowerCase().includes('pm');
+                  
+                  if (isPM && hour < 12) {
+                      groupedLogs[log.date].check_outs.push(log.check_in);
+                  } else if (hour === 12 && isPM) {
+                      groupedLogs[log.date].check_outs.push(log.check_in);
+                  } else {
+                      groupedLogs[log.date].check_ins.push(log.check_in);
+                  }
+              }
+              if (log.check_out) {
+                  groupedLogs[log.date].check_outs.push(log.check_out);
+              }
           });
           
           const processedLogs: DailyAttendanceLog[] = Object.keys(groupedLogs).map(date => {
@@ -291,5 +306,3 @@ export default function UserAttendanceLogPage() {
         </AppLayout>
     )
 }
-
-    
