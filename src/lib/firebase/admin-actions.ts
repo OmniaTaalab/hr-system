@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { z } from 'zod';
@@ -534,6 +535,74 @@ export async function deactivateEmployeeAction(
         return {
             success: false,
             errors: { form: [`Failed to deactivate employee: ${error.message}`] },
+        };
+    }
+}
+
+
+// --- Activate Employee Action ---
+export type ActivateEmployeeState = {
+    errors?: { form?: string[] };
+    message?: string | null;
+    success?: boolean;
+};
+
+const ActivationSchema = z.object({
+    employeeDocId: z.string().min(1, "Employee document ID is required."),
+    actorId: z.string().optional(),
+    actorEmail: z.string().optional(),
+    actorRole: z.string().optional(),
+});
+
+export async function activateEmployeeAction(
+    prevState: ActivateEmployeeState,
+    formData: FormData
+): Promise<ActivateEmployeeState> {
+    const validatedActivation = ActivationSchema.safeParse({
+        employeeDocId: formData.get('employeeDocId'),
+        actorId: formData.get('actorId'),
+        actorEmail: formData.get('actorEmail'),
+        actorRole: formData.get('actorRole'),
+    });
+
+    if (!validatedActivation.success) {
+        return {
+            success: false,
+            errors: { form: ["Invalid employee ID provided."] },
+            message: 'Validation failed.',
+        };
+    }
+    
+    const { employeeDocId, actorId, actorEmail, actorRole } = validatedActivation.data;
+    
+    try {
+        const employeeRef = doc(db, "employee", employeeDocId);
+        const docSnap = await getDoc(employeeRef);
+        const employeeName = docSnap.exists() ? docSnap.data().name : 'Unknown';
+
+        // Set status back to Active and clear leaving info
+        await updateDoc(employeeRef, {
+            status: 'Active',
+            leavingDate: null,
+            reasonForLeaving: null,
+        });
+
+        await logSystemEvent("Activate Employee", { 
+            actorId, 
+            actorEmail, 
+            actorRole, 
+            targetEmployeeId: employeeDocId, 
+            targetEmployeeName: employeeName, 
+            changes: { newData: { status: 'Active' } } 
+        });
+
+        return { success: true, message: "Employee has been reactivated successfully." };
+
+    } catch (error: any) {
+        console.error('Firestore Activate Employee Error:', error);
+        return {
+            success: false,
+            errors: { form: [`Failed to activate employee: ${error.message}`] },
         };
     }
 }

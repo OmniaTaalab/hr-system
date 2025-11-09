@@ -28,13 +28,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall, UserRoundCheck } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback, useTransition } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
   updateEmployeeAction, type UpdateEmployeeState, 
   deleteEmployeeAction, type DeleteEmployeeState,
   deactivateEmployeeAction, type DeactivateEmployeeState,
+  activateEmployeeAction, type ActivateEmployeeState,
   batchCreateEmployeesAction,
 } from "@/lib/firebase/admin-actions";
 import { 
@@ -150,6 +151,13 @@ const initialDeactivateState: DeactivateEmployeeState = {
     errors: {},
     success: false,
 };
+
+const initialActivateState: ActivateEmployeeState = {
+    message: null,
+    errors: {},
+    success: false,
+};
+
 
 const initialBatchCreateState: {
     message: string | null;
@@ -862,6 +870,8 @@ function EmployeeManagementContent() {
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null);
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false);
   
+    const [activateState, activateAction, isActivatePending] = useActionState(activateEmployeeAction, initialActivateState);
+
   const [isBatchImportOpen, setIsBatchImportOpen] = useState(false);
 
   // Pagination State
@@ -973,6 +983,17 @@ function EmployeeManagementContent() {
       }
     }
   }, [changePasswordServerState, toast]);
+
+  useEffect(() => {
+    if (activateState.message) {
+        toast({
+            title: activateState.success ? "Success" : "Error",
+            description: activateState.message,
+            variant: activateState.success ? "default" : "destructive",
+        });
+    }
+  }, [activateState, toast]);
+
   
   const uniqueTitles = useMemo(() => {
     const titles = allEmployees.map(emp => emp.title).filter(Boolean);
@@ -1430,10 +1451,24 @@ function EmployeeManagementContent() {
                               <Edit3 className="mr-2 h-4 w-4" />
                               Edit Employee
                             </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => openDeactivateDialog(employee)} disabled={employee.status === 'deactivated'}>
-                               <UserMinus className="mr-2 h-4 w-4" />
-                               Deactivate Employee
-                            </DropdownMenuItem>
+                             {employee.status === 'deactivated' ? (
+                                <DropdownMenuItem onSelect={() => {
+                                    const formData = new FormData();
+                                    formData.append('employeeDocId', employee.id);
+                                    if (profile?.id) formData.append('actorId', profile.id);
+                                    if (profile?.email) formData.append('actorEmail', profile.email);
+                                    if (profile?.role) formData.append('actorRole', profile.role);
+                                    activateAction(formData);
+                                }}>
+                                    <UserRoundCheck className="mr-2 h-4 w-4" />
+                                    Activate Employee
+                                </DropdownMenuItem>
+                            ) : (
+                                <DropdownMenuItem onSelect={() => openDeactivateDialog(employee)}>
+                                   <UserMinus className="mr-2 h-4 w-4" />
+                                   Deactivate Employee
+                                </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onSelect={() => openDeleteConfirmDialog(employee)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
                               <Trash2 className="mr-2 h-4 w-4" />

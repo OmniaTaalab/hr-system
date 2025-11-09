@@ -39,4 +39,5 @@ import {
   GitBranch,
   ZoomIn,
   ZoomOut,
+  UserRoundCheck,
 } from "lucide-react";
