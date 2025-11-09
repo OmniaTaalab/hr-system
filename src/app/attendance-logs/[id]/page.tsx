@@ -116,13 +116,18 @@ function UserAttendanceLogContent() {
                   groupedLogs[log.date] = { check_ins: [], check_outs: [] };
               }
               if (log.check_in) {
-                  const [hourStr] = log.check_in.split(':');
-                  const hour = parseInt(hourStr, 10);
+                  const timeParts = log.check_in.split(/[:\s]/);
+                  let hour = parseInt(timeParts[0], 10);
                   const isPM = log.check_in.toLowerCase().includes('pm');
                   
                   if (isPM && hour < 12) {
-                      groupedLogs[log.date].check_outs.push(log.check_in);
-                  } else if (hour === 12 && isPM) {
+                      hour += 12;
+                  } else if (!isPM && hour === 12) {
+                      // Handle 12 AM (midnight) as 0
+                      hour = 0;
+                  }
+                  
+                  if (hour >= 12) {
                       groupedLogs[log.date].check_outs.push(log.check_in);
                   } else {
                       groupedLogs[log.date].check_ins.push(log.check_in);
