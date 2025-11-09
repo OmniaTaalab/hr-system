@@ -293,18 +293,18 @@ function DashboardPageContent() {
                 return h * 60 + m;
             };
 
-            const presentBadges = new Set<string>();
+            const presentUserIds = new Set<string>();
             let lateCount = 0;
             const startLimit = parseTimeToMinutes("07:30") ?? 450;
             
             attendanceSnapshot.forEach((doc) => {
                 const data = doc.data();
-                const badge = String(data.badgeNumber ?? "").trim();
+                const userId = String(data.userId ?? "").trim();
                 const checkIn = data.check_in;
 
-                if (badge) {
-                    if (!presentBadges.has(badge)) {
-                        presentBadges.add(badge); // Add to presence set
+                if (userId) {
+                    if (!presentUserIds.has(userId)) {
+                        presentUserIds.add(userId); // Add to presence set
                         // Only check for lateness the first time we see an employee
                         if (checkIn) {
                             const checkInMinutes = parseTimeToMinutes(checkIn);
@@ -316,9 +316,10 @@ function DashboardPageContent() {
                 }
             });
 
-            const presentCount = presentBadges.size;
+            const presentCount = presentUserIds.size;
             setTodaysAttendance(presentCount);
             setLateAttendance(lateCount);
+            setAbsentToday(Math.max(totalActiveEmployees - presentCount, 0));
 
         } catch (error) {
             console.error("Error in fetchDailyAttendance:", error);
@@ -419,7 +420,7 @@ function DashboardPageContent() {
     {
       title: "Absent Today",
       iconName: "UserX",
-      statistic: finalAbsentCount,
+      statistic: absentToday,
       statisticLabel: attendanceDate ? `From ${activeEmployees ?? 'N/A'} active employees` : 'No attendance data',
       isLoadingStatistic: isLoadingAbsentToday || isLoadingActiveEmp,
       href: `/employees/status/absent?date=${dateStringForLink || ''}`,
@@ -483,7 +484,7 @@ function DashboardPageContent() {
     }
     
     return statisticCards.filter(card => !card.adminOnly);
-  }, [profile, isLoadingProfile, statisticCards, finalAbsentCount]);
+  }, [profile, isLoadingProfile, statisticCards, absentToday, activeEmployees, todaysAttendance]);
 
   const actionCards: DashboardCardProps[] = [
      {
@@ -679,4 +680,3 @@ export default function HRDashboardPage() {
     </AppLayout>
   );
 }
-
