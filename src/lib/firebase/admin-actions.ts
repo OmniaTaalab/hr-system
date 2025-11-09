@@ -53,7 +53,8 @@ export async function getAllAuthUsers() {
 // Schema for validating form data for creating an employee
 const CreateEmployeeFormSchema = z.object({
   // Personal Info
-  name: z.string().min(1, "Full name is required."),
+  firstName: z.string().min(1, "First name is required."),
+  lastName: z.string().min(1, "Last name is required."),
   nameAr: z.string().optional(),
   childrenAtNIS: z.enum(['Yes', 'No']).optional(),
   personalEmail: z.string().email({ message: 'A valid personal email is required.' }).optional().or(z.literal('')),
@@ -85,7 +86,8 @@ const CreateEmployeeFormSchema = z.object({
 
 export type CreateEmployeeState = {
   errors?: {
-    name?: string[];
+    firstName?: string[];
+    lastName?: string[];
     nameAr?: string[];
     childrenAtNIS?: string[];
     personalEmail?: string[];
@@ -129,10 +131,7 @@ export async function createEmployeeAction(
     };
   }
 
-  const { name, nisEmail, ...otherData } = Object.fromEntries(formData.entries());
-  
-  const fullName = `${formData.get('firstName')} ${formData.get('lastName')}`.trim();
-  const rawData = { ...otherData, name: fullName, nisEmail: formData.get('nisEmail') };
+  const rawData = Object.fromEntries(formData.entries());
 
   const validatedFields = CreateEmployeeFormSchema.safeParse(rawData);
 
@@ -145,7 +144,7 @@ export async function createEmployeeAction(
   }
 
   const { 
-    actorId, actorEmail, actorRole,
+    actorId, actorEmail, actorRole, firstName, lastName,
     ...employeeData
   } = validatedFields.data;
 
@@ -169,11 +168,15 @@ export async function createEmployeeAction(
         relationship: employeeData.emergencyContactRelationship || null,
         number: employeeData.emergencyContactNumber || null,
     };
+    
+    const fullName = `${firstName} ${lastName}`.trim();
 
     const newEmployeeDoc = {
       ...employeeData,
       employeeId: newEmployeeId,
-      name: employeeData.name,
+      name: fullName,
+      firstName,
+      lastName,
       email: employeeData.nisEmail || null,
       phone: employeeData.personalPhone || null,
       emergencyContact,

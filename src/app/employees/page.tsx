@@ -266,11 +266,12 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
               <div className="space-y-2">
                   <Label htmlFor="add-firstName">First Name *</Label>
                   <Input id="add-firstName" name="firstName" required />
-                  {addState?.errors?.name && <p className="text-sm text-destructive">{addState.errors.name.join(', ')}</p>}
+                  {addState?.errors?.firstName && <p className="text-sm text-destructive">{addState.errors.firstName.join(', ')}</p>}
               </div>
               <div className="space-y-2">
                   <Label htmlFor="add-lastName">Last Name *</Label>
                   <Input id="add-lastName" name="lastName" required />
+                  {addState?.errors?.lastName && <p className="text-sm text-destructive">{addState.errors.lastName.join(', ')}</p>}
               </div>
             </div>
             <div className="space-y-2">
