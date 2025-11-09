@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -49,12 +50,13 @@ interface AttendanceInfo {
 }
 
 interface Row {
-  id: string;
-  employeeId: string;
+  id: string; // This will be employee doc id or log user id if no match
+  employeeId: string; // This will be the company ID from log or employee record
   name: string;
   photoURL?: string;
   checkIn?: string | null;
   checkOut?: string | null;
+  isRegistered: boolean; // Flag to check if user is in employee collection
 }
 
 const getInitials = (name: string) =>
@@ -118,9 +120,9 @@ function EmployeeStatusContent() {
       setError(null);
 
       try {
-        // 📌 1) Get all active employees
+        // 📌 1) Get all employees and create maps for quick lookup
         const empSnap = await getDocs(
-          query(collection(db, "employee"), where("status", "==", "Active"))
+          query(collection(db, "employee"))
         );
         const allEmployees: Employee[] = empSnap.docs.map((doc) => {
           const d = doc.data() as any;
@@ -134,7 +136,6 @@ function EmployeeStatusContent() {
         });
 
         const empByEmployeeId = new Map(allEmployees.map((e) => [toStr(e.employeeId), e]));
-        const empByBadgeNumber = new Map(allEmployees.map((e) => [toStr(e.badgeNumber), e]));
 
         // 📌 2) Get all attendance logs for the date
         const attSnap = await getDocs(
@@ -142,86 +143,58 @@ function EmployeeStatusContent() {
         );
 
         const attData: Record<string, AttendanceInfo> = {};
-        const unmatched: { userId: string; badgeNumber: string }[] = [];
-
+        
         attSnap.forEach((doc) => {
           const data = doc.data() as any;
-          const logEmployeeId = toStr(data.userId);
-          const logBadgeNumber = toStr(data.badgeNumber);
+          const logEmployeeId = toStr(data.userId); // This is the key
+          
+          if(!logEmployeeId) return; // Skip logs without an ID
 
-          // 🔍 Try to match employee record
-          const employeeRecord =
-            empByEmployeeId.get(logEmployeeId) ||
-            empByBadgeNumber.get(logBadgeNumber) ||
-            empByEmployeeId.get(logBadgeNumber) ||
-            empByBadgeNumber.get(logEmployeeId);
-
-          // ❌ No match found — push to unmatched list
-          if (!employeeRecord) {
-            unmatched.push({ userId: logEmployeeId, badgeNumber: logBadgeNumber });
-            return;
-          }
-
-          const key = employeeRecord.employeeId;
-
-          if (!attData[key]) {
-            attData[key] = {
+          if (!attData[logEmployeeId]) {
+            attData[logEmployeeId] = {
               checkIns: [],
               checkOuts: [],
               userId: logEmployeeId,
-              badgeNumber: logBadgeNumber,
-              name: employeeRecord.name,
+              badgeNumber: toStr(data.badgeNumber),
+              name: toStr(data.employeeName), // Store name from log as fallback
             };
           }
 
-          if (data.check_in) attData[key].checkIns.push(String(data.check_in));
-          if (data.check_out) attData[key].checkOuts.push(String(data.check_out));
+          if (data.check_in) attData[logEmployeeId].checkIns.push(String(data.check_in));
+          if (data.check_out) attData[logEmployeeId].checkOuts.push(String(data.check_out));
         });
 
-        setUnmatchedLogs(unmatched);
-
-        // 📋 Print unmatched employees in console
-        if (unmatched.length > 0) {
-          console.group(`❌ Unmatched Attendance Logs (${unmatched.length})`);
-          console.table(unmatched);
-          console.groupEnd();
-        } else {
-          console.log("✅ All attendance logs matched with employees.");
-        }
-
-        // ✅ Get present employees
-        const presentIds = new Set<string>();
-        Object.keys(attData).forEach((employeeId) => {
-          const info = attData[employeeId];
-          const hasIn = (info.checkIns || []).length > 0;
-          const hasOut = (info.checkOuts || []).length > 0;
-          if (hasIn || hasOut) presentIds.add(employeeId);
-        });
-
-        const uniqueIds = Array.from(presentIds);
-        const dataRows: Row[] = uniqueIds.map((employeeId) => {
-          const emp = empByEmployeeId.get(employeeId);
-          const att = attData[employeeId];
-          const safeName = toStr(emp?.name) || toStr(att?.name) || `ID: ${employeeId}`;
+        // 📌 3) Process grouped logs into final rows
+        const dataRows: Row[] = Object.keys(attData).map((logEmployeeId) => {
+          const info = attData[logEmployeeId];
+          const empRecord = empByEmployeeId.get(logEmployeeId);
+          
           const sortTimes = (arr: string[]) =>
             arr.slice().sort((a, b) => (parseTimeToMinutes(a) ?? 0) - (parseTimeToMinutes(b) ?? 0));
-          const sortedIns = sortTimes(att?.checkIns || []);
-          const sortedOuts = sortTimes(att?.checkOuts || []);
+            
+          const sortedIns = sortTimes(info.checkIns || []);
+          const sortedOuts = sortTimes(info.checkOuts || []);
           const firstIn = sortedIns[0] || null;
           const lastOut = sortedOuts.length > 0 ? sortedOuts[sortedOuts.length - 1] : null;
 
           return {
-            id: emp?.id || employeeId,
-            employeeId,
-            name: safeName,
-            photoURL: emp?.photoURL,
+            id: empRecord?.id || logEmployeeId, // Use doc ID if registered, otherwise log ID
+            employeeId: logEmployeeId,
+            name: empRecord?.name || info.name || `ID: ${logEmployeeId}`,
+            photoURL: empRecord?.photoURL,
             checkIn: firstIn,
             checkOut: lastOut,
+            isRegistered: !!empRecord, // True if employee exists in system
           };
         });
 
-        console.log("✅ Total employees present:", dataRows.length);
-        console.log("📋 Present employees list:", dataRows);
+        console.log("✅ Total unique individuals with logs:", dataRows.length);
+        console.log("📋 Processed individuals list:", dataRows);
+        
+        if (debugMode) {
+          const unregistered = dataRows.filter(r => !r.isRegistered);
+          console.log(`[DEBUG] Unregistered individuals found: ${unregistered.length}`, unregistered);
+        }
 
         setRows(dataRows);
       } catch (err) {
@@ -233,7 +206,7 @@ function EmployeeStatusContent() {
     };
 
     fetchData();
-  }, [dateParam, profileLoading, canViewPage, router]);
+  }, [dateParam, profileLoading, canViewPage, router, debugMode]);
 
   const formattedDate = format(
     new Date((dateParam || format(new Date(), "yyyy-MM-dd")) + "T00:00:00"),
@@ -259,7 +232,7 @@ function EmployeeStatusContent() {
       <header>
         <h1 className="text-3xl font-bold flex items-center gap-3">
           <UserCheck className="h-8 w-8 text-primary" />
-          Employees Present Today
+          Employees Present
         </h1>
         <p className="text-muted-foreground">
           Showing results for {formattedDate}
@@ -291,16 +264,26 @@ function EmployeeStatusContent() {
                   <TableRow key={`${e.employeeId}-${i}`}>
                     <TableCell>{i + 1}</TableCell>
                     <TableCell>
-                      <Link
-                        href={`/employees/${e.employeeId}`}
-                        className="flex items-center gap-3 hover:underline"
-                      >
-                        <Avatar>
-                          <AvatarImage src={e.photoURL} />
-                          <AvatarFallback>{getInitials(e.name)}</AvatarFallback>
-                        </Avatar>
-                        <div>{e.name}</div>
-                      </Link>
+                      {e.isRegistered ? (
+                        <Link
+                          href={`/employees/${e.employeeId}`}
+                          className="flex items-center gap-3 hover:underline"
+                        >
+                          <Avatar>
+                            <AvatarImage src={e.photoURL} />
+                            <AvatarFallback>{getInitials(e.name)}</AvatarFallback>
+                          </Avatar>
+                          <div>{e.name}</div>
+                        </Link>
+                      ) : (
+                         <div className="flex items-center gap-3 text-muted-foreground cursor-not-allowed">
+                            <Avatar>
+                                <AvatarImage src={e.photoURL} />
+                                <AvatarFallback>{getInitials(e.name)}</AvatarFallback>
+                            </Avatar>
+                            <div>{e.name}</div>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>{e.checkIn ?? "—"}</TableCell>
                     <TableCell>{e.checkOut ?? "—"}</TableCell>
