@@ -40,7 +40,7 @@ import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3
 import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
 import { format } from "date-fns";
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, Timestamp, orderBy, where, getDocs, QueryConstraint } from 'firebase/firestore';
+import { collection, onSnapshot, query, Timestamp, orderBy, where, getDocs, QueryConstraint, or, Query } from 'firebase/firestore';
 import { 
   updateLeaveRequestStatusAction, type UpdateLeaveStatusState,
   editLeaveRequestAction, type EditLeaveRequestState,
@@ -109,68 +109,83 @@ function AllLeaveRequestsContent() {
   useEffect(() => {
     if (isLoadingProfile) return;
 
-    setIsLoading(true);
+    const userRole = profile?.role?.toLowerCase();
+    const isPrivileged = userRole === 'admin' || userRole === 'hr';
+    let unsubscribe: () => void;
 
-    const buildQuery = async () => {
-      let q: QueryConstraint[] = [];
-      const userRole = profile?.role?.toLowerCase();
-      
-      // Admins and HR see all requests.
-      if (userRole !== 'admin' && userRole !== 'hr' && profile?.email) {
-          // Managers see requests from their direct reports (reportLine1 or reportLine2)
-          const reportLine1Query = query(collection(db, "employee"), where("reportLine1", "==", profile.email));
-          const reportLine2Query = query(collection(db, "employee"), where("reportLine2", "==", profile.email));
+    const fetchManagerRequests = async () => {
+        setIsLoading(true);
+        if (!profile?.email) {
+            setAllRequests([]);
+            setIsLoading(false);
+            return;
+        }
 
-          const [reportLine1Snapshot, reportLine2Snapshot] = await Promise.all([
-            getDocs(reportLine1Query),
-            getDocs(reportLine2Query),
-          ]);
-          
-          const subordinateIds1 = reportLine1Snapshot.docs.map(doc => doc.id);
-          const subordinateIds2 = reportLine2Snapshot.docs.map(doc => doc.id);
-          const subordinateIds = [...new Set([...subordinateIds1, ...subordinateIds2])];
-          
-          if (subordinateIds.length > 0) {
-              q.push(where("requestingEmployeeDocId", "in", subordinateIds));
-          } else {
-              // If not a manager of anyone, they shouldn't see any requests on this page.
-              setAllRequests([]);
-              setIsLoading(false);
-              return () => {}; // Return an empty unsubscribe function
-          }
-      }
+        try {
+            const reportingEmployeesQuery = query(
+                collection(db, "employee"),
+                or(
+                    where("reportLine1", "==", profile.email),
+                    where("reportLine2", "==", profile.email)
+                )
+            );
+            const reportingEmployeesSnapshot = await getDocs(reportingEmployeesQuery);
+            const employeeIds = reportingEmployeesSnapshot.docs.map(doc => doc.id);
 
-      const finalQuery = query(collection(db, "leaveRequests"), ...q);
+            if (employeeIds.length === 0) {
+                setAllRequests([]);
+                setIsLoading(false);
+                return;
+            }
 
-      const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
-        const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
-        requestsData.sort((a, b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
-        setAllRequests(requestsData);
-        setIsLoading(false);
-      }, (error) => {
-        console.error("Error fetching leave requests: ", error);
-        toast({
-          variant: "destructive",
-          title: "Error Fetching Requests",
-          description: "Could not load leave requests. This might be due to a missing Firestore index.",
-        });
-        setIsLoading(false);
-      });
+            const leaveRequestsQuery = query(
+                collection(db, "leaveRequests"), 
+                where("requestingEmployeeDocId", "in", employeeIds),
+                orderBy("submittedAt", "desc")
+            );
 
-      return unsubscribe;
+            unsubscribe = onSnapshot(leaveRequestsQuery, (snapshot) => {
+                const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+                setAllRequests(requestsData);
+                setIsLoading(false);
+            }, (error) => {
+                console.error("Error fetching manager's leave requests:", error);
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch leave requests for your team.' });
+                setIsLoading(false);
+            });
+        } catch (error) {
+            console.error("Error setting up manager's leave request fetch:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'An error occurred while setting up your view.' });
+            setIsLoading(false);
+        }
     };
 
-    let unsubscribePromise = buildQuery();
+    const fetchAllRequests = () => {
+        setIsLoading(true);
+        const q = query(collection(db, "leaveRequests"), orderBy("submittedAt", "desc"));
+        unsubscribe = onSnapshot(q, (snapshot) => {
+            const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+            setAllRequests(requestsData);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching all leave requests:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch leave requests.' });
+            setIsLoading(false);
+        });
+    };
+
+    if (isPrivileged) {
+        fetchAllRequests();
+    } else {
+        fetchManagerRequests();
+    }
 
     return () => {
-        unsubscribePromise.then(unsubscribe => {
-            if (unsubscribe) {
-                unsubscribe();
-            }
-        });
+        if (unsubscribe) {
+            unsubscribe();
+        }
     };
-  }, [profile, isLoadingProfile, toast]);
-
+}, [profile, isLoadingProfile, toast]);
 
   useEffect(() => {
     if (deleteServerState?.message) {
@@ -484,4 +499,5 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
+
 

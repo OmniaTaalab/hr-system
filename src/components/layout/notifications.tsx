@@ -42,8 +42,8 @@ export function Notifications() {
     
     setIsLoading(true);
     const userRole = profile?.role?.toLowerCase();
-    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
-    
+    const isManager = !!profile?.reportLine1 || !!profile?.reportLine2;
+    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr' || isManager;    
     const unsubscribes: (() => void)[] = [];
 
     // 1. Fetch global notifications only for privileged users
