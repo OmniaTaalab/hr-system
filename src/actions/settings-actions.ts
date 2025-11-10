@@ -534,26 +534,40 @@ export async function syncReportLine2FromEmployeesAction(prevState: SyncState, f
 
 const TimeSchema = z.string().regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format.");
 
-const CampusWorkingHoursSchema = z.object({
+const CampusWorkingHoursBaseSchema = z.object({
   id: z.string().optional(),
   operation: z.enum(['add', 'update', 'delete']),
-  campusName: z.string().min(1, "Campus name is required."),
-  checkInStartTime: TimeSchema,
-  checkInEndTime: TimeSchema,
-  checkOutStartTime: TimeSchema,
-  checkOutEndTime: TimeSchema,
+  campusName: z.string().min(1, "Campus name is required.").optional(),
+  checkInStartTime: TimeSchema.optional(),
+  checkInEndTime: TimeSchema.optional(),
+  checkOutStartTime: TimeSchema.optional(),
+  checkOutEndTime: TimeSchema.optional(),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
-}).refine(data => data.checkInStartTime < data.checkInEndTime, {
-    message: "Check-in start time must be before check-in end time.",
-    path: ["checkInEndTime"],
-}).refine(data => data.checkOutStartTime < data.checkOutEndTime, {
-    message: "Check-out start time must be before check-out end time.",
-    path: ["checkOutEndTime"],
-}).refine(data => data.checkInEndTime < data.checkOutStartTime, {
-    message: "Check-in window must end before check-out window begins.",
-    path: ["checkOutStartTime"],
+});
+
+const RefinedCampusWorkingHoursSchema = CampusWorkingHoursBaseSchema.superRefine((data, ctx) => {
+    if (data.operation === 'add' || data.operation === 'update') {
+        if (!data.campusName) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Campus name is required.", path: ["campusName"]});
+        if (!data.checkInStartTime) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Check-in start time is required.", path: ["checkInStartTime"]});
+        if (!data.checkInEndTime) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Check-in end time is required.", path: ["checkInEndTime"]});
+        if (!data.checkOutStartTime) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Check-out start time is required.", path: ["checkOutStartTime"]});
+        if (!data.checkOutEndTime) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Check-out end time is required.", path: ["checkOutEndTime"]});
+
+        if (data.checkInStartTime && data.checkInEndTime && data.checkInStartTime >= data.checkInEndTime) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Check-in start must be before end time.", path: ["checkInEndTime"] });
+        }
+        if (data.checkOutStartTime && data.checkOutEndTime && data.checkOutStartTime >= data.checkOutEndTime) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Check-out start must be before end time.", path: ["checkOutEndTime"] });
+        }
+        if (data.checkInEndTime && data.checkOutStartTime && data.checkInEndTime >= data.checkOutStartTime) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Check-in window must end before check-out begins.", path: ["checkOutStartTime"] });
+        }
+    }
+    if(data.operation === 'delete' && !data.id) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Record ID is missing for deletion.", path: ["form"] });
+    }
 });
 
 
@@ -575,19 +589,19 @@ export async function manageCampusWorkingHoursAction(
   formData: FormData
 ): Promise<CampusWorkingHoursState> {
 
-    const validatedFields = CampusWorkingHoursSchema.safeParse({
-        id: formData.get('id'),
+    const validatedFields = RefinedCampusWorkingHoursSchema.safeParse({
+        id: formData.get('id') || undefined,
         operation: formData.get('operation'),
-        campusName: formData.get('campusName'),
-        checkInStartTime: formData.get('checkInStartTime'),
-        checkInEndTime: formData.get('checkInEndTime'),
-        checkOutStartTime: formData.get('checkOutStartTime'),
-        checkOutEndTime: formData.get('checkOutEndTime'),
+        campusName: formData.get('campusName') || undefined,
+        checkInStartTime: formData.get('checkInStartTime') || undefined,
+        checkInEndTime: formData.get('checkInEndTime') || undefined,
+        checkOutStartTime: formData.get('checkOutStartTime') || undefined,
+        checkOutEndTime: formData.get('checkOutEndTime') || undefined,
         actorId: formData.get('actorId'),
         actorEmail: formData.get('actorEmail'),
         actorRole: formData.get('actorRole'),
     });
-
+    
     if (!validatedFields.success) {
         return {
             errors: validatedFields.error.flatten().fieldErrors,
@@ -602,7 +616,8 @@ export async function manageCampusWorkingHoursAction(
     try {
         switch(operation) {
             case 'add':
-                 // Use campusName as the document ID to enforce uniqueness
+                if (!data.campusName) return { success: false, errors: { form: ["Campus name missing."] } };
+                // Use campusName as the document ID to enforce uniqueness
                 const addDocRef = doc(collectionRef, data.campusName);
                 const addDocSnap = await getDoc(addDocRef);
                 if (addDocSnap.exists()) {
@@ -614,6 +629,7 @@ export async function manageCampusWorkingHoursAction(
 
             case 'update':
                 if (!id) return { success: false, errors: { form: ["Record ID is missing for update."] } };
+                if (!data.campusName) return { success: false, errors: { form: ["Campus name missing."] } };
                 const updateDocRef = doc(collectionRef, id);
                 await updateDoc(updateDocRef, data);
                 await logSystemEvent("Update Campus Working Hours", { actorId, actorEmail, actorRole, campusName: data.campusName });
