@@ -1831,7 +1831,7 @@ function EmployeeManagementContent() {
 export default function EmployeeManagementPage() {
   return (
     <AppLayout>
-      <EmployeeManagementPageContent />
+      <EmployeeManagementContent />
     </AppLayout>
   );
 }
