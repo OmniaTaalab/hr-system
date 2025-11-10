@@ -117,10 +117,18 @@ function AllLeaveRequestsContent() {
       
       // Admins and HR see all requests.
       if (userRole !== 'admin' && userRole !== 'hr' && profile?.email) {
-          // Managers see requests from their direct reports (reportLine1)
-          const employeeQuery = query(collection(db, "employee"), where("reportLine1", "==", profile.email));
-          const employeeSnapshot = await getDocs(employeeQuery);
-          const subordinateIds = employeeSnapshot.docs.map(doc => doc.id);
+          // Managers see requests from their direct reports (reportLine1 or reportLine2)
+          const reportLine1Query = query(collection(db, "employee"), where("reportLine1", "==", profile.email));
+          const reportLine2Query = query(collection(db, "employee"), where("reportLine2", "==", profile.email));
+
+          const [reportLine1Snapshot, reportLine2Snapshot] = await Promise.all([
+            getDocs(reportLine1Query),
+            getDocs(reportLine2Query),
+          ]);
+          
+          const subordinateIds1 = reportLine1Snapshot.docs.map(doc => doc.id);
+          const subordinateIds2 = reportLine2Snapshot.docs.map(doc => doc.id);
+          const subordinateIds = [...new Set([...subordinateIds1, ...subordinateIds2])];
           
           if (subordinateIds.length > 0) {
               q.push(where("requestingEmployeeDocId", "in", subordinateIds));
@@ -476,3 +484,4 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
+
