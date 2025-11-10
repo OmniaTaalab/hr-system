@@ -77,7 +77,7 @@ export default function LoginPage() {
     if (user?.email) {
       const q = query(
         collection(db, "employee"),
-        where("nisEmail", "==", user.email),
+        where("email", "==", user.email),
         limit(1)
       );
       const employeeSnapshot = await getDocs(q);
@@ -175,15 +175,15 @@ export default function LoginPage() {
       const user = result.user;
       
       if (user?.email) {
-        const nisEmailQuery = query(collection(db, "employee"), where("nisEmail", "==", user.email), limit(1));
+        const workEmailQuery = query(collection(db, "employee"), where("email", "==", user.email), limit(1));
         const personalEmailQuery = query(collection(db, "employee"), where("personalEmail", "==", user.email), limit(1));
         
-        const [nisEmailSnapshot, personalEmailSnapshot] = await Promise.all([
-          getDocs(nisEmailQuery),
+        const [workEmailSnapshot, personalEmailSnapshot] = await Promise.all([
+          getDocs(workEmailQuery),
           getDocs(personalEmailQuery)
         ]);
 
-        const employeeSnapshot = !nisEmailSnapshot.empty ? nisEmailSnapshot : personalEmailSnapshot;
+        const employeeSnapshot = !workEmailSnapshot.empty ? workEmailSnapshot : personalEmailSnapshot;
         
         if (!employeeSnapshot.empty) {
           const employeeDoc = employeeSnapshot.docs[0];
@@ -225,12 +225,17 @@ export default function LoginPage() {
                     errorMessage = "This Google account is already associated with a user.";
                 } else if (methods.includes('password')) {
                     try {
-                        const userCredential = await signInWithEmailAndPassword(auth, email, prompt("Please enter your password to link your Google account:") as string);
-                        const credential = GoogleAuthProvider.credentialFromError(error);
-                        if (userCredential.user && credential) {
-                            await linkWithCredential(userCredential.user, credential);
-                            await handleAuthSuccess(userCredential.user);
-                            return; // Exit function on success
+                        const password = prompt("An account with this email already exists. Please enter your password to link your Google account:");
+                        if (password) {
+                            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                            const credential = GoogleAuthProvider.credentialFromError(error);
+                            if (userCredential.user && credential) {
+                                await linkWithCredential(userCredential.user, credential);
+                                await handleAuthSuccess(userCredential.user);
+                                return; // Exit function on success
+                            }
+                        } else {
+                           errorMessage = "Password not provided. Account linking cancelled.";
                         }
                     } catch (linkError: any) {
                         errorMessage = `Failed to link accounts: ${linkError.message}`;
@@ -396,3 +401,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+    
