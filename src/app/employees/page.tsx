@@ -216,7 +216,6 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [campus, setCampus] = useState("");
   const [gender, setGender] = useState("");
   const [stage, setStage] = useState("");
-  const [subject, setSubject] = useState("");
   const [childrenAtNIS, setChildrenAtNIS] = useState<'Yes' | 'No'>('No');
 
   const addFormRef = useRef<HTMLFormElement>(null);
@@ -256,7 +255,6 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         <input type="hidden" name="campus" value={campus} />
         <input type="hidden" name="gender" value={gender || ''} />
         <input type="hidden" name="stage" value={stage || ''} />
-        <input type="hidden" name="subject" value={subject || ''} />
         <input type="hidden" name="childrenAtNIS" value={childrenAtNIS} />
         <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
         <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
@@ -326,7 +324,10 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Stage</Label><Select value={stage} onValueChange={setStage} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger><SelectContent>{stages.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-2"><Label>Subject</Label><Select value={subject} onValueChange={setSubject} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Subject"} /></SelectTrigger><SelectContent>{subjects.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2">
+                <Label htmlFor="add-subject">Subject</Label>
+                <Input id="add-subject" name="subject" />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Campus</Label>
@@ -373,7 +374,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
   const [campus, setCampus] = useState(employee.campus || '');
   const [gender, setGender] = useState(employee.gender || "");
   const [stage, setStage] = useState(employee.stage || "");
-  const [subject, setSubject] = useState(employee.subject || "");
   const [childrenAtNIS, setChildrenAtNIS] = useState<'Yes' | 'No'>(employee.childrenAtNIS || 'No');
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(safeToDate(employee.dateOfBirth));
   const [joiningDate, setJoiningDate] = useState<Date | undefined>(safeToDate(employee.joiningDate));
@@ -421,7 +421,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         <input type="hidden" name="campus" value={campus || ''} />
         <input type="hidden" name="gender" value={gender || ''} />
         <input type="hidden" name="stage" value={stage || ''} />
-        <input type="hidden" name="subject" value={subject || ''} />
         <input type="hidden" name="childrenAtNIS" value={childrenAtNIS} />
         <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
         <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
@@ -590,11 +589,8 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                   {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
               </div>
                <div className="space-y-2">
-                    <Label>Subject</Label>
-                    <Select value={subject} onValueChange={setSubject} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Subject"} /></SelectTrigger>
-                        <SelectContent>{subjects.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
-                    </Select>
+                    <Label htmlFor="edit-subject">Subject</Label>
+                    <Input id="edit-subject" name="subject" defaultValue={employee.subject || ''} />
                     {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
                 </div>
             </div>
@@ -1835,7 +1831,7 @@ function EmployeeManagementContent() {
 export default function EmployeeManagementPage() {
   return (
     <AppLayout>
-      <EmployeeManagementContent />
+      <EmployeeManagementPageContent />
     </AppLayout>
   );
 }
