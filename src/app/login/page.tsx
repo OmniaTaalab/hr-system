@@ -23,6 +23,8 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   signOut,
+  fetchSignInMethodsForEmail,
+  linkWithCredential,
 } from "firebase/auth";
 import { auth, db } from "@/lib/firebase/config";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -216,7 +218,27 @@ export default function LoginPage() {
             errorMessage = 'Sign-in pop-up was blocked by the browser. Please allow pop-ups for this site and try again.';
             break;
           case 'auth/account-exists-with-different-credential':
-            errorMessage = 'An account already exists with the same email address but different sign-in credentials. Please sign in using the original method.';
+            const email = error.customData.email;
+            if (email) {
+                const methods = await fetchSignInMethodsForEmail(auth, email);
+                if (methods.includes(GoogleAuthProvider.PROVIDER_ID)) {
+                    errorMessage = "This Google account is already associated with a user.";
+                } else if (methods.includes('password')) {
+                    try {
+                        const userCredential = await signInWithEmailAndPassword(auth, email, prompt("Please enter your password to link your Google account:") as string);
+                        const credential = GoogleAuthProvider.credentialFromError(error);
+                        if (userCredential.user && credential) {
+                            await linkWithCredential(userCredential.user, credential);
+                            await handleAuthSuccess(userCredential.user);
+                            return; // Exit function on success
+                        }
+                    } catch (linkError: any) {
+                        errorMessage = `Failed to link accounts: ${linkError.message}`;
+                    }
+                }
+            } else {
+              errorMessage = 'An account already exists with this email address. Please sign in using the original method.';
+            }
             break;
           case 'auth/popup-closed-by-user':
               errorMessage = 'Sign-in cancelled. The pop-up window was closed before completing the sign-in process.';
