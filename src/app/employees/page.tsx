@@ -917,16 +917,18 @@ function EmployeeManagementContent() {
     const userRole = profile?.role?.toLowerCase();
 
     // Managers see only their direct reports
-    if (userRole && userRole !== 'admin' && userRole !== 'hr') {
+    if (userRole && userRole !== 'admin' && userRole !== 'hr' && profile?.email) {
         q.push(where("reportLine1", "==", profile?.email));
     }
     
     // Admins and HR see everyone
     const employeeCollection = collection(db, "employee");
-    const finalQuery = query(employeeCollection, ...q, orderBy("name"));
+    const finalQuery = query(employeeCollection, ...q);
 
     const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
         const employeeData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        // Sort client-side
+        employeeData.sort((a,b) => a.name.localeCompare(b.name));
         setAllEmployees(employeeData);
         setIsLoading(false);
     }, (error) => {
