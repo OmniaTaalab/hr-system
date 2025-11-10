@@ -909,25 +909,24 @@ function EmployeeManagementContent() {
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
 
-  const hasFullView = useMemo(() => {
-    if (!profile) return false;
-    const userRole = profile.role?.toLowerCase();
-    return userRole === 'admin' || userRole === 'hr' || userRole === 'principal';
-  }, [profile]);
-
   useEffect(() => {
     if (isLoadingProfile) return;
-    
+
     setIsLoading(true);
+    let q: QueryConstraint[] = [];
+    const userRole = profile?.role?.toLowerCase();
 
+    // Managers see only their direct reports
+    if (userRole && userRole !== 'admin' && userRole !== 'hr') {
+        q.push(where("reportLine1", "==", profile?.email));
+    }
+    
+    // Admins and HR see everyone
     const employeeCollection = collection(db, "employee");
-    let q = query(employeeCollection, orderBy("name"));
+    const finalQuery = query(employeeCollection, ...q, orderBy("name"));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const employeeData = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return { id: doc.id, ...data } as Employee;
-        });
+    const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
+        const employeeData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
         setAllEmployees(employeeData);
         setIsLoading(false);
     }, (error) => {
@@ -935,14 +934,13 @@ function EmployeeManagementContent() {
         toast({
             variant: "destructive",
             title: "Error",
-            description: "Could not load employees.",
+            description: "Could not load employees. This may be a permissions issue or a missing Firestore index.",
         });
         setIsLoading(false);
     });
 
     return () => unsubscribe();
-}, [hasFullView, isLoadingProfile, toast]);
-
+}, [profile, isLoadingProfile, toast]);
   
   useEffect(() => {
     if (createLoginServerState?.message) {
@@ -1033,21 +1031,7 @@ function EmployeeManagementContent() {
   }, [allEmployees]);
   
   const filteredEmployees = useMemo(() => {
-    if (!profile) return [];
-    
     let listToFilter = allEmployees;
-    const userRole = profile?.role?.toLowerCase();
-    
-    // Non-privileged users and non-managers see only themselves.
-    if (userRole !== 'admin' && userRole !== 'hr' && userRole !== 'principal') {
-        const isManager = allEmployees.some(emp => emp.reportLine1 === profile.email);
-        if (!isManager) {
-            return listToFilter.filter(emp => emp.id === profile.id);
-        } else {
-            // It's a manager, so filter for their reports, excluding themselves.
-            listToFilter = listToFilter.filter(emp => emp.reportLine1 === profile.email && emp.id !== profile.id);
-        }
-    }
 
     if (campusFilter !== "All") listToFilter = listToFilter.filter(emp => emp.campus === campusFilter);
     if (stageFilter !== "All") listToFilter = listToFilter.filter(emp => emp.stage === stageFilter);
@@ -1080,7 +1064,7 @@ function EmployeeManagementContent() {
     }
     
     return listToFilter;
-  }, [allEmployees, searchTerm, profile, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter]);
+  }, [allEmployees, searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter]);
   
   const activeEmployeesCount = useMemo(() => {
     return filteredEmployees.filter(emp => emp.status !== 'deactivated').length;
@@ -1305,7 +1289,7 @@ function EmployeeManagementContent() {
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 {isLoadingProfile ? (
                     <Skeleton className="h-10 w-[190px]" />
-                ) : canManageEmployee({} as Employee) && (
+                ) : (profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr') && (
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                         <Button className="w-full" onClick={handleDownloadTemplate} variant="outline">
                            <Download className="mr-2 h-4 w-4" />

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -105,27 +106,33 @@ function AllLeaveRequestsContent() {
   
   const [deleteServerState, deleteFormAction, isDeletePending] = useActionState(deleteLeaveRequestAction, initialDeleteState);
   
-  const canManageAllRequests = useMemo(() => {
-    if (!profile) return false;
-    const userRole = profile.role?.toLowerCase();
-    return userRole === 'admin' || userRole === 'hr'; 
-  }, [profile]);
-  
   useEffect(() => {
     if (isLoadingProfile) return;
 
     setIsLoading(true);
 
     const buildQuery = async () => {
-      let queryConstraints: QueryConstraint[] = [];
+      let q: QueryConstraint[] = [];
+      const userRole = profile?.role?.toLowerCase();
       
-      // Managers see requests where they are the current approver.
-      // HR/Admin see all requests.
-      if (!canManageAllRequests && profile?.email) {
-         queryConstraints.push(where("currentApprover", "==", profile.email));
+      // Admins and HR see all requests.
+      if (userRole !== 'admin' && userRole !== 'hr' && profile?.email) {
+          // Managers see requests from their direct reports (reportLine1)
+          const employeeQuery = query(collection(db, "employee"), where("reportLine1", "==", profile.email));
+          const employeeSnapshot = await getDocs(employeeQuery);
+          const subordinateIds = employeeSnapshot.docs.map(doc => doc.id);
+          
+          if (subordinateIds.length > 0) {
+              q.push(where("requestingEmployeeDocId", "in", subordinateIds));
+          } else {
+              // If not a manager of anyone, they shouldn't see any requests on this page.
+              setAllRequests([]);
+              setIsLoading(false);
+              return () => {}; // Return an empty unsubscribe function
+          }
       }
 
-      const finalQuery = query(collection(db, "leaveRequests"), ...queryConstraints);
+      const finalQuery = query(collection(db, "leaveRequests"), ...q);
 
       const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
         const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
@@ -154,7 +161,7 @@ function AllLeaveRequestsContent() {
             }
         });
     };
-  }, [profile, isLoadingProfile, toast, canManageAllRequests]);
+  }, [profile, isLoadingProfile, toast]);
 
 
   useEffect(() => {
@@ -332,7 +339,7 @@ function AllLeaveRequestsContent() {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="All">All Statuses</SelectItem>
-                        {!canManageAllRequests && <SelectItem value="MyPending">Pending My Approval</SelectItem>}
+                        <SelectItem value="MyPending">Pending My Approval</SelectItem>
                         <SelectItem value="Pending">Pending</SelectItem>
                         <SelectItem value="Approved">Approved</SelectItem>
                         <SelectItem value="Rejected">Rejected</SelectItem>
