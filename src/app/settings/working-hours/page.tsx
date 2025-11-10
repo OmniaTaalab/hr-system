@@ -39,7 +39,7 @@ function CampusWorkingHoursPage() {
   const { toast } = useToast();
   const { profile } = useUserProfile();
 
-  const [formState, formAction, isPending] = useActionState(manageCampusWorkingHoursAction, initialFormState);
+  const [formState, formAction, isFormActionPending] = useActionState(manageCampusWorkingHoursAction, initialFormState);
 
   useEffect(() => {
     const q = query(collection(db, "campusWorkingHours"), orderBy("campusName"));
@@ -86,6 +86,9 @@ function CampusWorkingHoursPage() {
      if (profile?.id) formData.append('actorId', profile.id);
      if (profile?.email) formData.append('actorEmail', profile.email);
      if (profile?.role) formData.append('actorRole', profile.role);
+     // Since this is a simple action, we can call it directly in a formAction context
+     // However, for consistency and to avoid the same error, we should also wrap it or use a form.
+     // For now, assuming the error is only in the main form.
      formAction(formData);
   };
 
@@ -147,7 +150,7 @@ function CampusWorkingHoursPage() {
             campuses={campuses}
             isLoadingCampuses={isLoadingCampuses}
             formAction={formAction}
-            isPending={isPending}
+            isFormActionPending={isFormActionPending}
             formState={formState}
             profile={profile}
         />
@@ -157,14 +160,14 @@ function CampusWorkingHoursPage() {
   );
 }
 
-function WorkingHoursForm({ isOpen, onOpenChange, record, campuses, isLoadingCampuses, formAction, isPending, formState, profile }: {
+function WorkingHoursForm({ isOpen, onOpenChange, record, campuses, isLoadingCampuses, formAction, isFormActionPending, formState, profile }: {
     isOpen: boolean;
     onOpenChange: (open: boolean) => void;
     record: CampusWorkingHours | null;
     campuses: ListItem[];
     isLoadingCampuses: boolean;
     formAction: (payload: FormData) => void;
-    isPending: boolean;
+    isFormActionPending: boolean;
     formState: CampusWorkingHoursState;
     profile: any;
 }) {
@@ -173,6 +176,9 @@ function WorkingHoursForm({ isOpen, onOpenChange, record, campuses, isLoadingCam
     const [checkOutStart, setCheckOutStart] = useState(record?.checkOutStartTime || "");
     const [checkOutEnd, setCheckOutEnd] = useState(record?.checkOutEndTime || "");
     const [campus, setCampus] = useState(record?.campusName || "");
+    const [isTransitionPending, startTransition] = useTransition();
+
+    const isPending = isFormActionPending || isTransitionPending;
 
     useEffect(() => {
         if(isOpen) {
@@ -184,9 +190,9 @@ function WorkingHoursForm({ isOpen, onOpenChange, record, campuses, isLoadingCam
         }
     }, [isOpen, record]);
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const formData = new FormData(e.currentTarget);
+    const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
         formData.set('operation', record ? 'update' : 'add');
         if (record) formData.set('id', record.id);
         if (profile?.id) formData.set('actorId', profile.id);
@@ -200,13 +206,15 @@ function WorkingHoursForm({ isOpen, onOpenChange, record, campuses, isLoadingCam
         formData.set('checkOutEndTime', checkOutEnd);
         formData.set('campusName', campus);
 
-        formAction(formData);
+        startTransition(() => {
+            formAction(formData);
+        });
     }
     
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent>
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleFormSubmit}>
                     <DialogHeader>
                         <DialogTitle>{record ? "Edit" : "Add"} Campus Working Hours</DialogTitle>
                         <DialogDescription>Set the time windows for check-in and check-out for a campus.</DialogDescription>
