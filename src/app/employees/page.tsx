@@ -208,7 +208,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const { profile } = useUserProfile();
   const [addState, addAction, isAddPending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
-  const { roles, stage: stages, systems, campuses, reportLines1, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, stage: stages, subjects, campuses, reportLines1, isLoading: isLoadingLists } = useOrganizationLists();
   
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
   const [joiningDate, setJoiningDate] = useState<Date | undefined>();
@@ -216,6 +216,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [campus, setCampus] = useState("");
   const [gender, setGender] = useState("");
   const [stage, setStage] = useState("");
+  const [subject, setSubject] = useState("");
   const [childrenAtNIS, setChildrenAtNIS] = useState<'Yes' | 'No'>('No');
 
   const addFormRef = useRef<HTMLFormElement>(null);
@@ -255,6 +256,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         <input type="hidden" name="campus" value={campus} />
         <input type="hidden" name="gender" value={gender || ''} />
         <input type="hidden" name="stage" value={stage || ''} />
+        <input type="hidden" name="subject" value={subject || ''} />
         <input type="hidden" name="childrenAtNIS" value={childrenAtNIS} />
         <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
         <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
@@ -324,7 +326,11 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Stage</Label><Select value={stage} onValueChange={setStage} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger><SelectContent>{stages.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-2"><Label>Campus</Label><Select value={campus} onValueChange={setCampus} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger><SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label>Subject</Label><Select value={subject} onValueChange={setSubject} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Subject"} /></SelectTrigger><SelectContent>{subjects.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select></div>
+            </div>
+            <div className="space-y-2">
+              <Label>Campus</Label>
+              <Select value={campus} onValueChange={setCampus} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger><SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent></Select>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2"><Label htmlFor="add-reportLine1">Report Line 1</Label><Input id="add-reportLine1" name="reportLine1" /></div>
@@ -583,7 +589,16 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                   </Select>
                   {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
               </div>
-              <div className="space-y-2">
+               <div className="space-y-2">
+                    <Label>Subject</Label>
+                    <Select value={subject} onValueChange={setSubject} disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Subject"} /></SelectTrigger>
+                        <SelectContent>{subjects.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                    {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
+                </div>
+            </div>
+             <div className="space-y-2">
                   <Label>Campus</Label>
                    <Select value={campus} onValueChange={setCampus} disabled={isLoadingLists}>
                       <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger>
@@ -591,7 +606,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                   </Select>
                   {serverState?.errors?.campus && <p className="text-sm text-destructive">{serverState.errors.campus.join(', ')}</p>}
               </div>
-            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -601,14 +615,6 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                         <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
                     </Select>
                     {serverState?.errors?.system && <p className="text-sm text-destructive">{serverState.errors.system.join(', ')}</p>}
-                </div>
-                 <div className="space-y-2">
-                    <Label>Subject</Label>
-                    <Select value={subject} onValueChange={setSubject} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Subject"} /></SelectTrigger>
-                        <SelectContent>{subjects.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                    {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
                 </div>
             </div>
             
