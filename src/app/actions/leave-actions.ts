@@ -118,6 +118,7 @@ export async function submitLeaveRequestAction(
       employeeStage: employeeData.stage ?? null,
       employeeCampus: employeeData.campus ?? null,
       reportLine1: employeeData.reportLine1 ?? null,
+      reportLine2: employeeData.reportLine2 ?? null,
       leaveType,
       startDate: Timestamp.fromDate(startDate),
       endDate: Timestamp.fromDate(endDate),
@@ -127,6 +128,9 @@ export async function submitLeaveRequestAction(
       status: "Pending",
       submittedAt: serverTimestamp(),
       managerNotes: "",
+      currentApprover: employeeData.reportLine1 ?? null,
+      approvedBy: [],
+      rejectedBy: [],
     });
 
     await logSystemEvent("Submit Leave Request", {
@@ -140,7 +144,6 @@ export async function submitLeaveRequestAction(
 
     // Notify Manager via personal notification and email
     if (employeeData.reportLine1) {
-      // Find the manager's user record to get their UID and Email
       const managerQuery = query(collection(db, "employee"), where("email", "==", employeeData.reportLine1), limit(1));
       const managerSnapshot = await getDocs(managerQuery);
       
@@ -152,9 +155,8 @@ export async function submitLeaveRequestAction(
         const managerDoc = managerSnapshot.docs[0];
         const managerData = managerDoc.data();
         const managerUserId = managerData.userId;
-        const managerEmail = managerData.email; // The manager's actual email address
+        const managerEmail = managerData.email;
 
-        // Send personal in-app notification if manager has a userId
         if (managerUserId) {
           await addDoc(collection(db, `users/${managerUserId}/notifications`), {
             message: notificationMessage,
@@ -164,11 +166,10 @@ export async function submitLeaveRequestAction(
           });
         }
         
-        // Send email to manager's actual email address
         if (managerEmail) {
             const emailHtml = render(
                 LeaveRequestNotificationEmail({
-                managerName: managerData.name, // Use manager's name for greeting
+                managerName: managerData.name,
                 employeeName,
                 leaveType,
                 startDate: startDate.toLocaleDateString(),
@@ -188,7 +189,6 @@ export async function submitLeaveRequestAction(
             });
         }
       } else {
-        // If manager not found as employee, send to global notifications as fallback for HR/Admin
          await addDoc(collection(db, "notifications"), {
             message: `New leave request from ${employeeName} (Manager '${employeeData.reportLine1}' not found).`,
             link: requestLink,
@@ -197,7 +197,6 @@ export async function submitLeaveRequestAction(
         });
       }
     } else {
-        // No report line, send a global notification for HR/Admin
          await addDoc(collection(db, "notifications"), {
             message: `New leave request from ${employeeName} (No manager assigned).`,
             link: `/leave/all-requests/${newRequestRef.id}`,
@@ -216,7 +215,6 @@ export async function submitLeaveRequestAction(
   }
 }
 
-// Schema for updating leave request status
 const updateStatusSchema = z.object({
   requestId: z.string().min(1, "Request ID is required."),
   newStatus: z.enum(["Approved", "Rejected"], { required_error: "New status is required." }),
@@ -228,12 +226,7 @@ const updateStatusSchema = z.object({
 
 
 export type UpdateLeaveStatusState = {
-  errors?: {
-    requestId?: string[];
-    newStatus?: string[];
-    managerNotes?: string[];
-    form?: string[];
-  };
+  errors?: z.inferFlattenedErrors<typeof updateStatusSchema>['fieldErrors'];
   message?: string | null;
   success?: boolean;
 };
@@ -260,80 +253,107 @@ export async function updateLeaveRequestStatusAction(
   }
   
   const { requestId, newStatus, managerNotes, actorId, actorEmail, actorRole } = validatedFields.data;
+  const approverEmail = actorEmail || '';
 
   try {
     const requestRef = doc(db, "leaveRequests", requestId);
-    await updateDoc(requestRef, {
-      status: newStatus,
-      managerNotes: managerNotes || "", 
-      updatedAt: serverTimestamp(), 
-    });
+    const requestSnap = await getDoc(requestRef);
+
+    if (!requestSnap.exists()) {
+      return { errors: { form: ["Leave request not found."] }, success: false };
+    }
+    
+    const requestData = requestSnap.data();
+
+    if (requestData.currentApprover !== approverEmail) {
+        return { errors: { form: ["You are not the current approver for this request."] }, success: false };
+    }
+    
+    const updates: any = {
+      managerNotes: managerNotes || requestData.managerNotes || "", 
+      updatedAt: serverTimestamp(),
+    };
+
+    let isFinalDecision = false;
+    let finalStatus = "";
+
+    if (newStatus === "Rejected") {
+      updates.status = "Rejected";
+      updates.rejectedBy = [...(requestData.rejectedBy || []), approverEmail];
+      updates.currentApprover = null;
+      isFinalDecision = true;
+      finalStatus = "Rejected";
+    } else { // Approved
+      updates.approvedBy = [...(requestData.approvedBy || []), approverEmail];
+      
+      if (requestData.reportLine2 && approverEmail === requestData.reportLine1) {
+        updates.currentApprover = requestData.reportLine2;
+        // Notify reportLine2
+        const managerQuery = query(collection(db, "employee"), where("email", "==", requestData.reportLine2), limit(1));
+        const managerSnapshot = await getDocs(managerQuery);
+        if(!managerSnapshot.empty){
+          const managerDoc = managerSnapshot.docs[0];
+          const managerData = managerDoc.data();
+          const notificationMessage = `Leave request from ${requestData.employeeName} is awaiting your approval.`;
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+          const requestLink = `${appUrl}/leave/all-requests/${requestId}`;
+          
+          if(managerData.userId){
+             await addDoc(collection(db, `users/${managerData.userId}/notifications`), {
+                message: notificationMessage,
+                link: requestLink,
+                createdAt: serverTimestamp(),
+                isRead: false,
+            });
+          }
+          if(managerData.email){
+             const emailHtml = render(LeaveRequestNotificationEmail({ managerName: managerData.name, employeeName: requestData.employeeName, leaveType: requestData.leaveType, startDate: requestData.startDate.toDate().toLocaleDateString(), endDate: requestData.endDate.toDate().toLocaleDateString(), reason: "This request has been approved by the first manager and is now awaiting your final approval.", leaveRequestLink: requestLink }));
+             await addDoc(collection(db, "mail"), { to: managerData.email, message: { subject: `Leave Request Awaiting Your Approval`, html: emailHtml }, status: "pending", createdAt: serverTimestamp() });
+          }
+        }
+      } else {
+        updates.status = "Approved";
+        updates.currentApprover = null;
+        isFinalDecision = true;
+        finalStatus = "Approved";
+      }
+    }
+    
+    await updateDoc(requestRef, updates);
 
     await logSystemEvent("Update Leave Request Status", {
         actorId,
         actorEmail,
         actorRole,
         leaveRequestId: requestId,
-        newStatus,
+        newStatus: updates.status || "Pending",
     });
-    
-    // Send notification to the user who requested the leave
-    const requestSnap = await getDoc(requestRef);
-    if (requestSnap.exists()) {
-      const requestData = requestSnap.data();
-      const employeeDocId = requestData.requestingEmployeeDocId;
-      
-      if (employeeDocId) {
-        const employeeDoc = await getDoc(doc(db, "employee", employeeDocId));
+
+    if(isFinalDecision){
+        // Notify original requester of final decision
+        const employeeDoc = await getDoc(doc(db, "employee", requestData.requestingEmployeeDocId));
         if (employeeDoc.exists()) {
           const employeeData = employeeDoc.data();
           const employeeUserId = employeeData.userId;
-          const employeeUserEmail = employeeData.email; // Employee's actual email address
+          const employeeUserEmail = employeeData.email;
 
-          const notificationMessage = `Your leave request for ${requestData.leaveType} has been ${newStatus.toLowerCase()}.`;
+          const notificationMessage = `Your leave request for ${requestData.leaveType} has been ${finalStatus.toLowerCase()}.`;
           const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
           const requestLink = `${appUrl}/leave/all-requests/${requestId}`;
 
-          // 1. Send in-app notification to the user's personal notifications subcollection
           if (employeeUserId) {
-            await addDoc(collection(db, `users/${employeeUserId}/notifications`), {
-              message: notificationMessage,
-              link: requestLink,
-              createdAt: serverTimestamp(),
-              isRead: false,
-            });
+            await addDoc(collection(db, `users/${employeeUserId}/notifications`), { message: notificationMessage, link: requestLink, createdAt: serverTimestamp(), isRead: false });
           }
 
-          // 2. Send email notification to the employee's actual email
           if (employeeUserEmail) {
-            const emailHtml = render(
-              LeaveRequestNotificationEmail({
-                managerName: employeeData.name, // The email is TO the employee
-                employeeName: employeeData.name,
-                leaveType: requestData.leaveType,
-                startDate: requestData.startDate.toDate().toLocaleDateString(),
-                endDate: requestData.endDate.toDate().toLocaleDateString(),
-                reason: `Your leave request has been ${newStatus}. Manager notes: ${managerNotes || 'N/A'}`,
-                leaveRequestLink: requestLink,
-              })
-            );
-
-            await addDoc(collection(db, "mail"), {
-              to: employeeUserEmail,
-              message: {
-                subject: `Update on Your Leave Request: ${newStatus}`,
-                html: emailHtml,
-              },
-              status: "pending",
-              createdAt: serverTimestamp(),
-            });
+            const emailHtml = render(LeaveRequestNotificationEmail({ managerName: employeeData.name, employeeName: employeeData.name, leaveType: requestData.leaveType, startDate: requestData.startDate.toDate().toLocaleDateString(), endDate: requestData.endDate.toDate().toLocaleDateString(), reason: `Your leave request has been ${finalStatus}. Manager notes: ${managerNotes || 'N/A'}`, leaveRequestLink: requestLink }));
+            await addDoc(collection(db, "mail"), { to: employeeUserEmail, message: { subject: `Update on Your Leave Request: ${finalStatus}`, html: emailHtml }, status: "pending", createdAt: serverTimestamp() });
           }
         }
-      }
     }
 
+    return { message: `Leave request status updated.`, success: true };
 
-    return { message: `Leave request status updated to ${newStatus}.`, success: true };
   } catch (error: any) {
     console.error("Error updating leave request status:", error);
     return {

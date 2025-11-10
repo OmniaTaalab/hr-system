@@ -57,6 +57,7 @@ export interface LeaveRequestEntry {
   employeeStage?: string; 
   employeeCampus?: string; 
   reportLine1?: string;
+  reportLine2?: string;
   leaveType: string;
   startDate: Timestamp;
   endDate: Timestamp;
@@ -67,6 +68,8 @@ export interface LeaveRequestEntry {
   updatedAt?: Timestamp;
   numberOfDays?: number; 
   attachmentURL?: string; 
+  currentApprover?: string | null;
+  approvedBy?: string[];
 }
 
 const initialDeleteState: DeleteLeaveRequestState = { message: null, errors: {}, success: false };
@@ -89,7 +92,7 @@ function AllLeaveRequestsContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Approved" | "Rejected">("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Approved" | "Rejected" | "MyPending">("All");
   const [campusFilter, setCampusFilter] = useState<string>("All");
   const [stageFilter, setStageFilter] = useState<string>("All");
   const [allRequests, setAllRequests] = useState<LeaveRequestEntry[]>([]);
@@ -116,44 +119,11 @@ function AllLeaveRequestsContent() {
     const buildQuery = async () => {
       let queryConstraints: QueryConstraint[] = [];
       
-      // Managers should see requests from their reports. HR/Admin see all.
+      // Managers see requests where they are the current approver.
+      // HR/Admin see all requests.
       if (!canManageAllRequests && profile?.email) {
-        try {
-          // Find employees who report to the current user
-          const reportsQuery = query(
-            collection(db, "employee"),
-            where("reportLine1", "==", profile.email)
-          );
-          const reportsSnapshot = await getDocs(reportsQuery);
-          
-          if (reportsSnapshot.empty) {
-            // If they are not a manager for anyone, they should see no requests.
-            setAllRequests([]);
-            setIsLoading(false);
-            return () => {}; // Return an empty unsubscribe function
-          }
-          
-          const reportIds = reportsSnapshot.docs.map(doc => doc.id);
-          // Firestore 'in' queries are limited to 30 items per query.
-          // For now, assuming a manager has <= 30 direct reports. If more, pagination/multiple queries would be needed.
-          if (reportIds.length > 0) {
-            queryConstraints.push(where("requestingEmployeeDocId", "in", reportIds.slice(0, 30)));
-          } else {
-             // This case is already handled by the empty check, but as a fallback:
-            setAllRequests([]);
-            setIsLoading(false);
-            return () => {};
-          }
-        } catch (error) {
-          console.error("Error finding direct reports:", error);
-          // Fallback to returning nothing on error.
-          setAllRequests([]);
-          setIsLoading(false);
-          return () => {};
-        }
+         queryConstraints.push(where("currentApprover", "==", profile.email));
       }
-
-      // Admins and HR will have no constraints here, fetching all requests.
 
       const finalQuery = query(collection(db, "leaveRequests"), ...queryConstraints);
 
@@ -214,7 +184,11 @@ function AllLeaveRequestsContent() {
     let requests = allRequests;
 
     if (statusFilter !== "All") {
-      requests = requests.filter(item => item.status === statusFilter);
+        if(statusFilter === 'MyPending'){
+            requests = requests.filter(item => item.status === 'Pending' && item.currentApprover === profile?.email);
+        } else {
+            requests = requests.filter(item => item.status === statusFilter);
+        }
     }
     
     if (campusFilter !== "All") {
@@ -240,7 +214,7 @@ function AllLeaveRequestsContent() {
       });
     }
     return requests;
-  }, [allRequests, searchTerm, statusFilter, campusFilter, stageFilter]);
+  }, [allRequests, searchTerm, statusFilter, campusFilter, stageFilter, profile?.email]);
   
   const handleExportExcel = () => {
     if (filteredRequests.length === 0) {
@@ -352,12 +326,13 @@ function AllLeaveRequestsContent() {
               </div>
               <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
                 <Filter className="h-4 w-4 text-muted-foreground hidden sm:block"/>
-                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "All" | "Pending" | "Approved" | "Rejected")}>
-                    <SelectTrigger className="w-full sm:w-[150px]">
+                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "All" | "Pending" | "Approved" | "Rejected" | "MyPending")}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
                         <SelectValue placeholder="Filter by status" />
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="All">All Statuses</SelectItem>
+                        {!canManageAllRequests && <SelectItem value="MyPending">Pending My Approval</SelectItem>}
                         <SelectItem value="Pending">Pending</SelectItem>
                         <SelectItem value="Approved">Approved</SelectItem>
                         <SelectItem value="Rejected">Rejected</SelectItem>
@@ -399,33 +374,35 @@ function AllLeaveRequestsContent() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee Name</TableHead>
-                  <TableHead>Stage</TableHead>
-                  <TableHead>Campus</TableHead>
                   <TableHead>Leave Type</TableHead>
                   <TableHead>Start Date</TableHead>
                   <TableHead>End Date</TableHead>
-                  <TableHead>Working Days</TableHead>
+                  <TableHead>Days</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Current Approver</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredRequests.length > 0 ? (
                   filteredRequests.map((request) => {
-                    const startDate = request.startDate.toDate();
-                    const endDate = request.endDate.toDate();
-                    const fallbackDays = 0;
+                    const isPendingMyApproval = request.status === 'Pending' && request.currentApprover === profile?.email;
                     return (
-                      <TableRow key={request.id} onClick={() => router.push(`/leave/all-requests/${request.id}`)} className="cursor-pointer">
+                      <TableRow 
+                          key={request.id} 
+                          onClick={() => router.push(`/leave/all-requests/${request.id}`)} 
+                          className={cn("cursor-pointer", isPendingMyApproval && "bg-yellow-100/50 hover:bg-yellow-100/70 dark:bg-yellow-900/20 dark:hover:bg-yellow-900/30")}
+                      >
                         <TableCell className="font-medium">{request.employeeName}</TableCell>
-                        <TableCell>{request.employeeStage}</TableCell>
-                        <TableCell>{request.employeeCampus}</TableCell>
                         <TableCell>{request.leaveType}</TableCell>
-                        <TableCell>{format(startDate, "PPP")}</TableCell>
-                        <TableCell>{format(endDate, "PPP")}</TableCell>
-                        <TableCell>{request.numberOfDays ?? fallbackDays}</TableCell>
+                        <TableCell>{format(request.startDate.toDate(), "PPP")}</TableCell>
+                        <TableCell>{format(request.endDate.toDate(), "PPP")}</TableCell>
+                        <TableCell>{request.numberOfDays ?? 0}</TableCell>
                         <TableCell>
                           <LeaveStatusBadge status={request.status} />
+                        </TableCell>
+                         <TableCell>
+                          {request.currentApprover || <Badge variant="outline">N/A</Badge>}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button variant="ghost" size="sm">
@@ -439,7 +416,7 @@ function AllLeaveRequestsContent() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={9} className="h-24 text-center">
-                      {searchTerm || statusFilter !== "All" || campusFilter !== "All" || stageFilter !== "All" ? "No requests found matching your filters." : "No leave requests found."}
+                      No leave requests found matching your filters.
                     </TableCell>
                   </TableRow>
                 )}

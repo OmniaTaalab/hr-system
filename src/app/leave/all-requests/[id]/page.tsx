@@ -6,7 +6,7 @@ import { AppLayout, useUserProfile } from '@/components/layout/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, limit, onSnapshot } from 'firebase/firestore';
-import { Loader2, ArrowLeft, AlertTriangle, User, FileText, Calendar as CalendarIcon, Hourglass, Paperclip, Send, Info, ShieldCheck, ShieldX } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertTriangle, User, FileText, Calendar as CalendarIcon, Hourglass, Paperclip, Send, Info, ShieldCheck, ShieldX, CheckCircle, XCircle } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -27,6 +27,7 @@ interface LeaveRequestEntry {
   employeeStage?: string; 
   employeeCampus?: string; 
   reportLine1?: string;
+  reportLine2?: string;
   leaveType: string;
   startDate: Timestamp;
   endDate: Timestamp;
@@ -37,6 +38,9 @@ interface LeaveRequestEntry {
   updatedAt?: Timestamp;
   numberOfDays?: number; 
   attachmentURL?: string; 
+  currentApprover?: string | null;
+  approvedBy?: string[];
+  rejectedBy?: string[];
 }
 
 const initialUpdateStatusState: UpdateLeaveStatusState = { message: null, errors: {}, success: false };
@@ -147,11 +151,11 @@ function LeaveRequestDetailContent() {
   }, [requestId, toast]);
   
   const canTakeAction = useMemo(() => {
-      if (!profile || !request) return false;
-      const userRole = profile.role?.toLowerCase();
-      if (userRole === 'admin' || userRole === 'hr') return true;
-      if (profile.email === request.reportLine1 && request.status === 'Pending') return true;
-      return false;
+    if (!profile || !request) return false;
+    const userRole = profile.role?.toLowerCase();
+    if (userRole === 'admin' || userRole === 'hr') return true; // HR/Admin can always action
+    if (profile.email === request.currentApprover && request.status === 'Pending') return true;
+    return false;
   }, [profile, request]);
 
   const handleActionClick = (type: "Approved" | "Rejected") => {
@@ -227,6 +231,32 @@ function LeaveRequestDetailContent() {
                         <p className="p-3 bg-muted/50 rounded-md text-sm border">{request.managerNotes}</p>
                     </div>
                 )}
+
+                 <Separator />
+
+                <div className="space-y-2">
+                    <h3 className="text-sm font-semibold text-muted-foreground">Approval Flow</h3>
+                    {request.status === 'Pending' && request.currentApprover && (
+                        <p className="text-sm text-yellow-600 flex items-center gap-2"><Hourglass className="h-4 w-4" /> Awaiting approval from: <strong>{request.currentApprover}</strong></p>
+                    )}
+                    {request.approvedBy && request.approvedBy.length > 0 && (
+                        <div className="text-sm text-green-600 flex items-start gap-2">
+                            <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0"/> 
+                            <div>
+                                Approved by:
+                                <ul className="list-disc pl-5">
+                                    {request.approvedBy.map(email => <li key={email}>{email}</li>)}
+                                </ul>
+                            </div>
+                        </div>
+                    )}
+                    {request.rejectedBy && request.rejectedBy.length > 0 && (
+                        <p className="text-sm text-red-600 flex items-center gap-2"><XCircle className="h-4 w-4" /> Rejected by: <strong>{request.rejectedBy.join(', ')}</strong></p>
+                    )}
+                    {request.status === 'Approved' && (
+                         <p className="text-sm text-green-600 flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Request fully approved.</p>
+                    )}
+                </div>
             </CardContent>
              {canTakeAction && request.status === "Pending" && (
                 <CardContent>
