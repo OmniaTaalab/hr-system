@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -37,6 +38,7 @@ interface Employee {
   photoURL?: string;
   status?: string;
   badgeNumber?: string;
+  campus?: string;
 }
 
 interface AttendanceInfo {
@@ -52,6 +54,7 @@ interface Row {
   employeeId: string;
   name: string;
   photoURL?: string;
+  campus?: string;
   checkIn?: string | null;
   checkOut?: string | null;
   isRegistered: boolean;
@@ -127,6 +130,7 @@ function EmployeeStatusContent() {
             name: toStr(d.name || d.fullName),
             photoURL: d.photoURL ?? undefined,
             badgeNumber: toStr(d.badgeNumber),
+            campus: d.campus,
           };
         });
 
@@ -144,7 +148,7 @@ function EmployeeStatusContent() {
 
         attSnap.forEach((doc) => {
           const data = doc.data() as any;
-          const logEmployeeId = toStr(data.userId);
+          const logEmployeeId = toStr(data.badgeNumber);
           if (!logEmployeeId) return;
 
           if (!attData[logEmployeeId]) {
@@ -188,6 +192,7 @@ function EmployeeStatusContent() {
             employeeId: logEmployeeId,
             name: empRecord?.name || info.name || `ID: ${logEmployeeId}`,
             photoURL: empRecord?.photoURL,
+            campus: empRecord?.campus,
             checkIn: firstIn,
             checkOut: lastOut,
             isRegistered: !!empRecord,
@@ -264,6 +269,7 @@ function EmployeeStatusContent() {
                 <TableRow>
                   <TableHead>#</TableHead>
                   <TableHead>Name</TableHead>
+                  <TableHead>Campus</TableHead>
                   <TableHead>Check In</TableHead>
                   <TableHead>Check Out</TableHead>
                 </TableRow>
@@ -294,6 +300,7 @@ function EmployeeStatusContent() {
                         </div>
                       )}
                     </TableCell>
+                    <TableCell>{e.campus ?? "—"}</TableCell>
                     <TableCell>{e.checkIn ?? "—"}</TableCell>
                     <TableCell>{e.checkOut ?? "—"}</TableCell>
                   </TableRow>
@@ -306,4 +313,3 @@ function EmployeeStatusContent() {
     </div>
   );
 }
-

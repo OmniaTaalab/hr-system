@@ -1,4 +1,3 @@
-
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -50,13 +49,11 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // A more robust check to see if any of the values are still placeholders
   const isFirebaseConfigured = Object.values(auth.app.options).every(
     (value) => typeof value !== "string" || !value.includes("REPLACE_WITH")
   );
 
   useEffect(() => {
-    // Only check auth state if firebase seems configured
     if (isFirebaseConfigured) {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -72,19 +69,16 @@ export default function LoginPage() {
   }, [router, isFirebaseConfigured]);
 
   const handleAuthSuccess = async (user: any) => {
-    // After any successful login, check if the user's email exists in the employee collection
-    // and if the employee record is missing a userId.
     if (user?.email) {
       const q = query(
         collection(db, "employee"),
-        where("email", "==", user.email),
+        where("nisEmail", "==", user.email),
         limit(1)
       );
       const employeeSnapshot = await getDocs(q);
 
       if (!employeeSnapshot.empty) {
         const employeeDoc = employeeSnapshot.docs[0];
-        // If employee exists but doesn't have a userId, link them.
         if (!employeeDoc.data().userId) {
           await updateDoc(doc(db, "employee", employeeDoc.id), {
             userId: user.uid,
@@ -164,42 +158,76 @@ export default function LoginPage() {
     if (!isFirebaseConfigured) {
       const configError = "Firebase is not configured correctly.";
       setError(configError);
-      toast({ variant: "destructive", title: "Configuration Error", description: configError });
+      toast({
+        variant: "destructive",
+        title: "Configuration Error",
+        description: configError,
+      });
       setIsGoogleLoading(false);
       return;
     }
 
     const provider = new GoogleAuthProvider();
+
     try {
+      console.log("🚀 Starting Google Sign-In...");
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-      
+      console.log("✅ Google Sign-In success:", user?.email, user);
+
       if (user?.email) {
-        const workEmailQuery = query(collection(db, "employee"), where("email", "==", user.email), limit(1));
-        const personalEmailQuery = query(collection(db, "employee"), where("personalEmail", "==", user.email), limit(1));
-        
-        const [workEmailSnapshot, personalEmailSnapshot] = await Promise.all([
-          getDocs(workEmailQuery),
-          getDocs(personalEmailQuery)
+        console.log("🔍 Checking Firestore for email:", user.email);
+
+        const nisEmailQuery = query(
+          collection(db, "employee"),
+          where("nisEmail", "==", user.email),
+          limit(1)
+        );
+
+        const emailQuery = query(
+          collection(db, "employee"),
+          where("email", "==", user.email),
+          limit(1)
+        );
+
+        console.log("📡 Running Firestore queries for:", user.email);
+
+        const [nisEmailSnapshot, emailSnapshot] = await Promise.all([
+          getDocs(nisEmailQuery),
+          getDocs(emailQuery),
         ]);
 
-        const employeeSnapshot = !workEmailSnapshot.empty ? workEmailSnapshot : personalEmailSnapshot;
-        
+        console.log(
+          "🧾 nisEmailSnapshot empty?:",
+          nisEmailSnapshot.empty,
+          " emailSnapshot empty?:",
+          emailSnapshot.empty
+        );
+
+        const employeeSnapshot = !nisEmailSnapshot.empty
+          ? nisEmailSnapshot
+          : emailSnapshot;
+
         if (!employeeSnapshot.empty) {
           const employeeDoc = employeeSnapshot.docs[0];
-          // Employee found, update their record with the Firebase Auth UID if it's missing
+          console.log("✅ Found employee doc:", employeeDoc.id, employeeDoc.data());
+
           if (!employeeDoc.data().userId) {
             await updateDoc(doc(db, "employee", employeeDoc.id), {
               userId: user.uid,
             });
-             toast({
+            console.log("🔗 Linked userId to employee:", user.uid);
+            toast({
               title: "Account Linked",
-              description: "Your Google account is now linked to your employee profile.",
+              description:
+                "Your Google account has been linked to your employee profile.",
             });
           }
-          router.push("/"); // Redirect to dashboard on successful login
+
+          console.log("➡️ Redirecting to dashboard...");
+          router.push("/");
         } else {
-          // Employee not found, show error and sign out
+          console.warn("❌ No employee found in Firestore for:", user.email);
           toast({
             variant: "destructive",
             title: "Access Denied",
@@ -208,56 +236,80 @@ export default function LoginPage() {
           await signOut(auth);
         }
       } else {
-          throw new Error("Could not retrieve user email from Google Sign-In.");
+        console.error("🚫 Could not retrieve user email from Google Sign-In!");
       }
     } catch (error: any) {
+      console.error("🔥 Google Sign-In error:", error);
       let errorMessage = "An unexpected error occurred during Google Sign-In.";
       if (error.code) {
-         switch (error.code) {
-          case 'auth/popup-blocked':
-            errorMessage = 'Sign-in pop-up was blocked by the browser. Please allow pop-ups for this site and try again.';
+        switch (error.code) {
+          case "auth/popup-blocked":
+            errorMessage =
+              "Sign-in pop-up was blocked by the browser. Please allow pop-ups for this site and try again.";
             break;
-          case 'auth/account-exists-with-different-credential':
+          case "auth/account-exists-with-different-credential":
+            console.warn("⚠️ Account exists with different credential:", error);
             const email = error.customData.email;
             if (email) {
-                const methods = await fetchSignInMethodsForEmail(auth, email);
-                if (methods.includes(GoogleAuthProvider.PROVIDER_ID)) {
-                    errorMessage = "This Google account is already associated with a user.";
-                } else if (methods.includes('password')) {
-                    try {
-                        const password = prompt("An account with this email already exists. Please enter your password to link your Google account:");
-                        if (password) {
-                            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-                            const credential = GoogleAuthProvider.credentialFromError(error);
-                            if (userCredential.user && credential) {
-                                await linkWithCredential(userCredential.user, credential);
-                                await handleAuthSuccess(userCredential.user);
-                                return; // Exit function on success
-                            }
-                        } else {
-                           errorMessage = "Password not provided. Account linking cancelled.";
-                        }
-                    } catch (linkError: any) {
-                        errorMessage = `Failed to link accounts: ${linkError.message}`;
+              const methods = await fetchSignInMethodsForEmail(auth, email);
+              console.log("🔁 Sign-in methods for", email, ":", methods);
+              if (methods.includes(GoogleAuthProvider.PROVIDER_ID)) {
+                errorMessage =
+                  "This Google account is already associated with a user.";
+              } else if (methods.includes("password")) {
+                try {
+                  const password = prompt(
+                    "An account with this email already exists. Please enter your password to link your Google account:"
+                  );
+                  if (password) {
+                    const userCredential = await signInWithEmailAndPassword(
+                      auth,
+                      email,
+                      password
+                    );
+                    const credential =
+                      GoogleAuthProvider.credentialFromError(error);
+                    if (userCredential.user && credential) {
+                      console.log("🔗 Linking Google credential to existing user...");
+                      await linkWithCredential(userCredential.user, credential);
+                      await handleAuthSuccess(userCredential.user);
+                      toast({
+                        title: "Accounts Linked",
+                        description:
+                          "Your Google account has been successfully linked to your existing profile.",
+                      });
+                      router.push("/");
+                      return;
                     }
+                  } else {
+                    errorMessage =
+                      "Password not provided. Account linking cancelled.";
+                  }
+                } catch (linkError: any) {
+                  console.error("❌ Failed to link accounts:", linkError);
+                  errorMessage = `Failed to link accounts: ${linkError.message}`;
                 }
+              }
             } else {
-              errorMessage = 'An account already exists with this email address. Please sign in using the original method.';
+              errorMessage =
+                "An account already exists with this email address. Please sign in using the original method.";
             }
             break;
-          case 'auth/popup-closed-by-user':
-              errorMessage = 'Sign-in cancelled. The pop-up window was closed before completing the sign-in process.';
-              break;
-          case 'auth/cancelled-popup-request':
-              errorMessage = 'Sign-in cancelled. Multiple pop-up requests were made.';
-              break;
+          case "auth/popup-closed-by-user":
+            errorMessage =
+              "Sign-in cancelled. The pop-up window was closed before completing the sign-in process.";
+            break;
+          case "auth/cancelled-popup-request":
+            errorMessage =
+              "Sign-in cancelled. Multiple pop-up requests were made.";
+            break;
           default:
             errorMessage = `Google Sign-In failed: ${error.message}`;
             break;
-         }
+        }
       }
       setError(errorMessage);
-       toast({
+      toast({
         variant: "destructive",
         title: "Google Sign-In Failed",
         description: errorMessage,
@@ -401,5 +453,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-    

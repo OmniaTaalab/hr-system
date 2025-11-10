@@ -42,7 +42,7 @@ interface DashboardCardProps {
   iconName: string;
   href?: string;
   linkText?: string;
-  statistic?: string | number;
+  statistic?: string | number | null; // ✅ أضف null هنا
   statisticLabel?: string;
   isLoadingStatistic?: boolean;
   className?: string;
@@ -233,105 +233,144 @@ function DashboardPageContent() {
         setIsLoadingTotalLeaves(false);
       }
     };
-
     const fetchDailyAttendance = async () => {
-        setIsLoadingTodaysAttendance(true);
-        setIsLoadingLateAttendance(true);
-        setIsLoadingAbsentToday(true);
-
-        try {
-            // 1. Get all active employee IDs from the system
-            const activeEmployeesQuery = query(collection(db, "employee"), where("status", "==", "Active"));
-            const allEmployeesSnapshot = await getDocs(activeEmployeesQuery);
-            const totalActiveEmployees = allEmployeesSnapshot.size;
-            const systemEmployeeIds = new Set(allEmployeesSnapshot.docs.map(doc => String(doc.data().employeeId).trim()));
-            const campusWorkingHoursQuery = await getDocs(collection(db, "campusWorkingHours"));
-            const campusHoursMap = new Map();
-            campusWorkingHoursQuery.forEach(doc => {
-                campusHoursMap.set(doc.id, doc.data());
-            });
-
-            // 2. Find the most recent date in attendance_log
-            const mostRecentLogQuery = query(
-                collection(db, "attendance_log"),
-                orderBy("date", "desc"),
-                limit(1)
-            );
-            const mostRecentLogSnapshot = await getDocs(mostRecentLogQuery);
-
-            if (mostRecentLogSnapshot.empty) {
-                setTodaysAttendance(0);
-                setLateAttendance(0);
-                setAbsentToday(totalActiveEmployees);
-                setAttendanceDate("No attendance data yet");
-                setDateStringForLink("");
-                return;
-            }
-
-            const lastLogDateStr = mostRecentLogSnapshot.docs[0].data().date;
-            const targetDate = new Date(lastLogDateStr.replace(/-/g, "/"));
-            setDateStringForLink(lastLogDateStr);
-            setAttendanceDate(format(targetDate, "PPP"));
-
-            // 3. Get all attendance logs for that specific date
-            const attendanceSnapshot = await getDocs(
-                query(collection(db, "attendance_log"), where("date", "==", lastLogDateStr))
-            );
-
-            const parseTimeToMinutes = (t: string): number | null => {
-                if (!t) return null;
-                const match = t.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?$/i);
-                if (!match) return null;
-                let h = parseInt(match[1], 10);
-                const m = parseInt(match[2], 10);
-                const ampm = match[4]?.toLowerCase();
-                if (ampm === "pm" && h < 12) h += 12;
-                if (ampm === "am" && h === 12) h = 0;
-                return h * 60 + m;
-            };
-
-            const presentInSystemIds = new Set<string>();
-            let lateCount = 0;
-
-            for (const doc of attendanceSnapshot.docs) {
-                const data = doc.data();
-                const userId = String(data.userId ?? "").trim();
-
-                if (userId && systemEmployeeIds.has(userId) && !presentInSystemIds.has(userId)) {
-                    presentInSystemIds.add(userId);
-
-                    const employeeDoc = allEmployeesSnapshot.docs.find(d => String(d.data().employeeId).trim() === userId);
-                    const employeeCampus = employeeDoc?.data().campus;
-                    const campusRules = campusHoursMap.get(employeeCampus);
-
-                    const checkInEndTime = campusRules?.checkInEndTime || "07:30"; // Default
-                    const startLimit = parseTimeToMinutes(checkInEndTime);
-
-                    if (data.check_in && startLimit) {
-                        const checkInMinutes = parseTimeToMinutes(data.check_in);
-                        if (checkInMinutes !== null && checkInMinutes > startLimit) {
-                            lateCount++;
-                        }
-                    }
-                }
-            }
-
-            const presentInSystemCount = presentInSystemIds.size;
-            setTodaysAttendance(presentInSystemCount);
-            setLateAttendance(lateCount);
-            setAbsentToday(Math.max(totalActiveEmployees - presentInSystemCount, 0));
-
-        } catch (error) {
-            console.error("Error in fetchDailyAttendance:", error);
-            setTodaysAttendance(0);
-            setLateAttendance(0);
-            setAbsentToday(0);
-            setAttendanceDate("Error loading data");
-        } finally {
-            setIsLoadingTodaysAttendance(false);
-            setIsLoadingLateAttendance(false);
-            setIsLoadingAbsentToday(false);
+      setIsLoadingTodaysAttendance(true);
+      setIsLoadingLateAttendance(true);
+      setIsLoadingAbsentToday(true);
+    
+      try {
+        // ✅ 1. Get all employees (بدون check على Active)
+        const employeeSnapshot = await getDocs(collection(db, "employee"));
+        const allEmployees = employeeSnapshot.docs.map(doc => doc.data());
+        const totalEmployees = allEmployees.length;
+    
+        // ✅ 2. جهّز IDs لكل الموظفين (userId, employeeId, badgeNumber)
+        const systemEmployeeIds = new Set(
+          allEmployees.map(e =>
+            String(e.userId || e.employeeId || e.badgeNumber || "").trim()
+          )
+        );
+    
+        // ✅ 3. Get campus working hours
+        const campusWorkingHoursQuery = await getDocs(collection(db, "campusWorkingHours"));
+        const campusHoursMap = new Map();
+        campusWorkingHoursQuery.forEach(doc => {
+          campusHoursMap.set(doc.id, doc.data());
+        });
+    
+        // ✅ 4. Get today's attendance logs
+        const today = new Date();
+        const todayStr = format(today, "yyyy-MM-dd");
+    
+        const attendanceSnapshot = await getDocs(
+          query(collection(db, "attendance_log"), where("date", "==", todayStr))
+        );
+    
+        if (attendanceSnapshot.empty) {
+          setTodaysAttendance(0);
+          setLateAttendance(0);
+          setAbsentToday(totalEmployees);
+          setAttendanceDate(format(today, "PPP"));
+          setDateStringForLink(todayStr);
+          return;
         }
+    
+        setDateStringForLink(todayStr);
+        setAttendanceDate(format(today, "PPP"));
+    
+        // ✅ Helper function to parse time into total minutes
+        const parseTimeToMinutes = (t: string): number | null => {
+          if (!t) return null;
+          const match = t.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?$/i);
+          if (!match) return null;
+          let h = parseInt(match[1], 10);
+          const m = parseInt(match[2], 10);
+          const ampm = match[4]?.toLowerCase();
+          if (ampm === "pm" && h < 12) h += 12;
+          if (ampm === "am" && h === 12) h = 0;
+          return h * 60 + m;
+        };
+    
+        // ✅ 5. احسب الحاضرين والمتأخرين
+        const presentInSystemIds = new Set<string>();
+        let lateCount = 0;
+    
+        for (const doc of attendanceSnapshot.docs) {
+          const data = doc.data();
+    
+          const userId = String(data.userId ?? "").trim();
+          const badgeNumber = String(data.badgeNumber ?? "").trim();
+          const employeeId = String(data.employeeId ?? "").trim();
+    
+          const matchedId = [userId, badgeNumber, employeeId].find(id =>
+            systemEmployeeIds.has(id)
+          );
+    
+          if (matchedId && !presentInSystemIds.has(matchedId)) {
+            presentInSystemIds.add(matchedId);
+    
+            // ✅ get employee campus info
+            const employeeDoc = allEmployees.find(e =>
+              [e.userId, e.employeeId, e.badgeNumber]
+                .map(x => String(x || "").trim())
+                .includes(matchedId)
+            );
+    
+            const employeeCampus = (employeeDoc?.campus || "").trim().toLowerCase();
+    
+            // ✅ find campus rule (case-insensitive)
+            const campusRulesEntry = Array.from(campusHoursMap.entries()).find(
+              ([key]) => key.trim().toLowerCase() === employeeCampus
+            );
+            const campusRules = campusRulesEntry?.[1];
+    
+            // ✅ get check-in end time
+            const checkInEndTime = (campusRules?.checkInEndTime || "07:30").trim();
+            const startLimit = parseTimeToMinutes(checkInEndTime);
+    
+            // ✅ check if employee is late
+            if (data.check_in && startLimit) {
+              const normalizedCheckIn = String(data.check_in).trim();
+    
+              // handle both 24-hour & 12-hour formats
+              const checkInMinutes =
+                parseTimeToMinutes(normalizedCheckIn) ??
+                parseTimeToMinutes(normalizedCheckIn + " am") ??
+                parseTimeToMinutes(normalizedCheckIn + " pm");
+    
+              if (checkInMinutes !== null && checkInMinutes > startLimit) {
+                lateCount++;
+              }
+            }
+          }
+        }
+    
+        // ✅ 6. الحساب النهائي
+        const presentInSystemCount = presentInSystemIds.size;
+        const absentCount = Math.max(totalEmployees - presentInSystemCount, 0);
+    
+        console.log("🔹 Date:", todayStr);
+        console.log("🔹 Total Employees:", totalEmployees);
+        console.log("🔹 Present In System:", presentInSystemCount);
+        console.log("🔹 Absent In System:", absentCount);
+        console.log("🔹 Late Count:", lateCount);
+    
+        // ✅ 7. حفظ القيم في state
+        setTodaysAttendance(presentInSystemCount);
+        setLateAttendance(lateCount);
+        setAbsentToday(absentCount);
+    
+      } catch (error) {
+        console.error("Error in fetchDailyAttendance:", error);
+        setTodaysAttendance(0);
+        setLateAttendance(0);
+        setAbsentToday(0);
+        setAttendanceDate("Error loading data");
+      } finally {
+        setIsLoadingTodaysAttendance(false);
+        setIsLoadingLateAttendance(false);
+        setIsLoadingAbsentToday(false);
+      }
     };
     
     const fetchCampusData = async () => {
