@@ -529,3 +529,110 @@ export async function syncReportLine1FromEmployeesAction(prevState: SyncState, f
 export async function syncReportLine2FromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
     return runSync(formData, (actorDetails) => syncListFromSource("employee", "reportLine2", "reportLines2", actorDetails));
 }
+
+// --- CAMPUS WORKING HOURS ---
+
+const TimeSchema = z.string().regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format.");
+
+const CampusWorkingHoursSchema = z.object({
+  id: z.string().optional(),
+  operation: z.enum(['add', 'update', 'delete']),
+  campusName: z.string().min(1, "Campus name is required."),
+  checkInStartTime: TimeSchema,
+  checkInEndTime: TimeSchema,
+  checkOutStartTime: TimeSchema,
+  checkOutEndTime: TimeSchema,
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
+}).refine(data => data.checkInStartTime < data.checkInEndTime, {
+    message: "Check-in start time must be before check-in end time.",
+    path: ["checkInEndTime"],
+}).refine(data => data.checkOutStartTime < data.checkOutEndTime, {
+    message: "Check-out start time must be before check-out end time.",
+    path: ["checkOutEndTime"],
+}).refine(data => data.checkInEndTime < data.checkOutStartTime, {
+    message: "Check-in window must end before check-out window begins.",
+    path: ["checkOutStartTime"],
+});
+
+
+export type CampusWorkingHoursState = {
+  errors?: {
+    form?: string[];
+    campusName?: string[];
+    checkInStartTime?: string[];
+    checkInEndTime?: string[];
+    checkOutStartTime?: string[];
+    checkOutEndTime?: string[];
+  };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function manageCampusWorkingHoursAction(
+  prevState: CampusWorkingHoursState,
+  formData: FormData
+): Promise<CampusWorkingHoursState> {
+
+    const validatedFields = CampusWorkingHoursSchema.safeParse({
+        id: formData.get('id'),
+        operation: formData.get('operation'),
+        campusName: formData.get('campusName'),
+        checkInStartTime: formData.get('checkInStartTime'),
+        checkInEndTime: formData.get('checkInEndTime'),
+        checkOutStartTime: formData.get('checkOutStartTime'),
+        checkOutEndTime: formData.get('checkOutEndTime'),
+        actorId: formData.get('actorId'),
+        actorEmail: formData.get('actorEmail'),
+        actorRole: formData.get('actorRole'),
+    });
+
+    if (!validatedFields.success) {
+        return {
+            errors: validatedFields.error.flatten().fieldErrors,
+            message: "Validation failed. Please check the times.",
+            success: false,
+        };
+    }
+
+    const { operation, id, actorId, actorEmail, actorRole, ...data } = validatedFields.data;
+    const collectionRef = collection(db, "campusWorkingHours");
+
+    try {
+        switch(operation) {
+            case 'add':
+                 // Use campusName as the document ID to enforce uniqueness
+                const addDocRef = doc(collectionRef, data.campusName);
+                const addDocSnap = await getDoc(addDocRef);
+                if (addDocSnap.exists()) {
+                    return { success: false, errors: { form: ["A configuration for this campus already exists. Please edit it instead."] } };
+                }
+                await setDoc(addDocRef, data);
+                await logSystemEvent("Add Campus Working Hours", { actorId, actorEmail, actorRole, campusName: data.campusName });
+                return { success: true, message: `Working hours for ${data.campusName} saved.` };
+
+            case 'update':
+                if (!id) return { success: false, errors: { form: ["Record ID is missing for update."] } };
+                const updateDocRef = doc(collectionRef, id);
+                await updateDoc(updateDocRef, data);
+                await logSystemEvent("Update Campus Working Hours", { actorId, actorEmail, actorRole, campusName: data.campusName });
+                return { success: true, message: `Working hours for ${data.campusName} updated.` };
+            
+            case 'delete':
+                if (!id) return { success: false, errors: { form: ["Record ID is missing for deletion."] } };
+                const deleteDocRef = doc(collectionRef, id);
+                await deleteDoc(deleteDocRef);
+                await logSystemEvent("Delete Campus Working Hours", { actorId, actorEmail, actorRole, recordId: id });
+                return { success: true, message: `Working hours record deleted.` };
+
+            default:
+                return { success: false, errors: { form: ["Invalid operation specified."] } };
+        }
+    } catch(error: any) {
+        return {
+            success: false,
+            errors: { form: [`An unexpected error occurred: ${error.message}`] },
+        };
+    }
+}

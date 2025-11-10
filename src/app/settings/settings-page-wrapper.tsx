@@ -11,6 +11,7 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 const settingsNavItems = [
   { title: "General", href: "/settings/general" },
   { title: "Organization", href: "/settings/organization" },
+  { title: "Working Hours", href: "/settings/working-hours" },
   { title: "Sync Data", href: "/settings/sync-data" },
 ];
 

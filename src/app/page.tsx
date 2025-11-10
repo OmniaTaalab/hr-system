@@ -234,26 +234,22 @@ function DashboardPageContent() {
       }
     };
 
-    const fetchDailyAttendance = async (
-      db: any,
-      {
-        setTodaysAttendance,
-        setAbsentToday,
-        setLateAttendance,
-        setAttendanceDate,
-        setDateStringForLink,
-      }: any
-    ) => {
+    const fetchDailyAttendance = async () => {
         setIsLoadingTodaysAttendance(true);
         setIsLoadingLateAttendance(true);
         setIsLoadingAbsentToday(true);
 
         try {
-            // 1. Get all employee IDs from the system
-            const allEmployeesSnapshot = await getDocs(query(collection(db, "employee")));
-            const totalSystemEmployees = allEmployeesSnapshot.size;
+            // 1. Get all active employee IDs from the system
+            const activeEmployeesQuery = query(collection(db, "employee"), where("status", "==", "Active"));
+            const allEmployeesSnapshot = await getDocs(activeEmployeesQuery);
+            const totalActiveEmployees = allEmployeesSnapshot.size;
             const systemEmployeeIds = new Set(allEmployeesSnapshot.docs.map(doc => String(doc.data().employeeId).trim()));
-
+            const campusWorkingHoursQuery = await getDocs(collection(db, "campusWorkingHours"));
+            const campusHoursMap = new Map();
+            campusWorkingHoursQuery.forEach(doc => {
+                campusHoursMap.set(doc.id, doc.data());
+            });
 
             // 2. Find the most recent date in attendance_log
             const mostRecentLogQuery = query(
@@ -266,7 +262,7 @@ function DashboardPageContent() {
             if (mostRecentLogSnapshot.empty) {
                 setTodaysAttendance(0);
                 setLateAttendance(0);
-                setAbsentToday(totalSystemEmployees);
+                setAbsentToday(totalActiveEmployees);
                 setAttendanceDate("No attendance data yet");
                 setDateStringForLink("");
                 return;
@@ -296,30 +292,34 @@ function DashboardPageContent() {
 
             const presentInSystemIds = new Set<string>();
             let lateCount = 0;
-            const startLimit = parseTimeToMinutes("07:30") ?? 450;
-            
-            attendanceSnapshot.forEach((doc) => {
+
+            for (const doc of attendanceSnapshot.docs) {
                 const data = doc.data();
                 const userId = String(data.userId ?? "").trim();
 
-                if (userId && systemEmployeeIds.has(userId)) {
-                    if (!presentInSystemIds.has(userId)) {
-                        presentInSystemIds.add(userId);
-                         if (data.check_in) {
-                            const checkInMinutes = parseTimeToMinutes(data.check_in);
-                            if (checkInMinutes !== null && checkInMinutes > startLimit) {
-                                lateCount++;
-                            }
+                if (userId && systemEmployeeIds.has(userId) && !presentInSystemIds.has(userId)) {
+                    presentInSystemIds.add(userId);
+
+                    const employeeDoc = allEmployeesSnapshot.docs.find(d => String(d.data().employeeId).trim() === userId);
+                    const employeeCampus = employeeDoc?.data().campus;
+                    const campusRules = campusHoursMap.get(employeeCampus);
+
+                    const checkInEndTime = campusRules?.checkInEndTime || "07:30"; // Default
+                    const startLimit = parseTimeToMinutes(checkInEndTime);
+
+                    if (data.check_in && startLimit) {
+                        const checkInMinutes = parseTimeToMinutes(data.check_in);
+                        if (checkInMinutes !== null && checkInMinutes > startLimit) {
+                            lateCount++;
                         }
                     }
                 }
-            });
+            }
 
             const presentInSystemCount = presentInSystemIds.size;
             setTodaysAttendance(presentInSystemCount);
             setLateAttendance(lateCount);
-            setAbsentToday(Math.max(totalSystemEmployees - presentInSystemCount, 0));
-
+            setAbsentToday(Math.max(totalActiveEmployees - presentInSystemCount, 0));
 
         } catch (error) {
             console.error("Error in fetchDailyAttendance:", error);
@@ -381,13 +381,7 @@ function DashboardPageContent() {
 
 
     fetchCounts();
-    fetchDailyAttendance(db, {
-        setTodaysAttendance,
-        setAbsentToday,
-        setLateAttendance,
-        setAttendanceDate,
-        setDateStringForLink
-    });
+    fetchDailyAttendance();
     fetchCampusData();
     fetchHolidays();
   }, [profile, isLoadingProfile]);
@@ -421,8 +415,8 @@ function DashboardPageContent() {
       title: "Absent Today",
       iconName: "UserX",
       statistic: absentToday,
-      statisticLabel: attendanceDate ? `From ${totalEmployees ?? 'N/A'} total employees` : 'No attendance data',
-      isLoadingStatistic: isLoadingAbsentToday || isLoadingTotalEmp,
+      statisticLabel: attendanceDate ? `From ${activeEmployees ?? 'N/A'} active employees` : 'No attendance data',
+      isLoadingStatistic: isLoadingAbsentToday || isLoadingActiveEmp,
       href: `/employees/status/absent?date=${dateStringForLink || ''}`,
       linkText: "View Employees",
       adminOnly: true,
@@ -431,7 +425,7 @@ function DashboardPageContent() {
       title: "Late Arrivals",
       iconName: "Clock",
       statistic: lateAttendance ?? 0,
-      statisticLabel: attendanceDate ? `Late check-ins after 7:30 AM` : 'No attendance data',
+      statisticLabel: attendanceDate ? `Based on campus-specific rules` : 'No attendance data',
       isLoadingStatistic: isLoadingLateAttendance,
       href: `/employees/status/late?date=${dateStringForLink || ''}`,
       linkText: "View Employees",
