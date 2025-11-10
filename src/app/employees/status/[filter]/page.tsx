@@ -27,6 +27,7 @@ import {
   ArrowLeft,
   UserCheck,
   AlertTriangle,
+  Clock,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -41,14 +42,6 @@ interface Employee {
   campus?: string;
 }
 
-interface AttendanceInfo {
-  checkIns: string[];
-  checkOuts: string[];
-  name?: string;
-  userId?: string;
-  badgeNumber?: string;
-}
-
 interface Row {
   id: string;
   employeeId: string;
@@ -58,6 +51,7 @@ interface Row {
   checkIn?: string | null;
   checkOut?: string | null;
   isRegistered: boolean;
+  delayMinutes?: number;
 }
 
 const getInitials = (name: string) =>
@@ -65,7 +59,7 @@ const getInitials = (name: string) =>
 
 const toStr = (v: any) => String(v ?? "").trim();
 
-const parseTimeToMinutes = (t?: string | null) => {
+const parseTimeToMinutes = (t?: string | null): number | null => {
   if (!t) return null;
   const s = t.trim().toLowerCase();
   const match = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?$/i);
@@ -74,7 +68,7 @@ const parseTimeToMinutes = (t?: string | null) => {
   const m = parseInt(match[2], 10);
   const ampm = match[4]?.toLowerCase();
   if (ampm === "pm" && h < 12) h += 12;
-  if (ampm === "am" && h === 12) h = 0;
+  if (ampm === "am" && h === 12) h = 0; // Midnight case
   return h * 60 + m;
 };
 
@@ -89,17 +83,14 @@ export default function EmployeeStatusPage() {
 function EmployeeStatusContent() {
   const { profile, loading: profileLoading } = useUserProfile();
   const router = useRouter();
+  const params = useParams();
   const searchParams = useSearchParams();
   const dateParam = (searchParams.get("date") || "").trim();
-  const debugMode = searchParams.get("debug") === "1";
+  const filter = params.filter as string;
 
   const [rows, setRows] = useState<Row[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [employeesCount, setEmployeesCount] = useState(0);
-  const [missingCount, setMissingCount] = useState(0);
-  const [presentInSystem, setPresentInSystem] = useState(0); // ✅ جديد
 
   const canViewPage =
     !profileLoading &&
@@ -134,76 +125,84 @@ function EmployeeStatusContent() {
           };
         });
 
-        setEmployeesCount(allEmployees.length);
-
         const empByEmployeeId = new Map(
           allEmployees.map((e) => [toStr(e.employeeId), e])
         );
 
+        const campusHoursSnap = await getDocs(
+          collection(db, "campusWorkingHours")
+        );
+        const campusRules = new Map();
+        campusHoursSnap.forEach((doc) => {
+          campusRules.set(
+            doc.id.trim().toLowerCase(),
+            doc.data() as { checkInEndTime: string }
+          );
+        });
+
         const attSnap = await getDocs(
-          query(collection(db, "attendance_log"), where("date", "==", targetDate))
+          query(
+            collection(db, "attendance_log"),
+            where("date", "==", targetDate)
+          )
         );
 
-        const attData: Record<string, AttendanceInfo> = {};
-
+        const firstCheckInMap: Record<string, string> = {};
         attSnap.forEach((doc) => {
           const data = doc.data() as any;
-          const logEmployeeId = toStr(data.badgeNumber);
-          if (!logEmployeeId) return;
+          const logEmployeeId = toStr(data.badgeNumber || data.userId);
+          if (!logEmployeeId || !data.check_in) return;
 
-          if (!attData[logEmployeeId]) {
-            attData[logEmployeeId] = {
-              checkIns: [],
-              checkOuts: [],
-              userId: logEmployeeId,
-              badgeNumber: toStr(data.badgeNumber),
-              name: toStr(data.employeeName),
-            };
+          const existingCheckIn = firstCheckInMap[logEmployeeId];
+          const currentCheckIn = toStr(data.check_in);
+          if (
+            !existingCheckIn ||
+            (parseTimeToMinutes(currentCheckIn) ?? Infinity) <
+              (parseTimeToMinutes(existingCheckIn) ?? Infinity)
+          ) {
+            firstCheckInMap[logEmployeeId] = currentCheckIn;
           }
-
-          if (data.check_in)
-            attData[logEmployeeId].checkIns.push(String(data.check_in));
-          if (data.check_out)
-            attData[logEmployeeId].checkOuts.push(String(data.check_out));
         });
 
-        const dataRows: Row[] = Object.keys(attData).map((logEmployeeId) => {
-          const info = attData[logEmployeeId];
+        const dataRows: Row[] = [];
+
+        Object.keys(firstCheckInMap).forEach((logEmployeeId) => {
           const empRecord = empByEmployeeId.get(logEmployeeId);
+          const checkIn = firstCheckInMap[logEmployeeId];
 
-          const sortTimes = (arr: string[]) =>
-            arr
-              .slice()
-              .sort(
-                (a, b) =>
-                  (parseTimeToMinutes(a) ?? 0) - (parseTimeToMinutes(b) ?? 0)
-              );
-
-          const sortedIns = sortTimes(info.checkIns || []);
-          const sortedOuts = sortTimes(info.checkOuts || []);
-          const firstIn = sortedIns[0] || null;
-          const lastOut =
-            sortedOuts.length > 0
-              ? sortedOuts[sortedOuts.length - 1]
-              : null;
-
-          return {
+          let row: Row = {
             id: empRecord?.id || logEmployeeId,
             employeeId: logEmployeeId,
-            name: empRecord?.name || info.name || `ID: ${logEmployeeId}`,
+            name: empRecord?.name || `ID: ${logEmployeeId}`,
             photoURL: empRecord?.photoURL,
             campus: empRecord?.campus,
-            checkIn: firstIn,
-            checkOut: lastOut,
+            checkIn: checkIn,
             isRegistered: !!empRecord,
           };
+
+          if (filter === "late" && empRecord?.campus) {
+            const campusRule = campusRules.get(
+              empRecord.campus.trim().toLowerCase()
+            );
+            if (campusRule && campusRule.checkInEndTime) {
+              const checkInMinutes = parseTimeToMinutes(checkIn);
+              const endTimeMinutes = parseTimeToMinutes(
+                campusRule.checkInEndTime
+              );
+
+              if (
+                checkInMinutes !== null &&
+                endTimeMinutes !== null &&
+                checkInMinutes > endTimeMinutes
+              ) {
+                row.delayMinutes = checkInMinutes - endTimeMinutes;
+                dataRows.push(row);
+              }
+            }
+          } else if (filter !== "late") {
+            dataRows.push(row);
+          }
         });
-
-        const missing = dataRows.filter((r) => !r.isRegistered);
-        const presentIn = dataRows.filter((r) => r.isRegistered); // ✅ جديد
-
-        setMissingCount(missing.length);
-        setPresentInSystem(presentIn.length); // ✅ جديد
 
         setRows(dataRows);
       } catch (err) {
@@ -215,12 +214,15 @@ function EmployeeStatusContent() {
     };
 
     fetchData();
-  }, [dateParam, profileLoading, canViewPage, router, debugMode]);
+  }, [dateParam, profileLoading, canViewPage, router, filter]);
 
   const formattedDate = format(
     new Date((dateParam || format(new Date(), "yyyy-MM-dd")) + "T00:00:00"),
     "PPP"
   );
+  
+  const pageTitle = filter === 'late' ? "Late Arrivals" : "Employees Present";
+  const PageIcon = filter === 'late' ? Clock : UserCheck;
 
   if (profileLoading || isLoading) {
     return (
@@ -240,8 +242,8 @@ function EmployeeStatusContent() {
 
       <header>
         <h1 className="text-3xl font-bold flex items-center gap-3">
-          <UserCheck className="h-8 w-8 text-primary" />
-          Employees Present
+          <PageIcon className="h-8 w-8 text-primary" />
+          {pageTitle}
         </h1>
         <p className="text-muted-foreground">
           Showing results for {formattedDate}
@@ -250,12 +252,7 @@ function EmployeeStatusContent() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{rows.length} Employees Found (Present)</CardTitle>
-          <div className="text-sm text-muted-foreground mt-1 space-y-1">
-            <div>Employees in System: {employeesCount}</div>
-            <div>Present in System: {presentInSystem}</div>
-            <div>Present but not in System: {missingCount}</div>
-          </div>
+          <CardTitle>{rows.length} Employees Found</CardTitle>
         </CardHeader>
         <CardContent>
           {error ? (
@@ -271,7 +268,7 @@ function EmployeeStatusContent() {
                   <TableHead>Name</TableHead>
                   <TableHead>Campus</TableHead>
                   <TableHead>Check In</TableHead>
-                  <TableHead>Check Out</TableHead>
+                  {filter === 'late' && <TableHead>Delay (minutes)</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -302,7 +299,9 @@ function EmployeeStatusContent() {
                     </TableCell>
                     <TableCell>{e.campus ?? "—"}</TableCell>
                     <TableCell>{e.checkIn ?? "—"}</TableCell>
-                    <TableCell>{e.checkOut ?? "—"}</TableCell>
+                     {filter === 'late' && (
+                        <TableCell className="font-semibold text-destructive">{e.delayMinutes} min</TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
