@@ -53,11 +53,14 @@ export async function getAllAuthUsers() {
 // Schema for validating form data for creating an employee
 const CreateEmployeeFormSchema = z.object({
   // Personal Info
-  firstName: z.string().min(1, "First name is required."),
+  firstName: z.string().optional(),
   lastName: z.string().optional(),
   nameAr: z.string().optional(),
   childrenAtNIS: z.enum(['Yes', 'No']).optional(),
-  personalEmail: z.string().email({ message: "Invalid email format." }).optional().or(z.literal('')),
+  personalEmail: z.preprocess(
+    (val) => (val === "" || val === null ? undefined : val),
+    z.string().email({ message: "Invalid email format." }).optional()
+  ),
   personalPhone: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactRelationship: z.string().optional(),
@@ -69,7 +72,10 @@ const CreateEmployeeFormSchema = z.object({
   
   // Work Info
   employeeId: z.string().optional(),
-  nisEmail: z.string().email({ message: "Invalid email format." }).optional().or(z.literal('')),
+  nisEmail: z.preprocess(
+    (val) => (val === "" || val === null ? undefined : val),
+    z.string().email({ message: "Invalid email format." }).optional()
+  ),
   joiningDate: z.coerce.date().optional(),
   title: z.string().optional(),
   department: z.string().optional(),
@@ -77,8 +83,14 @@ const CreateEmployeeFormSchema = z.object({
   stage: z.string().optional(),
   system: z.string().optional(),
   campus: z.string().optional(),
-  reportLine1: z.string().email({ message: "Invalid email format." }).optional().or(z.literal('')),
-  reportLine2: z.string().email({ message: "Invalid email format." }).optional().or(z.literal('')),
+  reportLine1: z.preprocess(
+    (val) => (val === "" || val === null ? undefined : val),
+    z.string().email({ message: "Invalid email format." }).optional()
+  ),
+  reportLine2: z.preprocess(
+    (val) => (val === "" || val === null ? undefined : val),
+    z.string().email({ message: "Invalid email format." }).optional()
+  ),
   subject: z.string().optional(),
   hourlyRate: z.preprocess(
     (val) => {
@@ -225,12 +237,12 @@ export async function createEmployeeAction(
       number: emergencyContactNumber || null,
     };
 
-    const fullName = `${firstName} ${lastName || ''}`.trim();
+    const fullName = `${firstName || ''} ${lastName || ''}`.trim();
 
     const newEmployeeDoc = {
       employeeId: finalEmployeeId,
       name: fullName,
-      firstName,
+      firstName: firstName || null,
       lastName: lastName || null,
       nameAr: nameAr || null,
       childrenAtNIS: childrenAtNIS || 'No',
