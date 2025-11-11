@@ -150,41 +150,65 @@ function AnnualPayrollReportContent() {
       const yearStartDate = startOfYear(new Date(selectedYear, 0, 1));
       const yearEndDate = endOfYear(new Date(selectedYear, 0, 1));
 
-      for (const employee of allEmployees) {
-        try {
-          // Fetch monthly payroll records for the employee for the selected year
+      // Fetch all relevant payroll and leave data for the year at once
+      const allPayrollRecords: MonthlyPayrollRecord[] = [];
+      const allLeaveRequests: LeaveRequest[] = [];
+      
+      const employeeIds = allEmployees.map(e => e.id);
+      const CHUNK_SIZE = 30; // Firestore 'in' query limit
+
+      try {
+        for (let i = 0; i < employeeIds.length; i += CHUNK_SIZE) {
+          const chunk = employeeIds.slice(i, i + CHUNK_SIZE);
+          
+          // Fetch payroll for the chunk
           const payrollQuery = query(
             collection(db, "monthlyPayrolls"),
-            where("employeeDocId", "==", employee.id),
+            where("employeeDocId", "in", chunk),
             where("monthYear", ">=", `${selectedYear}-01`),
             where("monthYear", "<=", `${selectedYear}-12`)
           );
           const payrollSnapshot = await getDocs(payrollQuery);
-          const payrollRecords: MonthlyPayrollRecord[] = payrollSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MonthlyPayrollRecord));
+          payrollSnapshot.forEach(doc => allPayrollRecords.push({ id: doc.id, ...doc.data() } as MonthlyPayrollRecord));
           
-          // Fetch approved leave requests for the employee for the selected year
+          // Fetch leaves for the chunk
           const leaveQuery = query(
             collection(db, "leaveRequests"),
-            where("requestingEmployeeDocId", "==", employee.id),
+            where("requestingEmployeeDocId", "in", chunk),
             where("status", "==", "Approved"),
-            where("startDate", "<=", Timestamp.fromDate(yearEndDate)) // Leaves starting before or during the year
+            where("startDate", "<=", Timestamp.fromDate(yearEndDate))
           );
           const leaveSnapshot = await getDocs(leaveQuery);
-          const leaveRequests: LeaveRequest[] = [];
           leaveSnapshot.forEach(doc => {
             const leave = { id: doc.id, ...doc.data() } as LeaveRequest;
-            // Further filter for leaves that end after the year starts
             if (leave.endDate.toDate() >= yearStartDate) {
-              leaveRequests.push(leave);
+              allLeaveRequests.push(leave);
             }
           });
+        }
 
-          // Calculate monthly salaries and annual totals
+        // Group data by employee ID for efficient processing
+        const payrollByEmployee = allPayrollRecords.reduce((acc, record) => {
+          (acc[record.employeeDocId] = acc[record.employeeDocId] || []).push(record);
+          return acc;
+        }, {} as Record<string, MonthlyPayrollRecord[]>);
+
+        const leavesByEmployee = allLeaveRequests.reduce((acc, leave) => {
+          (acc[leave.requestingEmployeeDocId] = acc[leave.requestingEmployeeDocId] || []).push(leave);
+          return acc;
+        }, {} as Record<string, LeaveRequest[]>);
+
+
+        // Process each employee
+        for (const employee of allEmployees) {
+          const employeePayroll = payrollByEmployee[employee.id] || [];
+          const employeeLeaves = leavesByEmployee[employee.id] || [];
+
           let totalAnnualWorkHours = 0;
           let totalAnnualNetSalary = 0;
           const monthlySalaries: MonthlySalaryDisplay[] = monthLabels.map((label, index) => {
             const monthYearStr = `${selectedYear}-${(index + 1).toString().padStart(2, '0')}`;
-            const payrollRecord = payrollRecords.find(p => p.monthYear === monthYearStr);
+            const payrollRecord = employeePayroll.find(p => p.monthYear === monthYearStr);
             if (payrollRecord) {
               totalAnnualWorkHours += payrollRecord.totalWorkHours || 0;
               totalAnnualNetSalary += payrollRecord.netSalaryFinal || 0;
@@ -199,7 +223,7 @@ function AnnualPayrollReportContent() {
           for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
             const currentMonthStartDate = startOfMonth(new Date(selectedYear, monthIndex, 1));
             const currentMonthEndDate = endOfMonth(new Date(selectedYear, monthIndex, 1));
-            leaveRequests.forEach(leave => {
+            employeeLeaves.forEach(leave => {
               totalAnnualLeaveDays += calculateLeaveDaysInMonthForReport(
                 leave.startDate.toDate(),
                 leave.endDate.toDate(),
@@ -218,16 +242,16 @@ function AnnualPayrollReportContent() {
             totalAnnualLeaveDays: Math.round(totalAnnualLeaveDays),
             totalAnnualNetSalary: parseFloat(totalAnnualNetSalary.toFixed(2)),
           });
-
-        } catch (error) {
-          console.error(`Error processing report for employee ${employee.name}:`, error);
-          toast({
-            variant: "destructive",
-            title: "Processing Error",
-            description: `Could not generate report data for ${employee.name}. Check Firestore indexes.`,
-          });
         }
+      } catch (error) {
+        console.error("Error generating report data:", error);
+        toast({
+          variant: "destructive",
+          title: "Processing Error",
+          description: `Could not generate report data. Check Firestore indexes.`,
+        });
       }
+
       setReportData(newReportData);
       setIsLoadingReport(false);
     };
@@ -491,3 +515,4 @@ export default function AnnualPayrollReportPage() {
     </AppLayout>
   );
 }
+
