@@ -45,7 +45,17 @@ export async function createAuthUserForEmployeeAction(
       success: false,
     };
   }
-
+  console.log("🔥 formData values:", {
+    employeeDocId: formData.get('employeeDocId'),
+    emailType: formData.get('emailType'),
+    name: formData.get('name'),
+    password: formData.get('password'),
+    confirmPassword: formData.get('confirmPassword'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
+  });
+  
   const validatedFields = CreateAuthUserSchema.safeParse({
     employeeDocId: formData.get('employeeDocId'),
     emailType: formData.get('emailType'),
