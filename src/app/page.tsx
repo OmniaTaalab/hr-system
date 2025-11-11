@@ -9,7 +9,7 @@ import Link from "next/link";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useMemo } from "react";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, query, where, getCountFromServer, Timestamp, orderBy, QueryConstraint } from 'firebase/firestore';
+import { collection, getDocs, query, where, getCountFromServer, Timestamp, orderBy, QueryConstraint, limit } from 'firebase/firestore';
 import type { Timestamp as FirebaseTimestamp } from 'firebase/firestore';
 import {
   ChartContainer,
@@ -161,7 +161,7 @@ function DashboardPageContent() {
         setIsLoadingActiveEmp(true);
         try {
           const empQuery = query(collection(db, "employee"));
-          const activeEmpQuery = query(employeeCollection, where("status", "==", "Active"));
+          const activeEmpQuery = query(collection(db, "employee"), where("status", "==", "Active"));
           const [empSnapshot, activeEmpSnapshot] = await Promise.all([
             getCountFromServer(empQuery),
             getCountFromServer(activeEmpQuery),
@@ -185,7 +185,6 @@ function DashboardPageContent() {
   
       try {
         const leaveRequestsCollection = collection(db, "leaveRequests");
-        const employeeCollection = collection(db, "employee");
         
         let leaveQueryConstraints: QueryConstraint[] = [];
   
