@@ -74,10 +74,19 @@ const CreateEmployeeFormSchema = z.object({
   department: z.string().optional(),
   role: z.string().optional(),
   stage: z.string().optional(),
+  system: z.string().optional(),
   campus: z.string().optional(),
-  reportLine1: z.string().optional(),
-  reportLine2: z.string().optional(),
+  reportLine1: z.string().email({ message: 'Must be a valid email.' }).optional().or(z.literal('')),
+  reportLine2: z.string().email({ message: 'Must be a valid email.' }).optional().or(z.literal('')),
   subject: z.string().optional(),
+  hourlyRate: z.preprocess(
+    (val) => {
+      if (val === '' || val === null || val === undefined) return undefined;
+      const parsed = parseFloat(z.string().parse(val));
+      return isNaN(parsed) ? undefined : parsed;
+    },
+    z.number().nonnegative({ message: "Hourly rate must be a non-negative number." }).optional()
+  ),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
@@ -106,10 +115,12 @@ export type CreateEmployeeState = {
     department?: string[];
     role?: string[];
     stage?: string[];
+    system?: string[];
     campus?: string[];
     reportLine1?: string[];
     reportLine2?: string[];
     subject?: string[];
+    hourlyRate?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -131,44 +142,72 @@ export async function createEmployeeAction(
   }
 
   const rawData = Object.fromEntries(formData.entries());
+  
+  const validatedFields = CreateEmployeeFormSchema.safeParse(rawData);
 
-  // ✅ فقط نتأكد من وجود nisEmail
-  const nisEmail = rawData["nisEmail"];
-  if (!nisEmail || typeof nisEmail !== "string" || nisEmail.trim() === "") {
+  if (!validatedFields.success) {
     return {
-      errors: { nisEmail: ["NIS Email is required."] },
-      message: "NIS Email must be provided.",
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "Validation failed. Please check the form.",
       success: false,
     };
   }
 
-  // ✅ باقي البيانات غير مطلوبة، هنكمّل الإضافة حتى لو ناقصة
-  const firstName = rawData["firstName"] || "";
-  const lastName = rawData["lastName"] || "";
-  const actorId = rawData["actorId"] || "";
-  const actorEmail = rawData["actorEmail"] || "";
-  const actorRole = rawData["actorRole"] || "";
+  const {
+    firstName,
+    lastName,
+    nameAr,
+    childrenAtNIS,
+    personalEmail,
+    personalPhone,
+    emergencyContactName,
+    emergencyContactRelationship,
+    emergencyContactNumber,
+    dateOfBirth,
+    gender,
+    nationalId,
+    religion,
+    nisEmail,
+    joiningDate,
+    title,
+    department,
+    role,
+    stage,
+    system,
+    campus,
+    reportLine1,
+    reportLine2,
+    subject,
+    hourlyRate,
+    actorId,
+    actorEmail,
+    actorRole,
+  } = validatedFields.data;
+
 
   try {
     const employeeCollection = collection(db, "employee");
 
     // Check if email is already in use
-    const q = query(employeeCollection, where("email", "==", nisEmail));
-    const existing = await getDocs(q);
-    if (!existing.empty) {
-      return {
-        success: false,
-        errors: { email: ["This NIS email address is already in use."] },
-      };
+    if (nisEmail) {
+      const q = query(employeeCollection, where("email", "==", nisEmail));
+      const existing = await getDocs(q);
+      if (!existing.empty) {
+        return {
+          success: false,
+          errors: { nisEmail: ["This NIS email address is already in use."] },
+        };
+      }
     }
+
 
     const employeeCountSnapshot = await getCountFromServer(employeeCollection);
     const newEmployeeId = (1001 + employeeCountSnapshot.data().count).toString();
 
     const emergencyContact = {
-      name: rawData["emergencyContactName"] || null,
-      relationship: rawData["emergencyContactRelationship"] || null,
-      number: rawData["emergencyContactNumber"] || null,
+      name: emergencyContactName || null,
+      relationship: emergencyContactRelationship || null,
+      number: emergencyContactNumber || null,
     };
 
     const fullName = `${firstName} ${lastName}`.trim();
@@ -178,27 +217,30 @@ export async function createEmployeeAction(
       name: fullName,
       firstName,
       lastName,
-      email: nisEmail,
-      phone: rawData["personalPhone"] || null,
-      title: rawData["title"] || null,
-      department: rawData["department"] || null,
-      role: rawData["role"] || null,
-      stage: rawData["stage"] || null,
-      campus: rawData["campus"] || null,
-      subject: rawData["subject"] || null,
-      actorId,
-      actorEmail,
-      actorRole,
+      nameAr: nameAr || null,
+      childrenAtNIS: childrenAtNIS || 'No',
+      email: nisEmail || null,
+      personalEmail: personalEmail || null,
+      phone: personalPhone || null,
+      title: title || null,
+      department: department || null,
+      role: role || null,
+      stage: stage || null,
+      system: system || 'Unassigned',
+      campus: campus || null,
+      subject: subject || null,
+      gender: gender || null,
+      nationalId: nationalId || null,
+      religion: religion || null,
       emergencyContact,
+      reportLine1: reportLine1 || null,
+      reportLine2: reportLine2 || null,
+      hourlyRate: hourlyRate ?? 0,
       status: "Active",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      dateOfBirth: rawData["dateOfBirth"]
-        ? Timestamp.fromDate(new Date(rawData["dateOfBirth"]))
-        : null,
-      joiningDate: rawData["joiningDate"]
-        ? Timestamp.fromDate(new Date(rawData["joiningDate"]))
-        : null,
+      dateOfBirth: dateOfBirth ? Timestamp.fromDate(dateOfBirth) : null,
+      joiningDate: joiningDate ? Timestamp.fromDate(joiningDate) : null,
     };
 
     const docRef = await addDoc(employeeCollection, newEmployeeDoc);

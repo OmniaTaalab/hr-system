@@ -208,12 +208,13 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const { profile } = useUserProfile();
   const [addState, addAction, isAddPending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
-  const { roles, stage: stages, subjects, campuses, reportLines1, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, stage: stages, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
   
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
   const [joiningDate, setJoiningDate] = useState<Date | undefined>();
   const [role, setRole] = useState("");
   const [campus, setCampus] = useState("");
+  const [system, setSystem] = useState("");
   const [gender, setGender] = useState("");
   const [stage, setStage] = useState("");
   const [childrenAtNIS, setChildrenAtNIS] = useState<'Yes' | 'No'>('No');
@@ -253,6 +254,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         {/* Hidden inputs for controlled Selects */}
         <input type="hidden" name="role" value={role} />
         <input type="hidden" name="campus" value={campus} />
+        <input type="hidden" name="system" value={system} />
         <input type="hidden" name="gender" value={gender || ''} />
         <input type="hidden" name="stage" value={stage || ''} />
         <input type="hidden" name="childrenAtNIS" value={childrenAtNIS} />
@@ -315,7 +317,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             <Separator />
             <h3 className="text-lg font-semibold flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2"><Label htmlFor="add-nisEmail">NIS Email</Label><Input id="add-nisEmail" name="nisEmail" type="email" /><p className="text-xs text-destructive">{addState?.errors?.email && addState.errors.email.join(', ')}</p></div>
+                <div className="space-y-2"><Label htmlFor="add-nisEmail">NIS Email *</Label><Input id="add-nisEmail" name="nisEmail" type="email" required /><p className="text-xs text-destructive">{addState?.errors?.email && addState.errors.email.join(', ')}</p></div>
                 <div className="space-y-2"><Label htmlFor="add-title">Title</Label><Input id="add-title" name="title" /></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -329,15 +331,25 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 <Input id="add-subject" name="subject" />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Campus</Label>
-              <Select value={campus} onValueChange={setCampus} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger><SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent></Select>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Campus</Label>
+                <Select value={campus} onValueChange={setCampus} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger><SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent></Select>
+              </div>
+               <div className="space-y-2">
+                <Label>System</Label>
+                <Select value={system} onValueChange={setSystem} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger><SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2"><Label htmlFor="add-reportLine1">Report Line 1</Label><Input id="add-reportLine1" name="reportLine1" /></div>
-                <div className="space-y-2"><Label htmlFor="add-reportLine2">Report Line 2</Label><Input id="add-reportLine2" name="reportLine2" /></div>
+                <div className="space-y-2"><Label htmlFor="add-reportLine1">Report Line 1 (Manager's Email)</Label><Input id="add-reportLine1" name="reportLine1" type="email" /></div>
+                <div className="space-y-2"><Label htmlFor="add-reportLine2">Report Line 2 (Manager's Email)</Label><Input id="add-reportLine2" name="reportLine2" type="email" /></div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="add-hourlyRate">Hourly Rate (Optional)</Label>
+                    <Input id="add-hourlyRate" name="hourlyRate" type="number" step="0.01" placeholder="e.g., 25.50" />
+                </div>
                 <div className="space-y-2"><Label htmlFor="add-joiningDate">Joining Date</Label><Popover><PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !joiningDate && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{joiningDate ? format(joiningDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} captionLayout="dropdown-buttons" fromYear={new Date().getFullYear() - 20} toYear={2025} initialFocus /></PopoverContent></Popover></div>
             </div>
              {(addState?.errors?.form) && (
@@ -1821,3 +1833,4 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
