@@ -54,7 +54,7 @@ export async function getAllAuthUsers() {
 const CreateEmployeeFormSchema = z.object({
   // Personal Info
   firstName: z.string().min(1, "First name is required."),
-  lastName: z.string().min(1, "Last name is required."),
+  lastName: z.string().optional(),
   nameAr: z.string().optional(),
   childrenAtNIS: z.enum(['Yes', 'No']).optional(),
   personalEmail: z.string().email({ message: 'A valid personal email is required.' }).optional().or(z.literal('')),
@@ -210,13 +210,13 @@ export async function createEmployeeAction(
       number: emergencyContactNumber || null,
     };
 
-    const fullName = `${firstName} ${lastName}`.trim();
+    const fullName = `${firstName} ${lastName || ''}`.trim();
 
     const newEmployeeDoc = {
       employeeId: newEmployeeId,
       name: fullName,
       firstName,
-      lastName,
+      lastName: lastName || null,
       nameAr: nameAr || null,
       childrenAtNIS: childrenAtNIS || 'No',
       email: nisEmail || null,

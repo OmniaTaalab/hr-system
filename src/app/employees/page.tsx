@@ -271,8 +271,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                   {addState?.errors?.firstName && <p className="text-sm text-destructive">{addState.errors.firstName.join(', ')}</p>}
               </div>
               <div className="space-y-2">
-                  <Label htmlFor="add-lastName">Last Name *</Label>
-                  <Input id="add-lastName" name="lastName" required />
+                  <Label htmlFor="add-lastName">Last Name</Label>
+                  <Input id="add-lastName" name="lastName" />
                   {addState?.errors?.lastName && <p className="text-sm text-destructive">{addState.errors.lastName.join(', ')}</p>}
               </div>
             </div>
@@ -317,7 +317,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             <Separator />
             <h3 className="text-lg font-semibold flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2"><Label htmlFor="add-nisEmail">NIS Email *</Label><Input id="add-nisEmail" name="nisEmail" type="email" required /><p className="text-xs text-destructive">{addState?.errors?.email && addState.errors.email.join(', ')}</p></div>
+                <div className="space-y-2"><Label htmlFor="add-nisEmail">NIS Email</Label><Input id="add-nisEmail" name="nisEmail" type="email" /><p className="text-xs text-destructive">{addState?.errors?.email && addState.errors.email.join(', ')}</p></div>
                 <div className="space-y-2"><Label htmlFor="add-title">Title</Label><Input id="add-title" name="title" /></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
