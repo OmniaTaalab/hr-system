@@ -194,7 +194,6 @@ function MyRequestsContent() {
           }
         });
         
-        // Sort the records by date client-side
         detailedRecords.sort((a,b) => a.date.toMillis() - b.date.toMillis());
 
         setMonthlyWorkHours(totalMinutes);
@@ -210,17 +209,13 @@ function MyRequestsContent() {
       }
 
       try {
-        const yearStart = startOfYear(currentMonthDate);
-        const yearEnd = endOfYear(currentMonthDate);
-
-        const leavesInYearQuery = query(
+        // Fetch ALL leave requests for the user, then filter client-side. This avoids composite indexes.
+        const leavesQuery = query(
             collection(db, "leaveRequests"),
-            where("requestingEmployeeDocId", "==", currentEmployeeId),
-            where("startDate", ">=", Timestamp.fromDate(yearStart)),
-            where("startDate", "<=", Timestamp.fromDate(yearEnd))
+            where("requestingEmployeeDocId", "==", currentEmployeeId)
         );
         
-        const leaveSnapshot = await getDocs(leavesInYearQuery);
+        const leaveSnapshot = await getDocs(leavesQuery);
         let totalLeaveDaysInMonth = 0;
         const approvedLeaveApplicationsInMonth = new Set<string>();
         const filteredLeaveRequestsForTable: LeaveRequestEntry[] = [];
