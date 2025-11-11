@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { z } from 'zod';
@@ -67,6 +68,7 @@ const CreateEmployeeFormSchema = z.object({
   religion: z.string().optional(),
   
   // Work Info
+  employeeId: z.string().optional(),
   nisEmail: z.string().email().optional().or(z.literal('')),
   joiningDate: z.coerce.date().optional(),
   title: z.string().optional(),
@@ -108,6 +110,7 @@ export type CreateEmployeeState = {
     nationalId?: string[];
     religion?: string[];
     email?: string[];
+    employeeId?: string[];
     nisEmail?: string[];
     joiningDate?: string[];
     title?: string[];
@@ -166,6 +169,7 @@ export async function createEmployeeAction(
     gender,
     nationalId,
     religion,
+    employeeId,
     nisEmail,
     joiningDate,
     title,
@@ -198,10 +202,22 @@ export async function createEmployeeAction(
         };
       }
     }
+    
+    let finalEmployeeId = employeeId;
+    if (finalEmployeeId) {
+      const q = query(employeeCollection, where("employeeId", "==", finalEmployeeId));
+      const existing = await getDocs(q);
+      if (!existing.empty) {
+        return {
+          success: false,
+          errors: { employeeId: ["This Employee ID is already in use."] },
+        };
+      }
+    } else {
+        const employeeCountSnapshot = await getCountFromServer(employeeCollection);
+        finalEmployeeId = (1001 + employeeCountSnapshot.data().count).toString();
+    }
 
-
-    const employeeCountSnapshot = await getCountFromServer(employeeCollection);
-    const newEmployeeId = (1001 + employeeCountSnapshot.data().count).toString();
 
     const emergencyContact = {
       name: emergencyContactName || null,
@@ -212,7 +228,7 @@ export async function createEmployeeAction(
     const fullName = `${firstName} ${lastName || ''}`.trim();
 
     const newEmployeeDoc = {
-      employeeId: newEmployeeId,
+      employeeId: finalEmployeeId,
       name: fullName,
       firstName,
       lastName: lastName || null,

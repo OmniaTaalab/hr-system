@@ -9,10 +9,10 @@ import { logSystemEvent } from '@/lib/system-log';
 // --- Updated Create Auth User Action ---
 const CreateAuthUserSchema = z.object({
   employeeDocId: z.string().min(1, 'Employee document ID is required.'),
-  emailType: z.enum(['work', 'personal'], { required_error: "You must select an email type." }),
-  name: z.string().min(1, 'Employee name is required.'),
-  password: z.string().min(6, 'Password must be at least 6 characters long.'),
-  confirmPassword: z.string().min(6, 'Password confirmation is required.'),
+  emailType: z.enum(['work', 'personal']).optional(),
+  name: z.string().optional(),
+  password: z.string().optional(),
+  confirmPassword: z.string().optional(),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),

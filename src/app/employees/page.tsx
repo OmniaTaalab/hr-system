@@ -240,7 +240,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       <DialogHeader>
         <DialogTitle>Add New Employee</DialogTitle>
         <DialogDescription>
-          Enter the new employee's details. An employee ID will be generated automatically.
+          Enter the new employee's details. An employee ID will be generated automatically if left blank.
         </DialogDescription>
       </DialogHeader>
        <form
@@ -317,28 +317,35 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             <Separator />
             <h3 className="text-lg font-semibold flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="add-employeeId">Employee ID (Optional)</Label>
+                    <Input id="add-employeeId" name="employeeId" />
+                    {addState?.errors?.employeeId && <p className="text-sm text-destructive">{addState.errors.employeeId.join(', ')}</p>}
+                </div>
                 <div className="space-y-2"><Label htmlFor="add-nisEmail">NIS Email</Label><Input id="add-nisEmail" name="nisEmail" type="email" /><p className="text-xs text-destructive">{addState?.errors?.email && addState.errors.email.join(', ')}</p></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2"><Label htmlFor="add-title">Title</Label><Input id="add-title" name="title" /></div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div className="space-y-2"><Label htmlFor="add-department">Department</Label><Input id="add-department" name="department" /></div>
-              <div className="space-y-2"><Label>Role</Label><Select value={role} onValueChange={setRole} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger><SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent></Select></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Role</Label><Select value={role} onValueChange={setRole} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger><SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-2"><Label>Stage</Label><Select value={stage} onValueChange={setStage} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger><SelectContent>{stages.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent></Select></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="add-subject">Subject</Label>
                 <Input id="add-subject" name="subject" />
+              </div>
+               <div className="space-y-2">
+                <Label>System</Label>
+                <Select value={system} onValueChange={setSystem} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger><SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select>
               </div>
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Campus</Label>
                 <Select value={campus} onValueChange={setCampus} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger><SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent></Select>
-              </div>
-               <div className="space-y-2">
-                <Label>System</Label>
-                <Select value={system} onValueChange={setSystem} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger><SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
