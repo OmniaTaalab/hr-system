@@ -52,6 +52,11 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
   const [addState, addAction, isAddPending] = useActionState(addKpiEntryAction, initialKpiState);
 
   useEffect(() => {
+    if (!employeeId) {
+        setIsLoading(false);
+        setData([]);
+        return;
+    }
     setIsLoading(true);
     const q = query(collection(db, kpiType), where("employeeDocId", "==", employeeId));
     const unsubscribe = onSnapshot(q, (snapshot) => {

@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -16,16 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -36,54 +25,93 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Search, Loader2, ShieldCheck, ShieldX, Hourglass, MoreHorizontal, Edit3, Trash2, Filter, AlertTriangle, FileDown, Paperclip, Eye } from "lucide-react";
-import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
+import {
+  Search,
+  Loader2,
+  ShieldCheck,
+  ShieldX,
+  Hourglass,
+  Filter,
+  FileDown,
+  Eye,
+} from "lucide-react";
+import React, { useState, useEffect, useMemo, useActionState } from "react";
 import { format } from "date-fns";
-import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, Timestamp, orderBy, where, getDocs, QueryConstraint, or, Query } from 'firebase/firestore';
-import { 
-  updateLeaveRequestStatusAction, type UpdateLeaveStatusState,
-  editLeaveRequestAction, type EditLeaveRequestState,
-  deleteLeaveRequestAction, type DeleteLeaveRequestState
+import { db } from "@/lib/firebase/config";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  onSnapshot,
+  or,
+} from "firebase/firestore";
+import {
+  deleteLeaveRequestAction,
+  type DeleteLeaveRequestState,
 } from "@/app/actions/leave-actions";
-import * as XLSX from 'xlsx';
+import * as XLSX from "xlsx";
 import { useRouter } from "next/navigation";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
 
-
 export interface LeaveRequestEntry {
-  id: string; 
+  id: string;
   requestingEmployeeDocId: string;
   employeeName: string;
-  employeeStage?: string; 
-  employeeCampus?: string; 
+  employeeStage?: string;
+  employeeCampus?: string;
   reportLine1?: string;
   reportLine2?: string;
   leaveType: string;
-  startDate: Timestamp;
-  endDate: Timestamp;
+  startDate: any;
+  endDate: any;
   reason: string;
   status: "Pending" | "Approved" | "Rejected";
-  submittedAt: Timestamp;
+  submittedAt: any;
   managerNotes?: string;
-  updatedAt?: Timestamp;
-  numberOfDays?: number; 
-  attachmentURL?: string; 
+  updatedAt?: any;
+  numberOfDays?: number;
+  attachmentURL?: string;
   currentApprover?: string | null;
   approvedBy?: string[];
 }
 
-const initialDeleteState: DeleteLeaveRequestState = { message: null, errors: {}, success: false };
-
+const initialDeleteState: DeleteLeaveRequestState = {
+  message: null,
+  errors: {},
+  success: false,
+};
 
 function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
   switch (status) {
     case "Approved":
-      return <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"><ShieldCheck className="mr-1 h-3 w-3" />Approved</Badge>;
+      return (
+        <Badge
+          variant="secondary"
+          className="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"
+        >
+          <ShieldCheck className="mr-1 h-3 w-3" />
+          Approved
+        </Badge>
+      );
     case "Pending":
-      return <Badge variant="outline" className="border-yellow-500 text-yellow-600 dark:border-yellow-400 dark:text-yellow-300"><Hourglass className="mr-1 h-3 w-3" />Pending</Badge>;
+      return (
+        <Badge
+          variant="outline"
+          className="border-yellow-500 text-yellow-600 dark:border-yellow-400 dark:text-yellow-300"
+        >
+          <Hourglass className="mr-1 h-3 w-3" />
+          Pending
+        </Badge>
+      );
     case "Rejected":
-      return <Badge variant="destructive"><ShieldX className="mr-1 h-3 w-3" />Rejected</Badge>;
+      return (
+        <Badge variant="destructive">
+          <ShieldX className="mr-1 h-3 w-3" />
+          Rejected
+        </Badge>
+      );
     default:
       return <Badge>{status}</Badge>;
   }
@@ -93,115 +121,180 @@ function AllLeaveRequestsContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Approved" | "Rejected" | "MyPending">("All");
+  const [statusFilter, setStatusFilter] = useState<
+    "All" | "Pending" | "Approved" | "Rejected" | "MyPending"
+  >("All");
   const [campusFilter, setCampusFilter] = useState<string>("All");
   const [stageFilter, setStageFilter] = useState<string>("All");
   const [allRequests, setAllRequests] = useState<LeaveRequestEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { campuses, groupNames: stages, isLoading: isLoadingLists } = useOrganizationLists();
-  
-  const [selectedRequestToDelete, setSelectedRequestToDelete] = useState<LeaveRequestEntry | null>(null);
+  const { campuses, groupNames: stages, isLoading: isLoadingLists } =
+    useOrganizationLists();
+
+  const [selectedRequestToDelete, setSelectedRequestToDelete] =
+    useState<LeaveRequestEntry | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  
-  const [deleteServerState, deleteFormAction, isDeletePending] = useActionState(deleteLeaveRequestAction, initialDeleteState);
-  
+  const [deleteServerState, deleteFormAction, isDeletePending] = useActionState(
+    deleteLeaveRequestAction,
+    initialDeleteState
+  );
+
   useEffect(() => {
     if (isLoadingProfile) return;
 
     const userRole = profile?.role?.toLowerCase();
-    const isPrivileged = userRole === 'admin' || userRole === 'hr';
+    const isPrivileged = userRole === "admin" || userRole === "hr";
     let unsubscribe: () => void = () => {};
-    let unsubscribes: (()=>void)[] = [];
+    let unsubscribes: (() => void)[] = [];
 
     const fetchManagerRequests = async () => {
-        setIsLoading(true);
-        if (!profile?.email) {
-            setAllRequests([]);
-            setIsLoading(false);
-            return;
+      setIsLoading(true);
+      if (!profile?.email) {
+        setAllRequests([]);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const reportingEmployeesQuery = query(
+          collection(db, "employee"),
+          or(
+            where("reportLine1", "==", profile.email),
+            where("reportLine2", "==", profile.email)
+          )
+        );
+        const reportingEmployeesSnapshot = await getDocs(reportingEmployeesQuery);
+        const employeeIds = reportingEmployeesSnapshot.docs.map((doc) => doc.id);
+
+        if (employeeIds.length === 0) {
+          setAllRequests([]);
+          setIsLoading(false);
+          return;
         }
 
-        try {
-            const reportingEmployeesQuery = query(
-                collection(db, "employee"),
-                or(
-                    where("reportLine1", "==", profile.email),
-                    where("reportLine2", "==", profile.email)
-                )
-            );
-            const reportingEmployeesSnapshot = await getDocs(reportingEmployeesQuery);
-            const employeeIds = reportingEmployeesSnapshot.docs.map(doc => doc.id);
+        // 🔹 إذا عندنا عدد كبير جدًا (> 30) → نستخدم batching عادي بـ getDocs
+        if (employeeIds.length > 30) {
+          let allManagerRequests: LeaveRequestEntry[] = [];
+          const batchSize = 30;
 
-            if (employeeIds.length === 0) {
-                setAllRequests([]);
-                setIsLoading(false);
-                return;
+          for (let i = 0; i < employeeIds.length; i += batchSize) {
+            const batch = employeeIds.slice(i, i + batchSize);
+            const batchRequests: LeaveRequestEntry[] = [];
+
+            for (const empId of batch) {
+              const leaveQuery = query(
+                collection(db, "leaveRequests"),
+                where("requestingEmployeeDocId", "==", empId)
+              );
+              const snapshot = await getDocs(leaveQuery);
+              const requests = snapshot.docs.map(
+                (doc) => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry)
+              );
+              batchRequests.push(...requests);
             }
 
-            // Fetch requests for each employee individually to avoid 'in' query limit
-            let allManagerRequests: LeaveRequestEntry[] = [];
-            const listeners: (() => void)[] = [];
+            allManagerRequests.push(...batchRequests);
+          }
 
-            employeeIds.forEach(empId => {
-                const leaveRequestsQuery = query(
-                    collection(db, "leaveRequests"), 
-                    where("requestingEmployeeDocId", "==", empId)
-                );
-                
-                const unsub = onSnapshot(leaveRequestsQuery, (snapshot) => {
-                    const newRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
-                    
-                    // Update the main state by replacing old requests for this employee with new ones
-                    allManagerRequests = [
-                        ...allManagerRequests.filter(req => req.requestingEmployeeDocId !== empId),
-                        ...newRequests
-                    ];
-                    
-                    allManagerRequests.sort((a,b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
-                    setAllRequests(allManagerRequests);
-                    
-                }, (error) => {
-                    console.error(`Error fetching leave requests for employee ${empId}:`, error);
-                });
-                listeners.push(unsub);
-            });
-
-            setIsLoading(false); // Set loading to false initially, data will stream in
-            unsubscribes = listeners;
-
-        } catch (error) {
-            console.error("Error setting up manager's leave request fetch:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'An error occurred while setting up your view.' });
-            setIsLoading(false);
+          allManagerRequests.sort(
+            (a, b) => b.submittedAt.toMillis() - a.submittedAt.toMillis()
+          );
+          setAllRequests(allManagerRequests);
+          setIsLoading(false);
+          return;
         }
+
+        // 🔹 لو أقل من أو يساوي 30 → نستخدم snapshot live
+        let allManagerRequests: LeaveRequestEntry[] = [];
+        const listeners: (() => void)[] = [];
+
+        employeeIds.forEach((empId) => {
+          const leaveRequestsQuery = query(
+            collection(db, "leaveRequests"),
+            where("requestingEmployeeDocId", "==", empId)
+          );
+
+          const unsub = onSnapshot(
+            leaveRequestsQuery,
+            (snapshot) => {
+              const newRequests = snapshot.docs.map(
+                (doc) => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry)
+              );
+
+              allManagerRequests = [
+                ...allManagerRequests.filter(
+                  (req) => req.requestingEmployeeDocId !== empId
+                ),
+                ...newRequests,
+              ];
+
+              allManagerRequests.sort(
+                (a, b) => b.submittedAt.toMillis() - a.submittedAt.toMillis()
+              );
+              setAllRequests([...allManagerRequests]);
+            },
+            (error) => {
+              console.error(
+                `Error fetching leave requests for employee ${empId}:`,
+                error
+              );
+            }
+          );
+          listeners.push(unsub);
+        });
+
+        unsubscribes = listeners;
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Error setting up manager's leave request fetch:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "An error occurred while setting up your view.",
+        });
+        setIsLoading(false);
+      }
     };
 
     const fetchAllRequests = () => {
-        setIsLoading(true);
-        const q = query(collection(db, "leaveRequests"), orderBy("submittedAt", "desc"));
-        unsubscribe = onSnapshot(q, (snapshot) => {
-            const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
-            setAllRequests(requestsData);
-            setIsLoading(false);
-        }, (error) => {
-            console.error("Error fetching all leave requests:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch leave requests.' });
-            setIsLoading(false);
-        });
+      setIsLoading(true);
+      const q = query(
+        collection(db, "leaveRequests"),
+        orderBy("submittedAt", "desc")
+      );
+      unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const requestsData = snapshot.docs.map(
+            (doc) => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry)
+          );
+          setAllRequests(requestsData);
+          setIsLoading(false);
+        },
+        (error) => {
+          console.error("Error fetching all leave requests:", error);
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not fetch leave requests.",
+          });
+          setIsLoading(false);
+        }
+      );
     };
 
     if (isPrivileged) {
-        fetchAllRequests();
+      fetchAllRequests();
     } else {
-        fetchManagerRequests();
+      fetchManagerRequests();
     }
 
     return () => {
-        if (unsubscribe) unsubscribe();
-        unsubscribes.forEach(unsub => unsub());
+      if (unsubscribe) unsubscribe();
+      unsubscribes.forEach((unsub) => unsub());
     };
-}, [profile, isLoadingProfile, toast]);
+  }, [profile, isLoadingProfile, toast]);
 
   useEffect(() => {
     if (deleteServerState?.message) {
@@ -209,7 +302,13 @@ function AllLeaveRequestsContent() {
         toast({ title: "Success", description: deleteServerState.message });
         closeDeleteDialog();
       } else {
-        toast({ variant: "destructive", title: "Error", description: deleteServerState.errors?.form?.join(", ") || deleteServerState.message });
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description:
+            deleteServerState.errors?.form?.join(", ") ||
+            deleteServerState.message,
+        });
       }
     }
   }, [deleteServerState, toast]);
@@ -230,77 +329,81 @@ function AllLeaveRequestsContent() {
     let requests = allRequests;
 
     if (statusFilter !== "All") {
-        if(statusFilter === 'MyPending'){
-            requests = requests.filter(item => item.status === 'Pending' && item.currentApprover === profile?.email);
-        } else {
-            requests = requests.filter(item => item.status === statusFilter);
-        }
+      if (statusFilter === "MyPending") {
+        requests = requests.filter(
+          (item) =>
+            item.status === "Pending" &&
+            item.currentApprover === profile?.email
+        );
+      } else {
+        requests = requests.filter((item) => item.status === statusFilter);
+      }
     }
-    
+
     if (campusFilter !== "All") {
-      requests = requests.filter(item => item.employeeCampus === campusFilter);
+      requests = requests.filter((item) => item.employeeCampus === campusFilter);
     }
 
     if (stageFilter !== "All") {
-      requests = requests.filter(item => item.employeeStage === stageFilter);
+      requests = requests.filter((item) => item.employeeStage === stageFilter);
     }
-    
+
     if (searchTerm) {
-      const lowercasedFilter = searchTerm.toLowerCase();
-      requests = requests.filter(item => {
+      const lower = searchTerm.toLowerCase();
+      requests = requests.filter((item) => {
         return (
-          item.employeeName.toLowerCase().includes(lowercasedFilter) ||
-          item.leaveType.toLowerCase().includes(lowercasedFilter) ||
-          (item.employeeStage && item.employeeStage.toLowerCase().includes(lowercasedFilter)) ||
-          item.reason.toLowerCase().includes(lowercasedFilter) ||
-          item.status.toLowerCase().includes(lowercasedFilter) || 
-          format(item.startDate.toDate(), "PPP").toLowerCase().includes(lowercasedFilter) ||
-          format(item.endDate.toDate(), "PPP").toLowerCase().includes(lowercasedFilter)
+          item.employeeName.toLowerCase().includes(lower) ||
+          item.leaveType.toLowerCase().includes(lower) ||
+          (item.employeeStage &&
+            item.employeeStage.toLowerCase().includes(lower)) ||
+          item.reason.toLowerCase().includes(lower) ||
+          item.status.toLowerCase().includes(lower) ||
+          format(item.startDate.toDate(), "PPP").toLowerCase().includes(lower) ||
+          format(item.endDate.toDate(), "PPP").toLowerCase().includes(lower)
         );
       });
     }
     return requests;
   }, [allRequests, searchTerm, statusFilter, campusFilter, stageFilter, profile?.email]);
-  
+
   const handleExportExcel = () => {
     if (filteredRequests.length === 0) {
       toast({
         title: "No Data",
         description: "There are no records to export in the current view.",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-    
-    const dataToExport = filteredRequests.map(req => ({
-      'Employee Name': req.employeeName,
-      'Stage': req.employeeStage || '-',
-      'Campus': req.employeeCampus || '-',
-      'Leave Type': req.leaveType,
-      'Start Date': format(req.startDate.toDate(), 'yyyy-MM-dd'),
-      'End Date': format(req.endDate.toDate(), 'yyyy-MM-dd'),
-      'Working Days': req.numberOfDays ?? 0,
-      'Status': req.status,
-      'Reason': req.reason,
-      'Manager Notes': req.managerNotes || '-',
-      'Submitted At': format(req.submittedAt.toDate(), 'yyyy-MM-dd p'),
+
+    const dataToExport = filteredRequests.map((req) => ({
+      "Employee Name": req.employeeName,
+      Stage: req.employeeStage || "-",
+      Campus: req.employeeCampus || "-",
+      "Leave Type": req.leaveType,
+      "Start Date": format(req.startDate.toDate(), "yyyy-MM-dd"),
+      "End Date": format(req.endDate.toDate(), "yyyy-MM-dd"),
+      "Working Days": req.numberOfDays ?? 0,
+      Status: req.status,
+      Reason: req.reason,
+      "Manager Notes": req.managerNotes || "-",
+      "Submitted At": format(req.submittedAt.toDate(), "yyyy-MM-dd p"),
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Leave Requests");
-    XLSX.writeFile(workbook, `Leave_Requests_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    XLSX.writeFile(
+      workbook,
+      `Leave_Requests_${format(new Date(), "yyyy-MM-dd")}.xlsx`
+    );
 
     toast({
       title: "Export Successful",
       description: "Leave requests have been exported to Excel.",
     });
   };
-  
-  const openDeleteDialog = (request: LeaveRequestEntry) => {
-    setSelectedRequestToDelete(request);
-    setIsDeleteDialogOpen(true);
-  };
+
   const closeDeleteDialog = () => {
     setSelectedRequestToDelete(null);
     setIsDeleteDialogOpen(false);
@@ -319,96 +422,145 @@ function AllLeaveRequestsContent() {
         </p>
       </header>
 
+      {/* Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">
+              Pending Requests
+            </CardTitle>
             <Hourglass className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {finalIsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.pending}
+              {finalIsLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                requestCounts.pending
+              )}
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Approved Requests</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">
+              Approved Requests
+            </CardTitle>
             <ShieldCheck className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {finalIsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.approved}
+              {finalIsLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                requestCounts.approved
+              )}
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rejected Requests</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">
+              Rejected Requests
+            </CardTitle>
             <ShieldX className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {finalIsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : requestCounts.rejected}
+              {finalIsLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                requestCounts.rejected
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* Table */}
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Leave Request Log</CardTitle>
-           <CardDescription>A comprehensive list of all submitted leave requests.</CardDescription>
+          <CardDescription>
+            A comprehensive list of all submitted leave requests.
+          </CardDescription>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-2">
-              <div className="relative flex-grow sm:flex-grow-0 sm:w-full lg:w-1/3">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                  type="search"
-                  placeholder="Search requests..."
-                  className="w-full pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-              </div>
-              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-                <Filter className="h-4 w-4 text-muted-foreground hidden sm:block"/>
-                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "All" | "Pending" | "Approved" | "Rejected" | "MyPending")}>
-                    <SelectTrigger className="w-full sm:w-[180px]">
-                        <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="All">All Statuses</SelectItem>
-                        <SelectItem value="MyPending">Pending My Approval</SelectItem>
-                        <SelectItem value="Pending">Pending</SelectItem>
-                        <SelectItem value="Approved">Approved</SelectItem>
-                        <SelectItem value="Rejected">Rejected</SelectItem>
-                    </SelectContent>
-                </Select>
-                 <Select value={campusFilter} onValueChange={(value) => setCampusFilter(value as string)} disabled={isLoadingLists}>
-                    <SelectTrigger className="w-full sm:w-[150px]">
-                        <SelectValue placeholder="Filter by campus" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="All">All Campuses</SelectItem>
-                        {campuses.map(campus => <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                 <Select value={stageFilter} onValueChange={(value) => setStageFilter(value as string)} disabled={isLoadingLists}>
-                    <SelectTrigger className="w-full sm:w-[150px]">
-                        <SelectValue placeholder="Filter by stage" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="All">All Stages</SelectItem>
-                        {stages.map(stage => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Button onClick={handleExportExcel} variant="outline" className="w-full sm:w-auto">
-                    <FileDown className="mr-2 h-4 w-4" />
-                    Export Excel
-                </Button>
-              </div>
+            <div className="relative flex-grow sm:flex-grow-0 sm:w-full lg:w-1/3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search requests..."
+                className="w-full pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+              <Filter className="h-4 w-4 text-muted-foreground hidden sm:block" />
+              <Select
+                value={statusFilter}
+                onValueChange={(v) =>
+                  setStatusFilter(
+                    v as "All" | "Pending" | "Approved" | "Rejected" | "MyPending"
+                  )
+                }
+              >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All Statuses</SelectItem>
+                  <SelectItem value="MyPending">Pending My Approval</SelectItem>
+                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="Approved">Approved</SelectItem>
+                  <SelectItem value="Rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={campusFilter}
+                onValueChange={(v) => setCampusFilter(v as string)}
+                disabled={isLoadingLists}
+              >
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Filter by campus" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All Campuses</SelectItem>
+                  {campuses.map((campus) => (
+                    <SelectItem key={campus.id} value={campus.name}>
+                      {campus.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={stageFilter}
+                onValueChange={(v) => setStageFilter(v as string)}
+                disabled={isLoadingLists}
+              >
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Filter by stage" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All Stages</SelectItem>
+                  {stages.map((stage) => (
+                    <SelectItem key={stage.id} value={stage.name}>
+                      {stage.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button onClick={handleExportExcel} variant="outline">
+                <FileDown className="mr-2 h-4 w-4" />
+                Export Excel
+              </Button>
+            </div>
           </div>
         </CardHeader>
+
         <CardContent>
           {finalIsLoading ? (
             <div className="flex justify-center items-center h-64">
@@ -431,24 +583,34 @@ function AllLeaveRequestsContent() {
               </TableHeader>
               <TableBody>
                 {filteredRequests.length > 0 ? (
-                  filteredRequests.map((request) => {
-                    const isPendingMyApproval = request.status === 'Pending' && request.currentApprover === profile?.email;
+                  filteredRequests.map((r) => {
+                    const isPendingMyApproval =
+                      r.status === "Pending" &&
+                      r.currentApprover === profile?.email;
                     return (
-                      <TableRow 
-                          key={request.id} 
-                          onClick={() => router.push(`/leave/all-requests/${request.id}`)} 
-                          className={cn("cursor-pointer", isPendingMyApproval && "bg-yellow-100/50 hover:bg-yellow-100/70 dark:bg-yellow-900/20 dark:hover:bg-yellow-900/30")}
+                      <TableRow
+                        key={r.id}
+                        onClick={() =>
+                          router.push(`/leave/all-requests/${r.id}`)
+                        }
+                        className={cn(
+                          "cursor-pointer",
+                          isPendingMyApproval &&
+                            "bg-yellow-100/50 hover:bg-yellow-100/70 dark:bg-yellow-900/20 dark:hover:bg-yellow-900/30"
+                        )}
                       >
-                        <TableCell className="font-medium">{request.employeeName}</TableCell>
-                        <TableCell>{request.leaveType}</TableCell>
-                        <TableCell>{format(request.startDate.toDate(), "PPP")}</TableCell>
-                        <TableCell>{format(request.endDate.toDate(), "PPP")}</TableCell>
-                        <TableCell>{request.numberOfDays ?? 0}</TableCell>
-                        <TableCell>
-                          <LeaveStatusBadge status={request.status} />
+                        <TableCell className="font-medium">
+                          {r.employeeName}
                         </TableCell>
-                         <TableCell>
-                          {request.currentApprover || <Badge variant="outline">N/A</Badge>}
+                        <TableCell>{r.leaveType}</TableCell>
+                        <TableCell>{format(r.startDate.toDate(), "PPP")}</TableCell>
+                        <TableCell>{format(r.endDate.toDate(), "PPP")}</TableCell>
+                        <TableCell>{r.numberOfDays ?? 0}</TableCell>
+                        <TableCell>
+                          <LeaveStatusBadge status={r.status} />
+                        </TableCell>
+                        <TableCell>
+                          {r.currentApprover || <Badge variant="outline">N/A</Badge>}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button variant="ghost" size="sm">
@@ -471,39 +633,6 @@ function AllLeaveRequestsContent() {
           )}
         </CardContent>
       </Card>
-      
-      {isDeleteDialogOpen && selectedRequestToDelete && (
-        <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {if(!isOpen) closeDeleteDialog(); else setIsDeleteDialogOpen(true);}}>
-          <AlertDialogContent>
-            <form id="delete-leave-request-form" action={deleteFormAction}>
-              <input type="hidden" name="requestId" value={selectedRequestToDelete.id} />
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete the leave request for <strong>{selectedRequestToDelete.employeeName}</strong>
-                  from {format(selectedRequestToDelete.startDate.toDate(), "PPP")} to {format(selectedRequestToDelete.endDate.toDate(), "PPP")}.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              {deleteServerState?.errors?.form && (
-                  <p className="text-sm font-medium text-destructive my-2">
-                  {deleteServerState.errors.form.join(", ")}
-                  </p>
-              )}
-              <AlertDialogFooter className="mt-4">
-                <AlertDialogCancel type="button" onClick={closeDeleteDialog}>Cancel</AlertDialogCancel>
-                <Button
-                  type="submit"
-                  form="delete-leave-request-form"
-                  variant="destructive"
-                  disabled={isDeletePending}
-                >
-                  {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Request"}
-                </Button>
-              </AlertDialogFooter>
-            </form>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
     </div>
   );
 }
@@ -515,6 +644,3 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
-
-
-

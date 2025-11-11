@@ -225,12 +225,19 @@ const updateStatusSchema = z.object({
 });
 
 
-export type UpdateLeaveStatusState = {
-  errors?: z.inferFlattenedErrors<typeof updateStatusSchema>['fieldErrors'];
-  message?: string | null;
-  success?: boolean;
-};
-
+export interface UpdateLeaveStatusState {
+  message: string | null;
+  errors: {
+    form?: string[];
+    requestId?: string[];
+    newStatus?: string[];
+    managerNotes?: string[];
+    actorId?: string[];
+    actorEmail?: string[];
+    actorRole?: string[];
+  };
+  success: boolean;
+}
 export async function updateLeaveRequestStatusAction(
   prevState: UpdateLeaveStatusState,
   formData: FormData,
@@ -260,13 +267,17 @@ export async function updateLeaveRequestStatusAction(
     const requestSnap = await getDoc(requestRef);
 
     if (!requestSnap.exists()) {
-      return { errors: { form: ["Leave request not found."] }, success: false };
+      return {          message: "Something went wrong",
+        errors: { form: ["Leave request not found."] }, success: false };
     }
     
     const requestData = requestSnap.data();
 
     if (requestData.currentApprover !== approverEmail) {
-        return { errors: { form: ["You are not the current approver for this request."] }, success: false };
+        return {
+          message: "Something went wrong",
+          errors: { form: ["You are not the current approver for this request."] }, 
+          success: false };
     }
     
     const updates: any = {
@@ -352,7 +363,10 @@ export async function updateLeaveRequestStatusAction(
         }
     }
 
-    return { message: `Leave request status updated.`, success: true };
+    return { message: `Leave request status updated.`, 
+      errors: { form: ["Something went wrong"] },
+
+      success: true };
 
   } catch (error: any) {
     console.error("Error updating leave request status:", error);

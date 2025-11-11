@@ -4,12 +4,12 @@
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Loader2, CalendarCheck2, Briefcase, Clock, User, UserX } from "lucide-react";
+import { ArrowRight, Loader2, CalendarCheck2 } from "lucide-react";
 import Link from "next/link";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useMemo } from "react";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, query, where, getCountFromServer, Timestamp, orderBy, QueryConstraint, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where, getCountFromServer, Timestamp, orderBy, QueryConstraint } from 'firebase/firestore';
 import type { Timestamp as FirebaseTimestamp } from 'firebase/firestore';
 import {
   ChartContainer,
@@ -20,7 +20,6 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { format } from 'date-fns';
-import { formatInTimeZone } from 'date-fns-tz';
 
 interface Employee {
   id: string;
@@ -36,13 +35,19 @@ interface Holiday {
   date: FirebaseTimestamp;
 }
 
+interface KpiEntry {
+    id: string;
+    date: FirebaseTimestamp;
+    points: number;
+}
+
 interface DashboardCardProps {
   title: string;
   description?: string;
   iconName: string;
   href?: string;
   linkText?: string;
-  statistic?: string | number | null; // ✅ أضف null هنا
+  statistic?: string | number | null;
   statisticLabel?: string;
   isLoadingStatistic?: boolean;
   className?: string;
@@ -107,7 +112,6 @@ const chartConfig = {
   },
 } satisfies Record<string, unknown>;
 
-
 function DashboardPageContent() {
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const [activeEmployees, setActiveEmployees] = useState<number | null>(null);
@@ -122,6 +126,7 @@ function DashboardPageContent() {
   const [campusData, setCampusData] = useState<CampusData[]>([]);
   const [upcomingHolidays, setUpcomingHolidays] = useState<Holiday[]>([]);
   const [lateAttendance, setLateAttendance] = useState<number | null>(null);
+  const [kpiData, setKpiData] = useState<{ eleot: KpiEntry[], tot: KpiEntry[] }>({ eleot: [], tot: [] });
 
 
   const [isLoadingTotalEmp, setIsLoadingTotalEmp] = useState(true);
@@ -135,91 +140,83 @@ function DashboardPageContent() {
   const [isLoadingCampusData, setIsLoadingCampusData] = useState(true);
   const [isLoadingHolidays, setIsLoadingHolidays] = useState(true);
   const [isLoadingLateAttendance, setIsLoadingLateAttendance] = useState(true);
+  const [isLoadingKpis, setIsLoadingKpis] = useState(true);
 
-  
   const { profile, loading: isLoadingProfile } = useUserProfile();
-
+  
+  const isPrivilegedUser = useMemo(() => {
+      if (isLoadingProfile || !profile) return false;
+      const userRole = profile.role?.toLowerCase();
+      return userRole === 'admin' || userRole === 'hr';
+  }, [profile, isLoadingProfile]);
+  
   useEffect(() => {
     if (isLoadingProfile) return;
-
+  
     const fetchCounts = async () => {
       const userRole = profile?.role?.toLowerCase();
-      
-      setIsLoadingTotalEmp(true);
-      setIsLoadingActiveEmp(true);
-      try {
-        let empQuery;
-        const employeeCollection = collection(db, "employee");
-
-        if (userRole === 'admin' || userRole === 'hr') {
-          empQuery = query(employeeCollection);
+  
+      if(isPrivilegedUser) {
+        setIsLoadingTotalEmp(true);
+        setIsLoadingActiveEmp(true);
+        try {
+          const empQuery = query(collection(db, "employee"));
           const activeEmpQuery = query(employeeCollection, where("status", "==", "Active"));
           const [empSnapshot, activeEmpSnapshot] = await Promise.all([
             getCountFromServer(empQuery),
-            getCountFromServer(activeEmpQuery)
+            getCountFromServer(activeEmpQuery),
           ]);
           setTotalEmployees(empSnapshot.data().count);
           setActiveEmployees(activeEmpSnapshot.data().count);
-        } else if (userRole === 'principal' && profile?.stage) {
-          empQuery = query(employeeCollection, where("stage", "==", profile.stage));
-          const empSnapshot = await getCountFromServer(empQuery);
-          setTotalEmployees(empSnapshot.data().count);
-          setActiveEmployees(empSnapshot.data().count); // Assuming filtered employees are active
-        } else {
+        } catch (error) {
+          console.error("Error fetching total employees count:", error);
           setTotalEmployees(0);
           setActiveEmployees(0);
+        } finally {
+          setIsLoadingTotalEmp(false);
+          setIsLoadingActiveEmp(false);
         }
-      } catch (error) {
-        console.error("Error fetching total employees count:", error);
-        setTotalEmployees(0);
-        setActiveEmployees(0);
-      } finally {
-        setIsLoadingTotalEmp(false);
-        setIsLoadingActiveEmp(false);
       }
 
       setIsLoadingPendingLeaves(true);
       setIsLoadingApprovedLeaves(true);
       setIsLoadingRejectedLeaves(true);
       setIsLoadingTotalLeaves(true);
-
+  
       try {
         const leaveRequestsCollection = collection(db, "leaveRequests");
-        let baseLeaveQueryConstraints: QueryConstraint[] = [];
-
-        if (userRole === 'principal' && profile?.stage) {
-          const stageEmployeesQuery = query(collection(db, "employee"), where("stage", "==", profile.stage));
-          const stageSnapshot = await getDocs(stageEmployeesQuery);
-          const employeeIdsInStage = stageSnapshot.docs.map(doc => doc.id);
-          if (employeeIdsInStage.length > 0) {
-            baseLeaveQueryConstraints.push(where("requestingEmployeeDocId", "in", employeeIdsInStage));
-          } else {
-            setPendingLeaveRequests(0);
-            setApprovedLeaveRequests(0);
-            setRejectedLeaveRequests(0);
-            setTotalLeaveRequests(0);
-            return;
+        const employeeCollection = collection(db, "employee");
+        
+        let leaveQueryConstraints: QueryConstraint[] = [];
+  
+        if (profile?.id) {
+          if (!isPrivilegedUser) { // Regular employee or manager
+            leaveQueryConstraints.push(where("requestingEmployeeDocId", "==", profile.id));
           }
-        } else if (userRole !== 'admin' && userRole !== 'hr' && profile?.id) {
-          baseLeaveQueryConstraints.push(where("requestingEmployeeDocId", "==", profile.id));
+        }
+        
+        if (leaveQueryConstraints.length > 0 || isPrivilegedUser) {
+            const pendingQuery = query(leaveRequestsCollection, ...leaveQueryConstraints, where("status", "==", "Pending"));
+            const approvedQuery = query(leaveRequestsCollection, ...leaveQueryConstraints, where("status", "==", "Approved"));
+            const rejectedQuery = query(leaveRequestsCollection, ...leaveQueryConstraints, where("status", "==", "Rejected"));
+            
+            const [pendingSnap, approvedSnap, rejectedSnap] = await Promise.all([
+                getCountFromServer(pendingQuery),
+                getCountFromServer(approvedQuery),
+                getCountFromServer(rejectedQuery),
+            ]);
+
+            setPendingLeaveRequests(pendingSnap.data().count);
+            setApprovedLeaveRequests(approvedSnap.data().count);
+            setRejectedLeaveRequests(rejectedSnap.data().count);
+            setTotalLeaveRequests(pendingSnap.data().count + approvedSnap.data().count + rejectedSnap.data().count);
+        } else {
+             setPendingLeaveRequests(0);
+             setApprovedLeaveRequests(0);
+             setRejectedLeaveRequests(0);
+             setTotalLeaveRequests(0);
         }
 
-        const pendingQuery = query(leaveRequestsCollection, ...baseLeaveQueryConstraints, where("status", "==", "Pending"));
-        const approvedQuery = query(leaveRequestsCollection, ...baseLeaveQueryConstraints, where("status", "==", "Approved"));
-        const rejectedQuery = query(leaveRequestsCollection, ...baseLeaveQueryConstraints, where("status", "==", "Rejected"));
-        const totalQuery = query(leaveRequestsCollection, ...baseLeaveQueryConstraints);
-
-        const [pendingSnapshot, approvedSnapshot, rejectedSnapshot, totalSnapshot] = await Promise.all([
-          getCountFromServer(pendingQuery),
-          getCountFromServer(approvedQuery),
-          getCountFromServer(rejectedQuery),
-          getCountFromServer(totalQuery),
-        ]);
-
-        setPendingLeaveRequests(pendingSnapshot.data().count);
-        setApprovedLeaveRequests(approvedSnapshot.data().count);
-        setRejectedLeaveRequests(rejectedSnapshot.data().count);
-        setTotalLeaveRequests(totalSnapshot.data().count);
       } catch (error) {
         console.error("Error fetching leave requests count:", error);
         setPendingLeaveRequests(0);
@@ -233,202 +230,163 @@ function DashboardPageContent() {
         setIsLoadingTotalLeaves(false);
       }
     };
+  
     const fetchDailyAttendance = async () => {
+      // Fetch attendance only for privileged users
+      if (!isPrivilegedUser) {
+        setIsLoadingTodaysAttendance(false);
+        setIsLoadingAbsentToday(false);
+        setIsLoadingLateAttendance(false);
+        return;
+      }
+        
       setIsLoadingTodaysAttendance(true);
-      setIsLoadingLateAttendance(true);
       setIsLoadingAbsentToday(true);
-    
+      setIsLoadingLateAttendance(true);
       try {
-        // ✅ 1. Get all employees (بدون check على Active)
-        const employeeSnapshot = await getDocs(collection(db, "employee"));
-        const allEmployees = employeeSnapshot.docs.map(doc => doc.data());
-        const totalEmployees = allEmployees.length;
-    
-        // ✅ 2. جهّز IDs لكل الموظفين (userId, employeeId, badgeNumber)
-        const systemEmployeeIds = new Set(
-          allEmployees.map(e =>
-            String(e.userId || e.employeeId || e.badgeNumber || "").trim()
-          )
-        );
-    
-        // ✅ 3. Get campus working hours
-        const campusWorkingHoursQuery = await getDocs(collection(db, "campusWorkingHours"));
-        const campusHoursMap = new Map();
-        campusWorkingHoursQuery.forEach(doc => {
-          campusHoursMap.set(doc.id, doc.data());
-        });
-    
-        // ✅ 4. Get today's attendance logs
         const today = new Date();
-        const todayStr = format(today, "yyyy-MM-dd");
-    
-        const attendanceSnapshot = await getDocs(
-          query(collection(db, "attendance_log"), where("date", "==", todayStr))
-        );
-    
-        if (attendanceSnapshot.empty) {
-          setTodaysAttendance(0);
-          setLateAttendance(0);
-          setAbsentToday(totalEmployees);
-          setAttendanceDate(format(today, "PPP"));
-          setDateStringForLink(todayStr);
-          return;
-        }
-    
-        setDateStringForLink(todayStr);
-        setAttendanceDate(format(today, "PPP"));
-    
-        // ✅ Helper function to parse time into total minutes
-        const parseTimeToMinutes = (t: string): number | null => {
-          if (!t) return null;
-          const match = t.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?$/i);
-          if (!match) return null;
-          let h = parseInt(match[1], 10);
-          const m = parseInt(match[2], 10);
-          const ampm = match[4]?.toLowerCase();
-          if (ampm === "pm" && h < 12) h += 12;
-          if (ampm === "am" && h === 12) h = 0;
-          return h * 60 + m;
-        };
-    
-        // ✅ 5. احسب الحاضرين والمتأخرين
-        const presentInSystemIds = new Set<string>();
-        let lateCount = 0;
-    
-        for (const doc of attendanceSnapshot.docs) {
-          const data = doc.data();
-    
-          const userId = String(data.userId ?? "").trim();
-          const badgeNumber = String(data.badgeNumber ?? "").trim();
-          const employeeId = String(data.employeeId ?? "").trim();
-    
-          const matchedId = [userId, badgeNumber, employeeId].find(id =>
-            systemEmployeeIds.has(id)
-          );
-    
-          if (matchedId && !presentInSystemIds.has(matchedId)) {
-            presentInSystemIds.add(matchedId);
-    
-            // ✅ get employee campus info
-            const employeeDoc = allEmployees.find(e =>
-              [e.userId, e.employeeId, e.badgeNumber]
-                .map(x => String(x || "").trim())
-                .includes(matchedId)
-            );
-    
-            const employeeCampus = (employeeDoc?.campus || "").trim().toLowerCase();
-    
-            // ✅ find campus rule (case-insensitive)
-            const campusRulesEntry = Array.from(campusHoursMap.entries()).find(
-              ([key]) => key.trim().toLowerCase() === employeeCampus
-            );
-            const campusRules = campusRulesEntry?.[1];
-    
-            // ✅ get check-in end time
-            const checkInEndTime = (campusRules?.checkInEndTime || "07:30").trim();
-            const startLimit = parseTimeToMinutes(checkInEndTime);
-    
-            // ✅ check if employee is late
-            if (data.check_in && startLimit) {
-              const normalizedCheckIn = String(data.check_in).trim();
-    
-              // handle both 24-hour & 12-hour formats
-              const checkInMinutes =
-                parseTimeToMinutes(normalizedCheckIn) ??
-                parseTimeToMinutes(normalizedCheckIn + " am") ??
-                parseTimeToMinutes(normalizedCheckIn + " pm");
-    
-              if (checkInMinutes !== null && checkInMinutes > startLimit) {
-                lateCount++;
-              }
+        const dateStr = format(today, 'yyyy-MM-dd');
+        setAttendanceDate(format(today, 'PPP'));
+        setDateStringForLink(dateStr);
+        
+        const attendanceQuery = query(collection(db, "attendance_log"), where("date", "==", dateStr));
+        const attendanceSnapshot = await getDocs(attendanceQuery);
+        const presentUserIds = new Set(attendanceSnapshot.docs.map(doc => doc.data().userId));
+        setTodaysAttendance(presentUserIds.size);
+
+        // Calculate late attendance
+        const campusHoursSnap = await getDocs(collection(db, "campusWorkingHours"));
+        const campusRules = new Map<string, { checkInEndTime: string }>();
+        campusHoursSnap.forEach(doc => campusRules.set(doc.id, doc.data() as { checkInEndTime: string }));
+
+        const employeeSnap = await getDocs(query(collection(db, "employee"), where("employeeId", "in", Array.from(presentUserIds))));
+        const employeeCampusMap = new Map<string, string>();
+        employeeSnap.forEach(doc => {
+            const data = doc.data();
+            if (data.employeeId && data.campus) {
+                employeeCampusMap.set(String(data.employeeId), data.campus);
             }
-          }
-        }
-    
-        // ✅ 6. الحساب النهائي
-        const presentInSystemCount = presentInSystemIds.size;
-        const absentCount = Math.max(totalEmployees - presentInSystemCount, 0);
-    
-        console.log("🔹 Date:", todayStr);
-        console.log("🔹 Total Employees:", totalEmployees);
-        console.log("🔹 Present In System:", presentInSystemCount);
-        console.log("🔹 Absent In System:", absentCount);
-        console.log("🔹 Late Count:", lateCount);
-    
-        // ✅ 7. حفظ القيم في state
-        setTodaysAttendance(presentInSystemCount);
+        });
+
+        let lateCount = 0;
+        attendanceSnapshot.docs.forEach(doc => {
+            const log = doc.data();
+            const employeeId = String(log.userId);
+            const campusName = employeeCampusMap.get(employeeId);
+            const campusRule = campusName ? campusRules.get(campusName) : undefined;
+            if (campusRule && log.check_in) {
+                const checkInTime = log.check_in;
+                const [time, period] = checkInTime.split(' ');
+                let [hours, minutes] = time.split(':').map(Number);
+                if (period && period.toLowerCase() === 'pm' && hours < 12) hours += 12;
+                if (period && period.toLowerCase() === 'am' && hours === 12) hours = 0;
+
+                const [ruleHours, ruleMinutes] = campusRule.checkInEndTime.split(':').map(Number);
+                if (hours > ruleHours || (hours === ruleHours && minutes > ruleMinutes)) {
+                    lateCount++;
+                }
+            }
+        });
         setLateAttendance(lateCount);
-        setAbsentToday(absentCount);
-    
+
       } catch (error) {
-        console.error("Error in fetchDailyAttendance:", error);
+        console.error("Error fetching daily attendance:", error);
         setTodaysAttendance(0);
         setLateAttendance(0);
-        setAbsentToday(0);
-        setAttendanceDate("Error loading data");
       } finally {
         setIsLoadingTodaysAttendance(false);
+        setIsLoadingAbsentToday(false); // Depends on active employees count which is fetched elsewhere
         setIsLoadingLateAttendance(false);
-        setIsLoadingAbsentToday(false);
       }
     };
-    
+  
     const fetchCampusData = async () => {
-        setIsLoadingCampusData(true);
+      if (!isPrivilegedUser) {
+        setIsLoadingCampusData(false);
+        return;
+      }
+      setIsLoadingCampusData(true);
       try {
-        const empCol = collection(db, "employee");
-        const empDocsSnapshot = await getDocs(empCol);
-        const employees = empDocsSnapshot.docs.map(doc => doc.data() as Employee);
-
-        const counts: { [key: string]: number } = {};
-        employees.forEach(emp => {
-          if (emp.campus) {
-             counts[emp.campus] = (counts[emp.campus] || 0) + 1;
+        const empQuery = query(collection(db, "employee"));
+        const snapshot = await getDocs(empQuery);
+        const campusCounts: { [key: string]: number } = {};
+        snapshot.forEach(doc => {
+          const employee = doc.data() as Employee;
+          if (employee.campus) {
+            campusCounts[employee.campus] = (campusCounts[employee.campus] || 0) + 1;
           }
         });
-
-        const formattedData = Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a,b) => b.count - a.count);
+        const formattedData = Object.entries(campusCounts).map(([name, count]) => ({ name, count }));
         setCampusData(formattedData);
       } catch (error) {
         console.error("Error fetching campus data:", error);
-        setCampusData([]);
       } finally {
         setIsLoadingCampusData(false);
       }
     };
-
+  
     const fetchHolidays = async () => {
-        setIsLoadingHolidays(true);
+      setIsLoadingHolidays(true);
       try {
         const today = new Date();
-        today.setHours(0, 0, 0, 0); 
-        const holidaysQuery = query(
-          collection(db, "holidays"),
-          where("date", ">=", Timestamp.fromDate(today)),
-          orderBy("date", "asc")
-        );
-        const holidaysSnapshot = await getDocs(holidaysQuery);
-        const holidaysData = holidaysSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Holiday));
-        setUpcomingHolidays(holidaysData);
+        const holidaysQuery = query(collection(db, "holidays"), where("date", ">=", Timestamp.fromDate(today)), orderBy("date", "asc"), limit(3));
+        const holidaySnapshot = await getDocs(holidaysQuery);
+        setUpcomingHolidays(holidaySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Holiday)));
       } catch (error) {
-        console.error("Error fetching upcoming holidays:", error);
-        setUpcomingHolidays([]);
+        console.error("Error fetching holidays:", error);
       } finally {
         setIsLoadingHolidays(false);
       }
     };
+    
+    const fetchKpis = async () => {
+        if (!profile?.employeeId) {
+            setIsLoadingKpis(false);
+            return;
+        }
+        setIsLoadingKpis(true);
+        try {
+            const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", profile.employeeId));
+            const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", profile.employeeId));
 
+            const [eleotSnapshot, totSnapshot] = await Promise.all([getDocs(eleotQuery), getDocs(totQuery)]);
+            
+            const eleotData = eleotSnapshot.docs.map(doc => doc.data() as KpiEntry);
+            const totData = totSnapshot.docs.map(doc => doc.data() as KpiEntry);
+            setKpiData({ eleot: eleotData, tot: totData });
 
+        } catch (error) {
+             console.error("Error fetching KPIs for dashboard:", error);
+        } finally {
+            setIsLoadingKpis(false);
+        }
+    };
+  
     fetchCounts();
     fetchDailyAttendance();
     fetchCampusData();
     fetchHolidays();
-  }, [profile, isLoadingProfile]);
+    fetchKpis();
+
+  }, [profile, isLoadingProfile, isPrivilegedUser]);
   
   const finalAbsentCount = useMemo(() => {
     if (activeEmployees === null || todaysAttendance === null) return 0;
-    return Math.max(activeEmployees - todaysAttendance, 0);
+    const absent = activeEmployees - todaysAttendance;
+    return absent > 0 ? absent : 0;
   }, [activeEmployees, todaysAttendance]);
+
+  const eleotScore = useMemo(() => {
+      if (kpiData.eleot.length === 0) return 0;
+      const total = kpiData.eleot.reduce((sum, item) => sum + item.points, 0);
+      return parseFloat(((total / (kpiData.eleot.length * 6)) * 10).toFixed(1));
+  }, [kpiData.eleot]);
+  
+  const totScore = useMemo(() => {
+      if (kpiData.tot.length === 0) return 0;
+      const total = kpiData.tot.reduce((sum, item) => sum + item.points, 0);
+      return parseFloat(((total / (kpiData.tot.length * 6)) * 10).toFixed(1));
+  }, [kpiData.tot]);
 
   const statisticCards: DashboardCardProps[] = [
     {
@@ -453,14 +411,14 @@ function DashboardPageContent() {
     {
       title: "Absent Today",
       iconName: "UserX",
-      statistic: absentToday,
+      statistic: absentToday ?? finalAbsentCount,
       statisticLabel: attendanceDate ? `From ${activeEmployees ?? 'N/A'} active employees` : 'No attendance data',
       isLoadingStatistic: isLoadingAbsentToday || isLoadingActiveEmp,
       href: `/employees/status/absent?date=${dateStringForLink || ''}`,
       linkText: "View Employees",
       adminOnly: true,
     },
-     {
+    {
       title: "Late Arrivals",
       iconName: "Clock",
       statistic: lateAttendance ?? 0,
@@ -475,16 +433,15 @@ function DashboardPageContent() {
       iconName: "Hourglass",
       statistic: pendingLeaveRequests ?? 0,
       isLoadingStatistic: isLoadingPendingLeaves,
-      href: "/leave/all-requests", 
+      href: isPrivilegedUser ? "/leave/all-requests" : "/leave/my-requests",
       linkText: "Review Requests",
-      adminOnly: true,
     },
     {
       title: "Approved Leaves",
       iconName: "ShieldCheck",
       statistic: approvedLeaveRequests ?? 0,
       isLoadingStatistic: isLoadingApprovedLeaves,
-      href: "/leave/all-requests",
+      href: isPrivilegedUser ? "/leave/all-requests" : "/leave/my-requests",
       linkText: "View Approved",
     },
     {
@@ -492,49 +449,30 @@ function DashboardPageContent() {
       iconName: "ShieldX",
       statistic: rejectedLeaveRequests ?? 0,
       isLoadingStatistic: isLoadingRejectedLeaves,
-      href: "/leave/all-requests",
+      href: isPrivilegedUser ? "/leave/all-requests" : "/leave/my-requests",
       linkText: "View Rejected",
     },
-     {
-      title: "All Leave Requests",
-      iconName: "ListChecks",
-      statistic: totalLeaveRequests ?? 0,
-      isLoadingStatistic: isLoadingTotalLeaves,
-      href: "/leave/all-requests",
-      linkText: "View All Requests",
-      adminOnly: true,
-    },
+    ...(!isPrivilegedUser && profile ? [
+      { title: "ELEOT Score", iconName: "Trophy", statistic: eleotScore, statisticLabel: `Based on ${kpiData.eleot.length} entries`, isLoadingStatistic: isLoadingKpis, href: `/kpis/${profile.employeeId}`, linkText: "View Details" },
+      { title: "TOT Score", iconName: "Trophy", statistic: totScore, statisticLabel: `Based on ${kpiData.tot.length} entries`, isLoadingStatistic: isLoadingKpis, href: `/kpis/${profile.employeeId}`, linkText: "View Details" }
+    ] : [])
   ];
-  
+
   const filteredStatisticCards = useMemo(() => {
-    if (isLoadingProfile || !profile) return [];
-    
-    const userRole = profile.role?.toLowerCase();
-    const isManager = !!profile?.reportLine1 || !!profile?.reportLine2;
-    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr' || isManager;
     if (isPrivilegedUser) {
-        return statisticCards;
+        return statisticCards.filter(card => card.adminOnly === true || !['Pending Leaves', 'Approved Leaves', 'Rejected Leaves'].includes(card.title));
     }
-    
     return statisticCards.filter(card => !card.adminOnly);
-  }, [profile, isLoadingProfile, statisticCards, absentToday, activeEmployees, todaysAttendance, totalEmployees]);
+  }, [statisticCards, isPrivilegedUser, profile]);
+
 
   const actionCards: DashboardCardProps[] = [
-     {
+    {
       title: "Submit Leave",
       description: "Request time off.",
       iconName: "CalendarPlus",
       href: "/leave/request",
       linkText: "Request Now",
-      adminOnly: false,
-    },
-    {
-      title: "All Leave Requests",
-      description: "View and manage all requests.",
-      iconName: "ListChecks",
-      href: "/leave/all-requests",
-      linkText: "View All Requests",
-      adminOnly: true,
     },
     {
       title: "Job Board",
@@ -542,43 +480,24 @@ function DashboardPageContent() {
       iconName: "Briefcase",
       href: "/jobs",
       linkText: "See Openings",
-      adminOnly: false,
     },
-    {
-      title: "AI Career Advisor",
-      description: "Get development suggestions.",
-      iconName: "Lightbulb",
-      href: "/career-advisor",
-      linkText: "Get Advice",
-      adminOnly: true,
-    },
-     {
+  ];
+
+  if (isPrivilegedUser) {
+    actionCards.push({
+      title: "All Leave Requests",
+      description: "View and manage all requests.",
+      iconName: "ListChecks",
+      href: "/leave/all-requests",
+      linkText: "View All Requests",
+    }, {
       title: "TPIs",
       description: "View teacher performance indicators.",
       iconName: "Trophy",
       href: "/tpi",
       linkText: "View TPIs",
-      adminOnly: true,
-    },
-  ];
-  
-  const filteredActionCards = useMemo(() => {
-    if (isLoadingProfile || !profile) return [];
-    
-    const userRole = profile.role?.toLowerCase();
-    const isManager = !!profile?.reportLine1 || !!profile?.reportLine2;
-    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr' || isManager;
-    if (isPrivilegedUser) {
-        return actionCards;
-    }
-    return actionCards.filter(card => !card.adminOnly);
-  }, [profile, isLoadingProfile, actionCards]);
-  
-  const isPrivilegedUser = useMemo(() => {
-      if (isLoadingProfile || !profile) return false;
-      const userRole = profile.role?.toLowerCase();
-      return userRole === 'admin' || userRole === 'hr';
-  }, [profile, isLoadingProfile]);
+    });
+  }
 
 
   return (
@@ -602,7 +521,7 @@ function DashboardPageContent() {
           ))}
         </div>
       </section>
-      
+
       {(isLoadingHolidays || upcomingHolidays.length > 0) && (
         <section aria-labelledby="holidays-title" className="mt-8">
           <h2 id="holidays-title" className="text-2xl font-semibold font-headline mb-4">
@@ -659,17 +578,17 @@ function DashboardPageContent() {
               ) : campusData.length > 0 ? (
                 <ChartContainer config={chartConfig} className="h-[350px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart accessibilityLayer data={campusData} margin={{ top: 5, right: 0, left: -20, bottom: 70 }}> {/* Increased bottom margin */}
+                    <BarChart accessibilityLayer data={campusData} margin={{ top: 5, right: 0, left: -20, bottom: 70 }}>
                       <CartesianGrid vertical={false} strokeDasharray="3 3" />
                       <XAxis
                         dataKey="name"
                         tickLine={false}
                         axisLine={false}
                         tickMargin={8}
-                        angle={-45} // Angle for better readability
+                        angle={-45}
                         textAnchor="end"
-                        interval={0} // Show all labels
-                        height={80} // Allocate more height for angled labels
+                        interval={0}
+                        height={80}
                         tickFormatter={(value) => value.length > 15 ? `${value.substring(0,12)}...` : value}
                       />
                       <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} />
@@ -694,14 +613,13 @@ function DashboardPageContent() {
           Quick Actions
         </h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {isLoadingProfile ? 
+          {isLoadingProfile ?
             Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[180px] w-full" />)
-            : filteredActionCards.map((card) => (
-            <DashboardCard key={card.title} {...card} />
-          ))}
+            : actionCards.map((card) => (
+              <DashboardCard key={card.title} {...card} />
+            ))}
         </div>
       </section>
-
     </div>
   );
 }
