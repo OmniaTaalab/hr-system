@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { z } from 'zod';
@@ -57,7 +56,7 @@ const CreateEmployeeFormSchema = z.object({
   lastName: z.string().optional(),
   nameAr: z.string().optional(),
   childrenAtNIS: z.enum(['Yes', 'No']).optional(),
-  personalEmail: z.string().email({ message: 'A valid personal email is required.' }).optional().or(z.literal('')),
+  personalEmail: z.string().optional(),
   personalPhone: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactRelationship: z.string().optional(),
@@ -68,7 +67,7 @@ const CreateEmployeeFormSchema = z.object({
   religion: z.string().optional(),
   
   // Work Info
-  nisEmail: z.string().email({ message: 'A valid NIS email is required.' }).optional().or(z.literal('')),
+  nisEmail: z.string().optional(),
   joiningDate: z.coerce.date().optional(),
   title: z.string().optional(),
   department: z.string().optional(),
@@ -76,8 +75,8 @@ const CreateEmployeeFormSchema = z.object({
   stage: z.string().optional(),
   system: z.string().optional(),
   campus: z.string().optional(),
-  reportLine1: z.string().email({ message: 'Must be a valid email.' }).optional().or(z.literal('')),
-  reportLine2: z.string().email({ message: 'Must be a valid email.' }).optional().or(z.literal('')),
+  reportLine1: z.string().optional(),
+  reportLine2: z.string().optional(),
   subject: z.string().optional(),
   hourlyRate: z.preprocess(
     (val) => {
