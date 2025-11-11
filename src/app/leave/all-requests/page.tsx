@@ -111,7 +111,8 @@ function AllLeaveRequestsContent() {
 
     const userRole = profile?.role?.toLowerCase();
     const isPrivileged = userRole === 'admin' || userRole === 'hr';
-    let unsubscribe: () => void;
+    let unsubscribe: () => void = () => {};
+    let unsubscribes: (()=>void)[] = [];
 
     const fetchManagerRequests = async () => {
         setIsLoading(true);
@@ -138,21 +139,37 @@ function AllLeaveRequestsContent() {
                 return;
             }
 
-            const leaveRequestsQuery = query(
-                collection(db, "leaveRequests"), 
-                where("requestingEmployeeDocId", "in", employeeIds),
-                orderBy("submittedAt", "desc")
-            );
+            // Fetch requests for each employee individually to avoid 'in' query limit
+            let allManagerRequests: LeaveRequestEntry[] = [];
+            const listeners: (() => void)[] = [];
 
-            unsubscribe = onSnapshot(leaveRequestsQuery, (snapshot) => {
-                const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
-                setAllRequests(requestsData);
-                setIsLoading(false);
-            }, (error) => {
-                console.error("Error fetching manager's leave requests:", error);
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch leave requests for your team.' });
-                setIsLoading(false);
+            employeeIds.forEach(empId => {
+                const leaveRequestsQuery = query(
+                    collection(db, "leaveRequests"), 
+                    where("requestingEmployeeDocId", "==", empId)
+                );
+                
+                const unsub = onSnapshot(leaveRequestsQuery, (snapshot) => {
+                    const newRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+                    
+                    // Update the main state by replacing old requests for this employee with new ones
+                    allManagerRequests = [
+                        ...allManagerRequests.filter(req => req.requestingEmployeeDocId !== empId),
+                        ...newRequests
+                    ];
+                    
+                    allManagerRequests.sort((a,b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
+                    setAllRequests(allManagerRequests);
+                    
+                }, (error) => {
+                    console.error(`Error fetching leave requests for employee ${empId}:`, error);
+                });
+                listeners.push(unsub);
             });
+
+            setIsLoading(false); // Set loading to false initially, data will stream in
+            unsubscribes = listeners;
+
         } catch (error) {
             console.error("Error setting up manager's leave request fetch:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'An error occurred while setting up your view.' });
@@ -181,9 +198,8 @@ function AllLeaveRequestsContent() {
     }
 
     return () => {
-        if (unsubscribe) {
-            unsubscribe();
-        }
+        if (unsubscribe) unsubscribe();
+        unsubscribes.forEach(unsub => unsub());
     };
 }, [profile, isLoadingProfile, toast]);
 
@@ -499,5 +515,6 @@ export default function AllLeaveRequestsPage() {
     </AppLayout>
   );
 }
+
 
 
