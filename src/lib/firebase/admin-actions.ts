@@ -57,7 +57,7 @@ const CreateEmployeeFormSchema = z.object({
   lastName: z.string().optional(),
   nameAr: z.string().optional(),
   childrenAtNIS: z.enum(['Yes', 'No']).optional(),
-  personalEmail: z.string().email().optional().or(z.literal('')),
+  personalEmail: z.string().email({ message: "Invalid email format." }).optional().or(z.literal('')),
   personalPhone: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactRelationship: z.string().optional(),
@@ -69,7 +69,7 @@ const CreateEmployeeFormSchema = z.object({
   
   // Work Info
   employeeId: z.string().optional(),
-  nisEmail: z.string().email().optional().or(z.literal('')),
+  nisEmail: z.string().email({ message: "Invalid email format." }).optional().or(z.literal('')),
   joiningDate: z.coerce.date().optional(),
   title: z.string().optional(),
   department: z.string().optional(),
@@ -77,8 +77,8 @@ const CreateEmployeeFormSchema = z.object({
   stage: z.string().optional(),
   system: z.string().optional(),
   campus: z.string().optional(),
-  reportLine1: z.string().email().optional().or(z.literal('')),
-  reportLine2: z.string().email().optional().or(z.literal('')),
+  reportLine1: z.string().email({ message: "Invalid email format." }).optional().or(z.literal('')),
+  reportLine2: z.string().email({ message: "Invalid email format." }).optional().or(z.literal('')),
   subject: z.string().optional(),
   hourlyRate: z.preprocess(
     (val) => {
@@ -403,7 +403,7 @@ const UpdateEmployeeFormSchema = z.object({
   role: z.string().optional(),
   system: z.string().optional(),
   campus: z.string().optional(),
-  nisEmail: z.string().email({ message: 'Invalid email address.' }).optional(),
+  nisEmail: z.string().email({ message: 'Invalid email address.' }).optional().or(z.literal('')),
   personalEmail: z.string().email({ message: 'Invalid personal email address.' }).optional().or(z.literal('')),
   phone: z.string().optional(),
   emergencyContactName: z.string().optional(),
