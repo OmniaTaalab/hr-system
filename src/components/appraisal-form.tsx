@@ -26,35 +26,29 @@ const appraisalQuestions = [
     ],
   },
   {
-    category: 'Classroom Management',
+    category: 'Instruction & Engagement',
     questions: [
-        'Maintains a safe and respectful learning environment.',
-        'Manages student behavior effectively.',
-        'Establishes clear routines and procedures.',
+        'Clear learning objectives.',
+        'Student engagement & participation.',
+        'Uses varied teaching strategies.',
+        'Effective questioning techniques.',
     ]
   },
   {
-      category: 'Instruction',
+      category: 'Assessment for Learning',
       questions: [
-        'Communicates learning objectives clearly.',
-        'Uses engaging and varied instructional strategies.',
-        'Checks for understanding and provides feedback.',
+        'Provides timely, constructive feedback.',
+        'Uses formative assessment to adjust teaching.',
+        'Encourages student self-assessment.',
       ]
   },
   {
-    category: 'Assessment',
+    category: 'Professionalism & Contribution',
     questions: [
-        'Uses a variety of assessment methods.',
-        'Provides timely and constructive feedback to students.',
-        'Uses assessment results to guide instruction.',
-    ]
-  },
-  {
-    category: 'Professional Responsibilities',
-    questions: [
-        'Collaborates with colleagues and parents.',
-        'Engages in professional development.',
-        'Adheres to school policies and procedures.',
+        'Reliability & meeting deadlines.',
+        'Productive collaboration with colleagues.',
+        'Active/positive contribution to school initiatives and expectations.',
+        'Communication with parents is timely and professional.',
     ]
   }
 ];
