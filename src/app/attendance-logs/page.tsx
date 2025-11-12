@@ -186,6 +186,9 @@ function AttendanceLogsContent() {
       
       const shouldPaginate = !isMachineFiltered && !isDateFiltered && !searchTerm;
 
+      // Base query sorted by date
+      queryConstraints.push(orderBy("date", "desc"));
+
       if (isDateFiltered && selectedDate) {
         const dateString = format(selectedDate, 'yyyy-MM-dd');
         queryConstraints.push(where("date", "==", dateString));
@@ -195,25 +198,13 @@ function AttendanceLogsContent() {
         queryConstraints.push(where("machine", "==", machineFilter));
       }
 
-
       if (shouldPaginate) {
-        queryConstraints.push(orderBy("date", "desc"));
         if (page === 'first') {
             queryConstraints.push(limit(PAGE_SIZE));
         } else if (page === 'next' && lastVisible) {
             queryConstraints.push(startAfter(lastVisible), limit(PAGE_SIZE));
         } else if (page === 'prev' && firstVisible) {
-            const prevQuery = query(logsCollection, orderBy("date", "desc"), endBefore(firstVisible), limitToLast(PAGE_SIZE));
-            const prevSnapshots = await getDocs(prevQuery);
-            const prevLogsData = prevSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
-            setAllLogs(prevLogsData);
-            if (!prevSnapshots.empty) {
-                setFirstVisible(prevSnapshots.docs[0]);
-                setLastVisible(prevSnapshots.docs[prevSnapshots.docs.length - 1]);
-            }
-            setIsLastPage(false);
-            setIsLoading(false);
-            return;
+            queryConstraints.push(endBefore(firstVisible), limitToLast(PAGE_SIZE));
         } else {
              queryConstraints.push(limit(PAGE_SIZE));
         }
@@ -223,16 +214,6 @@ function AttendanceLogsContent() {
       const documentSnapshots = await getDocs(finalQuery);
       let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
       
-      // Always sort client-side if any filter is active
-      if(isDateFiltered || isMachineFiltered) {
-        logsData.sort((a, b) => {
-            const dateComp = b.date.localeCompare(a.date);
-            if(dateComp !== 0) return dateComp;
-            if(a.check_in && b.check_in) return a.check_in.localeCompare(b.check_in);
-            return 0;
-        });
-      }
-
       if (!documentSnapshots.empty || (isMachineFiltered && logsData.length > 0)) {
         setAllLogs(logsData);
         if (shouldPaginate) {
