@@ -10,7 +10,7 @@ import { logSystemEvent } from '@/lib/system-log';
 
 const KpiEntrySchema = z.object({
   employeeDocId: z.string().min(1, "Employee ID is required."),
-  kpiType: z.enum(['eleot', 'tot']),
+  kpiType: z.enum(['eleot', 'tot', 'appraisal']),
   date: z.coerce.date({ required_error: "A valid date is required."}),
   points: z.coerce.number().min(0, "Points cannot be negative.").max(4, "Points cannot be more than 4."),
   actorId: z.string().optional(),

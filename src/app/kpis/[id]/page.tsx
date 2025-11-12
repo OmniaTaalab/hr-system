@@ -42,7 +42,7 @@ interface KpiEntry {
 const initialKpiState: KpiEntryState = { success: false, message: null, errors: {} };
 
 
-function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title: string, kpiType: 'eleot' | 'tot', employeeDocId: string, employeeId: string | undefined, canEdit: boolean }) {
+function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title: string, kpiType: 'eleot' | 'tot' | 'appraisal', employeeDocId: string, employeeId: string | undefined, canEdit: boolean }) {
   const { toast } = useToast();
   const [data, setData] = useState<KpiEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -567,6 +567,7 @@ function KpiDashboardContent() {
             <>
                 <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
                 <KpiCard title="TOT(10%)" kpiType="tot" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
+                <KpiCard title="Appraisal(10%)" kpiType="appraisal" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
                 <AttendanceChartCard employeeDocId={employee.id} employeeId={employee.employeeId} />
             </>
         )}
