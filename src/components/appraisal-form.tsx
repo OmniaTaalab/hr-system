@@ -27,37 +27,35 @@ const appraisalQuestions = [
     ],
   },
   {
-    category: '2. Instruction & Engagement',
+    category: '2. Classroom Environment',
     questions: [
-        { id: 'learning-objectives', text: '• Clear learning objectives.' },
-        { id: 'student-engagement', text: '• Student engagement & participation.' },
-        { id: 'teaching-strategies', text: '• Uses varied teaching strategies.' },
-        { id: 'questioning-techniques', text: '• Effective questioning techniques.' },
+        { id: 'respectful-culture', text: '• A respectful & positive culture for learning' },
+        { id: 'resource-management', text: '• Manages resources effectively' },
+        { id: 'learning-environment', text: '• Establishes a stimulating learning environment' },
     ]
   },
   {
-      category: '3. Assessment for Learning',
+      category: '3. Instruction',
       questions: [
-        { id: 'feedback', text: '• Provides timely, constructive feedback.' },
-        { id: 'formative-assessment', text: '• Uses formative assessment to adjust teaching.' },
-        { id: 'self-assessment', text: '• Encourages student self-assessment.' },
+        { id: 'learning-objectives', text: '• Clear learning objectives' },
+        { id: 'student-engagement', text: '• Student engagement & participation' },
+        { id: 'questioning-techniques', text: '• Effective questioning techniques' },
       ]
   },
   {
-    category: '4. Professionalism & Contribution',
+    category: '4. Student Conduct',
     questions: [
-        { id: 'reliability', text: '• Reliability & meeting deadlines.' },
-        { id: 'collaboration', text: '• Productive collaboration with colleagues.' },
-        { id: 'school-initiatives', text: '• Active/positive contribution to school initiatives and expectations.' },
-        { id: 'parent-communication', text: '• Communication with parents is timely and professional.' },
+        { id: 'expectations', text: '• Clear expectations for behavior' },
+        { id: 'monitoring', text: '• Monitors student behavior' },
+        { id: 'response', text: '• Response to misbehavior is appropriate' },
     ]
   },
   {
-    category: '5. Growth & Development ',
+    category: '5. Professional Responsibilities',
     questions: [
-        { id: 'reflection', text: '• Reflects on practice.' },
-        { id: 'feedback-implementation', text: '• Implements feedback from ELEOT/TOT.' },
-        { id: 'coaching-mentoring', text: '• Engages in coaching/ mentoring.' },
+        { id: 'reflection', text: '• Reflects on practice' },
+        { id: 'collaboration', text: '• Productive collaboration with colleagues' },
+        { id: 'parent-communication', text: '• Communication with parents is timely and professional' },
     ]
   }
 ];

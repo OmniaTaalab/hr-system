@@ -12,7 +12,7 @@ const KpiEntrySchema = z.object({
   employeeDocId: z.string().min(1, "Employee ID is required."),
   kpiType: z.enum(['eleot', 'tot', 'appraisal']),
   date: z.coerce.date({ required_error: "A valid date is required."}),
-  points: z.coerce.number().min(0, "Points cannot be more than 4."),
+  points: z.coerce.number().min(0, "Points cannot be negative."),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
@@ -37,7 +37,9 @@ export async function addKpiEntryAction(
   // A helper function to calculate appraisal points from form data
   const calculateAppraisalPoints = (formData: FormData): number => {
     let totalScore = 0;
-    let categoryCount = 0;
+    let questionCount = 0;
+    const MAX_POSSIBLE_SCORE = 15 * 3; // 15 questions, max 3 points each
+    const TARGET_KPI_MAX = 10; // The final score should be out of 10
 
     const ratingToPoints: { [key: string]: number } = {
         '1': 1, // Needs Improvement
@@ -48,14 +50,15 @@ export async function addKpiEntryAction(
     for (const [key, value] of formData.entries()) {
       if (key.startsWith('rating-')) {
         totalScore += ratingToPoints[value as string] || 0;
-        categoryCount++;
+        questionCount++;
       }
     }
     
-    if (categoryCount === 0) return 0;
-    // Return the average score, scaled to be out of 4 for consistency with other KPIs
-    const averageOutOf3 = totalScore / categoryCount;
-    return (averageOutOf3 / 3) * 4;
+    if (questionCount === 0) return 0;
+    
+    // Scale the total score (out of 45) to be a score out of 10
+    const finalScore = (totalScore / MAX_POSSIBLE_SCORE) * TARGET_KPI_MAX;
+    return parseFloat(finalScore.toFixed(2)); // Return a score out of 10
   };
   
   const isAppraisal = formData.get('kpiType') === 'appraisal';
