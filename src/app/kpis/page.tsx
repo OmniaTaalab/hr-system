@@ -90,36 +90,58 @@ function KpisContent() {
     
     const fetchData = useCallback(async () => {
         setIsLoadingData(true);
+        if (!profile) {
+            setIsLoadingData(false);
+            return;
+        }
+
         try {
-            let employeesQuery: QueryConstraint[] = [];
-            if (!isPrivilegedUser && profile?.id) {
-                employeesQuery.push(where("id", "==", profile.id));
-            }
+            let employeesQueryConstraints: QueryConstraint[] = [];
             
-            const [employeesSnapshot, eleotSnapshot, totSnapshot, appraisalSnapshot, holidaySnapshot] = await Promise.all([
-                getDocs(query(collection(db, "employee"), ...employeesQuery)),
+            // Build the initial set of employees to fetch
+            if (isPrivilegedUser) {
+                // Admins/HR see everyone
+            } else if (profile.email) {
+                // Managers see their direct reports
+                employeesQueryConstraints.push(where("reportLine1", "==", profile.email));
+            } else {
+                 // Regular user with no reports, just fetch their own profile
+                employeesQueryConstraints.push(where("userId", "==", profile.userId));
+            }
+
+            const employeesSnapshot = await getDocs(query(collection(db, "employee"), ...employeesQueryConstraints));
+            let employees: Employee[] = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            
+            // If the user is not privileged, they should also see their own KPIs
+            if (!isPrivilegedUser) {
+                const selfSnapshot = await getDocs(query(collection(db, "employee"), where("userId", "==", profile.userId)));
+                if(!selfSnapshot.empty) {
+                     const selfEmployee = { id: selfSnapshot.docs[0].id, ...selfSnapshot.docs[0].data() } as Employee;
+                     // Avoid duplicates if user reports to themselves
+                     if (!employees.some(e => e.id === selfEmployee.id)) {
+                         employees.push(selfEmployee);
+                     }
+                }
+            }
+             if (employees.length === 0) {
+                setAllEmployees([]);
+                setIsLoadingData(false);
+                return;
+            }
+
+            const allEmployeeCompanyIds = employees.map(e => e.employeeId).filter(Boolean);
+            const allEmployeeDocIds = employees.map(e => e.id);
+            const attendanceData: AttendanceData = { attendance: [], leaves: [] };
+
+            const CHUNK_SIZE = 30;
+
+            const [eleotSnapshot, totSnapshot, appraisalSnapshot, holidaySnapshot] = await Promise.all([
                 getDocs(collection(db, "eleot")),
                 getDocs(collection(db, "tot")),
                 getDocs(collection(db, "appraisal")),
                 getDocs(collection(db, "holidays")),
             ]);
 
-            let employees = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-            
-            if (!isPrivilegedUser && profile?.email) {
-                const reportsSnapshot = await getDocs(query(collection(db, "employee"), where("reportLine1", "==", profile.email)));
-                const reports = reportsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-                const employeeMap = new Map(employees.map(e => [e.id, e]));
-                reports.forEach(r => employeeMap.set(r.id, r));
-                employees = Array.from(employeeMap.values());
-            }
-
-            // Fetch attendance and leave data in bulk
-            const allEmployeeCompanyIds = employees.map(e => e.employeeId).filter(Boolean);
-            const allEmployeeDocIds = employees.map(e => e.id);
-            const attendanceData: AttendanceData = { attendance: [], leaves: [] };
-
-            const CHUNK_SIZE = 30; // Firestore 'in' query limit
             for (let i = 0; i < allEmployeeCompanyIds.length; i += CHUNK_SIZE) {
                 const companyIdChunk = allEmployeeCompanyIds.slice(i, i + CHUNK_SIZE);
                 if (companyIdChunk.length > 0) {
@@ -137,7 +159,6 @@ function KpisContent() {
                 }
             }
              const holidays = holidaySnapshot.docs.map(doc => doc.data().date.toDate());
-
 
             const kpiDataByEmployee: Record<string, { eleot: number[], tot: number[], appraisal: number[] }> = {};
             eleotSnapshot.forEach(d => {
@@ -160,7 +181,6 @@ function KpisContent() {
                 const kpis = kpiDataByEmployee[emp.id] || { eleot: [], tot: [], appraisal: [] };
                 const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
                 
-                // Calculate attendance score using pre-fetched data
                 const attendanceScore = getAttendanceScore(emp, attendanceData, holidays);
 
                 return {
@@ -170,9 +190,9 @@ function KpisContent() {
                         eleot: kpis.eleot.length > 0 ? (avg(kpis.eleot) / 4) * 10 : 0,
                         tot: kpis.tot.length > 0 ? (avg(kpis.tot) / 4) * 10 : 0,
                         appraisal: kpis.appraisal.length > 0 ? avg(kpis.appraisal) : 0,
-                        survey: 3, // Placeholder
-                        studentGrowth: 30, // Placeholder
-                        profDevelopment: 20, // Placeholder
+                        survey: 3,
+                        studentGrowth: 30,
+                        profDevelopment: 20,
                     }
                 };
             });
