@@ -58,7 +58,7 @@ function KpiScoreBar({ score, colorClass }: { score: number, colorClass: string 
             <div className="relative w-24 h-10">
                 <Progress value={score * 10} className="h-2" indicatorClassName={colorClass} />
                 <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white mix-blend-difference">
-                    {score.toFixed(1)}%
+                    {(score).toFixed(1)}
                 </span>
             </div>
         </div>
@@ -96,23 +96,28 @@ function KpisContent() {
         try {
             let employeesQueryConstraints: QueryConstraint[] = [];
             
+            const employeeCollectionRef = collection(db, "employee");
+
+            // If user is a manager (but not admin/hr), they see their direct reports
             if (!isPrivilegedUser && profile.email) {
-                // Managers see their direct reports
                 employeesQueryConstraints.push(where("reportLine1", "==", profile.email));
             }
             
-            const employeesSnapshot = await getDocs(query(collection(db, "employee"), ...employeesQueryConstraints));
+            const employeesSnapshot = await getDocs(query(employeeCollectionRef, ...employeesQueryConstraints));
             let employees: Employee[] = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
             
-            if (!isPrivilegedUser) {
-                const selfSnapshot = await getDocs(query(collection(db, "employee"), where("userId", "==", profile.userId)));
-                if(!selfSnapshot.empty) {
-                     const selfEmployee = { id: selfSnapshot.docs[0].id, ...selfSnapshot.docs[0].data() } as Employee;
+            // If user is not privileged, also add their own profile to the list to view
+            if (!isPrivilegedUser && profile.id) {
+                const selfDoc = await getDoc(doc(employeeCollectionRef, profile.id));
+                if(selfDoc.exists()) {
+                     const selfEmployee = { id: selfDoc.id, ...selfDoc.data() } as Employee;
+                     // Avoid adding duplicate if user reports to themselves
                      if (!employees.some(e => e.id === selfEmployee.id)) {
                          employees.push(selfEmployee);
                      }
                 }
             }
+
              if (employees.length === 0) {
                 setAllEmployees([]);
                 setIsLoadingData(false);
@@ -137,7 +142,7 @@ function KpisContent() {
                 if (companyIdChunk.length > 0) {
                     const attendanceQuery = query(collection(db, "attendance_log"), where("userId", "in", companyIdChunk));
                     const attSnapshot = await getDocs(attendanceQuery);
-                    attSnapshot.forEach(doc => attendanceData.attendance.push(doc.data()));
+                    attSnapshot.forEach(doc => attendanceData.attendance.push(doc.data() as any));
                 }
             }
             for (let i = 0; i < allEmployeeDocIds.length; i += CHUNK_SIZE) {
@@ -172,15 +177,19 @@ function KpisContent() {
                 const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
                 
                 const attendanceScore = getAttendanceScore(emp, attendanceData, holidays);
+                
+                const eleotAvg = avg(kpis.eleot);
+                const totAvg = avg(kpis.tot);
+                const appraisalAvg = avg(kpis.appraisal);
 
                 return {
                     ...emp,
                     kpis: {
                         attendance: attendanceScore,
-                        eleot: kpis.eleot.length > 0 ? (avg(kpis.eleot) / 4) * 10 : 0,
-                        tot: kpis.tot.length > 0 ? (avg(kpis.tot) / 4) * 10 : 0,
-                        appraisal: kpis.appraisal.length > 0 ? avg(kpis.appraisal) : 0,
-                        profDevelopment: 20,
+                        eleot: (eleotAvg / 4) * 10,
+                        tot: (totAvg / 4) * 10,
+                        appraisal: appraisalAvg,
+                        profDevelopment: 0,
                     }
                 };
             });
@@ -294,7 +303,9 @@ function KpisContent() {
                       {paginatedEmployees.map(emp => (
                         <TableRow key={emp.id}>
                           <TableCell className="font-medium">
-                            {emp.name || "—"}
+                            <Link href={`/kpis/${emp.employeeId}`} className="hover:underline text-primary">
+                                {emp.name || "—"}
+                            </Link>
                           </TableCell>
                           <TableCell>
                             <KpiScoreBar score={emp.kpis.attendance} colorClass="bg-blue-500" />
