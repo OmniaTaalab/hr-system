@@ -90,8 +90,9 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
     if (data.length === 0) return 0;
     const totalPoints = data.reduce((acc, item) => acc + item.points, 0);
     const averagePoints = totalPoints / data.length;
-    if (averagePoints >= 3.2) return 4.0;
-    return parseFloat(averagePoints.toFixed(1));
+    // Scale average from 6 to 10
+    const scoreOutOf10 = (averagePoints / 6) * 10;
+    return parseFloat(scoreOutOf10.toFixed(1));
   }, [data]);
 
   return (
@@ -99,7 +100,7 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="space-y-1">
           <CardTitle>{title}</CardTitle>
-           <p className="text-lg font-bold text-primary">({performanceScore} / 4)</p>
+           <p className="text-lg font-bold text-primary">({performanceScore} / 10)</p>
           <CardDescription>
             {data.length > 0 ? `Based on ${data.length} entries` : "No entries yet."}
           </CardDescription>
