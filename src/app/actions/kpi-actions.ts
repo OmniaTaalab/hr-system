@@ -12,11 +12,13 @@ const KpiEntrySchema = z.object({
   employeeDocId: z.string().min(1, "Employee ID is required."),
   kpiType: z.enum(['eleot', 'tot', 'appraisal']),
   date: z.coerce.date({ required_error: "A valid date is required."}),
-  points: z.coerce.number().min(0, "Points cannot be negative.").max(4, "Points cannot be more than 4."),
+  points: z.coerce.number().min(0, "Points cannot be more than 4."),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
-  actorName: z.string().optional(), // Added actorName
+  actorName: z.string().optional(),
+  // For detailed appraisal
+  appraisalData: z.record(z.string(), z.any()).optional(),
 });
 
 export type KpiEntryState = {
@@ -33,11 +35,42 @@ export async function addKpiEntryAction(
   prevState: KpiEntryState,
   formData: FormData
 ): Promise<KpiEntryState> {
+
+  // A helper function to calculate appraisal points from form data
+  const calculateAppraisalPoints = (formData: FormData): number => {
+    let totalScore = 0;
+    let categoryCount = 0;
+
+    const ratingToPoints: { [key: string]: number } = {
+        'Outstanding': 4,
+        'Good': 3,
+        'Satisfactory': 2,
+        'Unsatisfactory': 1,
+    };
+
+    for (const [key, value] of formData.entries()) {
+      if (key.startsWith('rating-')) {
+        totalScore += ratingToPoints[value as string] || 0;
+        categoryCount++;
+      }
+    }
+    
+    if (categoryCount === 0) return 0;
+    // Return the average score out of 4
+    return totalScore / categoryCount;
+  };
+  
+  const isAppraisal = formData.get('kpiType') === 'appraisal';
+  
+  const points = isAppraisal
+    ? calculateAppraisalPoints(formData)
+    : formData.get('points');
+
   const validatedFields = KpiEntrySchema.safeParse({
     employeeDocId: formData.get('employeeDocId'),
     kpiType: formData.get('kpiType'),
     date: formData.get('date'),
-    points: formData.get('points'),
+    points: points,
     actorId: formData.get('actorId'),
     actorEmail: formData.get('actorEmail'),
     actorRole: formData.get('actorRole'),
@@ -52,7 +85,8 @@ export async function addKpiEntryAction(
     };
   }
   
-  const { employeeDocId, kpiType, date, points, actorId, actorEmail, actorRole, actorName } = validatedFields.data;
+  const { employeeDocId, kpiType, date, actorId, actorEmail, actorRole, actorName } = validatedFields.data;
+  const finalPoints = validatedFields.data.points; // Use points from validated data
 
   try {
     // Fetch the employee's name to store with the record
@@ -64,22 +98,34 @@ export async function addKpiEntryAction(
 
     const kpiCollectionRef = collection(db, kpiType);
     
-    await addDoc(kpiCollectionRef, {
+    let dataToSave: any = {
         employeeDocId,
         employeeName, // Store the name of the employee being evaluated
         date: Timestamp.fromDate(date),
-        points,
+        points: finalPoints,
         actorId: actorId, // Store the actor's ID
         actorName: actorName || 'Unknown', // Store actor name
         createdAt: serverTimestamp(),
-    });
+    };
+
+    if (isAppraisal) {
+        const appraisalData: { [key: string]: any } = {};
+        for (const [key, value] of formData.entries()) {
+            if (key.startsWith('rating-') || key === 'comments') {
+                appraisalData[key] = value;
+            }
+        }
+        dataToSave.appraisalData = appraisalData;
+    }
+    
+    await addDoc(kpiCollectionRef, dataToSave);
 
     await logSystemEvent(`Add ${kpiType.toUpperCase()} Entry`, { 
         actorId, 
         actorEmail, 
         actorRole,
         targetEmployeeId: employeeDocId,
-        kpiData: { date, points }
+        kpiData: { date, points: finalPoints }
     });
 
     revalidatePath(`/kpis/${employeeDocId}`);
