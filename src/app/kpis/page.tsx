@@ -1,20 +1,24 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { BarChartBig, AlertTriangle, Loader2, Eye, Search, ArrowLeft, ArrowRight } from "lucide-react";
+import { BarChartBig, AlertTriangle, Loader2, Eye, Search, ArrowLeft, ArrowRight, List, LayoutGrid, FileDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase/config";
-import { collection, onSnapshot, query, where, QueryConstraint } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, QueryConstraint, getDocs } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
+import { useOrganizationLists } from "@/hooks/use-organization-lists";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
+import { getAttendanceScore } from "@/lib/attendance-utils";
 
 interface Employee {
     id: string;
@@ -23,118 +27,171 @@ interface Employee {
     role: string;
     department: string;
     campus: string;
+    groupName?: string;
     photoURL?: string;
 }
 
-const PAGE_SIZE = 15;
+interface KpiData {
+    eleot: number;
+    tot: number;
+    appraisal: number;
+    attendance: number;
+    survey: number; // Placeholder
+    studentGrowth: number; // Placeholder
+    profDevelopment: number; // Placeholder
+}
+
+interface EmployeeWithKpis extends Employee {
+    kpis: KpiData;
+}
+
+const PAGE_SIZE = 8;
 
 const getInitials = (name?: string) => {
     if (!name) return "U";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 };
 
+function KpiScoreBar({ score, colorClass }: { score: number, colorClass: string }) {
+    return (
+        <div className="flex items-center gap-2">
+            <div className="relative w-24 h-4">
+                <Progress value={score * 10} className="h-2" indicatorClassName={colorClass} />
+                <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white mix-blend-difference">
+                    {score.toFixed(1)}%
+                </span>
+            </div>
+        </div>
+    );
+}
+
 function KpisContent() {
-    const { profile, loading } = useUserProfile();
+    const { profile, loading: isLoadingProfile } = useUserProfile();
     const router = useRouter();
     const { toast } = useToast();
-    const [employees, setEmployees] = useState<Employee[]>([]);
-    const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
+    
+    const [allEmployees, setAllEmployees] = useState<EmployeeWithKpis[]>([]);
+    const [isLoadingData, setIsLoadingData] = useState(true);
+    
     const [searchTerm, setSearchTerm] = useState("");
+    const [groupFilter, setGroupFilter] = useState("All");
+    const [campusFilter, setCampusFilter] = useState("All");
     const [currentPage, setCurrentPage] = useState(1);
+    
+    const { groupNames, campuses, isLoading: isLoadingLists } = useOrganizationLists();
 
-    const canViewPage = !loading && profile;
     const isPrivilegedUser = useMemo(() => {
         if (!profile) return false;
         const userRole = profile.role?.toLowerCase();
         return userRole === 'admin' || userRole === 'hr';
     }, [profile]);
+    
+    const fetchAllKpiData = useCallback(async () => {
+        setIsLoadingData(true);
+        try {
+            const [employeesSnapshot, eleotSnapshot, totSnapshot, appraisalSnapshot] = await Promise.all([
+                getDocs(query(collection(db, "employee"))),
+                getDocs(collection(db, "eleot")),
+                getDocs(collection(db, "tot")),
+                getDocs(collection(db, "appraisal")),
+            ]);
 
+            const employees = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            
+            const eleotData = eleotSnapshot.docs.map(doc => doc.data());
+            const totData = totSnapshot.docs.map(doc => doc.data());
+            const appraisalData = appraisalSnapshot.docs.map(doc => doc.data());
 
+            const kpiDataByEmployee: Record<string, { eleot: number[], tot: number[], appraisal: number[] }> = {};
+
+            eleotData.forEach(d => {
+                if (!kpiDataByEmployee[d.employeeDocId]) kpiDataByEmployee[d.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
+                kpiDataByEmployee[d.employeeDocId].eleot.push(d.points);
+            });
+            totData.forEach(d => {
+                if (!kpiDataByEmployee[d.employeeDocId]) kpiDataByEmployee[d.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
+                kpiDataByEmployee[d.employeeDocId].tot.push(d.points);
+            });
+            appraisalData.forEach(d => {
+                if (!kpiDataByEmployee[d.employeeDocId]) kpiDataByEmployee[d.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
+                kpiDataByEmployee[d.employeeDocId].appraisal.push(d.points);
+            });
+
+            const employeesWithKpis: EmployeeWithKpis[] = await Promise.all(employees.map(async emp => {
+                const kpis = kpiDataByEmployee[emp.id] || { eleot: [], tot: [], appraisal: [] };
+                
+                const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+                
+                const attendanceScore = await getAttendanceScore(emp.id, emp.employeeId);
+
+                return {
+                    ...emp,
+                    kpis: {
+                        attendance: attendanceScore.scoreOutOf10,
+                        eleot: kpis.eleot.length > 0 ? (avg(kpis.eleot) / 4) * 10 : 0,
+                        tot: kpis.tot.length > 0 ? (avg(kpis.tot) / 4) * 10 : 0,
+                        appraisal: kpis.appraisal.length > 0 ? avg(kpis.appraisal) : 0,
+                        survey: 3, // Placeholder
+                        studentGrowth: 30, // Placeholder
+                        profDevelopment: 20, // Placeholder
+                    }
+                };
+            }));
+
+            setAllEmployees(employeesWithKpis.sort((a,b) => a.name.localeCompare(b.name)));
+
+        } catch (error) {
+            console.error("Error fetching KPI data:", error);
+            toast({ variant: "destructive", title: "Error", description: "Failed to load comprehensive KPI data." });
+        } finally {
+            setIsLoadingData(false);
+        }
+    }, [toast]);
+    
     useEffect(() => {
-        if (loading) return;
-
-        if (!canViewPage) {
-            router.replace('/');
-            return;
+        if (isPrivilegedUser) {
+            fetchAllKpiData();
+        } else if (!isLoadingProfile) {
+            setIsLoadingData(false);
         }
-
-        setIsLoadingEmployees(true);
-        const employeeCollection = collection(db, "employee");
-        let q: QueryConstraint[] = [];
-
-        // If user is not admin/hr, they might be a manager. Filter by reportLine1.
-        if (!isPrivilegedUser && profile?.email) {
-            q.push(where("reportLine1", "==", profile.email));
-        }
-        
-        const finalQuery = query(employeeCollection, ...q);
-
-        const unsubscribe = onSnapshot(finalQuery, 
-            (snapshot) => {
-                const employeesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-                employeesData.sort((a, b) => a.name.localeCompare(b.name));
-                setEmployees(employeesData);
-                setIsLoadingEmployees(false);
-            },
-            (error) => {
-                console.error("Error fetching employees:", error);
-                toast({
-                    variant: "destructive",
-                    title: "Error",
-                    description: "Could not fetch employee data.",
-                });
-                setIsLoadingEmployees(false);
-            }
-        );
-
-        return () => unsubscribe();
-    }, [loading, canViewPage, router, toast, isPrivilegedUser, profile?.email]);
+    }, [isPrivilegedUser, isLoadingProfile, fetchAllKpiData]);
 
     const filteredEmployees = useMemo(() => {
-        if (!searchTerm) {
-            return employees;
+        let list = allEmployees;
+        
+        if (!isPrivilegedUser && profile) {
+            list = allEmployees.filter(emp => emp.id === profile.id);
         }
-        const lowercasedFilter = searchTerm.toLowerCase();
-        return employees.filter(employee =>
-            employee.name.toLowerCase().includes(lowercasedFilter)
-        );
-    }, [employees, searchTerm]);
+
+        if (groupFilter !== "All") list = list.filter(emp => emp.groupName === groupFilter);
+        if (campusFilter !== "All") list = list.filter(emp => emp.campus === campusFilter);
+
+        if (searchTerm) {
+            const lower = searchTerm.toLowerCase();
+            list = list.filter(emp => emp.name.toLowerCase().includes(lower));
+        }
+
+        return list;
+    }, [allEmployees, searchTerm, groupFilter, campusFilter, isPrivilegedUser, profile]);
     
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm]);
-
-    const totalPages = useMemo(() => Math.ceil(filteredEmployees.length / PAGE_SIZE), [filteredEmployees]);
-    const isLastPage = currentPage >= totalPages;
-
     const paginatedEmployees = useMemo(() => {
         const startIndex = (currentPage - 1) * PAGE_SIZE;
-        const endIndex = startIndex + PAGE_SIZE;
-        return filteredEmployees.slice(startIndex, endIndex);
+        return filteredEmployees.slice(startIndex, startIndex + PAGE_SIZE);
     }, [filteredEmployees, currentPage]);
 
-    const goToNextPage = () => {
-        if (isLastPage) return;
-        setCurrentPage(prev => prev + 1);
-    };
+    const totalPages = useMemo(() => Math.ceil(filteredEmployees.length / PAGE_SIZE), [filteredEmployees]);
+    
+    const goToPage = (page: number) => {
+        setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+    }
 
-    const goToPrevPage = () => {
-        if (currentPage === 1) return;
-        setCurrentPage(prev => prev - 1);
-    };
-
-
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-full">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            </div>
-        );
+    if (isLoadingProfile || isLoadingData) {
+        return <div className="flex justify-center items-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     }
     
-    if (!canViewPage) {
+    if (!isPrivilegedUser && !profile) {
         return (
-             <div className="flex justify-center items-center h-full flex-col gap-4">
+            <div className="flex justify-center items-center h-full flex-col gap-4">
                 <AlertTriangle className="h-12 w-12 text-destructive" />
                 <h2 className="text-xl font-semibold">Access Denied</h2>
                 <p className="text-muted-foreground">You do not have permission to view this page.</p>
@@ -144,106 +201,98 @@ function KpisContent() {
 
     return (
         <div className="space-y-8">
-            <header>
-                <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
-                    <BarChartBig className="mr-3 h-8 w-8 text-primary" />
-                    Key Performance Indicators (KPIs)
-                </h1>
-                <p className="text-muted-foreground">
-                    An overview of all employees for performance tracking.
-                </p>
+            <header className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                     <Button variant="outline" size="icon" onClick={() => router.back()}><ArrowLeft className="h-4 w-4" /></Button>
+                     <div>
+                        <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
+                            Teachers KPIs
+                        </h1>
+                         <Badge variant="secondary" className="mt-1">{filteredEmployees.length} Teacher{filteredEmployees.length !== 1 && 's'}</Badge>
+                    </div>
+                </div>
+                 <div className="flex items-center gap-2">
+                    <Button variant="outline"><List className="mr-2 h-4 w-4"/>List</Button>
+                    <Button variant="ghost"><LayoutGrid className="mr-2 h-4 w-4"/>Grid</Button>
+                    <Button><FileDown className="mr-2 h-4 w-4"/>Export to Excel</Button>
+                </div>
             </header>
-            <Card>
+            
+             <Card className="shadow-lg">
                 <CardHeader>
-                    <CardTitle>All Employees</CardTitle>
-                     <div className="flex justify-between items-center">
-                        <CardDescription>
-                            A list of all employees in the system.
-                        </CardDescription>
-                         <div className="relative w-full max-w-sm">
-                              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input
-                                  type="search"
-                                  placeholder="Search by name..."
-                                  className="w-full pl-8"
-                                  value={searchTerm}
-                                  onChange={(e) => setSearchTerm(e.target.value)}
-                              />
-                          </div>
+                    <div className="flex items-center gap-4">
+                        <Input placeholder="Teacher name" className="max-w-xs" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                        <Select value={groupFilter} onValueChange={setGroupFilter}>
+                            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select Group"/></SelectTrigger>
+                            <SelectContent><SelectItem value="All">All Groups</SelectItem>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <Select value={campusFilter} onValueChange={setCampusFilter}>
+                            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select School"/></SelectTrigger>
+                            <SelectContent><SelectItem value="All">All Schools</SelectItem>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <Button><Search className="mr-2 h-4 w-4"/>Search</Button>
                     </div>
                 </CardHeader>
                 <CardContent>
-                    {isLoadingEmployees ? (
-                        <div className="space-y-2">
-                           <Skeleton className="h-10 w-full" />
-                           <Skeleton className="h-10 w-full" />
-                           <Skeleton className="h-10 w-full" />
-                        </div>
-                    ) : paginatedEmployees.length === 0 ? (
-                        <p className="text-center text-muted-foreground py-10">
-                            {employees.length === 0 ? "You do not have any direct reports to evaluate." : (searchTerm ? `No employees found matching "${searchTerm}"` : "No employees found.")}
-                        </p>
-                    ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Name</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {paginatedEmployees.map((employee) => (
-                                    <TableRow key={employee.id}>
-                                        <TableCell className="font-medium flex items-center gap-3">
-                                            <Avatar>
-                                                <AvatarImage src={employee.photoURL} alt={employee.name} />
-                                                <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Teacher name</TableHead>
+                                <TableHead>Attendance (10%)</TableHead>
+                                <TableHead>ELEOT (10%)</TableHead>
+                                <TableHead>TOT (10%)</TableHead>
+                                <TableHead>Survey (10%)</TableHead>
+                                <TableHead>Student Growth (40%)</TableHead>
+                                <TableHead>Appraisal (10%)</TableHead>
+                                <TableHead>Prof Development (10%)</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {paginatedEmployees.map(emp => (
+                                <TableRow key={emp.id}>
+                                    <TableCell>
+                                        <div className="flex items-center gap-2">
+                                            <Avatar className="h-8 w-8">
+                                                <AvatarImage src={emp.photoURL || undefined} />
+                                                <AvatarFallback>{getInitials(emp.name)}</AvatarFallback>
                                             </Avatar>
-                                            {employee.name}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button asChild variant="outline" size="icon" className="text-green-600 border-green-600 hover:bg-green-100 hover:text-green-700">
-                                                <Link href={`/kpis/${employee.employeeId}`}>
-                                                    <Eye className="h-4 w-4" />
-                                                </Link>
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    )}
+                                            <Link href={`/kpis/${emp.employeeId}`} className="font-medium hover:underline">{emp.name}</Link>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>{emp.kpis.attendance.toFixed(1)}%</TableCell>
+                                    <TableCell><KpiScoreBar score={emp.kpis.eleot} colorClass="bg-blue-500"/></TableCell>
+                                    <TableCell><KpiScoreBar score={emp.kpis.tot} colorClass="bg-yellow-500"/></TableCell>
+                                    <TableCell><KpiScoreBar score={emp.kpis.survey} colorClass="bg-gray-700"/></TableCell>
+                                    <TableCell><KpiScoreBar score={emp.kpis.studentGrowth} colorClass="bg-gray-400"/></TableCell>
+                                    <TableCell><KpiScoreBar score={emp.kpis.appraisal} colorClass="bg-green-500"/></TableCell>
+                                    <TableCell><KpiScoreBar score={emp.kpis.profDevelopment} colorClass="bg-red-500"/></TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                 </CardContent>
-                {totalPages > 1 && (
-                    <CardContent>
-                    <div className="flex items-center justify-end space-x-2 py-4">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={goToPrevPage}
-                            disabled={currentPage <= 1 || isLoadingEmployees}
-                        >
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Previous
-                        </Button>
-                        <span className="text-sm font-medium">Page {currentPage} of {totalPages}</span>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={goToNextPage}
-                            disabled={isLastPage || isLoadingEmployees}
-                        >
-                            Next
-                            <ArrowRight className="ml-2 h-4 w-4" />
-                        </Button>
+                 <CardFooter className="flex justify-between items-center">
+                    <p className="text-sm text-muted-foreground">Showing {paginatedEmployees.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0}–{Math.min(currentPage * PAGE_SIZE, filteredEmployees.length)} of {filteredEmployees.length}</p>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="icon" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}><ArrowLeft className="h-4 w-4"/></Button>
+                        {Array.from({length: totalPages > 5 ? 5 : totalPages}, (_, i) => {
+                            let pageNum = i + 1;
+                            if (totalPages > 5 && currentPage > 3) {
+                                pageNum = currentPage - 2 + i;
+                                if (pageNum > totalPages) return null;
+                            }
+                            return (
+                                <Button key={pageNum} variant={currentPage === pageNum ? "default" : "outline"} size="icon" onClick={() => goToPage(pageNum)}>{pageNum}</Button>
+                            );
+                        })}
+                        {totalPages > 5 && <span className="text-muted-foreground">...</span>}
+                        <Button variant="outline" size="icon" onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages}><ArrowRight className="h-4 w-4"/></Button>
                     </div>
-                    </CardContent>
-                )}
+                </CardFooter>
             </Card>
         </div>
     );
 }
-
 
 export default function KpisPage() {
     return (
