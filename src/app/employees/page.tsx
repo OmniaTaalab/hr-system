@@ -318,7 +318,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             <h3 className="text-lg font-semibold flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="add-employeeId">Employee ID (Optional)</Label>
+                    <Label htmlFor="add-employeeId">Employee ID </Label>
                     <Input id="add-employeeId" name="employeeId" />
                     {addState?.errors?.employeeId && <p className="text-sm text-destructive">{addState.errors.employeeId.join(', ')}</p>}
                 </div>

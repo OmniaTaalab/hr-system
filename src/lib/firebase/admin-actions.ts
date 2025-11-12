@@ -65,18 +65,39 @@ const CreateEmployeeFormSchema = z.object({
   emergencyContactName: z.string().optional(),
   emergencyContactRelationship: z.string().optional(),
   emergencyContactNumber: z.string().optional(),
-  dateOfBirth: z.coerce.date().optional(),
   gender: z.string().optional(),
   nationalId: z.string().optional(),
   religion: z.string().optional(),
   
   // Work Info
-  employeeId: z.string().optional(),
+  employeeId: z.string().min(1, "Employee ID is required."),
   nisEmail: z.preprocess(
     (val) => (val === "" || val === null ? undefined : val),
     z.string().email({ message: "Invalid email format." }).optional()
   ),
-  joiningDate: z.coerce.date().optional(),
+  dateOfBirth: z.preprocess(
+    (val: unknown) => {
+      if (typeof val === "string" && val.trim() !== "") {
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? undefined : d;
+      }
+      if (val instanceof Date) return val;
+      return undefined;
+    },
+    z.date().optional()
+  ),
+  
+  joiningDate: z.preprocess(
+    (val: unknown) => {
+      if (typeof val === "string" && val.trim() !== "") {
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? undefined : d;
+      }
+      if (val instanceof Date) return val;
+      return undefined;
+    },
+    z.date().optional()
+  ),
   title: z.string().optional(),
   department: z.string().optional(),
   role: z.string().optional(),

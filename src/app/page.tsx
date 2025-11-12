@@ -27,6 +27,7 @@ interface Employee {
   department: string;
   campus: string;
   status: "Active" | "On Leave" | "Deactivated";
+  employeeId?: string;
 }
 
 interface Holiday {
@@ -248,22 +249,25 @@ function DashboardPageContent() {
         setAttendanceDate(format(today, 'PPP'));
         setDateStringForLink(dateStr);
         
-        const attendanceQuery = query(collection(db, "attendance_log"), where("date", "==", dateStr));
-        const attendanceSnapshot = await getDocs(attendanceQuery);
+        // Fetch all data needed for calculation
+        const [attendanceSnapshot, campusHoursSnap, employeeSnap] = await Promise.all([
+            getDocs(query(collection(db, "attendance_log"), where("date", "==", dateStr))),
+            getDocs(collection(db, "campusWorkingHours")),
+            getDocs(query(collection(db, "employee")))
+        ]);
+        
         const presentUserIds = new Set(attendanceSnapshot.docs.map(doc => doc.data().userId));
         setTodaysAttendance(presentUserIds.size);
 
-        // Calculate late attendance
-        const campusHoursSnap = await getDocs(collection(db, "campusWorkingHours"));
+        // Process data in memory
         const campusRules = new Map<string, { checkInEndTime: string }>();
-        campusHoursSnap.forEach(doc => campusRules.set(doc.id, doc.data() as { checkInEndTime: string }));
+        campusHoursSnap.forEach(doc => campusRules.set(doc.id.toLowerCase(), doc.data() as { checkInEndTime: string }));
 
-        const employeeSnap = await getDocs(query(collection(db, "employee"), where("employeeId", "in", Array.from(presentUserIds))));
         const employeeCampusMap = new Map<string, string>();
         employeeSnap.forEach(doc => {
             const data = doc.data();
             if (data.employeeId && data.campus) {
-                employeeCampusMap.set(String(data.employeeId), data.campus);
+                employeeCampusMap.set(String(data.employeeId), data.campus.toLowerCase());
             }
         });
 
@@ -272,15 +276,19 @@ function DashboardPageContent() {
             const log = doc.data();
             const employeeId = String(log.userId);
             const campusName = employeeCampusMap.get(employeeId);
-            const campusRule = campusName ? campusRules.get(campusName) : undefined;
-            if (campusRule && log.check_in) {
+            
+            if (campusName && campusRules.has(campusName) && log.check_in) {
+                const campusRule = campusRules.get(campusName)!;
                 const checkInTime = log.check_in;
+                
                 const [time, period] = checkInTime.split(' ');
                 let [hours, minutes] = time.split(':').map(Number);
+
                 if (period && period.toLowerCase() === 'pm' && hours < 12) hours += 12;
-                if (period && period.toLowerCase() === 'am' && hours === 12) hours = 0;
+                if (period && period.toLowerCase() === 'am' && hours === 12) hours = 0; // midnight case
 
                 const [ruleHours, ruleMinutes] = campusRule.checkInEndTime.split(':').map(Number);
+                
                 if (hours > ruleHours || (hours === ruleHours && minutes > ruleMinutes)) {
                     lateCount++;
                 }
@@ -294,7 +302,7 @@ function DashboardPageContent() {
         setLateAttendance(0);
       } finally {
         setIsLoadingTodaysAttendance(false);
-        setIsLoadingAbsentToday(false); // Depends on active employees count which is fetched elsewhere
+        setIsLoadingAbsentToday(false);
         setIsLoadingLateAttendance(false);
       }
     };
@@ -345,8 +353,8 @@ function DashboardPageContent() {
         }
         setIsLoadingKpis(true);
         try {
-            const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", profile.employeeId));
-            const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", profile.employeeId));
+            const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", profile.id));
+            const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", profile.id));
 
             const [eleotSnapshot, totSnapshot] = await Promise.all([getDocs(eleotQuery), getDocs(totQuery)]);
             
