@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -18,42 +19,55 @@ import type { User } from 'firebase/auth';
 
 const appraisalQuestions = [
   {
-    category: 'Planning & Preparation',
+    category: '1. Planning & Preparation',
     questions: [
-      'Lesson plans are clear & aligned to curriculum.',
-      'Differentiation for student needs.',
-      'Uses assessment data to inform planning.',
+      { id: 'lesson-plans', text: '• Lesson plans are clear & aligned to curriculum.' },
+      { id: 'differentiation', text: '• Differentiation for student needs.' },
+      { id: 'assessment-data', text: '• Uses assessment data to inform planning.' },
     ],
   },
   {
-    category: 'Instruction & Engagement',
+    category: '2. Instruction & Engagement',
     questions: [
-        'Clear learning objectives.',
-        'Student engagement & participation.',
-        'Uses varied teaching strategies.',
-        'Effective questioning techniques.',
+        { id: 'learning-objectives', text: '• Clear learning objectives.' },
+        { id: 'student-engagement', text: '• Student engagement & participation.' },
+        { id: 'teaching-strategies', text: '• Uses varied teaching strategies.' },
+        { id: 'questioning-techniques', text: '• Effective questioning techniques.' },
     ]
   },
   {
-      category: 'Assessment for Learning',
+      category: '3. Assessment for Learning',
       questions: [
-        'Provides timely, constructive feedback.',
-        'Uses formative assessment to adjust teaching.',
-        'Encourages student self-assessment.',
+        { id: 'feedback', text: '• Provides timely, constructive feedback.' },
+        { id: 'formative-assessment', text: '• Uses formative assessment to adjust teaching.' },
+        { id: 'self-assessment', text: '• Encourages student self-assessment.' },
       ]
   },
   {
-    category: 'Professionalism & Contribution',
+    category: '4. Professionalism & Contribution',
     questions: [
-        'Reliability & meeting deadlines.',
-        'Productive collaboration with colleagues.',
-        'Active/positive contribution to school initiatives and expectations.',
-        'Communication with parents is timely and professional.',
+        { id: 'reliability', text: '• Reliability & meeting deadlines.' },
+        { id: 'collaboration', text: '• Productive collaboration with colleagues.' },
+        { id: 'school-initiatives', text: '• Active/positive contribution to school initiatives and expectations.' },
+        { id: 'parent-communication', text: '• Communication with parents is timely and professional.' },
+    ]
+  },
+  {
+    category: '5. Growth & Development ',
+    questions: [
+        { id: 'reflection', text: '• Reflects on practice.' },
+        { id: 'feedback-implementation', text: '• Implements feedback from ELEOT/TOT.' },
+        { id: 'coaching-mentoring', text: '• Engages in coaching/ mentoring.' },
     ]
   }
 ];
 
-const ratingOptions = ['Outstanding', 'Good', 'Satisfactory', 'Unsatisfactory'];
+const ratingOptions = [
+    { value: '1', label: 'Needs Improvement' },
+    { value: '2', label: 'Developing' },
+    { value: '3', label: 'Effective' },
+];
+
 
 interface AppraisalFormProps {
     formAction: (payload: FormData) => void;
@@ -68,7 +82,7 @@ export function AppraisalForm({ formAction, isPending, serverState, employeeDocI
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   
   return (
-    <form action={formAction} className="flex flex-col h-full">
+    <form action={formAction} className="flex flex-col h-full max-h-[90vh]">
       <DialogHeader>
         <DialogTitle>Teacher Appraisal Form</DialogTitle>
         <DialogDescription>
@@ -84,7 +98,7 @@ export function AppraisalForm({ formAction, isPending, serverState, employeeDocI
       <input type="hidden" name="actorRole" value={actorProfile?.role || ''} />
       <input type="hidden" name="actorName" value={actorProfile?.name || ''} />
       
-      <ScrollArea className="flex-grow my-4 pr-6 -mr-6 max-h-[60vh]">
+      <ScrollArea className="flex-grow my-4 pr-6 -mr-6">
         <div className="space-y-6">
             <div className="space-y-2">
                 <Label htmlFor="date" className="text-base">Evaluation Date</Label>
@@ -110,13 +124,13 @@ export function AppraisalForm({ formAction, isPending, serverState, employeeDocI
               <h3 className="font-semibold text-md mb-3">{group.category}</h3>
               <div className="space-y-4">
                 {group.questions.map((question, questionIndex) => (
-                    <div key={questionIndex}>
-                        <p className="text-sm font-medium mb-2">{question}</p>
+                    <div key={question.id}>
+                        <p className="text-sm font-medium mb-2">{question.text}</p>
                         <RadioGroup name={`rating-${groupIndex}-${questionIndex}`} className="flex gap-4" required>
                             {ratingOptions.map(option => (
-                                <div key={option} className="flex items-center space-x-2">
-                                    <RadioGroupItem value={option} id={`q-${groupIndex}-${questionIndex}-${option}`} />
-                                    <Label htmlFor={`q-${groupIndex}-${questionIndex}-${option}`} className="font-normal">{option}</Label>
+                                <div key={option.value} className="flex items-center space-x-2">
+                                    <RadioGroupItem value={option.value} id={`q-${groupIndex}-${questionIndex}-${option.value}`} />
+                                    <Label htmlFor={`q-${groupIndex}-${questionIndex}-${option.value}`} className="font-normal">{option.label} ({option.value})</Label>
                                 </div>
                             ))}
                         </RadioGroup>
@@ -125,10 +139,10 @@ export function AppraisalForm({ formAction, isPending, serverState, employeeDocI
               </div>
             </div>
           ))}
-          <div className="space-y-2">
-            <Label htmlFor="comments">Overall Comments</Label>
-            <Textarea id="comments" name="comments" placeholder="Provide summary feedback and goals for improvement..." />
-          </div>
+            <div className="p-4 border rounded-lg">
+                <Label htmlFor="comments" className="font-semibold text-md mb-3 block">General Comments</Label>
+                <Textarea id="comments" name="comments" placeholder="Add any overall comments, strengths, or areas for development..."/>
+            </div>
         </div>
       </ScrollArea>
       <DialogFooter className="pt-4 border-t mt-auto">

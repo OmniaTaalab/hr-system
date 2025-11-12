@@ -17,8 +17,6 @@ const KpiEntrySchema = z.object({
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
   actorName: z.string().optional(),
-  // For detailed appraisal
-  appraisalData: z.record(z.string(), z.any()).optional(),
 });
 
 export type KpiEntryState = {
@@ -42,10 +40,9 @@ export async function addKpiEntryAction(
     let categoryCount = 0;
 
     const ratingToPoints: { [key: string]: number } = {
-        'Outstanding': 4,
-        'Good': 3,
-        'Satisfactory': 2,
-        'Unsatisfactory': 1,
+        '1': 1, // Needs Improvement
+        '2': 2, // Developing
+        '3': 3, // Effective
     };
 
     for (const [key, value] of formData.entries()) {
@@ -56,8 +53,9 @@ export async function addKpiEntryAction(
     }
     
     if (categoryCount === 0) return 0;
-    // Return the average score out of 4
-    return totalScore / categoryCount;
+    // Return the average score, scaled to be out of 4 for consistency with other KPIs
+    const averageOutOf3 = totalScore / categoryCount;
+    return (averageOutOf3 / 3) * 4;
   };
   
   const isAppraisal = formData.get('kpiType') === 'appraisal';
@@ -89,25 +87,29 @@ export async function addKpiEntryAction(
   const finalPoints = validatedFields.data.points; // Use points from validated data
 
   try {
-    // Fetch the employee's name to store with the record
     const employeeDoc = await getDoc(doc(db, "employee", employeeDocId));
     if (!employeeDoc.exists()) {
         return { errors: { form: ["Target employee not found."] }, success: false };
     }
     const employeeName = employeeDoc.data().name || "Unknown Employee";
 
-    const kpiCollectionRef = collection(db, kpiType);
-    
-    let dataToSave: any = {
+    // Common data for both collections
+    const baseData = {
         employeeDocId,
-        employeeName, // Store the name of the employee being evaluated
+        employeeName,
         date: Timestamp.fromDate(date),
-        points: finalPoints,
-        actorId: actorId, // Store the actor's ID
-        actorName: actorName || 'Unknown', // Store actor name
+        actorId,
+        actorName: actorName || 'Unknown',
         createdAt: serverTimestamp(),
     };
 
+    // Save the simplified score to the 'appraisal' collection for KPI tracking
+    await addDoc(collection(db, kpiType), {
+        ...baseData,
+        points: finalPoints,
+    });
+
+    // If it's an appraisal, save the detailed form data to a new collection
     if (isAppraisal) {
         const appraisalData: { [key: string]: any } = {};
         for (const [key, value] of formData.entries()) {
@@ -115,11 +117,14 @@ export async function addKpiEntryAction(
                 appraisalData[key] = value;
             }
         }
-        dataToSave.appraisalData = appraisalData;
+        
+        await addDoc(collection(db, "appraisalSubmissions"), {
+            ...baseData,
+            points: finalPoints, // Also save the calculated score here for reference
+            details: appraisalData,
+        });
     }
     
-    await addDoc(kpiCollectionRef, dataToSave);
-
     await logSystemEvent(`Add ${kpiType.toUpperCase()} Entry`, { 
         actorId, 
         actorEmail, 
