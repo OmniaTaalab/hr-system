@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { z } from 'zod';
@@ -11,7 +12,7 @@ const KpiEntrySchema = z.object({
   employeeDocId: z.string().min(1, "Employee ID is required."),
   kpiType: z.enum(['eleot', 'tot']),
   date: z.coerce.date({ required_error: "A valid date is required."}),
-  points: z.coerce.number().min(0, "Points cannot be negative.").max(6, "Points cannot be more than 6."),
+  points: z.coerce.number().min(0, "Points cannot be negative.").max(4, "Points cannot be more than 4."),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),

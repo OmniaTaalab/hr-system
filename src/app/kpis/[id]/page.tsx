@@ -90,10 +90,10 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
     if (data.length === 0) return 0;
     const totalPoints = data.reduce((acc, item) => acc + item.points, 0);
     const averagePoints = totalPoints / data.length;
-    // Scale average from 6 to 10
-    const scoreOutOf10 = (averagePoints / 6) * 10;
+    // Scale average from 4 to 10 for the final score
+    const scoreOutOf10 = (averagePoints / 4) * 10;
     return parseFloat(scoreOutOf10.toFixed(1));
-  }, [data]);
+}, [data]);
 
   return (
     <Card>
@@ -147,7 +147,7 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="points" className="text-right">Point</Label>
-                    <Input id="points" name="points" type="number" max="6" className="col-span-3" required />
+                    <Input id="points" name="points" type="number" max="4" className="col-span-3" required />
                     {addState?.errors?.points && <p className="col-start-2 col-span-3 text-sm text-destructive">{addState.errors.points.join(', ')}</p>}
                   </div>
                 </div>
@@ -184,7 +184,7 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
               {data.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>{format(item.date.toDate(), 'PPP')}</TableCell>
-                  <TableCell>{item.points} / 6</TableCell>
+                  <TableCell>{item.points} / 4</TableCell>
                 </TableRow>
               ))}
             </TableBody>
