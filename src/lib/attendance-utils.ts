@@ -3,6 +3,19 @@ import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore
 import { db } from '@/lib/firebase/config';
 import { eachDayOfInterval, startOfDay } from 'date-fns';
 
+export interface AttendanceData {
+    attendance: {
+        userId: string;
+        date: string;
+        check_in: string;
+    }[],
+    leaves: {
+        requestingEmployeeDocId: string;
+        startDate: Timestamp;
+        endDate: Timestamp;
+    }[],
+}
+
 export function getAttendancePointValue(entry: any): number {
     if (!entry?.check_in) return 0;
   
@@ -31,50 +44,33 @@ export function getAttendancePointValue(entry: any): number {
 }
 
 
-export async function getAttendanceScore(employeeDocId: string, companyEmployeeId: string) {
-    if (!companyEmployeeId) {
-        return { totalPoints: 0, totalDays: 0, percentage: 0, scoreOutOf10: 0 };
+export function getAttendanceScore(employee: { id: string, employeeId: string }, bulkData: AttendanceData, holidays: Date[]): number {
+    if (!employee?.employeeId) {
+        return 0;
     }
+
     const startDate = new Date("2025-09-01T00:00:00Z");
     const today = new Date();
 
-    const attendanceQuery = query(
-        collection(db, "attendance_log"),
-        where("userId", "==", companyEmployeeId),
-        where("date", ">=", startDate.toISOString().split('T')[0])
-    );
-    
-    const leaveQuery = query(
-        collection(db, "leaveRequests"),
-        where("requestingEmployeeDocId", "==", employeeDocId),
-        where("status", "==", "Approved")
-    );
-    
-    const [attendanceSnapshot, leaveSnapshot, holidaySnapshot] = await Promise.all([
-        getDocs(attendanceQuery),
-        getDocs(leaveQuery),
-        getDocs(collection(db, "holidays"))
-    ]);
+    const employeeAttendance = bulkData.attendance.filter(log => log.userId === employee.employeeId);
+    const employeeLeaves = bulkData.leaves.filter(leave => leave.requestingEmployeeDocId === employee.id);
 
     const attendanceLogsByDate = new Map();
-    attendanceSnapshot.forEach(doc => {
-        const data = doc.data();
-        // Find earliest check-in for the day
-        if (!attendanceLogsByDate.has(data.date) || data.check_in < attendanceLogsByDate.get(data.date).check_in) {
-            attendanceLogsByDate.set(data.date, { check_in: data.check_in });
+    employeeAttendance.forEach(log => {
+        if (!attendanceLogsByDate.has(log.date) || log.check_in < attendanceLogsByDate.get(log.date).check_in) {
+            attendanceLogsByDate.set(log.date, { check_in: log.check_in });
         }
     });
 
     const approvedLeaveDates = new Set<string>();
-    leaveSnapshot.forEach(doc => {
-        const leave = doc.data();
+    employeeLeaves.forEach(leave => {
         const start = leave.startDate.toDate();
         const end = leave.endDate.toDate();
         const interval = eachDayOfInterval({ start, end });
         interval.forEach(day => approvedLeaveDates.add(day.toISOString().split('T')[0]));
     });
 
-    const officialHolidays = new Set(holidaySnapshot.docs.map(doc => doc.data().date.toDate().toISOString().split('T')[0]));
+    const officialHolidays = new Set(holidays.map(h => h.toISOString().split('T')[0]));
 
     let totalDays = 0;
     let totalPoints = 0;
@@ -84,7 +80,7 @@ export async function getAttendanceScore(employeeDocId: string, companyEmployeeI
         const dateStr = currentDate.toISOString().split("T")[0];
         const day = currentDate.getDay(); // Sunday is 0, Saturday is 6
         
-        const isWeekend = day === 5 || day === 6; // Assuming Friday/Saturday are weekends
+        const isWeekend = day === 5 || day === 6;
         const isHoliday = officialHolidays.has(dateStr);
 
         if (!isWeekend && !isHoliday) {
@@ -100,15 +96,10 @@ export async function getAttendanceScore(employeeDocId: string, companyEmployeeI
         currentDate.setDate(currentDate.getDate() + 1);
     }
     
-    if (totalDays === 0) return { totalPoints: 0, totalDays: 0, percentage: 0, scoreOutOf10: 0 };
+    if (totalDays === 0) return 0;
 
     const percentage = (totalPoints / totalDays) * 100;
     const scoreOutOf10 = (percentage / 10);
     
-    return {
-        totalPoints,
-        totalDays,
-        percentage,
-        scoreOutOf10,
-    };
+    return scoreOutOf10;
 }

@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BarChartBig, AlertTriangle, Loader2, Eye, Search, ArrowLeft, ArrowRight, List, LayoutGrid, FileDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase/config";
-import { collection, onSnapshot, query, where, QueryConstraint, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, QueryConstraint, getDocs, Timestamp } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { getAttendanceScore } from "@/lib/attendance-utils";
+import { getAttendanceScore, type AttendanceData } from "@/lib/attendance-utils";
 import { Badge } from "@/components/ui/badge";
 
 interface Employee {
@@ -91,65 +91,82 @@ function KpisContent() {
     const fetchData = useCallback(async () => {
         setIsLoadingData(true);
         try {
-            const employeeQueryConstraints: QueryConstraint[] = [];
-            if (!isPrivilegedUser && profile) {
-                // For managers, fetch their direct reports. For others, just fetch themselves.
-                const queries = [where("id", "==", profile.id)];
-                if (profile.email) {
-                    queries.push(where("reportLine1", "==", profile.email))
-                }
-                // Firestore does not support 'OR' queries on different fields like this.
-                // So we fetch all and filter client side if not admin/hr
+            let employeesQuery: QueryConstraint[] = [];
+            if (!isPrivilegedUser && profile?.id) {
+                employeesQuery.push(where("id", "==", profile.id));
             }
-
-            const [employeesSnapshot, eleotSnapshot, totSnapshot, appraisalSnapshot] = await Promise.all([
-                getDocs(query(collection(db, "employee"), ...employeeQueryConstraints)),
+            
+            const [employeesSnapshot, eleotSnapshot, totSnapshot, appraisalSnapshot, holidaySnapshot] = await Promise.all([
+                getDocs(query(collection(db, "employee"), ...employeesQuery)),
                 getDocs(collection(db, "eleot")),
                 getDocs(collection(db, "tot")),
                 getDocs(collection(db, "appraisal")),
+                getDocs(collection(db, "holidays")),
             ]);
 
             let employees = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-
-            // If user is a manager, also include their direct reports.
+            
             if (!isPrivilegedUser && profile?.email) {
                 const reportsSnapshot = await getDocs(query(collection(db, "employee"), where("reportLine1", "==", profile.email)));
                 const reports = reportsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-                // Add reports, ensuring no duplicates if user is in the list
                 const employeeMap = new Map(employees.map(e => [e.id, e]));
                 reports.forEach(r => employeeMap.set(r.id, r));
                 employees = Array.from(employeeMap.values());
             }
 
-            const kpiDataByEmployee: Record<string, { eleot: number[], tot: number[], appraisal: number[] }> = {};
+            // Fetch attendance and leave data in bulk
+            const allEmployeeCompanyIds = employees.map(e => e.employeeId).filter(Boolean);
+            const allEmployeeDocIds = employees.map(e => e.id);
+            const attendanceData: AttendanceData = { attendance: [], leaves: [] };
 
-            eleotSnapshot.docs.forEach(d => {
+            const CHUNK_SIZE = 30; // Firestore 'in' query limit
+            for (let i = 0; i < allEmployeeCompanyIds.length; i += CHUNK_SIZE) {
+                const companyIdChunk = allEmployeeCompanyIds.slice(i, i + CHUNK_SIZE);
+                if (companyIdChunk.length > 0) {
+                    const attendanceQuery = query(collection(db, "attendance_log"), where("userId", "in", companyIdChunk));
+                    const attSnapshot = await getDocs(attendanceQuery);
+                    attSnapshot.forEach(doc => attendanceData.attendance.push(doc.data()));
+                }
+            }
+            for (let i = 0; i < allEmployeeDocIds.length; i += CHUNK_SIZE) {
+                const docIdChunk = allEmployeeDocIds.slice(i, i + CHUNK_SIZE);
+                if (docIdChunk.length > 0) {
+                    const leaveQuery = query(collection(db, "leaveRequests"), where("requestingEmployeeDocId", "in", docIdChunk), where("status", "==", "Approved"));
+                    const leaveSnapshot = await getDocs(leaveQuery);
+                    leaveSnapshot.forEach(doc => attendanceData.leaves.push(doc.data() as any));
+                }
+            }
+             const holidays = holidaySnapshot.docs.map(doc => doc.data().date.toDate());
+
+
+            const kpiDataByEmployee: Record<string, { eleot: number[], tot: number[], appraisal: number[] }> = {};
+            eleotSnapshot.forEach(d => {
                 const data = d.data();
                 if (!kpiDataByEmployee[data.employeeDocId]) kpiDataByEmployee[data.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
                 kpiDataByEmployee[data.employeeDocId].eleot.push(data.points);
             });
-            totSnapshot.docs.forEach(d => {
-                 const data = d.data();
+            totSnapshot.forEach(d => {
+                const data = d.data();
                 if (!kpiDataByEmployee[data.employeeDocId]) kpiDataByEmployee[data.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
                 kpiDataByEmployee[data.employeeDocId].tot.push(data.points);
             });
-            appraisalSnapshot.docs.forEach(d => {
-                 const data = d.data();
+            appraisalSnapshot.forEach(d => {
+                const data = d.data();
                 if (!kpiDataByEmployee[data.employeeDocId]) kpiDataByEmployee[data.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
                 kpiDataByEmployee[data.employeeDocId].appraisal.push(data.points);
             });
 
-            const employeesWithKpis: EmployeeWithKpis[] = await Promise.all(employees.map(async emp => {
+            const employeesWithKpis = employees.map(emp => {
                 const kpis = kpiDataByEmployee[emp.id] || { eleot: [], tot: [], appraisal: [] };
-                
                 const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
                 
-                const attendanceScore = await getAttendanceScore(emp.id, emp.employeeId);
+                // Calculate attendance score using pre-fetched data
+                const attendanceScore = getAttendanceScore(emp, attendanceData, holidays);
 
                 return {
                     ...emp,
                     kpis: {
-                        attendance: attendanceScore.scoreOutOf10,
+                        attendance: attendanceScore,
                         eleot: kpis.eleot.length > 0 ? (avg(kpis.eleot) / 4) * 10 : 0,
                         tot: kpis.tot.length > 0 ? (avg(kpis.tot) / 4) * 10 : 0,
                         appraisal: kpis.appraisal.length > 0 ? avg(kpis.appraisal) : 0,
@@ -158,7 +175,7 @@ function KpisContent() {
                         profDevelopment: 20, // Placeholder
                     }
                 };
-            }));
+            });
 
             setAllEmployees(employeesWithKpis.sort((a,b) => a.name.localeCompare(b.name)));
 
