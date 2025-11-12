@@ -19,7 +19,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns';
 
 interface Employee {
   id: string;
@@ -117,6 +117,7 @@ function DashboardPageContent() {
   const [totalEmployees, setTotalEmployees] = useState<number | null>(null);
   const [activeEmployees, setActiveEmployees] = useState<number | null>(null);
   const [todaysAttendance, setTodaysAttendance] = useState<number | null>(null);
+  const [onLeaveToday, setOnLeaveToday] = useState<number | null>(null);
   const [absentToday, setAbsentToday] = useState<number | null>(null);
   const [attendanceDate, setAttendanceDate] = useState<string | null>(null);
   const [dateStringForLink, setDateStringForLink] = useState<string | null>(null);
@@ -133,6 +134,7 @@ function DashboardPageContent() {
   const [isLoadingTotalEmp, setIsLoadingTotalEmp] = useState(true);
   const [isLoadingActiveEmp, setIsLoadingActiveEmp] = useState(true);
   const [isLoadingTodaysAttendance, setIsLoadingTodaysAttendance] = useState(true);
+  const [isLoadingOnLeaveToday, setIsLoadingOnLeaveToday] = useState(true);
   const [isLoadingAbsentToday, setIsLoadingAbsentToday] = useState(true);
   const [isLoadingPendingLeaves, setIsLoadingPendingLeaves] = useState(true);
   const [isLoadingApprovedLeaves, setIsLoadingApprovedLeaves] = useState(true);
@@ -235,31 +237,55 @@ function DashboardPageContent() {
       // Fetch attendance only for privileged users
       if (!isPrivilegedUser) {
         setIsLoadingTodaysAttendance(false);
-        setIsLoadingAbsentToday(false);
+        setIsLoadingOnLeaveToday(false);
         setIsLoadingLateAttendance(false);
         return;
       }
         
       setIsLoadingTodaysAttendance(true);
-      setIsLoadingAbsentToday(true);
+      setIsLoadingOnLeaveToday(true);
       setIsLoadingLateAttendance(true);
       try {
         const today = new Date();
+        const todayStart = startOfDay(today);
+        const todayEnd = endOfDay(today);
         const dateStr = format(today, 'yyyy-MM-dd');
         setAttendanceDate(format(today, 'PPP'));
         setDateStringForLink(dateStr);
         
-        // Fetch all data needed for calculation
-        const [attendanceSnapshot, campusHoursSnap, employeeSnap] = await Promise.all([
+        const [attendanceSnapshot, campusHoursSnap, employeeSnap, leaveSnapshot] = await Promise.all([
             getDocs(query(collection(db, "attendance_log"), where("date", "==", dateStr))),
             getDocs(collection(db, "campusWorkingHours")),
-            getDocs(query(collection(db, "employee")))
+            getDocs(query(collection(db, "employee"), where("status", "==", "Active"))),
+            getDocs(query(collection(db, "leaveRequests"), 
+                where("status", "==", "Approved"),
+                where("startDate", "<=", Timestamp.fromDate(todayEnd))
+            ))
         ]);
         
         const presentUserIds = new Set(attendanceSnapshot.docs.map(doc => doc.data().userId));
         setTodaysAttendance(presentUserIds.size);
 
-        // Process data in memory
+        const onLeaveEmployeeIds = new Set<string>();
+        leaveSnapshot.forEach(doc => {
+            const leave = doc.data();
+            if (leave.endDate.toDate() >= todayStart) {
+                onLeaveEmployeeIds.add(leave.requestingEmployeeDocId);
+            }
+        });
+        setOnLeaveToday(onLeaveEmployeeIds.size);
+        
+        const activeEmployeeDocIds = new Set(employeeSnap.docs.map(doc => doc.id));
+        const activeEmployeeIds = new Set(employeeSnap.docs.map(doc => String(doc.data().employeeId)));
+        
+        const absentCount = Array.from(activeEmployeeDocIds).filter(docId => {
+            const empDoc = employeeSnap.docs.find(d => d.id === docId);
+            if (!empDoc) return false;
+            const employeeId = String(empDoc.data().employeeId);
+            return !presentUserIds.has(employeeId) && !onLeaveEmployeeIds.has(docId);
+        }).length;
+        setAbsentToday(absentCount);
+
         const campusRules = new Map<string, { checkInEndTime: string }>();
         campusHoursSnap.forEach(doc => campusRules.set(doc.id.toLowerCase(), doc.data() as { checkInEndTime: string }));
 
@@ -300,8 +326,11 @@ function DashboardPageContent() {
         console.error("Error fetching daily attendance:", error);
         setTodaysAttendance(0);
         setLateAttendance(0);
+        setOnLeaveToday(0);
+        setAbsentToday(0);
       } finally {
         setIsLoadingTodaysAttendance(false);
+        setIsLoadingOnLeaveToday(false);
         setIsLoadingAbsentToday(false);
         setIsLoadingLateAttendance(false);
       }
@@ -377,11 +406,6 @@ function DashboardPageContent() {
 
   }, [profile, isLoadingProfile, isPrivilegedUser]);
   
-  const finalAbsentCount = useMemo(() => {
-    if (activeEmployees === null || todaysAttendance === null) return 0;
-    const absent = activeEmployees - todaysAttendance;
-    return absent > 0 ? absent : 0;
-  }, [activeEmployees, todaysAttendance]);
 
   const eleotScore = useMemo(() => {
       if (kpiData.eleot.length === 0) return 0;
@@ -418,8 +442,8 @@ function DashboardPageContent() {
     {
       title: "Absent Today",
       iconName: "UserX",
-      statistic: absentToday ?? finalAbsentCount,
-      statisticLabel: attendanceDate ? `From ${activeEmployees ?? 'N/A'} active employees` : 'No attendance data',
+      statistic: absentToday ?? 0,
+      statisticLabel: `From ${activeEmployees ?? 'N/A'} active employees`,
       isLoadingStatistic: isLoadingAbsentToday || isLoadingActiveEmp,
       href: `/employees/status/absent?date=${dateStringForLink || ''}`,
       linkText: "View Employees",
