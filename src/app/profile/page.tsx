@@ -6,8 +6,8 @@ import React, { useState, useEffect, useMemo, useActionState, useRef } from "rea
 import { AppLayout } from "@/components/layout/app-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users, FileText, Trophy } from "lucide-react";
-import { auth, db } from "@/lib/firebase/config";
+import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users, FileText, Trophy, PlusCircle, UploadCloud } from "lucide-react";
+import { auth, db, storage } from "@/lib/firebase/config";
 import { 
   onAuthStateChanged, 
   type User, 
@@ -15,7 +15,7 @@ import {
   reauthenticateWithCredential,
   updatePassword 
 } from "firebase/auth";
-import { collection, query, where, getDocs, limit, type Timestamp, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, type Timestamp, onSnapshot, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
 import { format, getYear, getMonth, getDate } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -30,12 +30,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogClose
+  DialogClose,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { createEmployeeProfileAction, type CreateProfileState } from "@/lib/firebase/admin-actions";
+import { addProfDevelopmentAction, type ProfDevelopmentState } from "@/app/actions/employee-actions";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import jsPDF from "jspdf";
@@ -43,6 +45,8 @@ import autoTable from 'jspdf-autotable';
 import { ImageUploader } from "@/components/image-uploader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { nanoid } from 'nanoid';
 
 
 // Define the Employee interface to include all necessary fields
@@ -70,6 +74,15 @@ interface KpiEntry {
   actorName?: string;
   employeeName?: string; // Add this for given KPIs
   employeeDocId?: string; // Add this for linking
+}
+
+interface ProfDevelopmentEntry {
+  id: string;
+  date: Timestamp;
+  courseName: string;
+  attachmentName: string;
+  attachmentUrl: string;
+  status: 'Pending' | 'Accepted' | 'Rejected';
 }
 
 
@@ -206,6 +219,122 @@ function CreateProfileForm({ user }: { user: User }) {
   );
 }
 
+const initialProfDevState: ProfDevelopmentState = { success: false };
+
+function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: EmployeeProfile; actorProfile: User | null }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [file, setFile] = useState<File | null>(null);
+    const [date, setDate] = useState<Date | undefined>();
+    const [isUploading, setIsUploading] = useState(false);
+    const [formState, formAction, isActionPending] = useActionState(addProfDevelopmentAction, initialProfDevState);
+
+    const isPending = isUploading || isActionPending;
+
+    useEffect(() => {
+        if (formState?.message) {
+            toast({
+                title: formState.success ? "Success" : "Error",
+                description: formState.message,
+                variant: formState.success ? "default" : "destructive",
+            });
+            if (formState.success) {
+                setIsOpen(false);
+                setFile(null);
+                setDate(undefined);
+            }
+        }
+    }, [formState, toast]);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = e.target.files?.[0];
+        if (!selectedFile) return;
+        setFile(selectedFile);
+    };
+
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!file || !date) {
+            toast({ variant: 'destructive', title: 'Missing Info', description: 'Please provide all fields and a file.' });
+            return;
+        }
+
+        setIsUploading(true);
+        const formData = new FormData(event.currentTarget);
+        formData.set('date', date.toISOString());
+
+        try {
+            const filePath = `employee-documents/${employee.id}/prof-development/${nanoid()}-${file.name}`;
+            const fileRef = ref(storage, filePath);
+            const snapshot = await uploadBytes(fileRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+
+            formData.set('attachmentUrl', downloadURL);
+            formAction(formData);
+        } catch (error) {
+            console.error("Error uploading file:", error);
+            toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload file.' });
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button size="icon" className="h-7 w-7"><PlusCircle className="h-4 w-4" /></Button>
+            </DialogTrigger>
+            <DialogContent>
+                <form onSubmit={handleSubmit}>
+                    <DialogHeader>
+                        <DialogTitle>Add Professional Development</DialogTitle>
+                        <DialogDescription>Add a new course or training entry.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <input type="hidden" name="employeeDocId" value={employee.id} />
+                        <input type="hidden" name="actorId" value={actorProfile?.uid || ''} />
+                        <input type="hidden" name="actorEmail" value={actorProfile?.email || ''} />
+                        <input type="hidden" name="actorRole" value={employee.role || ''} />
+
+                        <div className="space-y-2">
+                            <Label htmlFor="courseName">Course Name</Label>
+                            <Input id="courseName" name="courseName" required disabled={isPending} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Date</Label>
+                            <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{date ? format(date, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent></Popover>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="attachmentName">Attachment Name</Label>
+                            <Input id="attachmentName" name="attachmentName" placeholder="e.g., Certificate, Award" required disabled={isPending} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="attachmentFile">Attachment File</Label>
+                            <Input id="attachmentFile" type="file" onChange={handleFileChange} required disabled={isPending} />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline" disabled={isPending}>Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isPending || !file || !date}>
+                            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Submit'}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function ProfDevelopmentStatusBadge({ status }: { status: ProfDevelopmentEntry['status'] }) {
+    switch (status) {
+        case "Accepted": return <Badge variant="secondary" className="bg-green-100 text-green-800">Accepted</Badge>;
+        case "Rejected": return <Badge variant="destructive">Rejected</Badge>;
+        case "Pending": return <Badge variant="warning">Pending</Badge>;
+        default: return <Badge>{status}</Badge>;
+    }
+}
+
+
 export default function ProfilePage() {
   const [employeeProfile, setEmployeeProfile] = useState<EmployeeProfile | null>(null);
   const [authUser, setAuthUser] = useState<User | null>(null);
@@ -217,6 +346,8 @@ export default function ProfilePage() {
   const [givenEleot, setGivenEleot] = useState<KpiEntry[]>([]);
   const [givenTot, setGivenTot] = useState<KpiEntry[]>([]);
   const [loadingKpis, setLoadingKpis] = useState(true);
+  const [profDevelopment, setProfDevelopment] = useState<ProfDevelopmentEntry[]>([]);
+  const [loadingProfDev, setLoadingProfDev] = useState(true);
 
 
   useEffect(() => {
@@ -265,14 +396,17 @@ export default function ProfilePage() {
       setTotHistory([]);
       setGivenEleot([]);
       setGivenTot([]);
+      setProfDevelopment([]);
       return;
     }
     
     setLoadingKpis(true);
+    setLoadingProfDev(true);
     const myEleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", employeeProfile.id));
     const myTotQuery = query(collection(db, "tot"), where("employeeDocId", "==", employeeProfile.id));
     const givenEleotQuery = query(collection(db, "eleot"), where("actorId", "==", employeeProfile.id));
     const givenTotQuery = query(collection(db, "tot"), where("actorId", "==", employeeProfile.id));
+    const profDevQuery = query(collection(db, `employee/${employeeProfile.id}/profDevelopment`), orderBy("date", "desc"));
 
     const eleotUnsubscribe = onSnapshot(myEleotQuery, (snapshot) => {
         const eleotData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
@@ -297,6 +431,15 @@ export default function ProfilePage() {
         givenData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
         setGivenTot(givenData);
     }, (error) => console.error("Error fetching given TOTs:", error));
+
+    const profDevUnsubscribe = onSnapshot(profDevQuery, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProfDevelopmentEntry));
+        setProfDevelopment(data);
+        setLoadingProfDev(false);
+    }, (error) => {
+        console.error("Error fetching professional development:", error);
+        setLoadingProfDev(false);
+    });
     
     setLoadingKpis(false);
 
@@ -305,6 +448,7 @@ export default function ProfilePage() {
         totUnsubscribe();
         givenEleotUnsubscribe();
         givenTotUnsubscribe();
+        profDevUnsubscribe();
     };
 }, [employeeProfile?.id]);
 
@@ -634,6 +778,49 @@ export default function ProfilePage() {
                                 </div>
                             </div>
                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+             <Card>
+                <CardHeader>
+                    <CardTitle className="flex justify-between items-center">
+                        Prof Development (10%)
+                        <AddProfDevelopmentDialog employee={employeeProfile} actorProfile={authUser} />
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {loadingProfDev ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Course name</TableHead>
+                                    <TableHead>Attachments</TableHead>
+                                    <TableHead>Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {profDevelopment.length > 0 ? profDevelopment.map(item => (
+                                    <TableRow key={item.id}>
+                                        <TableCell>{format(item.date.toDate(), "dd MMM yyyy")}</TableCell>
+                                        <TableCell>{item.courseName}</TableCell>
+                                        <TableCell>
+                                            <a href={item.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                                                {item.attachmentName} <Download className="h-3 w-3" />
+                                            </a>
+                                        </TableCell>
+                                        <TableCell>
+                                            <ProfDevelopmentStatusBadge status={item.status} />
+                                        </TableCell>
+                                    </TableRow>
+                                )) : (
+                                    <TableRow>
+                                        <TableCell colSpan={4} className="text-center text-muted-foreground">No development entries yet.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
                     )}
                 </CardContent>
             </Card>
