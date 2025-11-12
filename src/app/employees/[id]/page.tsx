@@ -19,6 +19,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { CertificateUploader } from "@/components/certificate-uploader";
 
 interface EmergencyContact {
   name: string;
@@ -761,11 +762,14 @@ const calculateAttendanceScore = async (employeeId: string) => {
                 <CardHeader>
                     <CardTitle>Actions</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex flex-wrap gap-4">
                     <Button onClick={handleExportPDF}>
                         <FileText className="mr-2 h-4 w-4" />
                         Export Profile to PDF
                     </Button>
+                     {currentUserProfile && currentUserProfile.role?.toLowerCase() !== 'hr' && (
+                        <CertificateUploader employeeId={employee.id} actorProfile={currentUserProfile} />
+                     )}
                 </CardContent>
             </Card>
             
@@ -782,7 +786,7 @@ const calculateAttendanceScore = async (employeeId: string) => {
                                     {eleotHistory.map(entry => (
                                         <TableRow key={entry.id}>
                                             <TableCell>{format(entry.date.toDate(), "PPP")}</TableCell>
-                                            <TableCell className="text-right">{entry.points} / 6</TableCell>
+                                            <TableCell className="text-right">{entry.points} / 4</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -802,7 +806,7 @@ const calculateAttendanceScore = async (employeeId: string) => {
                                     {totHistory.map(entry => (
                                         <TableRow key={entry.id}>
                                             <TableCell>{format(entry.date.toDate(), "PPP")}</TableCell>
-                                            <TableCell className="text-right">{entry.points} / 6</TableCell>
+                                            <TableCell className="text-right">{entry.points} / 4</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
