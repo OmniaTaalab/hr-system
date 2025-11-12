@@ -91,7 +91,10 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
     const totalPoints = data.reduce((acc, item) => acc + item.points, 0);
     const averagePoints = totalPoints / data.length;
     // Scale average from 4 to 10 for the final score
-    const scoreOutOf10 = (averagePoints / 4) * 10;
+    let scoreOutOf10 = (averagePoints / 4) * 10;
+    if (scoreOutOf10 >= 8) {
+        scoreOutOf10 = 10;
+    }
     return parseFloat(scoreOutOf10.toFixed(1));
 }, [data]);
 
