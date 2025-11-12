@@ -66,6 +66,7 @@ interface KpiEntry {
   id: string;
   date: Timestamp;
   points: number;
+  actorName?: string;
 }
 
 
@@ -261,8 +262,8 @@ export default function ProfilePage() {
     }
     
     setLoadingKpis(true);
-    const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", employeeProfile.employeeId));
-    const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", employeeProfile.employeeId));
+    const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", employeeProfile.id));
+    const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", employeeProfile.id));
 
     const eleotUnsubscribe = onSnapshot(eleotQuery, (snapshot) => {
         const eleotData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
@@ -282,7 +283,7 @@ export default function ProfilePage() {
         eleotUnsubscribe();
         totUnsubscribe();
     };
-}, [employeeProfile?.id, employeeProfile?.employeeId]);
+}, [employeeProfile?.id]);
 
 
   const getInitials = (name?: string | null) => {
@@ -374,6 +375,8 @@ export default function ProfilePage() {
       ["Phone", employeeProfile.phone || "-"],
       ["Role", employeeProfile.role || "-"],
       ["Department", employeeProfile.department || "-"],
+      ["Report Line 1", employeeProfile.reportLine1 || "-"],
+      ["Report Line 2", employeeProfile.reportLine2 || "-"],
       ["Date of Birth", formattedDob || "-"],
       ["Joined Date", formattedJoiningDate || "-"],
     ];
@@ -520,12 +523,13 @@ export default function ProfilePage() {
                     <CardContent>
                         {loadingKpis ? <Loader2 className="h-6 w-6 animate-spin" /> : eleotHistory.length === 0 ? <p className="text-sm text-muted-foreground">No ELEOT records found.</p> : (
                             <Table>
-                                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead className="text-right">Points</TableHead></TableRow></TableHeader>
+                                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Points</TableHead><TableHead>Added By</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {eleotHistory.map(entry => (
                                         <TableRow key={entry.id}>
                                             <TableCell>{format(entry.date.toDate(), "PPP")}</TableCell>
-                                            <TableCell className="text-right">{entry.points} / 6</TableCell>
+                                            <TableCell>{entry.points} / 4</TableCell>
+                                            <TableCell>{entry.actorName || '-'}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -540,12 +544,13 @@ export default function ProfilePage() {
                     <CardContent>
                         {loadingKpis ? <Loader2 className="h-6 w-6 animate-spin" /> : totHistory.length === 0 ? <p className="text-sm text-muted-foreground">No TOT records found.</p> : (
                             <Table>
-                                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead className="text-right">Points</TableHead></TableRow></TableHeader>
+                                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Points</TableHead><TableHead>Added By</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {totHistory.map(entry => (
                                         <TableRow key={entry.id}>
                                             <TableCell>{format(entry.date.toDate(), "PPP")}</TableCell>
-                                            <TableCell className="text-right">{entry.points} / 6</TableCell>
+                                            <TableCell>{entry.points} / 4</TableCell>
+                                            <TableCell>{entry.actorName || '-'}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -590,5 +595,3 @@ export default function ProfilePage() {
     </AppLayout>
   );
 }
-
-

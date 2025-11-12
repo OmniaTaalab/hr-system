@@ -16,6 +16,7 @@ const KpiEntrySchema = z.object({
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
+  actorName: z.string().optional(), // Added actorName
 });
 
 export type KpiEntryState = {
@@ -40,6 +41,7 @@ export async function addKpiEntryAction(
     actorId: formData.get('actorId'),
     actorEmail: formData.get('actorEmail'),
     actorRole: formData.get('actorRole'),
+    actorName: formData.get('actorName'), // Get actorName from form
   });
 
   if (!validatedFields.success) {
@@ -50,7 +52,7 @@ export async function addKpiEntryAction(
     };
   }
   
-  const { employeeDocId, kpiType, date, points, actorId, actorEmail, actorRole } = validatedFields.data;
+  const { employeeDocId, kpiType, date, points, actorId, actorEmail, actorRole, actorName } = validatedFields.data;
 
   try {
     const kpiCollectionRef = collection(db, kpiType);
@@ -59,6 +61,7 @@ export async function addKpiEntryAction(
         employeeDocId,
         date: Timestamp.fromDate(date),
         points,
+        actorName: actorName || 'Unknown', // Save actor name
         createdAt: serverTimestamp(),
     });
 

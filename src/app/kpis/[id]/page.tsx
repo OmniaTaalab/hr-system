@@ -36,6 +36,7 @@ interface KpiEntry {
   id: string;
   date: Timestamp;
   points: number;
+  actorName?: string;
 }
 
 const initialKpiState: KpiEntryState = { success: false, message: null, errors: {} };
@@ -52,7 +53,7 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
   const [addState, addAction, isAddPending] = useActionState(addKpiEntryAction, initialKpiState);
 
   useEffect(() => {
-    if (!employeeDocId) { // Changed from employeeId to employeeDocId for query
+    if (!employeeDocId) {
         setIsLoading(false);
         setData([]);
         return;
@@ -61,7 +62,6 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
     const q = query(collection(db, kpiType), where("employeeDocId", "==", employeeDocId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const kpiData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
-      // Sort client-side
       kpiData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
       setData(kpiData);
       setIsLoading(false);
@@ -90,7 +90,6 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
     if (data.length === 0) return 0;
     const totalPoints = data.reduce((acc, item) => acc + item.points, 0);
     const averagePoints = totalPoints / data.length;
-    // Scale average from 4 to 10 for the final score
     let scoreOutOf10 = (averagePoints / 4) * 10;
     if (scoreOutOf10 >= 8) {
         scoreOutOf10 = 10;
@@ -123,6 +122,7 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
                 <input type="hidden" name="actorId" value={profile?.id || ''} />
                 <input type="hidden" name="actorEmail" value={profile?.email || ''} />
                 <input type="hidden" name="actorRole" value={profile?.role || ''} />
+                <input type="hidden" name="actorName" value={profile?.name || ''} />
                 <DialogHeader>
                   <DialogTitle>Add New Entry to {title}</DialogTitle>
                   <DialogDescription>
@@ -181,6 +181,7 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Point</TableHead>
+                <TableHead>Added By</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -188,6 +189,7 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
                 <TableRow key={item.id}>
                   <TableCell>{format(item.date.toDate(), 'PPP')}</TableCell>
                   <TableCell>{item.points} / 4</TableCell>
+                  <TableCell>{item.actorName || '-'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
