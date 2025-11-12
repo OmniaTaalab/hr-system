@@ -45,7 +45,7 @@ interface EmployeeWithKpis extends Employee {
     kpis: KpiData;
 }
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 10;
 
 const getInitials = (name?: string) => {
     if (!name) return "U";
@@ -234,6 +234,11 @@ function KpisContent() {
     const goToPage = (page: number) => {
         setCurrentPage(Math.max(1, Math.min(page, totalPages)));
     }
+    
+    useEffect(() => {
+        setCurrentPage(1); // Reset page to 1 when filters change
+    }, [searchTerm, groupFilter, campusFilter]);
+
 
     if (isLoadingProfile || isLoadingData) {
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -330,19 +335,9 @@ function KpisContent() {
                  <CardFooter className="flex justify-between items-center">
                     <p className="text-sm text-muted-foreground">Showing {paginatedEmployees.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0}–{Math.min(currentPage * PAGE_SIZE, filteredEmployees.length)} of {filteredEmployees.length}</p>
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" size="icon" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}><ArrowLeft className="h-4 w-4"/></Button>
-                        {Array.from({length: totalPages > 5 ? 5 : totalPages}, (_, i) => {
-                            let pageNum = i + 1;
-                            if (totalPages > 5 && currentPage > 3) {
-                                pageNum = currentPage - 2 + i;
-                                if (pageNum > totalPages) return null;
-                            }
-                            return (
-                                <Button key={pageNum} variant={currentPage === pageNum ? "default" : "outline"} size="icon" onClick={() => goToPage(pageNum)}>{pageNum}</Button>
-                            );
-                        })}
-                        {totalPages > 5 && <span className="text-muted-foreground">...</span>}
-                        <Button variant="outline" size="icon" onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages}><ArrowRight className="h-4 w-4"/></Button>
+                        <Button variant="outline" size="sm" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}><ArrowLeft className="h-4 w-4"/></Button>
+                        <span className="text-sm font-medium">Page {currentPage} of {totalPages || 1}</span>
+                        <Button variant="outline" size="sm" onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages}><ArrowRight className="h-4 w-4"/></Button>
                     </div>
                 </CardFooter>
             </Card>
