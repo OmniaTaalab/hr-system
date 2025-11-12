@@ -38,8 +38,6 @@ interface KpiData {
     tot: number;
     appraisal: number;
     attendance: number;
-    survey: number; // Placeholder
-    studentGrowth: number; // Placeholder
     profDevelopment: number; // Placeholder
 }
 
@@ -57,7 +55,7 @@ const getInitials = (name?: string) => {
 function KpiScoreBar({ score, colorClass }: { score: number, colorClass: string }) {
     return (
         <div className="flex items-center gap-2">
-            <div className="relative w-24 h-4">
+            <div className="relative w-24 h-10">
                 <Progress value={score * 10} className="h-2" indicatorClassName={colorClass} />
                 <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white mix-blend-difference">
                     {score.toFixed(1)}%
@@ -98,26 +96,18 @@ function KpisContent() {
         try {
             let employeesQueryConstraints: QueryConstraint[] = [];
             
-            // Build the initial set of employees to fetch
-            if (isPrivilegedUser) {
-                // Admins/HR see everyone
-            } else if (profile.email) {
+            if (!isPrivilegedUser && profile.email) {
                 // Managers see their direct reports
                 employeesQueryConstraints.push(where("reportLine1", "==", profile.email));
-            } else {
-                 // Regular user with no reports, just fetch their own profile
-                employeesQueryConstraints.push(where("userId", "==", profile.userId));
             }
-
+            
             const employeesSnapshot = await getDocs(query(collection(db, "employee"), ...employeesQueryConstraints));
             let employees: Employee[] = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
             
-            // If the user is not privileged, they should also see their own KPIs
             if (!isPrivilegedUser) {
                 const selfSnapshot = await getDocs(query(collection(db, "employee"), where("userId", "==", profile.userId)));
                 if(!selfSnapshot.empty) {
                      const selfEmployee = { id: selfSnapshot.docs[0].id, ...selfSnapshot.docs[0].data() } as Employee;
-                     // Avoid duplicates if user reports to themselves
                      if (!employees.some(e => e.id === selfEmployee.id)) {
                          employees.push(selfEmployee);
                      }
@@ -190,8 +180,6 @@ function KpisContent() {
                         eleot: kpis.eleot.length > 0 ? (avg(kpis.eleot) / 4) * 10 : 0,
                         tot: kpis.tot.length > 0 ? (avg(kpis.tot) / 4) * 10 : 0,
                         appraisal: kpis.appraisal.length > 0 ? avg(kpis.appraisal) : 0,
-                        survey: 3,
-                        studentGrowth: 30,
                         profDevelopment: 20,
                     }
                 };
@@ -291,42 +279,42 @@ function KpisContent() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Teacher name</TableHead>
-                                <TableHead>Attendance (10%)</TableHead>
-                                <TableHead>ELEOT (10%)</TableHead>
-                                <TableHead>TOT (10%)</TableHead>
-                                <TableHead>Survey (10%)</TableHead>
-                                <TableHead>Student Growth (40%)</TableHead>
-                                <TableHead>Appraisal (10%)</TableHead>
-                                <TableHead>Prof Development (10%)</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {paginatedEmployees.map(emp => (
-                                <TableRow key={emp.id}>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <Avatar className="h-8 w-8">
-                                                <AvatarImage src={emp.photoURL || undefined} />
-                                                <AvatarFallback>{getInitials(emp.name)}</AvatarFallback>
-                                            </Avatar>
-                                            <Link href={`/kpis/${emp.employeeId}`} className="font-medium hover:underline">{emp.name}</Link>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>{emp.kpis.attendance.toFixed(1)}%</TableCell>
-                                    <TableCell><KpiScoreBar score={emp.kpis.eleot} colorClass="bg-blue-500"/></TableCell>
-                                    <TableCell><KpiScoreBar score={emp.kpis.tot} colorClass="bg-yellow-500"/></TableCell>
-                                    <TableCell><KpiScoreBar score={emp.kpis.survey} colorClass="bg-gray-700"/></TableCell>
-                                    <TableCell><KpiScoreBar score={emp.kpis.studentGrowth} colorClass="bg-gray-400"/></TableCell>
-                                    <TableCell><KpiScoreBar score={emp.kpis.appraisal} colorClass="bg-green-500"/></TableCell>
-                                    <TableCell><KpiScoreBar score={emp.kpis.profDevelopment} colorClass="bg-red-500"/></TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Attendance (10%)</TableHead>
+                        <TableHead>TOT (10%)</TableHead>
+                        <TableHead>ELEOT (10%)</TableHead>
+                        <TableHead>Appraisal (10%)</TableHead>
+                        <TableHead>Prof Development (10%)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedEmployees.map(emp => (
+                        <TableRow key={emp.id}>
+                          <TableCell className="font-medium">
+                            {emp.name || "—"}
+                          </TableCell>
+                          <TableCell>
+                            <KpiScoreBar score={emp.kpis.attendance} colorClass="bg-blue-500" />
+                          </TableCell>
+                          <TableCell>
+                            <KpiScoreBar score={emp.kpis.tot} colorClass="bg-yellow-500" />
+                          </TableCell>
+                          <TableCell>
+                            <KpiScoreBar score={emp.kpis.eleot} colorClass="bg-green-500" />
+                          </TableCell>
+                          <TableCell>
+                            <KpiScoreBar score={emp.kpis.appraisal} colorClass="bg-purple-500" />
+                          </TableCell>
+                          <TableCell>
+                            <KpiScoreBar score={emp.kpis.profDevelopment} colorClass="bg-red-500" />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </CardContent>
                  <CardFooter className="flex justify-between items-center">
                     <p className="text-sm text-muted-foreground">Showing {paginatedEmployees.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0}–{Math.min(currentPage * PAGE_SIZE, filteredEmployees.length)} of {filteredEmployees.length}</p>
