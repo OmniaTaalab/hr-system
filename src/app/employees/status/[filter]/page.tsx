@@ -61,14 +61,18 @@ const toStr = (v: any) => String(v ?? "").trim();
 
 const parseTimeToMinutes = (t?: string | null): number | null => {
   if (!t) return null;
-  const s = t.trim().toLowerCase();
-  const match = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?$/i);
+  // Updated regex to handle optional seconds and AM/PM
+  const match = t.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)?/i);
   if (!match) return null;
   let h = parseInt(match[1], 10);
   const m = parseInt(match[2], 10);
-  const ampm = match[4]?.toLowerCase();
-  if (ampm === "pm" && h < 12) h += 12;
-  if (ampm === "am" && h === 12) h = 0; // Midnight case
+  const ampm = match[3]?.toLowerCase();
+  
+  if (ampm === "am" && h === 12) { // Handle 12 AM (midnight)
+    h = 0;
+  } else if (ampm === "pm" && h < 12) { // Handle PM times
+    h += 12;
+  }
   return h * 60 + m;
 };
 
