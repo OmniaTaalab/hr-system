@@ -1,5 +1,5 @@
 
-require('dotenv').config();
+import '@/env'; // Ensures environment variables are loaded
 import admin from 'firebase-admin';
 
 // This ensures the private key is parsed correctly
