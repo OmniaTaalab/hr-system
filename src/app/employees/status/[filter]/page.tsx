@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import {
   Card,
@@ -26,6 +26,7 @@ import {
   Loader2,
   ArrowLeft,
   UserCheck,
+  UserX,
   AlertTriangle,
   Clock,
 } from "lucide-react";
@@ -121,23 +122,13 @@ function EmployeeStatusContent() {
             photoURL: d.photoURL ?? undefined,
             badgeNumber: toStr(d.badgeNumber),
             campus: d.campus,
+            status: d.status,
           };
         });
-
+        
         const empByEmployeeId = new Map(
           allEmployees.map((e) => [toStr(e.employeeId), e])
         );
-
-        const campusHoursSnap = await getDocs(
-          collection(db, "campusWorkingHours")
-        );
-        const campusRules = new Map();
-        campusHoursSnap.forEach((doc) => {
-          campusRules.set(
-            doc.id.trim().toLowerCase(),
-            doc.data() as { checkInEndTime: string }
-          );
-        });
 
         const attSnap = await getDocs(
           query(
@@ -145,13 +136,18 @@ function EmployeeStatusContent() {
             where("date", "==", targetDate)
           )
         );
-
+        
+        const presentEmployeeIds = new Set<string>();
         const firstCheckInMap: Record<string, string> = {};
+        
         attSnap.forEach((doc) => {
           const data = doc.data() as any;
           const logEmployeeId = toStr(data.badgeNumber || data.userId);
-          if (!logEmployeeId || !data.check_in) return;
+          if (!logEmployeeId) return;
 
+          presentEmployeeIds.add(logEmployeeId);
+          
+          if (!data.check_in) return;
           const existingCheckIn = firstCheckInMap[logEmployeeId];
           const currentCheckIn = toStr(data.check_in);
           if (
@@ -162,48 +158,92 @@ function EmployeeStatusContent() {
             firstCheckInMap[logEmployeeId] = currentCheckIn;
           }
         });
+        
+        let dataRows: Row[] = [];
+        
+        if (filter === 'absent') {
+            const startOfDay = new Date(targetDate);
+            startOfDay.setUTCHours(0,0,0,0);
+            const endOfDay = new Date(targetDate);
+            endOfDay.setUTCHours(23,59,59,999);
+            
+            const onLeaveSnap = await getDocs(query(collection(db, 'leaveRequests'), where('status', '==', 'Approved'), where('startDate', '<=', Timestamp.fromDate(endOfDay))));
+            const onLeaveEmployeeIds = new Set<string>();
+            onLeaveSnap.forEach(doc => {
+                const leave = doc.data();
+                if (leave.endDate.toDate() >= startOfDay) {
+                    onLeaveEmployeeIds.add(leave.requestingEmployeeDocId);
+                }
+            });
 
-        const dataRows: Row[] = [];
+            const allEmployeeDocIds = new Map(allEmployees.map(e => [e.id, e.employeeId]));
 
-        Object.keys(firstCheckInMap).forEach((logEmployeeId) => {
-          const empRecord = empByEmployeeId.get(logEmployeeId);
-          const checkIn = firstCheckInMap[logEmployeeId];
-
-          let row: Row = {
-            id: empRecord?.id || logEmployeeId,
-            employeeId: logEmployeeId,
-            name: empRecord?.name || `ID: ${logEmployeeId}`,
-            photoURL: empRecord?.photoURL,
-            campus: empRecord?.campus,
-            checkIn: checkIn,
-            isRegistered: !!empRecord,
-          };
-
-          if (filter === "late" && empRecord?.campus) {
-            const campusRule = campusRules.get(
-              empRecord.campus.trim().toLowerCase()
+            const absentEmployees = allEmployees.filter(emp => 
+                emp.status !== 'deactivated' &&
+                !presentEmployeeIds.has(emp.employeeId) && 
+                !onLeaveEmployeeIds.has(emp.id)
             );
-            if (campusRule && campusRule.checkInEndTime) {
-              const checkInMinutes = parseTimeToMinutes(checkIn);
-              const endTimeMinutes = parseTimeToMinutes(
-                campusRule.checkInEndTime
-              );
 
-              if (
-                checkInMinutes !== null &&
-                endTimeMinutes !== null &&
-                checkInMinutes > endTimeMinutes
-              ) {
-                row.delayMinutes = checkInMinutes - endTimeMinutes;
+            dataRows = absentEmployees.map(emp => ({
+                id: emp.id,
+                employeeId: emp.employeeId,
+                name: emp.name || `ID: ${emp.employeeId}`,
+                photoURL: emp.photoURL,
+                campus: emp.campus,
+                isRegistered: true,
+                checkIn: null,
+            }));
+
+        } else if (filter === 'present' || filter === 'late') {
+            const campusHoursSnap = await getDocs(collection(db, "campusWorkingHours"));
+            const campusRules = new Map();
+            campusHoursSnap.forEach((doc) => {
+              campusRules.set(
+                doc.id.trim().toLowerCase(),
+                doc.data() as { checkInEndTime: string }
+              );
+            });
+
+            presentEmployeeIds.forEach((logEmployeeId) => {
+              const empRecord = empByEmployeeId.get(logEmployeeId);
+              const checkIn = firstCheckInMap[logEmployeeId];
+
+              let row: Row = {
+                id: empRecord?.id || logEmployeeId,
+                employeeId: logEmployeeId,
+                name: empRecord?.name || `ID: ${logEmployeeId}`,
+                photoURL: empRecord?.photoURL,
+                campus: empRecord?.campus,
+                checkIn: checkIn,
+                isRegistered: !!empRecord,
+              };
+
+              if (filter === "late") {
+                if (empRecord?.campus) {
+                  const campusRule = campusRules.get(empRecord.campus.trim().toLowerCase());
+                  if (campusRule && campusRule.checkInEndTime) {
+                    const checkInMinutes = parseTimeToMinutes(checkIn);
+                    const endTimeMinutes = parseTimeToMinutes(campusRule.checkInEndTime);
+
+                    if (
+                      checkInMinutes !== null &&
+                      endTimeMinutes !== null &&
+                      checkInMinutes > endTimeMinutes
+                    ) {
+                      row.delayMinutes = checkInMinutes - endTimeMinutes;
+                      dataRows.push(row);
+                    }
+                  }
+                }
+              } else { // present
                 dataRows.push(row);
               }
-            }
-          } else if (filter !== "late") {
-            dataRows.push(row);
-          }
-        });
-
+            });
+        }
+        
+        dataRows.sort((a, b) => a.name.localeCompare(b.name));
         setRows(dataRows);
+
       } catch (err) {
         console.error(err);
         setError("An error occurred while fetching employee data.");
@@ -220,8 +260,13 @@ function EmployeeStatusContent() {
     "PPP"
   );
   
-  const pageTitle = filter === 'late' ? "Late Arrivals" : "Employees Present";
-  const PageIcon = filter === 'late' ? Clock : UserCheck;
+  const {title: pageTitle, icon: PageIcon} = useMemo(() => {
+    switch (filter) {
+        case 'absent': return { title: 'Absent Employees', icon: UserX };
+        case 'late': return { title: 'Late Arrivals', icon: Clock };
+        default: return { title: 'Employees Present', icon: UserCheck };
+    }
+  }, [filter]);
 
   if (profileLoading || isLoading) {
     return (
@@ -266,7 +311,7 @@ function EmployeeStatusContent() {
                   <TableHead>#</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Campus</TableHead>
-                  <TableHead>Check In</TableHead>
+                  {filter !== 'absent' && <TableHead>Check In</TableHead>}
                   {filter === 'late' && <TableHead>Delay (minutes)</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -297,8 +342,8 @@ function EmployeeStatusContent() {
                       )}
                     </TableCell>
                     <TableCell>{e.campus ?? "—"}</TableCell>
-                    <TableCell>{e.checkIn ?? "—"}</TableCell>
-                     {filter === 'late' && (
+                    {filter !== 'absent' && <TableCell>{e.checkIn ?? "—"}</TableCell>}
+                    {filter === 'late' && (
                         <TableCell className="font-semibold text-destructive">{e.delayMinutes} min</TableCell>
                     )}
                   </TableRow>
