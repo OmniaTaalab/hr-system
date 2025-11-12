@@ -30,6 +30,7 @@ interface Employee {
     campus: string;
     groupName?: string;
     photoURL?: string;
+    reportLine1?: string;
 }
 
 interface KpiData {
@@ -87,35 +88,55 @@ function KpisContent() {
         return userRole === 'admin' || userRole === 'hr';
     }, [profile]);
     
-    const fetchAllKpiData = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         setIsLoadingData(true);
         try {
+            const employeeQueryConstraints: QueryConstraint[] = [];
+            if (!isPrivilegedUser && profile) {
+                // For managers, fetch their direct reports. For others, just fetch themselves.
+                const queries = [where("id", "==", profile.id)];
+                if (profile.email) {
+                    queries.push(where("reportLine1", "==", profile.email))
+                }
+                // Firestore does not support 'OR' queries on different fields like this.
+                // So we fetch all and filter client side if not admin/hr
+            }
+
             const [employeesSnapshot, eleotSnapshot, totSnapshot, appraisalSnapshot] = await Promise.all([
-                getDocs(query(collection(db, "employee"))),
+                getDocs(query(collection(db, "employee"), ...employeeQueryConstraints)),
                 getDocs(collection(db, "eleot")),
                 getDocs(collection(db, "tot")),
                 getDocs(collection(db, "appraisal")),
             ]);
 
-            const employees = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-            
-            const eleotData = eleotSnapshot.docs.map(doc => doc.data());
-            const totData = totSnapshot.docs.map(doc => doc.data());
-            const appraisalData = appraisalSnapshot.docs.map(doc => doc.data());
+            let employees = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+
+            // If user is a manager, also include their direct reports.
+            if (!isPrivilegedUser && profile?.email) {
+                const reportsSnapshot = await getDocs(query(collection(db, "employee"), where("reportLine1", "==", profile.email)));
+                const reports = reportsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+                // Add reports, ensuring no duplicates if user is in the list
+                const employeeMap = new Map(employees.map(e => [e.id, e]));
+                reports.forEach(r => employeeMap.set(r.id, r));
+                employees = Array.from(employeeMap.values());
+            }
 
             const kpiDataByEmployee: Record<string, { eleot: number[], tot: number[], appraisal: number[] }> = {};
 
-            eleotData.forEach(d => {
-                if (!kpiDataByEmployee[d.employeeDocId]) kpiDataByEmployee[d.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
-                kpiDataByEmployee[d.employeeDocId].eleot.push(d.points);
+            eleotSnapshot.docs.forEach(d => {
+                const data = d.data();
+                if (!kpiDataByEmployee[data.employeeDocId]) kpiDataByEmployee[data.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
+                kpiDataByEmployee[data.employeeDocId].eleot.push(data.points);
             });
-            totData.forEach(d => {
-                if (!kpiDataByEmployee[d.employeeDocId]) kpiDataByEmployee[d.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
-                kpiDataByEmployee[d.employeeDocId].tot.push(d.points);
+            totSnapshot.docs.forEach(d => {
+                 const data = d.data();
+                if (!kpiDataByEmployee[data.employeeDocId]) kpiDataByEmployee[data.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
+                kpiDataByEmployee[data.employeeDocId].tot.push(data.points);
             });
-            appraisalData.forEach(d => {
-                if (!kpiDataByEmployee[d.employeeDocId]) kpiDataByEmployee[d.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
-                kpiDataByEmployee[d.employeeDocId].appraisal.push(d.points);
+            appraisalSnapshot.docs.forEach(d => {
+                 const data = d.data();
+                if (!kpiDataByEmployee[data.employeeDocId]) kpiDataByEmployee[data.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
+                kpiDataByEmployee[data.employeeDocId].appraisal.push(data.points);
             });
 
             const employeesWithKpis: EmployeeWithKpis[] = await Promise.all(employees.map(async emp => {
@@ -147,22 +168,16 @@ function KpisContent() {
         } finally {
             setIsLoadingData(false);
         }
-    }, [toast]);
+    }, [toast, isPrivilegedUser, profile]);
     
     useEffect(() => {
-        if (isPrivilegedUser) {
-            fetchAllKpiData();
-        } else if (!isLoadingProfile) {
-            setIsLoadingData(false);
+        if (!isLoadingProfile) {
+            fetchData();
         }
-    }, [isPrivilegedUser, isLoadingProfile, fetchAllKpiData]);
+    }, [isLoadingProfile, fetchData]);
 
     const filteredEmployees = useMemo(() => {
         let list = allEmployees;
-        
-        if (!isPrivilegedUser && profile) {
-            list = allEmployees.filter(emp => emp.id === profile.id);
-        }
 
         if (groupFilter !== "All") list = list.filter(emp => emp.groupName === groupFilter);
         if (campusFilter !== "All") list = list.filter(emp => emp.campus === campusFilter);
@@ -173,7 +188,7 @@ function KpisContent() {
         }
 
         return list;
-    }, [allEmployees, searchTerm, groupFilter, campusFilter, isPrivilegedUser, profile]);
+    }, [allEmployees, searchTerm, groupFilter, campusFilter]);
     
     const paginatedEmployees = useMemo(() => {
         const startIndex = (currentPage - 1) * PAGE_SIZE;
@@ -190,7 +205,7 @@ function KpisContent() {
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     }
     
-    if (!isPrivilegedUser && !profile) {
+    if (!profile) {
         return (
             <div className="flex justify-center items-center h-full flex-col gap-4">
                 <AlertTriangle className="h-12 w-12 text-destructive" />
@@ -223,14 +238,18 @@ function KpisContent() {
                 <CardHeader>
                     <div className="flex items-center gap-4">
                         <Input placeholder="Teacher name" className="max-w-xs" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-                        <Select value={groupFilter} onValueChange={setGroupFilter}>
-                            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select Group"/></SelectTrigger>
-                            <SelectContent><SelectItem value="All">All Groups</SelectItem>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
-                        </Select>
-                        <Select value={campusFilter} onValueChange={setCampusFilter}>
-                            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select School"/></SelectTrigger>
-                            <SelectContent><SelectItem value="All">All Schools</SelectItem>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
-                        </Select>
+                        {isPrivilegedUser && (
+                            <>
+                                <Select value={groupFilter} onValueChange={setGroupFilter}>
+                                    <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select Group"/></SelectTrigger>
+                                    <SelectContent><SelectItem value="All">All Groups</SelectItem>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                                <Select value={campusFilter} onValueChange={setCampusFilter}>
+                                    <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select School"/></SelectTrigger>
+                                    <SelectContent><SelectItem value="All">All Schools</SelectItem>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </>
+                        )}
                         <Button><Search className="mr-2 h-4 w-4"/>Search</Button>
                     </div>
                 </CardHeader>
