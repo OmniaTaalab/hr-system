@@ -19,6 +19,7 @@ import { useOrganizationLists } from "@/hooks/use-organization-lists";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { getAttendanceScore } from "@/lib/attendance-utils";
+import { Badge } from "@/components/ui/badge";
 
 interface Employee {
     id: string;
