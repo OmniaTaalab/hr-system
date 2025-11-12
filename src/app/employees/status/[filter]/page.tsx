@@ -49,7 +49,6 @@ interface Row {
   photoURL?: string;
   campus?: string;
   checkIn?: string | null;
-  checkOut?: string | null;
   isRegistered: boolean;
   delayMinutes?: number;
 }
