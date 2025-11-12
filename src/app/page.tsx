@@ -232,7 +232,6 @@ function DashboardPageContent() {
         setIsLoadingTotalLeaves(false);
       }
     };
-  
     const fetchDailyAttendance = async () => {
       // Fetch attendance only for privileged users
       if (!isPrivilegedUser) {
@@ -252,43 +251,41 @@ function DashboardPageContent() {
         const dateStr = format(today, 'yyyy-MM-dd');
         setAttendanceDate(format(today, 'PPP'));
         setDateStringForLink(dateStr);
-        
+    
+        // ✅ تعديل الجزء دا
+        // بدل ما نجيب بس الموظفين النشطين، نجيب كل الموظفين في السيستم
         const [attendanceSnapshot, campusHoursSnap, employeeSnap, leaveSnapshot] = await Promise.all([
             getDocs(query(collection(db, "attendance_log"), where("date", "==", dateStr))),
             getDocs(collection(db, "campusWorkingHours")),
-            getDocs(query(collection(db, "employee"), where("status", "==", "Active"))),
+            getDocs(collection(db, "employee")), // ✅ هنا التعديل
             getDocs(query(collection(db, "leaveRequests"), 
                 where("status", "==", "Approved"),
                 where("startDate", "<=", Timestamp.fromDate(todayEnd))
             ))
         ]);
-        
-        const presentUserIds = new Set(attendanceSnapshot.docs.map(doc => doc.data().userId));
-        setTodaysAttendance(presentUserIds.size);
-
-        const onLeaveEmployeeIds = new Set<string>();
-        leaveSnapshot.forEach(doc => {
-            const leave = doc.data();
-            if (leave.endDate.toDate() >= todayStart) {
-                onLeaveEmployeeIds.add(leave.requestingEmployeeDocId);
-            }
+    
+        // ✅ IDs بتاعة اللي حضروا النهاردة
+        const presentUserIds = new Set(attendanceSnapshot.docs.map(doc => String(doc.data().userId)));
+    
+        // ✅ IDs لكل الموظفين اللي موجودين في النظام
+        const employeeIdsInSystem = new Set(employeeSnap.docs.map(doc => String(doc.data().employeeId)));
+    
+        // ✅ عدد اللي حضروا من اللي في النظام
+        let todaysAttendanceCount = 0;
+        presentUserIds.forEach(id => {
+          if (employeeIdsInSystem.has(id)) todaysAttendanceCount++;
         });
-        setOnLeaveToday(onLeaveEmployeeIds.size);
-        
-        const activeEmployeeDocIds = new Set(employeeSnap.docs.map(doc => doc.id));
-        const activeEmployeeIds = new Set(employeeSnap.docs.map(doc => String(doc.data().employeeId)));
-        
-        const absentCount = Array.from(activeEmployeeDocIds).filter(docId => {
-            const empDoc = employeeSnap.docs.find(d => d.id === docId);
-            if (!empDoc) return false;
-            const employeeId = String(empDoc.data().employeeId);
-            return !presentUserIds.has(employeeId) && !onLeaveEmployeeIds.has(docId);
-        }).length;
+        setTodaysAttendance(todaysAttendanceCount);
+    
+        // ✅ الغياب = كل الموظفين في النظام − اللي حضروا منهم النهاردة
+        const totalEmployeesInSystem = employeeIdsInSystem.size;
+        const absentCount = totalEmployeesInSystem - todaysAttendanceCount;
         setAbsentToday(absentCount);
-
+    
+        // ✅ نكمل باقي الكود زي ما هو (التأخير)
         const campusRules = new Map<string, { checkInEndTime: string }>();
         campusHoursSnap.forEach(doc => campusRules.set(doc.id.toLowerCase(), doc.data() as { checkInEndTime: string }));
-
+    
         const employeeCampusMap = new Map<string, string>();
         employeeSnap.forEach(doc => {
             const data = doc.data();
@@ -296,7 +293,7 @@ function DashboardPageContent() {
                 employeeCampusMap.set(String(data.employeeId), data.campus.toLowerCase());
             }
         });
-
+    
         let lateCount = 0;
         attendanceSnapshot.docs.forEach(doc => {
             const log = doc.data();
@@ -309,10 +306,10 @@ function DashboardPageContent() {
                 
                 const [time, period] = checkInTime.split(' ');
                 let [hours, minutes] = time.split(':').map(Number);
-
+    
                 if (period && period.toLowerCase() === 'pm' && hours < 12) hours += 12;
                 if (period && period.toLowerCase() === 'am' && hours === 12) hours = 0; // midnight case
-
+    
                 const [ruleHours, ruleMinutes] = campusRule.checkInEndTime.split(':').map(Number);
                 
                 if (hours > ruleHours || (hours === ruleHours && minutes > ruleMinutes)) {
@@ -321,7 +318,7 @@ function DashboardPageContent() {
             }
         });
         setLateAttendance(lateCount);
-
+    
       } catch (error) {
         console.error("Error fetching daily attendance:", error);
         setTodaysAttendance(0);
@@ -335,7 +332,7 @@ function DashboardPageContent() {
         setIsLoadingLateAttendance(false);
       }
     };
-  
+    
     const fetchCampusData = async () => {
       if (!isPrivilegedUser) {
         setIsLoadingCampusData(false);

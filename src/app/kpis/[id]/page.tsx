@@ -52,13 +52,13 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
   const [addState, addAction, isAddPending] = useActionState(addKpiEntryAction, initialKpiState);
 
   useEffect(() => {
-    if (!employeeId) {
+    if (!employeeDocId) { // Changed from employeeId to employeeDocId for query
         setIsLoading(false);
         setData([]);
         return;
     }
     setIsLoading(true);
-    const q = query(collection(db, kpiType), where("employeeDocId", "==", employeeId));
+    const q = query(collection(db, kpiType), where("employeeDocId", "==", employeeDocId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const kpiData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
       // Sort client-side
@@ -70,7 +70,7 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, [kpiType, employeeId]);
+  }, [kpiType, employeeDocId]);
 
   useEffect(() => {
     if (addState?.message) {
@@ -89,9 +89,9 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
   const performanceScore = useMemo(() => {
     if (data.length === 0) return 0;
     const totalPoints = data.reduce((acc, item) => acc + item.points, 0);
-    const maxPoints = data.length * 6;
-    if (maxPoints === 0) return 0;
-    return (totalPoints / maxPoints) * 10;
+    const averagePoints = totalPoints / data.length;
+    if (averagePoints >= 3.2) return 4.0;
+    return parseFloat(averagePoints.toFixed(1));
   }, [data]);
 
   return (
@@ -99,7 +99,7 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="space-y-1">
           <CardTitle>{title}</CardTitle>
-           <p className="text-lg font-bold text-primary">({performanceScore.toFixed(1)} / 10)</p>
+           <p className="text-lg font-bold text-primary">({performanceScore} / 4)</p>
           <CardDescription>
             {data.length > 0 ? `Based on ${data.length} entries` : "No entries yet."}
           </CardDescription>
@@ -114,7 +114,7 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
             <DialogContent>
               <form action={addAction}>
                 <input type="hidden" name="kpiType" value={kpiType} />
-                <input type="hidden" name="employeeDocId" value={employeeId || ''} />
+                <input type="hidden" name="employeeDocId" value={employeeDocId || ''} />
                 <input type="hidden" name="date" value={selectedDate?.toISOString() ?? ''} />
                 <input type="hidden" name="actorId" value={profile?.id || ''} />
                 <input type="hidden" name="actorEmail" value={profile?.email || ''} />
@@ -550,7 +550,7 @@ function KpiDashboardContent() {
       <header>
         <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
           <BarChartBig className="mr-3 h-8 w-8 text-primary" />
-          KPI's Dashboard for {employee?.name}
+          KPI's {employee?.name} Profile
         </h1>
         <p className="text-muted-foreground">
           This is the KPI dashboard for {employee?.name}.
