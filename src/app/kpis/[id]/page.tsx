@@ -146,7 +146,7 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="points" className="text-right">Point</Label>
-                    <Input id="points" name="points" type="number" max="6" placeholder="Point /6" className="col-span-3" required />
+                    <Input id="points" name="points" type="number" max="6" className="col-span-3" required />
                     {addState?.errors?.points && <p className="col-start-2 col-span-3 text-sm text-destructive">{addState.errors.points.join(', ')}</p>}
                   </div>
                 </div>
