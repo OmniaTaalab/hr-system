@@ -120,6 +120,7 @@ export async function addKpiEntryAction(
         
         await addDoc(collection(db, "appraisalSubmissions"), {
             ...baseData,
+            createdBy: actorName || 'Unknown', // Explicitly add createdBy
             points: finalPoints, // Also save the calculated score here for reference
             details: appraisalData,
         });
