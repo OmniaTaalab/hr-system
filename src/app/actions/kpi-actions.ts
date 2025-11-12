@@ -37,26 +37,22 @@ export async function addKpiEntryAction(
   // A helper function to calculate appraisal points from form data
   const calculateAppraisalPoints = (formData: FormData): number => {
     let totalScore = 0;
-    let questionCount = 0;
-    const MAX_POSSIBLE_SCORE = 15 * 3; // 15 questions, max 3 points each
+    const MAX_POSSIBLE_SCORE = 5 * 3; // 5 questions, max 3 points each
     const TARGET_KPI_MAX = 10; // The final score should be out of 10
 
     const ratingToPoints: { [key: string]: number } = {
-        '1': 1, // Needs Improvement
-        '2': 2, // Developing
-        '3': 3, // Effective
+        '1': 1,
+        '2': 2,
+        '3': 3,
     };
 
     for (const [key, value] of formData.entries()) {
       if (key.startsWith('rating-')) {
         totalScore += ratingToPoints[value as string] || 0;
-        questionCount++;
       }
     }
     
-    if (questionCount === 0) return 0;
-    
-    // Scale the total score (out of 45) to be a score out of 10
+    // Scale the total score (out of 15) to be a score out of 10
     const finalScore = (totalScore / MAX_POSSIBLE_SCORE) * TARGET_KPI_MAX;
     return parseFloat(finalScore.toFixed(2)); // Return a score out of 10
   };
