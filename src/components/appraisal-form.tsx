@@ -84,7 +84,7 @@ export function AppraisalForm({ formAction, isPending, serverState, employeeDocI
       <input type="hidden" name="actorRole" value={actorProfile?.role || ''} />
       <input type="hidden" name="actorName" value={actorProfile?.name || ''} />
       
-      <ScrollArea className="flex-grow my-4 pr-6 -mr-6">
+      <ScrollArea className="flex-grow my-4 pr-6 -mr-6 max-h-[60vh]">
         <div className="space-y-6">
             <div className="space-y-2">
                 <Label htmlFor="date" className="text-base">Evaluation Date</Label>
