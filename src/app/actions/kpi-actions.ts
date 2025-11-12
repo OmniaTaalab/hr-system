@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, Timestamp, getDoc, doc } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { logSystemEvent } from '@/lib/system-log';
 
@@ -55,13 +55,22 @@ export async function addKpiEntryAction(
   const { employeeDocId, kpiType, date, points, actorId, actorEmail, actorRole, actorName } = validatedFields.data;
 
   try {
+    // Fetch the employee's name to store with the record
+    const employeeDoc = await getDoc(doc(db, "employee", employeeDocId));
+    if (!employeeDoc.exists()) {
+        return { errors: { form: ["Target employee not found."] }, success: false };
+    }
+    const employeeName = employeeDoc.data().name || "Unknown Employee";
+
     const kpiCollectionRef = collection(db, kpiType);
     
     await addDoc(kpiCollectionRef, {
         employeeDocId,
+        employeeName, // Store the name of the employee being evaluated
         date: Timestamp.fromDate(date),
         points,
-        actorName: actorName || 'Unknown', // Save actor name
+        actorId: actorId, // Store the actor's ID
+        actorName: actorName || 'Unknown', // Store actor name
         createdAt: serverTimestamp(),
     });
 
