@@ -262,6 +262,8 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
         setIsUploading(true);
         const formData = new FormData(event.currentTarget);
         formData.set('date', date.toISOString());
+        // Pass the file name to the action
+        formData.set('attachmentName', file.name);
 
         try {
             const filePath = `employee-documents/${employee.id}/prof-development/${nanoid()}-${file.name}`;
@@ -303,10 +305,6 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
                         <div className="space-y-2">
                             <Label>Date</Label>
                             <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{date ? format(date, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent></Popover>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="attachmentName">Attachment Name</Label>
-                            <Input id="attachmentName" name="attachmentName" placeholder="e.g., Certificate, Award" required disabled={isPending} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="attachmentFile">Attachment File</Label>

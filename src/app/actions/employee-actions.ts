@@ -1,7 +1,7 @@
 
 'use server';
 
-import { doc, updateDoc, Timestamp, arrayUnion, addDoc, collection } from 'firebase/firestore';
+import { doc, updateDoc, Timestamp, arrayUnion, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { z } from 'zod';
 import { logSystemEvent } from '@/lib/system-log';
@@ -100,7 +100,6 @@ const ProfDevelopmentSchema = z.object({
   employeeDocId: z.string().min(1, 'Employee ID is required.'),
   courseName: z.string().min(2, 'Course name must be at least 2 characters.'),
   date: z.coerce.date({ required_error: "A valid date is required." }),
-  attachmentName: z.string().min(2, 'Attachment name is required.'),
   attachmentUrl: z.string().url('A valid file URL is required.'),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
@@ -111,7 +110,6 @@ export type ProfDevelopmentState = {
   errors?: {
     courseName?: string[];
     date?: string[];
-    attachmentName?: string[];
     attachmentUrl?: string[];
     form?: string[];
   };
@@ -127,7 +125,6 @@ export async function addProfDevelopmentAction(
     employeeDocId: formData.get('employeeDocId'),
     courseName: formData.get('courseName'),
     date: formData.get('date'),
-    attachmentName: formData.get('attachmentName'),
     attachmentUrl: formData.get('attachmentUrl'),
     actorId: formData.get('actorId'),
     actorEmail: formData.get('actorEmail'),
@@ -142,10 +139,13 @@ export async function addProfDevelopmentAction(
     };
   }
   
-  const { employeeDocId, courseName, date, attachmentName, attachmentUrl, actorId, actorEmail, actorRole } = validatedFields.data;
+  const { employeeDocId, courseName, date, attachmentUrl, actorId, actorEmail, actorRole } = validatedFields.data;
 
   try {
     const profDevCollectionRef = collection(db, `employee/${employeeDocId}/profDevelopment`);
+    
+    // Use the course name or a generic name if needed for the attachment
+    const attachmentName = formData.get('attachmentName') as string || courseName;
     
     await addDoc(profDevCollectionRef, {
       courseName,
