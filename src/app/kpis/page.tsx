@@ -301,7 +301,7 @@ function KpisContent() {
                         <TableHead>TOT (10%)</TableHead>
                         <TableHead>ELEOT (10%)</TableHead>
                         <TableHead>Appraisal (10%)</TableHead>
-                        <TableHead>Prof Development (10%)</TableHead>
+                        <TableHead>Professional Development (10%)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>

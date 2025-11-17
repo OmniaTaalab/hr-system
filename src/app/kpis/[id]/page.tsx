@@ -879,7 +879,7 @@ function KpiDashboardContent() {
                                             </TableCell>
                                             <TableCell>
                                                 {canUpdateStatus && item.status === 'Pending' ? (
-                                                     <Button variant="ghost" onClick={() => handleStatusClick(item)} className="p-0 h-auto">
+                                                     <Button variant="ghost" onClick={() => handleStatusClick(item)} className="p-0 h-auto hover:bg-transparent">
                                                          <ProfDevelopmentStatusBadge status={item.status} />
                                                      </Button>
                                                 ) : (

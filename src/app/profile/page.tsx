@@ -889,7 +889,7 @@ export default function ProfilePage() {
              <Card>
                 <CardHeader>
                     <CardTitle className="flex justify-between items-center">
-                        Prof Development (10%)
+                    Professional Development (10%)
                         <AddProfDevelopmentDialog employee={employeeProfile} actorProfile={authUser} />
                     </CardTitle>
                 </CardHeader>
