@@ -710,38 +710,54 @@ function KpiDashboardContent() {
     const fetchEmployee = async () => {
       try {
         const q = query(collection(db, 'employee'), where("employeeId", "==", companyEmployeeId), limit(1));
-        const querySnapshot = await getDocs(q);
+        const unsubscribeEmployee = onSnapshot(q, (querySnapshot) => {
+            if (!querySnapshot.empty) {
+                const employeeDoc = querySnapshot.docs[0];
+                const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
+                setEmployee(employeeData);
+                setLoading(false);
 
-        if (!querySnapshot.empty) {
-            const employeeDoc = querySnapshot.docs[0];
-            const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee
-            setEmployee(employeeData);
+                // Now that we have employeeData.id, we can set up the prof development listener
+                const profDevQuery = query(collection(db, `employee/${employeeData.id}/profDevelopment`), orderBy("date", "desc"));
+                const unsubProfDev = onSnapshot(profDevQuery, (snapshot) => {
+                    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProfDevelopmentEntry));
+                    setProfDevelopment(data);
+                    setLoadingProfDev(false);
+                }, (error) => {
+                    console.error("Error fetching professional development:", error);
+                    setLoadingProfDev(false);
+                });
+                
+                // Return the inner unsubscribe function to be called when the outer one cleans up
+                return unsubProfDev;
+            } else {
+              setError('Employee not found.');
+              setLoading(false);
+            }
+        }, (error) => {
+            console.error("Error fetching employee:", error);
+            setError("Failed to load employee details.");
+            setLoading(false);
+        });
 
-             // Fetch professional development data
-            setLoadingProfDev(true);
-            const profDevQuery = query(collection(db, `employee/${employeeData.id}/profDevelopment`), orderBy("date", "desc"));
-            const unsubProfDev = onSnapshot(profDevQuery, (snapshot) => {
-                const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProfDevelopmentEntry));
-                setProfDevelopment(data);
-                setLoadingProfDev(false);
-            }, (error) => {
-                console.error("Error fetching professional development:", error);
-                setLoadingProfDev(false);
-            });
-            // How to return this?
-            
-        } else {
-          setError('Employee not found.');
-        }
+        // This function will be returned by useEffect for cleanup.
+        return () => unsubscribeEmployee();
+
       } catch (e) {
-        console.error("Error fetching employee:", e);
+        console.error("Error setting up employee fetch:", e);
         setError("Failed to load employee details.");
-      } finally {
         setLoading(false);
       }
     };
 
-    fetchEmployee();
+    const unsubscribe = fetchEmployee();
+    
+    return () => {
+        unsubscribe.then(unsub => {
+            if (unsub) unsub();
+        });
+    };
+
   }, [companyEmployeeId]);
 
   const canViewPage = useMemo(() => {
@@ -788,9 +804,7 @@ function KpiDashboardContent() {
 
   const profDevelopmentScore = useMemo(() => {
     const acceptedCourses = profDevelopment.filter(item => item.status === 'Accepted').length;
-    // Assuming each course is 1 point, max 20 points (20 courses)
     const points = Math.min(acceptedCourses * 1, 20);
-    // Scale to a score out of 10
     const scoreOutOf10 = (points / 20) * 10;
     return parseFloat(scoreOutOf10.toFixed(1));
   }, [profDevelopment]);
