@@ -126,7 +126,7 @@ function UpdateProfDevelopmentStatusDialog({
                             </RadioGroup>
                         </div>
                          <div className="space-y-2">
-                            <Label htmlFor="managerNotes">Manager Notes (Optional)</Label>
+                            <Label htmlFor="managerNotes">Reason</Label>
                             <Textarea id="managerNotes" name="managerNotes" placeholder="Add any comments here..." />
                          </div>
                     </div>
