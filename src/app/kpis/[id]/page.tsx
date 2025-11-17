@@ -788,8 +788,8 @@ function KpiDashboardContent() {
 
   const profDevelopmentScore = useMemo(() => {
     const acceptedCourses = profDevelopment.filter(item => item.status === 'Accepted').length;
-    // Assuming each course is 5 points, max 20 points (4 courses)
-    const points = Math.min(acceptedCourses * 5, 20);
+    // Assuming each course is 1 point, max 20 points (20 courses)
+    const points = Math.min(acceptedCourses * 1, 20);
     // Scale to a score out of 10
     const scoreOutOf10 = (points / 20) * 10;
     return parseFloat(scoreOutOf10.toFixed(1));
@@ -849,9 +849,9 @@ function KpiDashboardContent() {
                         <div className="flex justify-between items-center">
                             <div>
                                 <CardTitle>Prof Development ({profDevelopmentScore} / 10)</CardTitle>
-                                <CardDescription>Score based on accepted submissions (5 points per course, max 20).</CardDescription>
+                                <CardDescription>Score based on accepted submissions (1 point per course, max 20).</CardDescription>
                             </div>
-                            {isSelf && <AddProfDevelopmentDialog employee={employee} actorProfile={currentUserProfile} />}
+                            
                         </div>
                     </CardHeader>
                     <CardContent>
@@ -956,4 +956,5 @@ export default function KpiDashboardPage() {
 }
 
 
+    
     
