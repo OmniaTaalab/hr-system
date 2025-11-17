@@ -337,3 +337,95 @@ export async function updateProfDevelopmentStatusAction(
     };
   }
 }
+
+
+const UpdateProfDevelopmentSchema = z.object({
+  employeeDocId: z.string().min(1),
+  profDevId: z.string().min(1),
+  courseName: z.string().min(2, 'Course name must be at least 2 characters.'),
+  date: z.coerce.date({ required_error: "A valid date is required." }),
+  attachmentUrl: z.string().url('A valid file URL is required.'),
+  actorId: z.string().optional(),
+});
+
+export async function updateProfDevelopmentAction(
+  prevState: ProfDevelopmentState,
+  formData: FormData
+): Promise<ProfDevelopmentState> {
+  const validatedFields = UpdateProfDevelopmentSchema.safeParse({
+    employeeDocId: formData.get('employeeDocId'),
+    profDevId: formData.get('profDevId'),
+    courseName: formData.get('courseName'),
+    date: formData.get('date'),
+    attachmentUrl: formData.get('attachmentUrl'),
+    actorId: formData.get('actorId'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "Validation failed.",
+      success: false,
+    };
+  }
+  
+  const { employeeDocId, profDevId, courseName, date, attachmentUrl, actorId } = validatedFields.data;
+
+  try {
+    const profDevRef = doc(db, `employee/${employeeDocId}/profDevelopment`, profDevId);
+    
+    await updateDoc(profDevRef, {
+      courseName,
+      date: Timestamp.fromDate(date),
+      attachmentUrl,
+      status: 'Pending', // Reset status to Pending on re-submission
+      managerNotes: '', // Clear previous manager notes
+      submittedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    // Re-notify manager
+    const employeeRef = doc(db, 'employee', employeeDocId);
+    const employeeSnap = await getDoc(employeeRef);
+    if (employeeSnap.exists()) {
+      const employeeData = employeeSnap.data();
+      if (employeeData.reportLine1) {
+          const managerQuery = query(collection(db, "employee"), where("email", "==", employeeData.reportLine1), limit(1));
+          const managerSnapshot = await getDocs(managerQuery);
+          if (!managerSnapshot.empty) {
+              const managerData = managerSnapshot.docs[0].data();
+              const managerUserId = managerData.userId;
+              const managerEmail = managerData.email;
+              const submissionLink = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/kpis/${employeeData.employeeId}`;
+
+              if (managerUserId) {
+                  await addDoc(collection(db, `users/${managerUserId}/notifications`), {
+                      message: `A professional development entry from ${employeeData.name} has been updated and needs your review.`,
+                      link: submissionLink,
+                      createdAt: serverTimestamp(),
+                      isRead: false,
+                  });
+              }
+               if (managerEmail) {
+                  await addDoc(collection(db, "mail"), {
+                    to: managerEmail,
+                    message: {
+                        subject: `Updated Professional Development from ${employeeData.name}`,
+                        html: `A submission from ${employeeData.name} for "${courseName}" has been updated. Please review it: ${submissionLink}`,
+                    },
+                  });
+               }
+          }
+      }
+    }
+    
+    return { success: true, message: "Submission updated and re-submitted for approval." };
+  } catch (error: any) {
+    console.error('Error updating professional development entry:', error);
+    return {
+      errors: { form: ['Failed to update submission.'] },
+      message: `Error: ${error.message}`,
+      success: false,
+    };
+  }
+}

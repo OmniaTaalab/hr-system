@@ -1,9 +1,10 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useActionState, useMemo, useTransition } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
-import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save, Download, Edit } from "lucide-react";
+import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save, Download, Edit, RefreshCw } from "lucide-react";
 import { useParams, useRouter } from 'next/navigation';
 import { db, storage } from '@/lib/firebase/config';
 import { doc, getDoc, collection, query, where, onSnapshot, orderBy, Timestamp, getDocs, limit, updateDoc } from 'firebase/firestore';
@@ -19,10 +20,10 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { addKpiEntryAction, type KpiEntryState } from "@/app/actions/kpi-actions";
-import { addProfDevelopmentAction, type ProfDevelopmentState, updateProfDevelopmentStatusAction, type UpdateProfDevStatusState } from "@/app/actions/employee-actions";
+import { addProfDevelopmentAction, type ProfDevelopmentState, updateProfDevelopmentStatusAction, type UpdateProfDevStatusState, updateProfDevelopmentAction } from "@/app/actions/employee-actions";
 import { useToast } from "@/hooks/use-toast";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Label as RechartsLabel } from "recharts";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Info, PlusCircle } from "lucide-react";
 import { AppraisalForm } from "@/components/appraisal-form";
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -51,6 +52,7 @@ interface ProfDevelopmentEntry {
   courseName: string;
   attachmentUrl: string;
   status: 'Pending' | 'Accepted' | 'Rejected';
+  managerNotes?: string;
 }
 
 
@@ -144,6 +146,100 @@ function UpdateProfDevelopmentStatusDialog({
     );
 }
 
+
+function UpdateProfDevelopmentDialog({ isOpen, onOpenChange, submission, employee }: { isOpen: boolean; onOpenChange: (open: boolean) => void; submission: ProfDevelopmentEntry; employee: Employee; }) {
+    const { toast } = useToast();
+    const [file, setFile] = useState<File | null>(null);
+    const [date, setDate] = useState<Date | undefined>(submission.date.toDate());
+    const [courseName, setCourseName] = useState(submission.courseName);
+    const [isUploading, setIsUploading] = useState(false);
+    const [formState, formAction, isActionPending] = useActionState(updateProfDevelopmentAction, initialProfDevState);
+    const [_isPending, startTransition] = useTransition();
+
+    const isPending = isUploading || isActionPending || _isPending;
+
+    useEffect(() => {
+        if (formState?.message) {
+            toast({
+                title: formState.success ? "Success" : "Error",
+                description: formState.message,
+                variant: formState.success ? "default" : "destructive",
+            });
+            if (formState.success) {
+                onOpenChange(false);
+            }
+        }
+    }, [formState, toast, onOpenChange]);
+
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!date) {
+            toast({ variant: 'destructive', title: 'Missing Info', description: 'Please provide a date.' });
+            return;
+        }
+
+        setIsUploading(true);
+        const formData = new FormData(event.currentTarget);
+        formData.set('date', date.toISOString());
+
+        try {
+            let downloadURL = submission.attachmentUrl;
+            if (file) {
+                const filePath = `employee-documents/${employee.id}/prof-development/${nanoid()}-${file.name}`;
+                const fileRef = ref(storage, filePath);
+                const snapshot = await uploadBytes(fileRef, file);
+                downloadURL = await getDownloadURL(snapshot.ref);
+            }
+            
+            formData.set('attachmentUrl', downloadURL);
+            startTransition(() => {
+                formAction(formData);
+            });
+        } catch (error) {
+            console.error("Error uploading file:", error);
+            toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload new file.' });
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <form onSubmit={handleSubmit}>
+                    <DialogHeader>
+                        <DialogTitle>Update Submission</DialogTitle>
+                        <DialogDescription>Update the details and re-submit for approval.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <input type="hidden" name="employeeDocId" value={employee.id} />
+                        <input type="hidden" name="profDevId" value={submission.id} />
+                        <div className="space-y-2">
+                            <Label htmlFor="courseName">Course Name</Label>
+                            <Input id="courseName" name="courseName" value={courseName} onChange={(e) => setCourseName(e.target.value)} required disabled={isPending} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Date</Label>
+                            <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{date ? format(date, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent></Popover>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="attachmentFile">New Attachment (Optional)</Label>
+                            <Input id="attachmentFile" type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} disabled={isPending} />
+                            <p className="text-xs text-muted-foreground">If you upload a new file, it will replace the old one.</p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline" disabled={isPending}>Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isPending}>
+                            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                            Update & Resubmit
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title: string, kpiType: 'eleot' | 'tot' | 'appraisal', employeeDocId: string, employeeId: string | undefined, canEdit: boolean }) {
   const { toast } = useToast();
@@ -601,6 +697,8 @@ function KpiDashboardContent() {
   const [loadingProfDev, setLoadingProfDev] = useState(true);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [selectedSubmission, setSelectedSubmission] = useState<ProfDevelopmentEntry | null>(null);
+  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
+
 
   useEffect(() => {
     if (!companyEmployeeId) {
@@ -667,11 +765,24 @@ function KpiDashboardContent() {
     if (!currentUserProfile || !employee) return false;
     return employee.reportLine1 === currentUserProfile.email;
   }, [currentUserProfile, employee]);
+  
+  const isSelf = useMemo(() => {
+    if (!currentUserProfile || !employee) return false;
+    return currentUserProfile.id === employee.id;
+  }, [currentUserProfile, employee]);
+
 
   const handleStatusClick = (submission: ProfDevelopmentEntry) => {
     if (canUpdateStatus && submission.status === 'Pending') {
       setSelectedSubmission(submission);
       setIsStatusDialogOpen(true);
+    }
+  };
+  
+   const handleUpdateClick = (submission: ProfDevelopmentEntry) => {
+    if (isSelf && submission.status === 'Rejected') {
+      setSelectedSubmission(submission);
+      setIsUpdateDialogOpen(true);
     }
   };
 
@@ -739,6 +850,8 @@ function KpiDashboardContent() {
                                         <TableHead>Course name</TableHead>
                                         <TableHead>Attachments</TableHead>
                                         <TableHead>Status</TableHead>
+                                        <TableHead>Reason</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -760,10 +873,30 @@ function KpiDashboardContent() {
                                                     <ProfDevelopmentStatusBadge status={item.status} />
                                                 )}
                                             </TableCell>
+                                            <TableCell>
+                                              <TooltipProvider>
+                                                <Tooltip>
+                                                  <TooltipTrigger asChild>
+                                                      <p className="truncate max-w-xs">{item.managerNotes || '-'}</p>
+                                                  </TooltipTrigger>
+                                                  <TooltipContent>
+                                                      <p>{item.managerNotes}</p>
+                                                  </TooltipContent>
+                                                </Tooltip>
+                                              </TooltipProvider>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                              {isSelf && item.status === 'Rejected' && (
+                                                <Button size="sm" variant="secondary" onClick={() => handleUpdateClick(item)}>
+                                                  <RefreshCw className="mr-2 h-4 w-4" />
+                                                  Update
+                                                </Button>
+                                              )}
+                                            </TableCell>
                                         </TableRow>
                                     )) : (
                                         <TableRow>
-                                            <TableCell colSpan={4} className="text-center text-muted-foreground">No development entries yet.</TableCell>
+                                            <TableCell colSpan={6} className="text-center text-muted-foreground">No development entries yet.</TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
@@ -789,6 +922,14 @@ function KpiDashboardContent() {
             submission={selectedSubmission} 
             employee={employee}
             actorProfile={currentUserProfile}
+        />
+      )}
+       {selectedSubmission && employee && isUpdateDialogOpen && (
+        <UpdateProfDevelopmentDialog
+            isOpen={isUpdateDialogOpen}
+            onOpenChange={setIsUpdateDialogOpen}
+            submission={selectedSubmission}
+            employee={employee}
         />
       )}
     </div>
