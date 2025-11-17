@@ -1,13 +1,12 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useActionState, useMemo, useTransition } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
-import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save, Download } from "lucide-react";
+import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save, Download, Edit } from "lucide-react";
 import { useParams, useRouter } from 'next/navigation';
 import { db, storage } from '@/lib/firebase/config';
-import { doc, getDoc, collection, query, where, onSnapshot, orderBy, Timestamp, getDocs, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot, orderBy, Timestamp, getDocs, limit, updateDoc } from 'firebase/firestore';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { addKpiEntryAction, type KpiEntryState } from "@/app/actions/kpi-actions";
-import { addProfDevelopmentAction, type ProfDevelopmentState } from "@/app/actions/employee-actions";
+import { addProfDevelopmentAction, type ProfDevelopmentState, updateProfDevelopmentStatusAction, type UpdateProfDevStatusState } from "@/app/actions/employee-actions";
 import { useToast } from "@/hooks/use-toast";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Label as RechartsLabel } from "recharts";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -29,7 +28,8 @@ import { AppraisalForm } from "@/components/appraisal-form";
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { nanoid } from 'nanoid';
 import { Badge } from "@/components/ui/badge";
-
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface Employee {
   id: string;
@@ -56,6 +56,7 @@ interface ProfDevelopmentEntry {
 
 const initialKpiState: KpiEntryState = { success: false, message: null, errors: {} };
 const initialProfDevState: ProfDevelopmentState = { success: false };
+const initialUpdateProfDevState: UpdateProfDevStatusState = { success: false };
 
 
 function ProfDevelopmentStatusBadge({ status }: { status: ProfDevelopmentEntry['status'] }) {
@@ -67,17 +68,21 @@ function ProfDevelopmentStatusBadge({ status }: { status: ProfDevelopmentEntry['
     }
 }
 
-
-function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employee; actorProfile: any }) {
+function UpdateProfDevelopmentStatusDialog({ 
+    isOpen, 
+    onOpenChange, 
+    submission, 
+    employee,
+    actorProfile
+}: { 
+    isOpen: boolean;
+    onOpenChange: (open: boolean) => void;
+    submission: ProfDevelopmentEntry;
+    employee: Employee;
+    actorProfile: any;
+}) {
     const { toast } = useToast();
-    const [isOpen, setIsOpen] = useState(false);
-    const [file, setFile] = useState<File | null>(null);
-    const [date, setDate] = useState<Date | undefined>();
-    const [isUploading, setIsUploading] = useState(false);
-    const [formState, formAction, isActionPending] = useActionState(addProfDevelopmentAction, initialProfDevState);
-    const [_isTransitionPending, startTransition] = useTransition();
-
-    const isPending = isUploading || isActionPending || _isTransitionPending;
+    const [formState, formAction, isPending] = useActionState(updateProfDevelopmentStatusAction, initialUpdateProfDevState);
 
     useEffect(() => {
         if (formState?.message) {
@@ -87,82 +92,50 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
                 variant: formState.success ? "default" : "destructive",
             });
             if (formState.success) {
-                setIsOpen(false);
-                setFile(null);
-                setDate(undefined);
+                onOpenChange(false);
             }
         }
-    }, [formState, toast]);
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (!selectedFile) return;
-        setFile(selectedFile);
-    };
-
-    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        if (!file || !date) {
-            toast({ variant: 'destructive', title: 'Missing Info', description: 'Please provide all fields and a file.' });
-            return;
-        }
-
-        setIsUploading(true);
-        const formData = new FormData(event.currentTarget);
-        formData.set('date', date.toISOString());
-
-        try {
-            const filePath = `employee-documents/${employee.id}/prof-development/${nanoid()}-${file.name}`;
-            const fileRef = ref(storage, filePath);
-            const snapshot = await uploadBytes(fileRef, file);
-            const downloadURL = await getDownloadURL(snapshot.ref);
-
-            formData.set('attachmentUrl', downloadURL);
-            startTransition(() => {
-                formAction(formData);
-            });
-        } catch (error) {
-            console.error("Error uploading file:", error);
-            toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload file.' });
-        } finally {
-            setIsUploading(false);
-        }
-    };
+    }, [formState, toast, onOpenChange]);
 
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                <Button size="icon"><PlusCircle className="h-4 w-4" /></Button>
-            </DialogTrigger>
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent>
-                <form onSubmit={handleSubmit}>
+                <form action={formAction}>
                     <DialogHeader>
-                        <DialogTitle>Add Professional Development for {employee.name}</DialogTitle>
-                        <DialogDescription>Add a new course or training entry.</DialogDescription>
+                        <DialogTitle>Update Submission Status</DialogTitle>
+                        <DialogDescription>
+                            Review and update the status for "{submission.courseName}".
+                        </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                         <input type="hidden" name="employeeDocId" value={employee.id} />
-                        <input type="hidden" name="actorId" value={actorProfile?.id || ''} />
+                        <input type="hidden" name="profDevId" value={submission.id} />
                         <input type="hidden" name="actorEmail" value={actorProfile?.email || ''} />
-                        <input type="hidden" name="actorRole" value={actorProfile?.role || ''} />
 
-                        <div className="space-y-2">
-                            <Label htmlFor="courseName">Course Name</Label>
-                            <Input id="courseName" name="courseName" required disabled={isPending} />
+                        <div className="space-y-3">
+                            <Label>Status</Label>
+                            <RadioGroup name="newStatus" defaultValue={submission.status} className="flex gap-4">
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="Accepted" id="status-accepted" />
+                                    <Label htmlFor="status-accepted">Accepted</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="Rejected" id="status-rejected" />
+                                    <Label htmlFor="status-rejected">Rejected</Label>
+                                </div>
+                            </RadioGroup>
                         </div>
-                        <div className="space-y-2">
-                            <Label>Date</Label>
-                            <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{date ? format(date, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent></Popover>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="attachmentFile">Attachment File</Label>
-                            <Input id="attachmentFile" type="file" onChange={handleFileChange} required disabled={isPending} />
-                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="managerNotes">Manager Notes (Optional)</Label>
+                            <Textarea id="managerNotes" name="managerNotes" placeholder="Add any comments here..." />
+                         </div>
                     </div>
+                     {formState?.errors?.form && <p className="text-sm text-destructive">{formState.errors.form.join(', ')}</p>}
                     <DialogFooter>
-                        <DialogClose asChild><Button type="button" variant="outline" disabled={isPending}>Cancel</Button></DialogClose>
-                        <Button type="submit" disabled={isPending || !file || !date}>
-                            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Submit'}
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                        <Button type="submit" disabled={isPending}>
+                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                            Update Status
                         </Button>
                     </DialogFooter>
                 </form>
@@ -170,6 +143,7 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
         </Dialog>
     );
 }
+
 
 function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title: string, kpiType: 'eleot' | 'tot' | 'appraisal', employeeDocId: string, employeeId: string | undefined, canEdit: boolean }) {
   const { toast } = useToast();
@@ -625,6 +599,8 @@ function KpiDashboardContent() {
   const [error, setError] = useState<string | null>(null);
   const [profDevelopment, setProfDevelopment] = useState<ProfDevelopmentEntry[]>([]);
   const [loadingProfDev, setLoadingProfDev] = useState(true);
+  const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+  const [selectedSubmission, setSelectedSubmission] = useState<ProfDevelopmentEntry | null>(null);
 
   useEffect(() => {
     if (!companyEmployeeId) {
@@ -686,6 +662,19 @@ function KpiDashboardContent() {
     if (employee.reportLine1 === currentUserProfile.email) return true;
     return false;
   }, [isLoadingCurrentUser, currentUserProfile, employee]);
+  
+  const canUpdateStatus = useMemo(() => {
+    if (!currentUserProfile || !employee) return false;
+    return employee.reportLine1 === currentUserProfile.email;
+  }, [currentUserProfile, employee]);
+
+  const handleStatusClick = (submission: ProfDevelopmentEntry) => {
+    if (canUpdateStatus && submission.status === 'Pending') {
+      setSelectedSubmission(submission);
+      setIsStatusDialogOpen(true);
+    }
+  };
+
 
   useEffect(() => {
     if (!loading && !isLoadingCurrentUser && !canViewPage) {
@@ -763,7 +752,13 @@ function KpiDashboardContent() {
                                                 </a>
                                             </TableCell>
                                             <TableCell>
-                                                <ProfDevelopmentStatusBadge status={item.status} />
+                                                {canUpdateStatus && item.status === 'Pending' ? (
+                                                     <Button variant="ghost" onClick={() => handleStatusClick(item)} className="p-0 h-auto">
+                                                         <ProfDevelopmentStatusBadge status={item.status} />
+                                                     </Button>
+                                                ) : (
+                                                    <ProfDevelopmentStatusBadge status={item.status} />
+                                                )}
                                             </TableCell>
                                         </TableRow>
                                     )) : (
@@ -784,10 +779,18 @@ function KpiDashboardContent() {
                         </div>
                       </CardFooter>
                 </Card>
-
             </>
         )}
       </div>
+      {selectedSubmission && employee && currentUserProfile && (
+        <UpdateProfDevelopmentStatusDialog 
+            isOpen={isStatusDialogOpen} 
+            onOpenChange={setIsStatusDialogOpen} 
+            submission={selectedSubmission} 
+            employee={employee}
+            actorProfile={currentUserProfile}
+        />
+      )}
     </div>
   );
 }

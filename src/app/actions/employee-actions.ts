@@ -230,3 +230,67 @@ export async function addProfDevelopmentAction(
     };
   }
 }
+
+// --- New Action to Update Professional Development Status ---
+const UpdateProfDevStatusSchema = z.object({
+  employeeDocId: z.string().min(1),
+  profDevId: z.string().min(1),
+  newStatus: z.enum(['Accepted', 'Rejected']),
+  managerNotes: z.string().optional(),
+  actorEmail: z.string().optional(),
+});
+
+export type UpdateProfDevStatusState = {
+  errors?: { form?: string[] };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function updateProfDevelopmentStatusAction(
+  prevState: UpdateProfDevStatusState,
+  formData: FormData
+): Promise<UpdateProfDevStatusState> {
+  const validatedFields = UpdateProfDevStatusSchema.safeParse({
+    employeeDocId: formData.get('employeeDocId'),
+    profDevId: formData.get('profDevId'),
+    newStatus: formData.get('newStatus'),
+    managerNotes: formData.get('managerNotes'),
+    actorEmail: formData.get('actorEmail'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: { form: ["Invalid data submitted."] },
+      success: false,
+    };
+  }
+  
+  const { employeeDocId, profDevId, newStatus, managerNotes, actorEmail } = validatedFields.data;
+
+  try {
+    const employeeRef = doc(db, 'employee', employeeDocId);
+    const employeeSnap = await getDoc(employeeRef);
+    if (!employeeSnap.exists()) {
+        return { errors: { form: ["Employee not found."] }, success: false };
+    }
+    // Authorization check
+    if (employeeSnap.data().reportLine1 !== actorEmail) {
+         return { errors: { form: ["You are not authorized to perform this action."] }, success: false };
+    }
+
+    const profDevRef = doc(db, `employee/${employeeDocId}/profDevelopment`, profDevId);
+    await updateDoc(profDevRef, {
+      status: newStatus,
+      managerNotes: managerNotes || "",
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true, message: `Status updated to ${newStatus}.` };
+  } catch (error: any) {
+    console.error("Error updating status:", error);
+    return {
+      errors: { form: ["An unexpected error occurred."] },
+      success: false,
+    };
+  }
+}
