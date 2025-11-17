@@ -12,6 +12,8 @@ import { getWeekendSettings } from './settings-actions';
 import { logSystemEvent } from '@/lib/system-log';
 import LeaveRequestNotificationEmail from '@/emails/leave-request-notification';
 import { render } from '@react-email/render';
+import { startOfMonth, endOfMonth } from 'date-fns';
+
 
 // Calculate working days excluding weekends/holidays
 async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<number> {
@@ -106,6 +108,29 @@ export async function submitLeaveRequestAction(
     if (!employeeSnap.exists()) {
       return { errors: { form: ["Employee record not found."] }, success: false };
     }
+
+    if (leaveType === 'Late Arrival' || leaveType === 'Early Dismissal') {
+      const monthStart = startOfMonth(startDate);
+      const monthEnd = endOfMonth(startDate);
+
+      const q = query(
+        collection(db, "leaveRequests"),
+        where("requestingEmployeeDocId", "==", requestingEmployeeDocId),
+        where("leaveType", "in", ["Late Arrival", "Early Dismissal"]),
+        where("startDate", ">=", Timestamp.fromDate(monthStart)),
+        where("startDate", "<=", Timestamp.fromDate(monthEnd)),
+        where("status", "in", ["Pending", "Approved"])
+      );
+
+      const existingRequests = await getDocs(q);
+      if (!existingRequests.empty) {
+        return {
+          errors: { form: [`You have already submitted a "${existingRequests.docs[0].data().leaveType}" request for this month.`] },
+          success: false,
+        };
+      }
+    }
+
 
     const employeeData = employeeSnap.data();
     const employeeName = employeeData.name ?? "Unknown Employee";
