@@ -42,11 +42,10 @@ export function Notifications() {
     
     setIsLoading(true);
     const userRole = profile?.role?.toLowerCase();
-    const isManager = !!profile?.reportLine1 || !!profile?.reportLine2;
-    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr' || isManager;    
+    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
     const unsubscribes: (() => void)[] = [];
 
-    // 1. Fetch global notifications only for privileged users
+    // 1. Fetch global notifications only for privileged users (admin/hr)
     if (isPrivilegedUser) {
       const globalQuery = query(collection(db, "notifications"), orderBy("createdAt", "desc"));
       const unsubGlobal = onSnapshot(globalQuery, (snapshot) => {
