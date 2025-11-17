@@ -81,6 +81,7 @@ interface ProfDevelopmentEntry {
   courseName: string;
   attachmentUrl: string;
   status: 'Pending' | 'Accepted' | 'Rejected';
+  managerNotes: string;
 }
 
 
@@ -795,6 +796,7 @@ export default function ProfilePage() {
                                     <TableHead>Course name</TableHead>
                                     <TableHead>Attachments</TableHead>
                                     <TableHead>Status</TableHead>
+                                    <TableHead>Reason</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -806,10 +808,13 @@ export default function ProfilePage() {
                                             <a href={item.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
                                                 Download <Download className="h-3 w-3" />
                                             </a>
+                                            
                                         </TableCell>
                                         <TableCell>
                                             <ProfDevelopmentStatusBadge status={item.status} />
                                         </TableCell>
+                                        <TableCell>{item.managerNotes}</TableCell>
+
                                     </TableRow>
                                 )) : (
                                     <TableRow>

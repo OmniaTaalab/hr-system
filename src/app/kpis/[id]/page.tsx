@@ -839,7 +839,7 @@ function KpiDashboardContent() {
                     <CardHeader>
                         <CardTitle className="flex justify-between items-center">
                             Prof Development(10%)
-                            <AddProfDevelopmentDialog employee={employee} actorProfile={currentUserProfile} />
+                            {isSelf && <AddProfDevelopmentDialog employee={employee} actorProfile={currentUserProfile} />}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -944,3 +944,4 @@ export default function KpiDashboardPage() {
         </AppLayout>
     );
 }
+
