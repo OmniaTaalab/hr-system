@@ -571,14 +571,14 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label htmlFor="edit-employeeId">Employee ID</Label>
+                  <Input id="edit-employeeId" name="employeeId" defaultValue={employee.employeeId} />
+                  {serverState?.errors?.employeeId && <p className="text-sm text-destructive">{serverState.errors.employeeId.join(', ')}</p>}
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="edit-email">NIS Email</Label>
                   <Input id="edit-email" name="nisEmail" type="email" defaultValue={employee.email}  />
                   {serverState?.errors?.nisEmail && <p className="text-sm text-destructive">{serverState.errors.nisEmail.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="edit-title">Title</Label>
-                    <Input id="edit-title" name="title" defaultValue={employee.title} />
-                    {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
                 </div>
             </div>
 
@@ -1840,4 +1840,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-

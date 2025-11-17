@@ -34,6 +34,8 @@ interface Employee {
 interface KpiData {
     eleot: number;
     tot: number;
+    survey: number;
+    studentGrowth: number;
     appraisal: number;
     attendance: number;
     profDevelopment: number;
@@ -203,6 +205,8 @@ function KpisContent() {
                         attendance: attendanceScore,
                         eleot: (eleotAvg / 4) * 10,
                         tot: (totAvg / 4) * 10,
+                        survey: 3,
+                        studentGrowth: 4,
                         appraisal: appraisalAvg,
                         profDevelopment: profDevScore,
                     }
@@ -315,7 +319,10 @@ function KpisContent() {
                         <TableHead>Attendance (10%)</TableHead>
                         <TableHead>TOT (10%)</TableHead>
                         <TableHead>ELEOT (10%)</TableHead>
+                        <TableHead>Survey(10%)</TableHead>
+                        <TableHead>Student Growth(40%)</TableHead>
                         <TableHead>Appraisal (10%)</TableHead>
+    
                         <TableHead>Professional Development (10%)</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -337,10 +344,16 @@ function KpisContent() {
                             <KpiScoreBar score={emp.kpis.eleot} colorClass="bg-green-500" />
                           </TableCell>
                           <TableCell>
-                            <KpiScoreBar score={emp.kpis.appraisal} colorClass="bg-purple-500" />
+                            <KpiScoreBar score={emp.kpis.survey} colorClass="bg-purple-500" />
                           </TableCell>
                           <TableCell>
-                            <KpiScoreBar score={emp.kpis.profDevelopment} colorClass="bg-red-500" />
+                            <KpiScoreBar score={emp.kpis.studentGrowth} colorClass="bg-pink-500" />
+                          </TableCell>
+                          <TableCell>
+                            <KpiScoreBar score={emp.kpis.appraisal} colorClass="bg-blue-500" />
+                          </TableCell>
+                          <TableCell>
+                            <KpiScoreBar score={emp.kpis.profDevelopment} colorClass="bg-orange-500" />
                           </TableCell>
                         </TableRow>
                       ))}

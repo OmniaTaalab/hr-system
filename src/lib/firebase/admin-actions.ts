@@ -428,6 +428,7 @@ export async function createEmployeeProfileAction(
 // Schema for validating form data for updating an employee
 const UpdateEmployeeFormSchema = z.object({
   employeeDocId: z.string().min(1, "Employee document ID is required."),
+  employeeId: z.string().min(1, "Employee ID is required.").optional(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   nameAr: z.string().optional(),
@@ -482,6 +483,7 @@ const UpdateEmployeeFormSchema = z.object({
 export type UpdateEmployeeState = {
   errors?: {
     employeeDocId?: string[];
+    employeeId?: string[];
     firstName?: string[];
     lastName?: string[];
     nameAr?: string[];
@@ -553,6 +555,19 @@ export async function updateEmployeeAction(
         };
     }
     const currentEmployeeData = docSnap.data();
+
+    // Check if new employeeId is already taken
+    if (updateData.employeeId && updateData.employeeId !== currentEmployeeData.employeeId) {
+        const q = query(collection(db, "employee"), where("employeeId", "==", updateData.employeeId));
+        const existing = await getDocs(q);
+        if (!existing.empty) {
+            return {
+                errors: { employeeId: ["This Employee ID is already in use by another employee."] },
+                message: 'Update failed.'
+            };
+        }
+    }
+
 
     const dataToUpdate: { [key: string]: any } = {};
     let emergencyContact: { [key: string]: any } | undefined = undefined;

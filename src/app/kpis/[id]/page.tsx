@@ -242,8 +242,21 @@ function UpdateProfDevelopmentDialog({ isOpen, onOpenChange, submission, employe
         </Dialog>
     );
 }
-
-function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title: string, kpiType: 'eleot' | 'tot' | 'appraisal', employeeDocId: string, employeeId: string | undefined, canEdit: boolean }) {
+function KpiCard({ 
+  title, 
+  kpiType, 
+  employeeDocId, 
+  employeeId, 
+  canEdit,
+  onScoreCalculated
+}: { 
+  title: string, 
+  kpiType: 'eleot' | 'tot' | 'appraisal', 
+  employeeDocId: string, 
+  employeeId: string | undefined, 
+  canEdit: boolean,
+  onScoreCalculated: (score: number) => void
+}) {
   const { toast } = useToast();
   const [data, setData] = useState<KpiEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -294,17 +307,22 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
     let scoreOutOf10;
 
     if (kpiType === 'appraisal') {
-        // Appraisals are already calculated out of 10
-        scoreOutOf10 = averagePoints;
+        scoreOutOf10 = averagePoints; // already out of 10
     } else {
-        // ELEOT/TOT are calculated out of 4, then scaled
         scoreOutOf10 = (averagePoints / 4) * 10;
         if (scoreOutOf10 >= 8) {
             scoreOutOf10 = 10;
         }
     }
     return parseFloat(scoreOutOf10.toFixed(1));
-}, [data, kpiType]);
+  }, [data, kpiType]);
+
+
+  // 🟢 NEW — send score back to parent
+  useEffect(() => {
+    onScoreCalculated(performanceScore);
+  }, [performanceScore, onScoreCalculated]);
+
 
   return (
     <Card>
@@ -428,6 +446,7 @@ function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title
     </Card>
   );
 }
+
 export function AttendanceChartCard({ employeeDocId, employeeId }: { employeeDocId: string, employeeId: string | undefined }) {
     const [attendanceScore, setAttendanceScore] = useState<{
       score: number;
@@ -721,11 +740,9 @@ function KpiDashboardContent() {
     }, [profDevelopment]);
 
     const overallScore = useMemo(() => {
-        const totalScore = eleotScore + totScore + appraisalScore + attendanceScore + profDevelopmentScore;
-        const finalScore = totalScore / 2; // Each is out of 10, so total is 50. Divide by 2 to get percentage out of 50.
-        return parseFloat(finalScore.toFixed(1));
+      const totalScore = eleotScore + totScore + appraisalScore + attendanceScore + profDevelopmentScore;
+      return parseFloat(totalScore.toFixed(1));  // يرجّعها من 50 مباشرة
     }, [eleotScore, totScore, appraisalScore, attendanceScore, profDevelopmentScore]);
-
 
   useEffect(() => {
     if (!companyEmployeeId) {
@@ -874,18 +891,39 @@ function KpiDashboardContent() {
                 </h1>
             </div>
             <Badge variant="outline" className="text-lg py-2 px-4">
-                Overall: {overallScore}%
+Overall: {overallScore}% 
             </Badge>
         </header>
       <div className="space-y-8">
         {employee && (
             <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
-                    <KpiCard title="TOT(10%)" kpiType="tot" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
+                <KpiCard
+    title="ELEOT(10%)"
+    kpiType="eleot"
+    employeeDocId={employee.id}
+    employeeId={employee.employeeId}
+    canEdit={canEditKpis}
+    onScoreCalculated={(score) => setEleotScore(score)}
+/>                 
+<KpiCard
+    title="TOT(10%)"
+    kpiType="tot"
+    employeeDocId={employee.id}
+    employeeId={employee.employeeId}
+    canEdit={canEditKpis}
+    onScoreCalculated={(score) => setTotScore(score)}
+/>
                 </div>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <KpiCard title="Appraisal(10%)" kpiType="appraisal" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
+                 <KpiCard
+    title="Appraisal(10%)"
+    kpiType="appraisal"
+    employeeDocId={employee.id}
+    employeeId={employee.employeeId}
+    canEdit={canEditKpis}
+    onScoreCalculated={(score) => setAppraisalScore(score)}
+/>
                     <AttendanceChartCard employeeDocId={employee.id} employeeId={employee.employeeId} />
                 </div>
                 
