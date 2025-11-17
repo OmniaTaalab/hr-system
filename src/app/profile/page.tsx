@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useActionState, useRef } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,7 +80,6 @@ interface ProfDevelopmentEntry {
   id: string;
   date: Timestamp;
   courseName: string;
-  attachmentName: string;
   attachmentUrl: string;
   status: 'Pending' | 'Accepted' | 'Rejected';
 }
@@ -228,8 +227,9 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
     const [date, setDate] = useState<Date | undefined>();
     const [isUploading, setIsUploading] = useState(false);
     const [formState, formAction, isActionPending] = useActionState(addProfDevelopmentAction, initialProfDevState);
+    const [_isTransitionPending, startTransition] = useTransition();
 
-    const isPending = isUploading || isActionPending;
+    const isPending = isUploading || isActionPending || _isTransitionPending;
 
     useEffect(() => {
         if (formState?.message) {
@@ -262,8 +262,6 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
         setIsUploading(true);
         const formData = new FormData(event.currentTarget);
         formData.set('date', date.toISOString());
-        // Pass the file name to the action
-        formData.set('attachmentName', file.name);
 
         try {
             const filePath = `employee-documents/${employee.id}/prof-development/${nanoid()}-${file.name}`;
@@ -272,7 +270,9 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
             const downloadURL = await getDownloadURL(snapshot.ref);
 
             formData.set('attachmentUrl', downloadURL);
-            formAction(formData);
+            startTransition(() => {
+                formAction(formData);
+            });
         } catch (error) {
             console.error("Error uploading file:", error);
             toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload file.' });
@@ -805,7 +805,7 @@ export default function ProfilePage() {
                                         <TableCell>{item.courseName}</TableCell>
                                         <TableCell>
                                             <a href={item.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                                                {item.attachmentName} <Download className="h-3 w-3" />
+                                                Download <Download className="h-3 w-3" />
                                             </a>
                                         </TableCell>
                                         <TableCell>
