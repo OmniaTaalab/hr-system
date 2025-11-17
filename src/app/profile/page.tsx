@@ -1,12 +1,11 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users, FileText, Trophy, PlusCircle, UploadCloud } from "lucide-react";
+import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users, FileText, Trophy, PlusCircle, UploadCloud, Download } from "lucide-react";
 import { auth, db, storage } from "@/lib/firebase/config";
 import { 
   onAuthStateChanged, 
