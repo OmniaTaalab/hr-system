@@ -574,10 +574,12 @@ export default function ProfilePage() {
   }, [employeeProfile?.dateOfBirth]);
   
   const handleUpdateClick = (submission: ProfDevelopmentEntry) => {
-    if (employeeProfile?.id === submission.employeeDocId && submission.status === 'Rejected') {
-      setSelectedSubmission(submission);
+    console.log(submission.employeeDocId);
+    console.log(employeeProfile?.id);
+    console.log('sssssssssssss');
+    setSelectedSubmission(submission);
       setIsUpdateDialogOpen(true);
-    }
+  
   };
 
 

@@ -177,7 +177,7 @@ export async function addProfDevelopmentAction(
         const managerSnapshot = await getDocs(managerQuery);
         
         const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-        const submissionLink = `${appUrl}/profile`; // Link to the user's profile where PD is listed
+        const submissionLink = `${appUrl}/kpis/${employeeData.employeeId}`;
         
         if (!managerSnapshot.empty) {
             const managerDoc = managerSnapshot.docs[0];
@@ -358,7 +358,6 @@ export async function updateProfDevelopmentAction(
     courseName: formData.get('courseName'),
     date: formData.get('date'),
     attachmentUrl: formData.get('attachmentUrl'),
-    actorId: formData.get('actorId'),
   });
 
   if (!validatedFields.success) {
