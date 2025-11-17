@@ -862,7 +862,7 @@ function KpiDashboardContent() {
                     <CardHeader>
                         <div className="flex justify-between items-center">
                             <div>
-                                <CardTitle>Prof Development ({profDevelopmentScore} / 10)</CardTitle>
+                                <CardTitle>Professional Development</CardTitle>
                                 <CardDescription>Score based on accepted submissions (1 point per course, max 20).</CardDescription>
                             </div>
                             

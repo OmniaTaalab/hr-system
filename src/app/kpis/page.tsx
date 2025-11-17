@@ -128,9 +128,13 @@ function KpisContent() {
             for (let i = 0; i < allEmployeeDocIds.length; i += CHUNK_SIZE) {
                 const docIdChunk = allEmployeeDocIds.slice(i, i + CHUNK_SIZE);
                 if (docIdChunk.length > 0) {
-                    const profDevQuery = query(collection(db, "profDevelopment"), where("employeeDocId", "in", docIdChunk));
-                    const profDevSnapshot = await getDocs(profDevQuery);
-                    profDevSnapshot.forEach(doc => profDevData.push(doc.data() as any));
+                    // This is inefficient. Ideally, we would have a single `profDevelopment` collection.
+                    // For now, we have to query each subcollection.
+                    for (const empId of docIdChunk) {
+                        const profDevQuery = query(collection(db, `employee/${empId}/profDevelopment`));
+                        const profDevSnapshot = await getDocs(profDevQuery);
+                        profDevSnapshot.forEach(doc => profDevData.push({ employeeDocId: empId, ...doc.data() } as any));
+                    }
                 }
             }
 
