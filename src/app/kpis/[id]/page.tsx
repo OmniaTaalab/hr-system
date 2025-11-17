@@ -713,6 +713,13 @@ function KpiDashboardContent() {
         return name.split(' ').map(n => n[0]).join('').toUpperCase();
     };
 
+    const profDevelopmentScore = useMemo(() => {
+      const acceptedCourses = profDevelopment.filter(item => item.status === 'Accepted').length;
+      const points = Math.min(acceptedCourses * 1, 20);
+      const scoreOutOf10 = (points / 20) * 10;
+      return parseFloat(scoreOutOf10.toFixed(1));
+    }, [profDevelopment]);
+
     const overallScore = useMemo(() => {
         const scores = [eleotScore, totScore, appraisalScore, attendanceScore, profDevelopmentScore].filter(score => score > 0);
         if (scores.length === 0) return 0;
@@ -823,14 +830,6 @@ function KpiDashboardContent() {
     }
   };
 
-  const profDevelopmentScore = useMemo(() => {
-    const acceptedCourses = profDevelopment.filter(item => item.status === 'Accepted').length;
-    const points = Math.min(acceptedCourses * 1, 20);
-    const scoreOutOf10 = (points / 20) * 10;
-    return parseFloat(scoreOutOf10.toFixed(1));
-  }, [profDevelopment]);
-
-
   useEffect(() => {
     if (!loading && !isLoadingCurrentUser && !canViewPage) {
       router.replace('/kpis');
@@ -892,7 +891,7 @@ function KpiDashboardContent() {
                         <div className="flex justify-between items-center">
                             <div>
                                 <CardTitle>Professional Development</CardTitle>
-                                <CardDescription>Score based on accepted submissions (1 point per course, max 20).</CardDescription>
+                                <CardDescription>Score: {profDevelopmentScore} / 10 (1 point per course, max 20 points, scaled to 10)</CardDescription>
                             </div>
                             
                         </div>
@@ -1001,3 +1000,4 @@ export default function KpiDashboardPage() {
 
     
     
+
