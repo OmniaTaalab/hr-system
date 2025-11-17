@@ -2,11 +2,11 @@
 
 "use client";
 
-import React, { useState, useEffect, useActionState, useMemo } from "react";
+import React, { useState, useEffect, useActionState, useMemo, useTransition } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
-import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save } from "lucide-react";
+import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save, Download } from "lucide-react";
 import { useParams, useRouter } from 'next/navigation';
-import { db } from '@/lib/firebase/config';
+import { db, storage } from '@/lib/firebase/config';
 import { doc, getDoc, collection, query, where, onSnapshot, orderBy, Timestamp, getDocs, limit } from 'firebase/firestore';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,11 +20,16 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { addKpiEntryAction, type KpiEntryState } from "@/app/actions/kpi-actions";
+import { addProfDevelopmentAction, type ProfDevelopmentState } from "@/app/actions/employee-actions";
 import { useToast } from "@/hooks/use-toast";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Label as RechartsLabel } from "recharts";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { Info } from "lucide-react";
+import { Info, PlusCircle } from "lucide-react";
 import { AppraisalForm } from "@/components/appraisal-form";
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { nanoid } from 'nanoid';
+import { Badge } from "@/components/ui/badge";
+
 
 interface Employee {
   id: string;
@@ -40,8 +45,131 @@ interface KpiEntry {
   actorName?: string;
 }
 
-const initialKpiState: KpiEntryState = { success: false, message: null, errors: {} };
+interface ProfDevelopmentEntry {
+  id: string;
+  date: Timestamp;
+  courseName: string;
+  attachmentUrl: string;
+  status: 'Pending' | 'Accepted' | 'Rejected';
+}
 
+
+const initialKpiState: KpiEntryState = { success: false, message: null, errors: {} };
+const initialProfDevState: ProfDevelopmentState = { success: false };
+
+
+function ProfDevelopmentStatusBadge({ status }: { status: ProfDevelopmentEntry['status'] }) {
+    switch (status) {
+        case "Accepted": return <Badge variant="secondary" className="bg-green-100 text-green-800">Accepted</Badge>;
+        case "Rejected": return <Badge variant="destructive">Rejected</Badge>;
+        case "Pending": return <Badge variant="outline" className="border-yellow-500 text-yellow-500">Pending</Badge>;
+        default: return <Badge>{status}</Badge>;
+    }
+}
+
+
+function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employee; actorProfile: any }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [file, setFile] = useState<File | null>(null);
+    const [date, setDate] = useState<Date | undefined>();
+    const [isUploading, setIsUploading] = useState(false);
+    const [formState, formAction, isActionPending] = useActionState(addProfDevelopmentAction, initialProfDevState);
+    const [_isTransitionPending, startTransition] = useTransition();
+
+    const isPending = isUploading || isActionPending || _isTransitionPending;
+
+    useEffect(() => {
+        if (formState?.message) {
+            toast({
+                title: formState.success ? "Success" : "Error",
+                description: formState.message,
+                variant: formState.success ? "default" : "destructive",
+            });
+            if (formState.success) {
+                setIsOpen(false);
+                setFile(null);
+                setDate(undefined);
+            }
+        }
+    }, [formState, toast]);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = e.target.files?.[0];
+        if (!selectedFile) return;
+        setFile(selectedFile);
+    };
+
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!file || !date) {
+            toast({ variant: 'destructive', title: 'Missing Info', description: 'Please provide all fields and a file.' });
+            return;
+        }
+
+        setIsUploading(true);
+        const formData = new FormData(event.currentTarget);
+        formData.set('date', date.toISOString());
+
+        try {
+            const filePath = `employee-documents/${employee.id}/prof-development/${nanoid()}-${file.name}`;
+            const fileRef = ref(storage, filePath);
+            const snapshot = await uploadBytes(fileRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+
+            formData.set('attachmentUrl', downloadURL);
+            startTransition(() => {
+                formAction(formData);
+            });
+        } catch (error) {
+            console.error("Error uploading file:", error);
+            toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload file.' });
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button size="icon"><PlusCircle className="h-4 w-4" /></Button>
+            </DialogTrigger>
+            <DialogContent>
+                <form onSubmit={handleSubmit}>
+                    <DialogHeader>
+                        <DialogTitle>Add Professional Development for {employee.name}</DialogTitle>
+                        <DialogDescription>Add a new course or training entry.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <input type="hidden" name="employeeDocId" value={employee.id} />
+                        <input type="hidden" name="actorId" value={actorProfile?.id || ''} />
+                        <input type="hidden" name="actorEmail" value={actorProfile?.email || ''} />
+                        <input type="hidden" name="actorRole" value={actorProfile?.role || ''} />
+
+                        <div className="space-y-2">
+                            <Label htmlFor="courseName">Course Name</Label>
+                            <Input id="courseName" name="courseName" required disabled={isPending} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Date</Label>
+                            <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{date ? format(date, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent></Popover>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="attachmentFile">Attachment File</Label>
+                            <Input id="attachmentFile" type="file" onChange={handleFileChange} required disabled={isPending} />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline" disabled={isPending}>Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isPending || !file || !date}>
+                            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Submit'}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function KpiCard({ title, kpiType, employeeDocId, employeeId, canEdit }: { title: string, kpiType: 'eleot' | 'tot' | 'appraisal', employeeDocId: string, employeeId: string | undefined, canEdit: boolean }) {
   const { toast } = useToast();
@@ -495,6 +623,8 @@ function KpiDashboardContent() {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [profDevelopment, setProfDevelopment] = useState<ProfDevelopmentEntry[]>([]);
+  const [loadingProfDev, setLoadingProfDev] = useState(true);
 
   useEffect(() => {
     if (!companyEmployeeId) {
@@ -510,7 +640,22 @@ function KpiDashboardContent() {
 
         if (!querySnapshot.empty) {
             const employeeDoc = querySnapshot.docs[0];
-            setEmployee({ id: employeeDoc.id, ...employeeDoc.data() } as Employee);
+            const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee
+            setEmployee(employeeData);
+
+             // Fetch professional development data
+            setLoadingProfDev(true);
+            const profDevQuery = query(collection(db, `employee/${employeeData.id}/profDevelopment`), orderBy("date", "desc"));
+            const unsubProfDev = onSnapshot(profDevQuery, (snapshot) => {
+                const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProfDevelopmentEntry));
+                setProfDevelopment(data);
+                setLoadingProfDev(false);
+            }, (error) => {
+                console.error("Error fetching professional development:", error);
+                setLoadingProfDev(false);
+            });
+            // How to return this?
+            
         } else {
           setError('Employee not found.');
         }
@@ -589,6 +734,58 @@ function KpiDashboardContent() {
                 <KpiCard title="TOT(10%)" kpiType="tot" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
                 <KpiCard title="Appraisal(10%)" kpiType="appraisal" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
                 <AttendanceChartCard employeeDocId={employee.id} employeeId={employee.employeeId} />
+                
+                <Card className="md:col-span-2 lg:col-span-3">
+                    <CardHeader>
+                        <CardTitle className="flex justify-between items-center">
+                            Prof Development(10%)
+                            {canEditKpis && <AddProfDevelopmentDialog employee={employee} actorProfile={currentUserProfile}/>}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                       {loadingProfDev ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Course name</TableHead>
+                                        <TableHead>Attachments</TableHead>
+                                        <TableHead>Status</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {profDevelopment.length > 0 ? profDevelopment.map(item => (
+                                        <TableRow key={item.id}>
+                                            <TableCell>{format(item.date.toDate(), "dd MMM yyyy")}</TableCell>
+                                            <TableCell>{item.courseName}</TableCell>
+                                            <TableCell>
+                                                <a href={item.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                                                    Download <Download className="h-3 w-3" />
+                                                </a>
+                                            </TableCell>
+                                            <TableCell>
+                                                <ProfDevelopmentStatusBadge status={item.status} />
+                                            </TableCell>
+                                        </TableRow>
+                                    )) : (
+                                        <TableRow>
+                                            <TableCell colSpan={4} className="text-center text-muted-foreground">No development entries yet.</TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        )}
+                    </CardContent>
+                     <CardFooter className="flex justify-between items-center text-sm text-muted-foreground">
+                        <span>Showing 1-{profDevelopment.length} from {profDevelopment.length}</span>
+                        <div className="flex items-center gap-1">
+                          <Button variant="outline" size="icon" className="h-8 w-8" disabled><ChevronLeft className="h-4 w-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-8 w-8 bg-primary text-primary-foreground">1</Button>
+                          <Button variant="outline" size="icon" className="h-8 w-8" disabled><ChevronRight className="h-4 w-4" /></Button>
+                        </div>
+                      </CardFooter>
+                </Card>
+
             </>
         )}
       </div>
