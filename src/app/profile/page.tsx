@@ -78,6 +78,7 @@ interface KpiEntry {
 
 interface ProfDevelopmentEntry {
   id: string;
+  employeeDocId: string;
   date: Timestamp;
   courseName: string;
   attachmentUrl: string;
@@ -340,9 +341,9 @@ function UpdateProfDevelopmentDialog({ isOpen, onOpenChange, submission, employe
     const [courseName, setCourseName] = useState(submission.courseName);
     const [isUploading, setIsUploading] = useState(false);
     const [formState, formAction, isActionPending] = useActionState(updateProfDevelopmentAction, initialProfDevState);
-    const [_isPending, startTransition] = useTransition();
+    const [_isTransitionPending, startTransition] = useTransition();
 
-    const isPending = isUploading || isActionPending || _isPending;
+    const isPending = isUploading || isActionPending || _isTransitionPending;
 
     useEffect(() => {
         if (formState?.message) {
@@ -954,7 +955,7 @@ export default function ProfilePage() {
                 </Button>
               </CardContent>
             </Card>
-            {selectedSubmission && isUpdateDialogOpen && (
+            {selectedSubmission && employeeProfile && isUpdateDialogOpen && (
                 <UpdateProfDevelopmentDialog
                     isOpen={isUpdateDialogOpen}
                     onOpenChange={setIsUpdateDialogOpen}
