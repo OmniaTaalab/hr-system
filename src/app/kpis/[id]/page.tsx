@@ -739,7 +739,6 @@ function KpiDashboardContent() {
                     <CardHeader>
                         <CardTitle className="flex justify-between items-center">
                             Prof Development(10%)
-                            {canEditKpis && <AddProfDevelopmentDialog employee={employee} actorProfile={currentUserProfile}/>}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
