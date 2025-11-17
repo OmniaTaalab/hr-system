@@ -5,13 +5,11 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { BarChartBig, AlertTriangle, Loader2, Eye, Search, ArrowLeft, ArrowRight, List, LayoutGrid, FileDown } from "lucide-react";
+import { BarChartBig, AlertTriangle, Loader2, Search, ArrowLeft, ArrowRight, List, LayoutGrid, FileDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, where, QueryConstraint, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
@@ -38,7 +36,7 @@ interface KpiData {
     tot: number;
     appraisal: number;
     attendance: number;
-    profDevelopment: number; // Placeholder
+    profDevelopment: number;
 }
 
 interface EmployeeWithKpis extends Employee {
@@ -47,20 +45,13 @@ interface EmployeeWithKpis extends Employee {
 
 const PAGE_SIZE = 10;
 
-const getInitials = (name?: string) => {
-    if (!name) return "U";
-    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-};
-
 function KpiScoreBar({ score, colorClass }: { score: number, colorClass: string }) {
     return (
-        <div className="flex items-center gap-2">
-            <div className="relative w-24 h-10">
-                <Progress value={score * 10} className="h-2" indicatorClassName={colorClass} />
-                <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white mix-blend-difference">
-                    {(score).toFixed(1)}
-                </span>
-            </div>
+        <div className="flex flex-col items-center gap-1 w-24">
+            <Progress value={score * 10} className="h-2 w-full" indicatorClassName={colorClass} />
+            <span className="text-xs font-semibold">
+                {(score).toFixed(1)} / 10
+            </span>
         </div>
     );
 }
@@ -95,10 +86,8 @@ function KpisContent() {
 
         try {
             let employeesQueryConstraints: QueryConstraint[] = [];
-            
             const employeeCollectionRef = collection(db, "employee");
 
-            // If user is a manager (but not admin/hr), they see their direct reports
             if (!isPrivilegedUser && profile.email) {
                 employeesQueryConstraints.push(where("reportLine1", "==", profile.email));
             }
@@ -106,12 +95,10 @@ function KpisContent() {
             const employeesSnapshot = await getDocs(query(employeeCollectionRef, ...employeesQueryConstraints));
             let employees: Employee[] = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
             
-            // If user is not privileged, also add their own profile to the list to view
             if (!isPrivilegedUser && profile.id) {
                 const selfDoc = await getDoc(doc(employeeCollectionRef, profile.id));
                 if(selfDoc.exists()) {
                      const selfEmployee = { id: selfDoc.id, ...selfDoc.data() } as Employee;
-                     // Avoid adding duplicate if user reports to themselves
                      if (!employees.some(e => e.id === selfEmployee.id)) {
                          employees.push(selfEmployee);
                      }
@@ -127,6 +114,7 @@ function KpisContent() {
             const allEmployeeCompanyIds = employees.map(e => e.employeeId).filter(Boolean);
             const allEmployeeDocIds = employees.map(e => e.id);
             const attendanceData: AttendanceData = { attendance: [], leaves: [] };
+            const profDevData: {employeeDocId: string; status: 'Accepted' | 'Pending' | 'Rejected'}[] = [];
 
             const CHUNK_SIZE = 30;
 
@@ -136,6 +124,16 @@ function KpisContent() {
                 getDocs(collection(db, "appraisal")),
                 getDocs(collection(db, "holidays")),
             ]);
+            
+            for (let i = 0; i < allEmployeeDocIds.length; i += CHUNK_SIZE) {
+                const docIdChunk = allEmployeeDocIds.slice(i, i + CHUNK_SIZE);
+                if (docIdChunk.length > 0) {
+                    const profDevQuery = query(collection(db, "profDevelopment"), where("employeeDocId", "in", docIdChunk));
+                    const profDevSnapshot = await getDocs(profDevQuery);
+                    profDevSnapshot.forEach(doc => profDevData.push(doc.data() as any));
+                }
+            }
+
 
             for (let i = 0; i < allEmployeeCompanyIds.length; i += CHUNK_SIZE) {
                 const companyIdChunk = allEmployeeCompanyIds.slice(i, i + CHUNK_SIZE);
@@ -171,6 +169,15 @@ function KpisContent() {
                 if (!kpiDataByEmployee[data.employeeDocId]) kpiDataByEmployee[data.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
                 kpiDataByEmployee[data.employeeDocId].appraisal.push(data.points);
             });
+            
+            const profDevByEmployee: Record<string, number> = {};
+            profDevData.forEach(item => {
+                if(item.status === 'Accepted') {
+                    if (!profDevByEmployee[item.employeeDocId]) profDevByEmployee[item.employeeDocId] = 0;
+                    profDevByEmployee[item.employeeDocId]++;
+                }
+            });
+
 
             const employeesWithKpis = employees.map(emp => {
                 const kpis = kpiDataByEmployee[emp.id] || { eleot: [], tot: [], appraisal: [] };
@@ -182,6 +189,10 @@ function KpisContent() {
                 const totAvg = avg(kpis.tot);
                 const appraisalAvg = avg(kpis.appraisal);
 
+                const profDevCourses = profDevByEmployee[emp.id] || 0;
+                const profDevPoints = Math.min(profDevCourses * 1, 20);
+                const profDevScore = (profDevPoints / 20) * 10;
+
                 return {
                     ...emp,
                     kpis: {
@@ -189,7 +200,7 @@ function KpisContent() {
                         eleot: (eleotAvg / 4) * 10,
                         tot: (totAvg / 4) * 10,
                         appraisal: appraisalAvg,
-                        profDevelopment: 0,
+                        profDevelopment: profDevScore,
                     }
                 };
             });
@@ -236,7 +247,7 @@ function KpisContent() {
     }
     
     useEffect(() => {
-        setCurrentPage(1); // Reset page to 1 when filters change
+        setCurrentPage(1);
     }, [searchTerm, groupFilter, campusFilter]);
 
 
@@ -337,7 +348,7 @@ function KpisContent() {
                     <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}><ArrowLeft className="h-4 w-4"/></Button>
                         <span className="text-sm font-medium">Page {currentPage} of {totalPages || 1}</span>
-                        <Button variant="outline" size="sm" onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages}><ArrowRight className="h-4 w-4"/></Button>
+                        <Button variant="outline" size="sm" onClick={() => goToPage(currentPage + 1)} disabled={currentPage >= totalPages}><ArrowRight className="h-4 w-4"/></Button>
                     </div>
                 </CardFooter>
             </Card>
