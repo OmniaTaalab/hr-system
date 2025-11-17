@@ -1,11 +1,12 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users, FileText, Trophy, PlusCircle, UploadCloud, Download } from "lucide-react";
+import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users, FileText, Trophy, PlusCircle, UploadCloud, Download, RefreshCw } from "lucide-react";
 import { auth, db, storage } from "@/lib/firebase/config";
 import { 
   onAuthStateChanged, 
@@ -36,7 +37,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { createEmployeeProfileAction, type CreateProfileState } from "@/lib/firebase/admin-actions";
-import { addProfDevelopmentAction, type ProfDevelopmentState } from "@/app/actions/employee-actions";
+import { addProfDevelopmentAction, type ProfDevelopmentState, updateProfDevelopmentAction } from "@/app/actions/employee-actions";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import jsPDF from "jspdf";
@@ -332,6 +333,99 @@ function ProfDevelopmentStatusBadge({ status }: { status: ProfDevelopmentEntry['
     }
 }
 
+function UpdateProfDevelopmentDialog({ isOpen, onOpenChange, submission, employee }: { isOpen: boolean; onOpenChange: (open: boolean) => void; submission: ProfDevelopmentEntry; employee: EmployeeProfile; }) {
+    const { toast } = useToast();
+    const [file, setFile] = useState<File | null>(null);
+    const [date, setDate] = useState<Date | undefined>(submission.date.toDate());
+    const [courseName, setCourseName] = useState(submission.courseName);
+    const [isUploading, setIsUploading] = useState(false);
+    const [formState, formAction, isActionPending] = useActionState(updateProfDevelopmentAction, initialProfDevState);
+    const [_isPending, startTransition] = useTransition();
+
+    const isPending = isUploading || isActionPending || _isPending;
+
+    useEffect(() => {
+        if (formState?.message) {
+            toast({
+                title: formState.success ? "Success" : "Error",
+                description: formState.message,
+                variant: formState.success ? "default" : "destructive",
+            });
+            if (formState.success) {
+                onOpenChange(false);
+            }
+        }
+    }, [formState, toast, onOpenChange]);
+
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!date) {
+            toast({ variant: 'destructive', title: 'Missing Info', description: 'Please provide a date.' });
+            return;
+        }
+
+        setIsUploading(true);
+        const formData = new FormData(event.currentTarget);
+        formData.set('date', date.toISOString());
+
+        try {
+            let downloadURL = submission.attachmentUrl;
+            if (file) {
+                const filePath = `employee-documents/${employee.id}/prof-development/${nanoid()}-${file.name}`;
+                const fileRef = ref(storage, filePath);
+                const snapshot = await uploadBytes(fileRef, file);
+                downloadURL = await getDownloadURL(snapshot.ref);
+            }
+            
+            formData.set('attachmentUrl', downloadURL);
+            startTransition(() => {
+                formAction(formData);
+            });
+        } catch (error) {
+            console.error("Error uploading file:", error);
+            toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload new file.' });
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <form onSubmit={handleSubmit}>
+                    <DialogHeader>
+                        <DialogTitle>Update Submission</DialogTitle>
+                        <DialogDescription>Update the details and re-submit for approval.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <input type="hidden" name="employeeDocId" value={employee.id} />
+                        <input type="hidden" name="profDevId" value={submission.id} />
+                        <div className="space-y-2">
+                            <Label htmlFor="courseName">Course Name</Label>
+                            <Input id="courseName" name="courseName" value={courseName} onChange={(e) => setCourseName(e.target.value)} required disabled={isPending} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Date</Label>
+                            <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{date ? format(date, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent></Popover>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="attachmentFile">New Attachment (Optional)</Label>
+                            <Input id="attachmentFile" type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} disabled={isPending} />
+                            <p className="text-xs text-muted-foreground">If you upload a new file, it will replace the old one.</p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline" disabled={isPending}>Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isPending}>
+                            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                            Update & Resubmit
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 export default function ProfilePage() {
   const [employeeProfile, setEmployeeProfile] = useState<EmployeeProfile | null>(null);
@@ -346,6 +440,8 @@ export default function ProfilePage() {
   const [loadingKpis, setLoadingKpis] = useState(true);
   const [profDevelopment, setProfDevelopment] = useState<ProfDevelopmentEntry[]>([]);
   const [loadingProfDev, setLoadingProfDev] = useState(true);
+  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
+  const [selectedSubmission, setSelectedSubmission] = useState<ProfDevelopmentEntry | null>(null);
 
 
   useEffect(() => {
@@ -450,7 +546,6 @@ export default function ProfilePage() {
     };
 }, [employeeProfile?.id]);
 
-
   const getInitials = (name?: string | null) => {
     if (!name) return "U";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
@@ -476,6 +571,14 @@ export default function ProfilePage() {
     }
     return undefined;
   }, [employeeProfile?.dateOfBirth]);
+  
+  const handleUpdateClick = (submission: ProfDevelopmentEntry) => {
+    if (employeeProfile?.id === submission.employeeDocId && submission.status === 'Rejected') {
+      setSelectedSubmission(submission);
+      setIsUpdateDialogOpen(true);
+    }
+  };
+
 
   const handleExportProfileToPdf = async () => {
     if (!employeeProfile || !authUser) return;
@@ -797,6 +900,7 @@ export default function ProfilePage() {
                                     <TableHead>Attachments</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Reason</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -814,11 +918,18 @@ export default function ProfilePage() {
                                             <ProfDevelopmentStatusBadge status={item.status} />
                                         </TableCell>
                                         <TableCell>{item.managerNotes}</TableCell>
-
+                                        <TableCell className="text-right">
+                                            {item.status === 'Rejected' && (
+                                                <Button size="sm" variant="secondary" onClick={() => handleUpdateClick(item)}>
+                                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                                    Update
+                                                </Button>
+                                            )}
+                                        </TableCell>
                                     </TableRow>
                                 )) : (
                                     <TableRow>
-                                        <TableCell colSpan={4} className="text-center text-muted-foreground">No development entries yet.</TableCell>
+                                        <TableCell colSpan={6} className="text-center text-muted-foreground">No development entries yet.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -843,6 +954,14 @@ export default function ProfilePage() {
                 </Button>
               </CardContent>
             </Card>
+            {selectedSubmission && isUpdateDialogOpen && (
+                <UpdateProfDevelopmentDialog
+                    isOpen={isUpdateDialogOpen}
+                    onOpenChange={setIsUpdateDialogOpen}
+                    submission={selectedSubmission}
+                    employee={employeeProfile}
+                />
+            )}
           </>
         )}
 
