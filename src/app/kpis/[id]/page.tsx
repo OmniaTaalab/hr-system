@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useActionState, useMemo, useTransition } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
-import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save, Download, Edit, RefreshCw } from "lucide-react";
+import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save, Download, Edit, RefreshCw, ArrowLeft } from "lucide-react";
 import { useParams, useRouter } from 'next/navigation';
 import { db, storage } from '@/lib/firebase/config';
 import { doc, getDoc, collection, query, where, onSnapshot, orderBy, Timestamp, getDocs, limit, updateDoc } from 'firebase/firestore';
@@ -31,12 +31,14 @@ import { nanoid } from 'nanoid';
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 interface Employee {
   id: string;
   name: string;
   reportLine1?: string;
   employeeId?: string;
+  photoURL?: string;
 }
 
 interface KpiEntry {
@@ -699,6 +701,25 @@ function KpiDashboardContent() {
   const [selectedSubmission, setSelectedSubmission] = useState<ProfDevelopmentEntry | null>(null);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
 
+    // Add state for overall score
+    const [eleotScore, setEleotScore] = useState(0);
+    const [totScore, setTotScore] = useState(0);
+    const [appraisalScore, setAppraisalScore] = useState(0);
+    const [attendanceScore, setAttendanceScore] = useState(0);
+
+
+    const getInitials = (name?: string) => {
+        if (!name) return "?";
+        return name.split(' ').map(n => n[0]).join('').toUpperCase();
+    };
+
+    const overallScore = useMemo(() => {
+        const scores = [eleotScore, totScore, appraisalScore, attendanceScore, profDevelopmentScore].filter(score => score > 0);
+        if (scores.length === 0) return 0;
+        const total = scores.reduce((sum, score) => sum + (score / 10 * 10), 0);
+        return parseFloat(((total / scores.length)).toFixed(1));
+    }, [eleotScore, totScore, appraisalScore, attendanceScore, profDevelopmentScore]);
+
 
   useEffect(() => {
     if (!companyEmployeeId) {
@@ -841,15 +862,23 @@ function KpiDashboardContent() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
-          <BarChartBig className="mr-3 h-8 w-8 text-primary" />
-          KPI's {employee?.name} Profile
-        </h1>
-        <p className="text-muted-foreground">
-          This is the KPI dashboard for {employee?.name}.
-        </p>
-      </header>
+        <header className="flex items-center justify-between p-4 bg-card border rounded-lg shadow-sm">
+            <div className="flex items-center gap-4">
+                <Button variant="ghost" size="icon" onClick={() => router.back()}>
+                    <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <Avatar className="h-10 w-10">
+                    <AvatarImage src={employee?.photoURL || undefined} alt={employee?.name} />
+                    <AvatarFallback>{getInitials(employee?.name)}</AvatarFallback>
+                </Avatar>
+                <h1 className="font-headline text-2xl font-bold tracking-tight">
+                    {employee?.name}
+                </h1>
+            </div>
+            <Badge variant="outline" className="text-lg py-2 px-4">
+                Overall: {overallScore}%
+            </Badge>
+        </header>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {employee && (
             <>
