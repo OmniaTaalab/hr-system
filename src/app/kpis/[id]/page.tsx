@@ -786,6 +786,15 @@ function KpiDashboardContent() {
     }
   };
 
+  const profDevelopmentScore = useMemo(() => {
+    const acceptedCourses = profDevelopment.filter(item => item.status === 'Accepted').length;
+    // Assuming each course is 5 points, max 20 points (4 courses)
+    const points = Math.min(acceptedCourses * 5, 20);
+    // Scale to a score out of 10
+    const scoreOutOf10 = (points / 20) * 10;
+    return parseFloat(scoreOutOf10.toFixed(1));
+  }, [profDevelopment]);
+
 
   useEffect(() => {
     if (!loading && !isLoadingCurrentUser && !canViewPage) {
@@ -837,10 +846,13 @@ function KpiDashboardContent() {
                 
                 <Card className="md:col-span-2 lg:col-span-3">
                     <CardHeader>
-                        <CardTitle className="flex justify-between items-center">
-                            Prof Development(10%)
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <CardTitle>Prof Development ({profDevelopmentScore} / 10)</CardTitle>
+                                <CardDescription>Score based on accepted submissions (5 points per course, max 20).</CardDescription>
+                            </div>
                             {isSelf && <AddProfDevelopmentDialog employee={employee} actorProfile={currentUserProfile} />}
-                        </CardTitle>
+                        </div>
                     </CardHeader>
                     <CardContent>
                        {loadingProfDev ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : (
@@ -880,9 +892,7 @@ function KpiDashboardContent() {
                                                   <TooltipTrigger asChild>
                                                       <p className="truncate max-w-xs">{item.managerNotes || '-'}</p>
                                                   </TooltipTrigger>
-                                                  <TooltipContent>
-                                                      <p>{item.managerNotes}</p>
-                                                  </TooltipContent>
+                                                
                                                 </Tooltip>
                                               </TooltipProvider>
                                             </TableCell>
@@ -945,3 +955,5 @@ export default function KpiDashboardPage() {
     );
 }
 
+
+    
