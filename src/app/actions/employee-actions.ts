@@ -1,10 +1,13 @@
 
 'use server';
 
-import { doc, updateDoc, Timestamp, arrayUnion, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, Timestamp, arrayUnion, addDoc, collection, serverTimestamp, getDoc, query, where, limit, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { z } from 'zod';
 import { logSystemEvent } from '@/lib/system-log';
+import { render } from '@react-email/render';
+import ProfDevelopmentNotificationEmail from '@/emails/prof-development-notification';
+
 
 // This file should only contain actions that are safe to be called from the client
 // and do not require the Admin SDK.
@@ -142,15 +145,18 @@ export async function addProfDevelopmentAction(
   const { employeeDocId, courseName, date, attachmentUrl, actorId, actorEmail, actorRole } = validatedFields.data;
 
   try {
+    const employeeRef = doc(db, 'employee', employeeDocId);
+    const employeeSnap = await getDoc(employeeRef);
+    if (!employeeSnap.exists()) {
+        return { errors: { form: ["Employee record not found."] }, success: false };
+    }
+    const employeeData = employeeSnap.data();
+
     const profDevCollectionRef = collection(db, `employee/${employeeDocId}/profDevelopment`);
     
-    // Use the course name or a generic name if needed for the attachment
-    const attachmentName = formData.get('attachmentName') as string || courseName;
-    
-    await addDoc(profDevCollectionRef, {
+    const newEntryRef = await addDoc(profDevCollectionRef, {
       courseName,
       date: Timestamp.fromDate(date),
-      attachmentName,
       attachmentUrl,
       status: "Pending", // Default status
       submittedAt: serverTimestamp(),
@@ -163,8 +169,58 @@ export async function addProfDevelopmentAction(
         targetEmployeeId: employeeDocId,
         courseName,
     });
+    
+    // --- Notification Logic ---
+    if (employeeData.reportLine1) {
+        const managerQuery = query(collection(db, "employee"), where("email", "==", employeeData.reportLine1), limit(1));
+        const managerSnapshot = await getDocs(managerQuery);
+        
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+        const submissionLink = `${appUrl}/profile`; // Link to the user's profile where PD is listed
+        
+        if (!managerSnapshot.empty) {
+            const managerDoc = managerSnapshot.docs[0];
+            const managerData = managerDoc.data();
+            const managerUserId = managerData.userId;
+            const managerEmail = managerData.email;
 
-    return { success: true, message: "Professional development entry added successfully." };
+            const notificationMessage = `New professional development entry for "${courseName}" submitted by ${employeeData.name}.`;
+
+            // In-app notification
+            if (managerUserId) {
+                await addDoc(collection(db, `users/${managerUserId}/notifications`), {
+                    message: notificationMessage,
+                    link: submissionLink,
+                    createdAt: serverTimestamp(),
+                    isRead: false,
+                });
+            }
+
+            // Email notification
+            if (managerEmail) {
+                const emailHtml = render(
+                    ProfDevelopmentNotificationEmail({
+                        managerName: managerData.name,
+                        employeeName: employeeData.name,
+                        courseName,
+                        date: date.toLocaleDateString(),
+                        submissionLink,
+                    })
+                );
+                await addDoc(collection(db, "mail"), {
+                    to: managerEmail,
+                    message: {
+                        subject: `New Professional Development Submission from ${employeeData.name}`,
+                        html: emailHtml,
+                    },
+                    status: "pending",
+                    createdAt: serverTimestamp(),
+                });
+            }
+        }
+    }
+
+    return { success: true, message: "Professional development entry added successfully. Your manager has been notified." };
   } catch (error: any) {
     console.error('Error adding professional development entry:', error);
     return {
