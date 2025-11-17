@@ -723,8 +723,8 @@ function KpiDashboardContent() {
     const overallScore = useMemo(() => {
         const scores = [eleotScore, totScore, appraisalScore, attendanceScore, profDevelopmentScore].filter(score => score > 0);
         if (scores.length === 0) return 0;
-        const total = scores.reduce((sum, score) => sum + (score / 10 * 10), 0);
-        return parseFloat(((total / scores.length)).toFixed(1));
+        const total = scores.reduce((sum, score) => sum + (score), 0);
+        return parseFloat(((total / (scores.length * 10)) * 50).toFixed(1));
     }, [eleotScore, totScore, appraisalScore, attendanceScore, profDevelopmentScore]);
 
 
@@ -878,23 +878,26 @@ function KpiDashboardContent() {
                 Overall: {overallScore}%
             </Badge>
         </header>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="space-y-8">
         {employee && (
             <>
-                <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
-                <KpiCard title="TOT(10%)" kpiType="tot" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
-                <KpiCard title="Appraisal(10%)" kpiType="appraisal" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
-                <AttendanceChartCard employeeDocId={employee.id} employeeId={employee.employeeId} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <KpiCard title="ELEOT(10%)" kpiType="eleot" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
+                    <KpiCard title="TOT(10%)" kpiType="tot" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
+                </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <KpiCard title="Appraisal(10%)" kpiType="appraisal" employeeDocId={employee.id} employeeId={employee.employeeId} canEdit={canEditKpis} />
+                    <AttendanceChartCard employeeDocId={employee.id} employeeId={employee.employeeId} />
+                </div>
                 
                 <Card className="md:col-span-2 lg:col-span-3">
                     <CardHeader>
                         <div className="flex justify-between items-center">
-                            <div>
-                                <CardTitle>Professional Development</CardTitle>
-                                <CardDescription>Score: {profDevelopmentScore} / 10 (1 point per course, max 20 points, scaled to 10)</CardDescription>
-                            </div>
-                            
+                            <CardTitle>Professional Development (10%)</CardTitle>
                         </div>
+                         <CardDescription>
+                            Score: {profDevelopmentScore} / 10
+                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                        {loadingProfDev ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : (
@@ -1000,4 +1003,5 @@ export default function KpiDashboardPage() {
 
     
     
+
 
