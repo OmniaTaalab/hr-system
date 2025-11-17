@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { doc, updateDoc, Timestamp, arrayUnion, addDoc, collection, serverTimestamp, getDoc, query, where, limit, getDocs } from 'firebase/firestore';
@@ -273,8 +274,10 @@ export async function updateProfDevelopmentStatusAction(
     if (!employeeSnap.exists()) {
         return { errors: { form: ["Employee not found."] }, success: false };
     }
+    const employeeData = employeeSnap.data();
+
     // Authorization check
-    if (employeeSnap.data().reportLine1 !== actorEmail) {
+    if (employeeData.reportLine1 !== actorEmail) {
          return { errors: { form: ["You are not authorized to perform this action."] }, success: false };
     }
 
@@ -285,6 +288,46 @@ export async function updateProfDevelopmentStatusAction(
       updatedAt: serverTimestamp(),
     });
 
+    // --- Notification Logic for Employee ---
+    const employeeUserId = employeeData.userId;
+    const employeeUserEmail = employeeData.email;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    const submissionLink = `${appUrl}/profile`;
+    const notificationMessage = `Your professional development submission has been ${newStatus.toLowerCase()}.`;
+
+    // In-app notification for the employee
+    if (employeeUserId) {
+        await addDoc(collection(db, `users/${employeeUserId}/notifications`), {
+            message: notificationMessage,
+            link: submissionLink,
+            createdAt: serverTimestamp(),
+            isRead: false,
+        });
+    }
+
+    // Email notification for the employee
+    if (employeeUserEmail) {
+        const emailHtml = render(
+            ProfDevelopmentNotificationEmail({
+                managerName: employeeData.name, // Email is to the employee
+                employeeName: employeeData.name,
+                courseName: "Your recent submission", // Generic
+                date: new Date().toLocaleDateString(),
+                submissionLink,
+                reason: `The status has been updated to ${newStatus}. Manager notes: ${managerNotes || 'N/A'}`
+            })
+        );
+        await addDoc(collection(db, "mail"), {
+            to: employeeUserEmail,
+            message: {
+                subject: `Update on your Professional Development Submission: ${newStatus}`,
+                html: emailHtml,
+            },
+            status: "pending",
+            createdAt: serverTimestamp(),
+        });
+    }
+    
     return { success: true, message: `Status updated to ${newStatus}.` };
   } catch (error: any) {
     console.error("Error updating status:", error);

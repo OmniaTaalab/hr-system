@@ -1,4 +1,5 @@
 
+
 import {
   Body,
   Button,
@@ -19,6 +20,7 @@ interface ProfDevelopmentNotificationEmailProps {
   courseName: string;
   date: string;
   submissionLink: string;
+  reason?: string;
 }
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -29,6 +31,7 @@ export const ProfDevelopmentNotificationEmail = ({
   courseName,
   date,
   submissionLink,
+  reason,
 }: ProfDevelopmentNotificationEmailProps) => (
   <Html>
     <Head />
@@ -52,6 +55,7 @@ export const ProfDevelopmentNotificationEmail = ({
             <Text style={reviewItem}><strong>Employee:</strong> {employeeName}</Text>
             <Text style={reviewItem}><strong>Course/Training:</strong> {courseName}</Text>
             <Text style={reviewItem}><strong>Date:</strong> {date}</Text>
+             {reason && <Text style={reviewItem}><strong>Notes:</strong> {reason}</Text>}
         </Section>
         <Section style={btnContainer}>
           <Button style={button} href={submissionLink}>
