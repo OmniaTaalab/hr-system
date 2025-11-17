@@ -721,10 +721,9 @@ function KpiDashboardContent() {
     }, [profDevelopment]);
 
     const overallScore = useMemo(() => {
-        const scores = [eleotScore, totScore, appraisalScore, attendanceScore, profDevelopmentScore].filter(score => score > 0);
-        if (scores.length === 0) return 0;
-        const total = scores.reduce((sum, score) => sum + (score), 0);
-        return parseFloat(((total / (scores.length * 10)) * 50).toFixed(1));
+        const totalScore = eleotScore + totScore + appraisalScore + attendanceScore + profDevelopmentScore;
+        const finalScore = totalScore / 2; // Each is out of 10, so total is 50. Divide by 2 to get percentage out of 50.
+        return parseFloat(finalScore.toFixed(1));
     }, [eleotScore, totScore, appraisalScore, attendanceScore, profDevelopmentScore]);
 
 
@@ -1003,5 +1002,6 @@ export default function KpiDashboardPage() {
 
     
     
+
 
 
