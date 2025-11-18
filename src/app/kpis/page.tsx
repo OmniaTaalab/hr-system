@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { BarChartBig, AlertTriangle, Loader2, Search, ArrowLeft, ArrowRight, List, LayoutGrid, FileDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase/config";
-import { collection, onSnapshot, query, where, QueryConstraint, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, QueryConstraint, getDocs, doc, getDoc, Timestamp , orderBy, limit, startAfter} from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -62,7 +62,7 @@ function KpisContent() {
     const { profile, loading: isLoadingProfile } = useUserProfile();
     const router = useRouter();
     const { toast } = useToast();
-    
+    const [lastEmployeeDoc, setLastEmployeeDoc] = useState<any>(null);
     const [allEmployees, setAllEmployees] = useState<EmployeeWithKpis[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
     
@@ -72,6 +72,11 @@ function KpisContent() {
     const [currentPage, setCurrentPage] = useState(1);
     
     const { groupNames, campuses, isLoading: isLoadingLists } = useOrganizationLists();
+
+    const [eleotScore, setEleotScore] = useState(0);
+    const [totScore, setTotScore] = useState(0);
+    const [appraisalScore, setAppraisalScore] = useState(0);
+    const [attendanceScore, setAttendanceScore] = useState(0);
 
     const isPrivilegedUser = useMemo(() => {
         if (!profile) return false;
@@ -94,9 +99,20 @@ function KpisContent() {
                 employeesQueryConstraints.push(where("reportLine1", "==", profile.email));
             }
             
-            const employeesSnapshot = await getDocs(query(employeeCollectionRef, ...employeesQueryConstraints));
-            let employees: Employee[] = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-            
+const employeesQuery = query(
+    employeeCollectionRef,
+    ...employeesQueryConstraints,
+    orderBy("name"),
+    limit(PAGE_SIZE),
+    lastEmployeeDoc ? startAfter(lastEmployeeDoc) : limit(PAGE_SIZE)
+);
+
+const employeesSnapshot = await getDocs(employeesQuery);
+
+let employees: Employee[] = employeesSnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+} as Employee));            
             if (!isPrivilegedUser && profile.id) {
                 const selfDoc = await getDoc(doc(employeeCollectionRef, profile.id));
                 if(selfDoc.exists()) {
@@ -230,7 +246,7 @@ function KpisContent() {
         } finally {
             setIsLoadingData(false);
         }
-    }, [toast, isPrivilegedUser, profile]);
+    }, [toast, isPrivilegedUser, profile, lastEmployeeDoc]);
     
     useEffect(() => {
         if (!isLoadingProfile) {
@@ -261,11 +277,12 @@ function KpisContent() {
     
     const goToPage = (page: number) => {
         setCurrentPage(Math.max(1, Math.min(page, totalPages)));
-    }
+    };
     
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm, groupFilter, campusFilter]);
+
     const calculateTotalScore = (kpis: KpiData) => {
         const totalScore =
             kpis.eleot +
@@ -285,13 +302,12 @@ function KpisContent() {
         return (
             <div className="flex justify-center items-center h-full flex-col gap-4">
                 <AlertTriangle className="h-12 w-12 text-destructive" />
+  
                 <h2 className="text-xl font-semibold">Access Denied</h2>
                 <p className="text-muted-foreground">You do not have permission to view this page.</p>
             </div>
         );
     }
-
-    // ========= ضيفي الفانكشن هنا =========
 
     return (
         <div className="space-y-8">
@@ -397,6 +413,11 @@ function KpisContent() {
                     </div>
                 </CardFooter>
             </Card>
+            {lastEmployeeDoc && (
+                <div className="flex justify-center my-4">
+                    <Button onClick={fetchData}>Load More</Button>
+                </div>
+            )}
         </div>
     );
 }
