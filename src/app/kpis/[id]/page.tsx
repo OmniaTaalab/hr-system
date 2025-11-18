@@ -32,6 +32,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Slider } from "@/components/ui/slider"
+
 
 interface Employee {
   id: string;
@@ -899,33 +901,77 @@ function KpiDashboardContent() {
         {employee && (
             <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <KpiCard
-    title="ELEOT"
-    kpiType="eleot"
-    employeeDocId={employee.id}
-    employeeId={employee.employeeId}
-    canEdit={canEditKpis}
-    onScoreCalculated={(score) => setEleotScore(score)}
-/>                 
-<KpiCard
-    title="TOT"
-    kpiType="tot"
-    employeeDocId={employee.id}
-    employeeId={employee.employeeId}
-    canEdit={canEditKpis}
-    onScoreCalculated={(score) => setTotScore(score)}
-/>
+                    <KpiCard
+                        title="ELEOT"
+                        kpiType="eleot"
+                        employeeDocId={employee.id}
+                        employeeId={employee.employeeId}
+                        canEdit={canEditKpis}
+                        onScoreCalculated={(score) => setEleotScore(score)}
+                    />                 
+                    <KpiCard
+                        title="TOT"
+                        kpiType="tot"
+                        employeeDocId={employee.id}
+                        employeeId={employee.employeeId}
+                        canEdit={canEditKpis}
+                        onScoreCalculated={(score) => setTotScore(score)}
+                    />
                 </div>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                 <KpiCard
-    title="Appraisal (10%)"
-    kpiType="appraisal"
-    employeeDocId={employee.id}
-    employeeId={employee.employeeId}
-    canEdit={canEditKpis}
-    onScoreCalculated={(score) => setAppraisalScore(score)}
-/>
+                    <KpiCard
+                        title="Appraisal (10%)"
+                        kpiType="appraisal"
+                        employeeDocId={employee.id}
+                        employeeId={employee.employeeId}
+                        canEdit={canEditKpis}
+                        onScoreCalculated={(score) => setAppraisalScore(score)}
+                    />
                     <AttendanceChartCard employeeDocId={employee.id} employeeId={employee.employeeId} />
+                </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Surveys (10%)</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex items-center justify-around gap-4">
+                            <div className="relative h-40 w-40">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie data={[{ value: 60 }, { value: 40 }]} dataKey="value" innerRadius="80%" outerRadius="100%" startAngle={180} endAngle={-180} stroke="none">
+                                            <Cell fill="hsl(var(--primary))" />
+                                            <Cell fill="hsl(var(--muted))" />
+                                        </Pie>
+                                    </PieChart>
+                                </ResponsiveContainer>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-4xl font-bold text-primary">60%</span>
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-2 text-center text-sm text-muted-foreground">
+                                <Button variant="secondary" size="sm">Overall</Button>
+                                <Button variant="ghost" size="sm">Parents</Button>
+                                <Button variant="ghost" size="sm">Students</Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader>
+                             <div className="flex items-center justify-between">
+                                <CardTitle>Student growth (40%)</CardTitle>
+                                <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Good</Badge>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="flex flex-col items-center justify-center pt-8">
+                             <div className="w-full px-4">
+                                <Slider defaultValue={[1.5]} min={-3} max={3} step={0.1} />
+                                <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                                    <span>+3</span>
+                                    <span>-3</span>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
                 
                 <Card className="md:col-span-2 lg:col-span-3">
@@ -1038,9 +1084,9 @@ export default function KpiDashboardPage() {
     );
 }
 
+    
+    
 
-    
-    
 
 
 

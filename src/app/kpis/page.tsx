@@ -40,6 +40,10 @@ interface KpiData {
     attendance: number;
     profDevelopment: number;
 }
+    const [eleotScore, setEleotScore] = useState(0);
+    const [totScore, setTotScore] = useState(0);
+    const [appraisalScore, setAppraisalScore] = useState(0);
+    const [attendanceScore, setAttendanceScore] = useState(0);
 
 interface EmployeeWithKpis extends Employee {
     kpis: KpiData;
@@ -273,11 +277,6 @@ function KpisContent() {
         );
     }
 
-    const calculateTotalScore = (kpis: KpiData) => {
-        const total = Object.values(kpis).reduce((sum, score) => sum + score, 0);
-        return (total / 2).toFixed(1);
-    }
-
     return (
         <div className="space-y-8">
             <header className="flex items-center justify-between">
@@ -327,8 +326,9 @@ function KpisContent() {
                         <TableHead>Survey(10%)</TableHead>
                         <TableHead>Student Growth(40%)</TableHead>
                         <TableHead>Appraisal (10%)</TableHead>
+    
                         <TableHead>Professional Development (10%)</TableHead>
-                        <TableHead>Total (50%)</TableHead>
+                        <TableHead>Total</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -360,8 +360,8 @@ function KpisContent() {
                           <TableCell>
                             <KpiScoreBar score={emp.kpis.profDevelopment} colorClass="bg-orange-500" />
                           </TableCell>
-                          <TableCell className="font-semibold text-lg">
-                            {calculateTotalScore(emp.kpis)}
+                          <TableCell>
+                            <KpiScoreBar score={emp.kpis.profDevelopment} colorClass="bg-orange-500" />
                           </TableCell>
                         </TableRow>
                       ))}
