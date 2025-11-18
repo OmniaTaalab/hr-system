@@ -740,8 +740,9 @@ function KpiDashboardContent() {
     }, [profDevelopment]);
 
     const overallScore = useMemo(() => {
-      const totalScore = eleotScore + totScore + appraisalScore + attendanceScore + profDevelopmentScore;
-      return parseFloat(totalScore.toFixed(1));  // يرجّعها من 50 مباشرة
+        const scores = [eleotScore, totScore, appraisalScore, attendanceScore, profDevelopmentScore];
+        const totalScore = scores.reduce((sum, score) => sum + score, 0);
+        return parseFloat((totalScore / 2).toFixed(1)); // Divide by 2 to get a score out of 50
     }, [eleotScore, totScore, appraisalScore, attendanceScore, profDevelopmentScore]);
 
   useEffect(() => {
@@ -890,8 +891,8 @@ function KpiDashboardContent() {
                     {employee?.name}
                 </h1>
             </div>
-            <Badge variant="outline" className="text-lg py-2 px-4">
-Overall: {overallScore}% 
+            <Badge variant="outline" className="text-xl py-2 px-6 rounded-full">
+                Overall: {overallScore}%
             </Badge>
         </header>
       <div className="space-y-8">
@@ -899,7 +900,7 @@ Overall: {overallScore}%
             <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <KpiCard
-    title="ELEOT(10%)"
+    title="ELEOT"
     kpiType="eleot"
     employeeDocId={employee.id}
     employeeId={employee.employeeId}
@@ -907,7 +908,7 @@ Overall: {overallScore}%
     onScoreCalculated={(score) => setEleotScore(score)}
 />                 
 <KpiCard
-    title="TOT(10%)"
+    title="TOT"
     kpiType="tot"
     employeeDocId={employee.id}
     employeeId={employee.employeeId}
@@ -917,7 +918,7 @@ Overall: {overallScore}%
                 </div>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                  <KpiCard
-    title="Appraisal(10%)"
+    title="Appraisal (10%)"
     kpiType="appraisal"
     employeeDocId={employee.id}
     employeeId={employee.employeeId}
@@ -930,7 +931,7 @@ Overall: {overallScore}%
                 <Card className="md:col-span-2 lg:col-span-3">
                     <CardHeader>
                         <div className="flex justify-between items-center">
-                            <CardTitle>Professional Development (10%)</CardTitle>
+                            <CardTitle>Professional Development</CardTitle>
                         </div>
                          <CardDescription>
                             Score: {profDevelopmentScore} / 10
@@ -1040,6 +1041,7 @@ export default function KpiDashboardPage() {
 
     
     
+
 
 
 
