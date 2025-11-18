@@ -273,6 +273,11 @@ function KpisContent() {
         );
     }
 
+    const calculateTotalScore = (kpis: KpiData) => {
+        const total = Object.values(kpis).reduce((sum, score) => sum + score, 0);
+        return total.toFixed(1);
+    }
+
     return (
         <div className="space-y-8">
             <header className="flex items-center justify-between">
@@ -322,8 +327,8 @@ function KpisContent() {
                         <TableHead>Survey(10%)</TableHead>
                         <TableHead>Student Growth(40%)</TableHead>
                         <TableHead>Appraisal (10%)</TableHead>
-    
                         <TableHead>Professional Development (10%)</TableHead>
+                        <TableHead>Total (100%)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -354,6 +359,9 @@ function KpisContent() {
                           </TableCell>
                           <TableCell>
                             <KpiScoreBar score={emp.kpis.profDevelopment} colorClass="bg-orange-500" />
+                          </TableCell>
+                          <TableCell className="font-semibold text-lg">
+                            {calculateTotalScore(emp.kpis)}
                           </TableCell>
                         </TableRow>
                       ))}
