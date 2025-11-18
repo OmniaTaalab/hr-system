@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
@@ -8,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { BarChartBig, AlertTriangle, Loader2, Search, ArrowLeft, ArrowRight, List, LayoutGrid, FileDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase/config";
-import { collection, onSnapshot, query, where, QueryConstraint, getDocs, doc, getDoc, Timestamp , orderBy, limit, startAfter} from 'firebase/firestore';
+import { collection, onSnapshot, query, where, QueryConstraint, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -62,21 +61,15 @@ function KpisContent() {
     const { profile, loading: isLoadingProfile } = useUserProfile();
     const router = useRouter();
     const { toast } = useToast();
-    const [lastEmployeeDoc, setLastEmployeeDoc] = useState<any>(null);
     const [allEmployees, setAllEmployees] = useState<EmployeeWithKpis[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
     
     const [searchTerm, setSearchTerm] = useState("");
-    const [groupFilter, setGroupFilter] = useState("All");
+       const [groupFilter, setGroupFilter] = useState("All");
     const [campusFilter, setCampusFilter] = useState("All");
     const [currentPage, setCurrentPage] = useState(1);
     
     const { groupNames, campuses, isLoading: isLoadingLists } = useOrganizationLists();
-
-    const [eleotScore, setEleotScore] = useState(0);
-    const [totScore, setTotScore] = useState(0);
-    const [appraisalScore, setAppraisalScore] = useState(0);
-    const [attendanceScore, setAttendanceScore] = useState(0);
 
     const isPrivilegedUser = useMemo(() => {
         if (!profile) return false;
@@ -99,20 +92,9 @@ function KpisContent() {
                 employeesQueryConstraints.push(where("reportLine1", "==", profile.email));
             }
             
-const employeesQuery = query(
-    employeeCollectionRef,
-    ...employeesQueryConstraints,
-    orderBy("name"),
-    limit(PAGE_SIZE),
-    lastEmployeeDoc ? startAfter(lastEmployeeDoc) : limit(PAGE_SIZE)
-);
-
-const employeesSnapshot = await getDocs(employeesQuery);
-
-let employees: Employee[] = employeesSnapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-} as Employee));            
+            const employeesSnapshot = await getDocs(query(employeeCollectionRef, ...employeesQueryConstraints));
+            let employees: Employee[] = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            
             if (!isPrivilegedUser && profile.id) {
                 const selfDoc = await getDoc(doc(employeeCollectionRef, profile.id));
                 if(selfDoc.exists()) {
@@ -146,8 +128,6 @@ let employees: Employee[] = employeesSnapshot.docs.map(doc => ({
             for (let i = 0; i < allEmployeeDocIds.length; i += CHUNK_SIZE) {
                 const docIdChunk = allEmployeeDocIds.slice(i, i + CHUNK_SIZE);
                 if (docIdChunk.length > 0) {
-                    // This is inefficient. Ideally, we would have a single `profDevelopment` collection.
-                    // For now, we have to query each subcollection.
                     for (const empId of docIdChunk) {
                         const profDevQuery = query(collection(db, `employee/${empId}/profDevelopment`));
                         const profDevSnapshot = await getDocs(profDevQuery);
@@ -155,7 +135,6 @@ let employees: Employee[] = employeesSnapshot.docs.map(doc => ({
                     }
                 }
             }
-
 
             for (let i = 0; i < allEmployeeCompanyIds.length; i += CHUNK_SIZE) {
                 const companyIdChunk = allEmployeeCompanyIds.slice(i, i + CHUNK_SIZE);
@@ -200,7 +179,6 @@ let employees: Employee[] = employeesSnapshot.docs.map(doc => ({
                 }
             });
 
-
             const employeesWithKpis = employees.map(emp => {
                 const kpis = kpiDataByEmployee[emp.id] || { eleot: [], tot: [], appraisal: [] };
                 const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
@@ -227,8 +205,6 @@ let employees: Employee[] = employeesSnapshot.docs.map(doc => ({
                     appraisal: appraisalAvg,
                     profDevelopment: profDevScore,
                 };
-          
-                  
 
                 return {
                     ...emp,
@@ -246,7 +222,7 @@ let employees: Employee[] = employeesSnapshot.docs.map(doc => ({
         } finally {
             setIsLoadingData(false);
         }
-    }, [toast, isPrivilegedUser, profile, lastEmployeeDoc]);
+    }, [toast, isPrivilegedUser, profile]);
     
     useEffect(() => {
         if (!isLoadingProfile) {
@@ -277,7 +253,7 @@ let employees: Employee[] = employeesSnapshot.docs.map(doc => ({
     
     const goToPage = (page: number) => {
         setCurrentPage(Math.max(1, Math.min(page, totalPages)));
-    };
+    }
     
     useEffect(() => {
         setCurrentPage(1);
@@ -302,7 +278,6 @@ let employees: Employee[] = employeesSnapshot.docs.map(doc => ({
         return (
             <div className="flex justify-center items-center h-full flex-col gap-4">
                 <AlertTriangle className="h-12 w-12 text-destructive" />
-  
                 <h2 className="text-xl font-semibold">Access Denied</h2>
                 <p className="text-muted-foreground">You do not have permission to view this page.</p>
             </div>
@@ -413,11 +388,6 @@ let employees: Employee[] = employeesSnapshot.docs.map(doc => ({
                     </div>
                 </CardFooter>
             </Card>
-            {lastEmployeeDoc && (
-                <div className="flex justify-center my-4">
-                    <Button onClick={fetchData}>Load More</Button>
-                </div>
-            )}
         </div>
     );
 }
