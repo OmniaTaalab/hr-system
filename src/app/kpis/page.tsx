@@ -39,11 +39,8 @@ interface KpiData {
     appraisal: number;
     attendance: number;
     profDevelopment: number;
+    total: number;
 }
-    const [eleotScore, setEleotScore] = useState(0);
-    const [totScore, setTotScore] = useState(0);
-    const [appraisalScore, setAppraisalScore] = useState(0);
-    const [attendanceScore, setAttendanceScore] = useState(0);
 
 interface EmployeeWithKpis extends Employee {
     kpis: KpiData;
@@ -202,17 +199,25 @@ function KpisContent() {
                 const profDevCourses = profDevByEmployee[emp.id] || 0;
                 const profDevPoints = Math.min(profDevCourses * 1, 20);
                 const profDevScore = (profDevPoints / 20) * 10;
+                
+                const kpiScores = {
+                    attendance: attendanceScore,
+                    eleot: (eleotAvg / 4) * 10,
+                    tot: (totAvg / 4) * 10,
+                    survey: 3,
+                    studentGrowth: 4,
+                    appraisal: appraisalAvg,
+                    profDevelopment: profDevScore,
+                };
+                
+                const totalScore = Object.values(kpiScores).reduce((sum, score) => sum + score, 0) / 2;
+
 
                 return {
                     ...emp,
                     kpis: {
-                        attendance: attendanceScore,
-                        eleot: (eleotAvg / 4) * 10,
-                        tot: (totAvg / 4) * 10,
-                        survey: 3,
-                        studentGrowth: 4,
-                        appraisal: appraisalAvg,
-                        profDevelopment: profDevScore,
+                        ...kpiScores,
+                        total: totalScore,
                     }
                 };
             });
@@ -326,9 +331,8 @@ function KpisContent() {
                         <TableHead>Survey(10%)</TableHead>
                         <TableHead>Student Growth(40%)</TableHead>
                         <TableHead>Appraisal (10%)</TableHead>
-    
                         <TableHead>Professional Development (10%)</TableHead>
-                        <TableHead>Total</TableHead>
+                        <TableHead>Total (50%)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -361,7 +365,12 @@ function KpisContent() {
                             <KpiScoreBar score={emp.kpis.profDevelopment} colorClass="bg-orange-500" />
                           </TableCell>
                           <TableCell>
-                            <KpiScoreBar score={emp.kpis.profDevelopment} colorClass="bg-orange-500" />
+                            <div className="flex flex-col items-center gap-1 w-24">
+                              <Progress value={emp.kpis.total * 2} className="h-2 w-full" indicatorClassName="bg-gray-700" />
+                              <span className="text-xs font-semibold">
+                                {emp.kpis.total.toFixed(1)} / 50
+                              </span>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
