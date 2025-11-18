@@ -740,14 +740,10 @@ function KpiDashboardContent() {
       const scoreOutOf10 = (points / 20) * 10;
       return parseFloat(scoreOutOf10.toFixed(1));
     }, [profDevelopment]);
-
     const overallScore = useMemo(() => {
-        const scores = [eleotScore, totScore, appraisalScore, attendanceScore, profDevelopmentScore];
-        const totalScore = scores.reduce((sum, score) => sum + score, 0);
-        return parseFloat((totalScore / 2).toFixed(1)); // Divide by 2 to get a score out of 50
-    }, [eleotScore, totScore, appraisalScore, attendanceScore, profDevelopmentScore]);
-
-  useEffect(() => {
+      const totalScore = eleotScore + totScore + appraisalScore + attendanceScore + profDevelopmentScore;
+      return parseFloat(totalScore.toFixed(1));  // يرجّعها من 50 مباشرة
+    }, [eleotScore, totScore, appraisalScore, attendanceScore, profDevelopmentScore]);  useEffect(() => {
     if (!companyEmployeeId) {
       setError("No employee ID provided.");
       setLoading(false);
@@ -894,7 +890,7 @@ function KpiDashboardContent() {
                 </h1>
             </div>
             <Badge variant="outline" className="text-xl py-2 px-6 rounded-full">
-                Overall: {overallScore}%
+            Overall: {overallScore}% 
             </Badge>
         </header>
       <div className="space-y-8">
@@ -1086,6 +1082,7 @@ export default function KpiDashboardPage() {
 
     
     
+
 
 
 

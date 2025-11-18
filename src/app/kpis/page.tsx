@@ -39,7 +39,6 @@ interface KpiData {
     appraisal: number;
     attendance: number;
     profDevelopment: number;
-    total: number;
 }
 
 interface EmployeeWithKpis extends Employee {
@@ -204,20 +203,19 @@ function KpisContent() {
                     attendance: attendanceScore,
                     eleot: (eleotAvg / 4) * 10,
                     tot: (totAvg / 4) * 10,
-                    survey: 3,
-                    studentGrowth: 4,
+                    survey: 0,
+                    studentGrowth: 0,
                     appraisal: appraisalAvg,
                     profDevelopment: profDevScore,
                 };
-                
-                const totalScore = Object.values(kpiScores).reduce((sum, score) => sum + score, 0) / 2;
-
+          
+                  
 
                 return {
                     ...emp,
                     kpis: {
                         ...kpiScores,
-                        total: totalScore,
+                        total: calculateTotalScore,
                     }
                 };
             });
@@ -266,7 +264,16 @@ function KpisContent() {
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm, groupFilter, campusFilter]);
-
+    const calculateTotalScore = (kpis: KpiData) => {
+        const totalScore =
+            kpis.eleot +
+            kpis.tot +
+            kpis.appraisal +
+            kpis.attendance +
+            kpis.profDevelopment;
+    
+        return parseFloat(totalScore.toFixed(1)); // المجموع من 50
+    };
 
     if (isLoadingProfile || isLoadingData) {
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -281,6 +288,8 @@ function KpisContent() {
             </div>
         );
     }
+
+    // ========= ضيفي الفانكشن هنا =========
 
     return (
         <div className="space-y-8">
@@ -366,9 +375,10 @@ function KpisContent() {
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col items-center gap-1 w-24">
-                              <Progress value={emp.kpis.total * 2} className="h-2 w-full" indicatorClassName="bg-gray-700" />
+                              <Progress value=    {calculateTotalScore(emp.kpis)}
+ className="h-2 w-full" indicatorClassName="bg-gray-700" />
                               <span className="text-xs font-semibold">
-                                {emp.kpis.total.toFixed(1)} / 50
+                              {calculateTotalScore(emp.kpis)}
                               </span>
                             </div>
                           </TableCell>
