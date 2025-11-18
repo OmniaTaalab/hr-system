@@ -275,7 +275,7 @@ function KpisContent() {
 
     const calculateTotalScore = (kpis: KpiData) => {
         const total = Object.values(kpis).reduce((sum, score) => sum + score, 0);
-        return total.toFixed(1);
+        return (total / 2).toFixed(1);
     }
 
     return (
@@ -328,7 +328,7 @@ function KpisContent() {
                         <TableHead>Student Growth(40%)</TableHead>
                         <TableHead>Appraisal (10%)</TableHead>
                         <TableHead>Professional Development (10%)</TableHead>
-                        <TableHead>Total (100%)</TableHead>
+                        <TableHead>Total (50%)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
