@@ -29,9 +29,12 @@ import {
   UserX,
   AlertTriangle,
   Clock,
+  Filter,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
+import { useOrganizationLists } from "@/hooks/use-organization-lists";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Employee {
   id: string;
@@ -95,6 +98,9 @@ function EmployeeStatusContent() {
   const [rows, setRows] = useState<Row[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [campusFilter, setCampusFilter] = useState("All");
+  const { campuses, isLoading: isLoadingLists } = useOrganizationLists();
+
 
   const canViewPage =
     !profileLoading &&
@@ -117,7 +123,7 @@ function EmployeeStatusContent() {
 
       try {
         const empSnap = await getDocs(query(collection(db, "employee")));
-        const allEmployees: Employee[] = empSnap.docs.map((doc) => {
+        let allEmployees: Employee[] = empSnap.docs.map((doc) => {
           const d = doc.data() as any;
           return {
             id: doc.id,
@@ -129,6 +135,10 @@ function EmployeeStatusContent() {
             status: d.status,
           };
         });
+
+        if (campusFilter !== "All") {
+          allEmployees = allEmployees.filter(emp => emp.campus === campusFilter);
+        }
         
         const empByEmployeeId = new Map(
           allEmployees.map((e) => [toStr(e.employeeId), e])
@@ -148,6 +158,11 @@ function EmployeeStatusContent() {
           const data = doc.data() as any;
           const logEmployeeId = toStr(data.badgeNumber || data.userId);
           if (!logEmployeeId) return;
+          
+          const emp = empByEmployeeId.get(logEmployeeId);
+          if (campusFilter !== 'All' && emp?.campus !== campusFilter) {
+            return;
+          }
 
           presentEmployeeIds.add(logEmployeeId);
           
@@ -257,7 +272,7 @@ function EmployeeStatusContent() {
     };
 
     fetchData();
-  }, [dateParam, profileLoading, canViewPage, router, filter]);
+  }, [dateParam, profileLoading, canViewPage, router, filter, campusFilter]);
 
   const formattedDate = format(
     new Date((dateParam || format(new Date(), "yyyy-MM-dd")) + "T00:00:00"),
@@ -300,7 +315,23 @@ function EmployeeStatusContent() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{rows.length} Employees Found</CardTitle>
+          <div className="flex justify-between items-center">
+            <CardTitle>{rows.length} Employees Found</CardTitle>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={campusFilter} onValueChange={setCampusFilter} disabled={isLoadingLists}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by campus..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All Campuses</SelectItem>
+                  {campuses.map(campus => (
+                    <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {error ? (
