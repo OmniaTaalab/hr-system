@@ -921,7 +921,8 @@ function EmployeeManagementContent() {
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null);
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false);
   
-    const [activateState, activateAction, isActivatePending] = useActionState(activateEmployeeAction, initialActivateState);
+  const [activateState, activateAction, isActivatePending] = useActionState(activateEmployeeAction, initialActivateState);
+  const [isActivateTransitionPending, startActivateTransition] = useTransition();
 
   const [isBatchImportOpen, setIsBatchImportOpen] = useState(false);
 
@@ -1490,14 +1491,16 @@ function EmployeeManagementContent() {
                             </DropdownMenuItem>
                              {employee.status === 'deactivated' ? (
                                 <DropdownMenuItem onSelect={() => {
-                                    const formData = new FormData();
-                                    formData.append('employeeDocId', employee.id);
-                                    if (profile?.id) formData.append('actorId', profile.id);
-                                    if (profile?.email) formData.append('actorEmail', profile.email);
-                                    if (profile?.role) formData.append('actorRole', profile.role);
-                                    activateAction(formData);
+                                    startActivateTransition(() => {
+                                        const formData = new FormData();
+                                        formData.append('employeeDocId', employee.id);
+                                        if (profile?.id) formData.append('actorId', profile.id);
+                                        if (profile?.email) formData.append('actorEmail', profile.email);
+                                        if (profile?.role) formData.append('actorRole', profile.role);
+                                        activateAction(formData);
+                                    });
                                 }}>
-                                    <UserRoundCheck className="mr-2 h-4 w-4" />
+                                    {isActivateTransitionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UserRoundCheck className="mr-2 h-4 w-4" />}
                                     Activate Employee
                                 </DropdownMenuItem>
                             ) : (
