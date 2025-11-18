@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -60,6 +61,7 @@ interface Employee {
   status?: "Active" | "deactivated";
   leavingDate?: Timestamp | { _seconds: number; _nanoseconds: number; } | null;
   reasonForLeaving?: string;
+  deactivatedBy?: string;
   [key: string]: any; // Allow other properties
 }
 
@@ -699,9 +701,10 @@ const calculateAttendanceScore = async (employeeId: string) => {
                   </div>
               </CardHeader>
               <CardContent className="p-6">
-                {employee.status === 'deactivated' && employee.reasonForLeaving && (
+                {employee.status === 'deactivated' && (
                     <div className="mb-6 p-4 bg-destructive/10 rounded-lg border border-destructive/20">
                          <h3 className="text-lg font-semibold flex items-center mb-2 text-destructive"><UserMinus className="mr-2 h-5 w-5" />Deactivation Information</h3>
+                         <DetailItem icon={User} label="Deactivated By" value={employee.deactivatedBy} />
                          <DetailItem icon={CalendarDays} label="Leaving Date" value={safeToDate(employee.leavingDate) ? format(safeToDate(employee.leavingDate)!, 'PPP') : undefined} />
                          <DetailItem icon={FileText} label="Reason" value={employee.reasonForLeaving} />
                     </div>
@@ -956,3 +959,4 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+

@@ -109,27 +109,57 @@ export async function submitLeaveRequestAction(
       return { errors: { form: ["Employee record not found."] }, success: false };
     }
 
-    if (leaveType === 'Late Arrival' || leaveType === 'Early Dismissal') {
-      const monthStart = startOfMonth(startDate);
-      const monthEnd = endOfMonth(startDate);
+    // 📌 Late Arrival & Early Dismissal Logic with 4-hour Monthly Limit
+if (leaveType === "Late Arrival" || leaveType === "Early Dismissal") {
+    
+  const monthStart = startOfMonth(startDate);
+  const monthEnd = endOfMonth(startDate);
 
-      const q = query(
-        collection(db, "leaveRequests"),
-        where("requestingEmployeeDocId", "==", requestingEmployeeDocId),
-        where("leaveType", "in", ["Late Arrival", "Early Dismissal"]),
-        where("startDate", ">=", Timestamp.fromDate(monthStart)),
-        where("startDate", "<=", Timestamp.fromDate(monthEnd)),
-        where("status", "in", ["Pending", "Approved"])
-      );
+  // 🟦 Fetch all existing excuses for the month
+  const q = query(
+      collection(db, "leaveRequests"),
+      where("requestingEmployeeDocId", "==", requestingEmployeeDocId),
+      where("leaveType", "in", ["Late Arrival", "Early Dismissal"]),
+      where("startDate", ">=", Timestamp.fromDate(monthStart)),
+      where("startDate", "<=", Timestamp.fromDate(monthEnd)),
+      where("status", "in", ["Pending", "Approved"])
+  );
 
-      const existingRequests = await getDocs(q);
-      if (!existingRequests.empty) {
-        return {
-          errors: { form: [`You have already submitted a "${existingRequests.docs[0].data().leaveType}" request for this month.`] },
+  const existingRequests = await getDocs(q);
+
+  // 🟧 Each excuse = 2 hours
+  const HOURS_PER_REQUEST = 2;
+
+  // 🟩 Calculate total used hours
+  const usedHours = existingRequests.size * HOURS_PER_REQUEST;
+
+  // 🟥 If already used 4 hours → reject completely
+  if (usedHours >= 4) {
+      return {
+          errors: {
+              form: [
+                  "You have already used your 4-hour monthly excuse limit. Late Arrival and Early Dismissal are now disabled."
+              ]
+          },
           success: false,
-        };
-      }
-    }
+      };
+  }
+
+  // ⚠️ Check if adding new one will exceed 4 hours
+  if (usedHours + HOURS_PER_REQUEST > 4) {
+      return {
+          errors: {
+              form: [
+                  `You only have ${4 - usedHours} hours left this month. You cannot submit another "${leaveType}" request.`
+              ]
+          },
+          success: false,
+      };
+  }
+
+  // 🟩 Otherwise → allow submitting request normally
+}
+
 
 
     const employeeData = employeeSnap.data();

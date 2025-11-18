@@ -736,10 +736,21 @@ export async function deactivateEmployeeAction(
         const docSnap = await getDoc(employeeRef);
         const employeeName = docSnap.exists() ? docSnap.data().name : 'Unknown';
         
+        let actorName = 'System';
+        if (actorId) {
+            const actorSnap = await getDoc(doc(db, 'employee', actorId));
+            if (actorSnap.exists()) {
+                actorName = actorSnap.data().name;
+            } else if (actorEmail) {
+                actorName = actorEmail;
+            }
+        }
+        
         await updateDoc(employeeRef, {
             status: 'deactivated',
             leavingDate: Timestamp.fromDate(leavingDate),
             reasonForLeaving,
+            deactivatedBy: actorName
         });
 
         await logSystemEvent("Deactivate Employee", { actorId, actorEmail, actorRole, targetEmployeeId: employeeDocId, targetEmployeeName: employeeName, changes: { newData: { status: 'deactivated', leavingDate, reasonForLeaving } } });
@@ -801,6 +812,7 @@ export async function activateEmployeeAction(
             status: 'Active',
             leavingDate: null,
             reasonForLeaving: null,
+            deactivatedBy: null,
         });
 
         await logSystemEvent("Activate Employee", { 
