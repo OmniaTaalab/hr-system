@@ -199,10 +199,13 @@ function KpisContent() {
                 const profDevPoints = Math.min(profDevCourses * 1, 20);
                 const profDevScore = (profDevPoints / 20) * 10;
                 
+                const eleotScoreValue = (eleotAvg / 4) * 10;
+                const totScoreValue = (totAvg / 4) * 10;
+
                 const kpiScores = {
                     attendance: attendanceScore,
-                    eleot: (eleotAvg / 4) * 10,
-                    tot: (totAvg / 4) * 10,
+                    eleot: eleotScoreValue >= 8 ? 10 : eleotScoreValue,
+                    tot: totScoreValue >= 8 ? 10 : totScoreValue,
                     survey: 0,
                     studentGrowth: 0,
                     appraisal: appraisalAvg,
@@ -215,7 +218,6 @@ function KpisContent() {
                     ...emp,
                     kpis: {
                         ...kpiScores,
-                        total: calculateTotalScore,
                     }
                 };
             });
@@ -375,8 +377,7 @@ function KpisContent() {
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col items-center gap-1 w-24">
-                              <Progress value=    {calculateTotalScore(emp.kpis)}
- className="h-2 w-full" indicatorClassName="bg-gray-700" />
+                              <Progress value={(calculateTotalScore(emp.kpis)/50)*100} className="h-2 w-full" indicatorClassName="bg-gray-700" />
                               <span className="text-xs font-semibold">
                               {calculateTotalScore(emp.kpis)}
                               </span>
