@@ -145,57 +145,134 @@ function KpisContent() {
     }, [profile]);
     
     const fetchData = useCallback(async () => {
-        setIsLoadingData(true);
-        if (!profile) {
-            setIsLoadingData(false);
-            return;
+    setIsLoadingData(true);
+    if (!profile) {
+      setIsLoadingData(false);
+      return;
+    }
+
+    try {
+      // 1. Fetch employees based on user role
+      let employeesQueryConstraints: QueryConstraint[] = [];
+      const employeeCollectionRef = collection(db, "employee");
+
+      if (!isPrivilegedUser && profile.email) {
+        employeesQueryConstraints.push(where("reportLine1", "==", profile.email));
+      }
+
+      const employeesSnapshot = await getDocs(query(employeeCollectionRef, ...employeesQueryConstraints));
+      let employees: Employee[] = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+
+      if (!isPrivilegedUser && profile.id) {
+        const selfDoc = await getDoc(doc(employeeCollectionRef, profile.id));
+        if (selfDoc.exists()) {
+          const selfEmployee = { id: selfDoc.id, ...selfDoc.data() } as Employee;
+          if (!employees.some(e => e.id === selfEmployee.id)) {
+            employees.push(selfEmployee);
+          }
         }
+      }
 
-        try {
-            let employeesQueryConstraints: QueryConstraint[] = [];
-            const employeeCollectionRef = collection(db, "employee");
+      const employeeIds = employees.map(emp => emp.id);
+      if (employeeIds.length === 0) {
+        setAllEmployees([]);
+        setIsLoadingData(false);
+        return;
+      }
+      
+      const kpiCollections = ['eleot', 'tot', 'appraisal'];
+      const kpiPromises = kpiCollections.map(coll => getDocs(query(collection(db, coll), where('employeeDocId', 'in', employeeIds))));
+      
+      const profDevPromises = employeeIds.map(id => getDocs(collection(db, `employee/${id}/profDevelopment`)));
 
-            if (!isPrivilegedUser && profile.email) {
-                employeesQueryConstraints.push(where("reportLine1", "==", profile.email));
-            }
-            
-            const employeesSnapshot = await getDocs(query(employeeCollectionRef, ...employeesQueryConstraints));
-            let employees: Employee[] = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-            
-            if (!isPrivilegedUser && profile.id) {
-                const selfDoc = await getDoc(doc(employeeCollectionRef, profile.id));
-                if(selfDoc.exists()) {
-                     const selfEmployee = { id: selfDoc.id, ...selfDoc.data() } as Employee;
-                     if (!employees.some(e => e.id === selfEmployee.id)) {
-                         employees.push(selfEmployee);
-                     }
-                }
-            }
+      const attendanceDataPromise = getDocs(query(collection(db, "attendance_log"), where("userId", "in", employees.map(e => e.employeeId))));
+      const leaveDataPromise = getDocs(query(collection(db, "leaveRequests"), where("requestingEmployeeDocId", "in", employeeIds), where("status", "==", "Approved")));
+      const holidaysPromise = getDocs(collection(db, 'holidays'));
 
-            const employeesWithKpis = employees.map(emp => {
-                return {
-                    ...emp,
-                    kpis: {
-                        eleot: 0,
-                        tot: 0,
-                        survey: 0,
-                        studentGrowth: 0,
-                        appraisal: 0,
-                        attendance: 0,
-                        profDevelopment: 0,
-                    }
-                };
-            });
-            setAllEmployees(employeesWithKpis.sort((a,b) => a.name.localeCompare(b.name)));
+      const [
+          kpiSnapshots,
+          profDevSnapshots,
+          attendanceSnapshot,
+          leaveSnapshot,
+          holidaysSnapshot,
+      ] = await Promise.all([
+          Promise.all(kpiPromises),
+          Promise.all(profDevPromises),
+          attendanceDataPromise,
+          leaveDataPromise,
+          holidaysPromise,
+      ]);
 
-        } catch (error) {
-            console.error("Error fetching initial KPI data:", error);
-            toast({ variant: "destructive", title: "Error", description: "Failed to load employee list." });
-        } finally {
-            setIsLoadingData(false);
-        }
-    }, [toast, isPrivilegedUser, profile]);
-    
+      const [eleotSnapshot, totSnapshot, appraisalSnapshot] = kpiSnapshots;
+
+      const kpiDataMap = new Map<string, { eleot: any[], tot: any[], appraisal: any[] }>();
+      const processKpiSnapshot = (snapshot: any, key: 'eleot' | 'tot' | 'appraisal') => {
+        snapshot.forEach((doc: any) => {
+          const data = doc.data();
+          if (!kpiDataMap.has(data.employeeDocId)) kpiDataMap.set(data.employeeDocId, { eleot: [], tot: [], appraisal: [] });
+          kpiDataMap.get(data.employeeDocId)![key].push(data);
+        });
+      };
+      processKpiSnapshot(eleotSnapshot, 'eleot');
+      processKpiSnapshot(totSnapshot, 'tot');
+      processKpiSnapshot(appraisalSnapshot, 'appraisal');
+      
+      const profDevMap = new Map<string, any[]>();
+      profDevSnapshots.forEach((snapshot, index) => {
+        const empId = employeeIds[index];
+        profDevMap.set(empId, snapshot.docs.map(doc => doc.data()));
+      });
+
+      const holidays = holidaysSnapshot.docs.map(d => d.data().date.toDate());
+      const bulkAttendanceData: AttendanceData = {
+          attendance: attendanceSnapshot.docs.map(d => d.data() as any),
+          leaves: leaveSnapshot.docs.map(d => d.data() as any),
+      };
+
+      // 3. Process data for each employee
+      const employeesWithKpis = employees.map(emp => {
+        const kpis = kpiDataMap.get(emp.id) || { eleot: [], tot: [], appraisal: [] };
+        
+        const eleotAvg = kpis.eleot.length > 0 ? kpis.eleot.reduce((sum, item) => sum + item.points, 0) / kpis.eleot.length : 0;
+        let eleotScore = (eleotAvg / 4) * 10;
+        if (eleotScore >= 8) eleotScore = 10;
+
+        const totAvg = kpis.tot.length > 0 ? kpis.tot.reduce((sum, item) => sum + item.points, 0) / kpis.tot.length : 0;
+        let totScore = (totAvg / 4) * 10;
+        if (totScore >= 8) totScore = 10;
+        
+        const appraisalAvg = kpis.appraisal.length > 0 ? kpis.appraisal.reduce((sum, item) => sum + item.points, 0) / kpis.appraisal.length : 0;
+        
+        const devSubmissions = profDevMap.get(emp.id) || [];
+        const acceptedDev = devSubmissions.filter(s => s.status === 'Accepted').length;
+        const profDevelopmentScore = Math.min((acceptedDev * 1) / 20 * 10, 10);
+        
+        const attendanceScore = getAttendanceScore(emp, bulkAttendanceData, holidays);
+
+        return {
+          ...emp,
+          kpis: {
+            eleot: eleotScore,
+            tot: totScore,
+            survey: 0,
+            studentGrowth: 0,
+            appraisal: appraisalAvg,
+            attendance: attendanceScore,
+            profDevelopment: profDevelopmentScore,
+          }
+        };
+      });
+
+      setAllEmployees(employeesWithKpis.sort((a, b) => a.name.localeCompare(b.name)));
+
+    } catch (error) {
+      console.error("Error fetching KPI data:", error);
+      toast({ variant: "destructive", title: "Error", description: "Failed to load all KPI data." });
+    } finally {
+      setIsLoadingData(false);
+    }
+  }, [toast, isPrivilegedUser, profile]);
+
     useEffect(() => {
         if (!isLoadingProfile) {
             fetchData();
@@ -239,8 +316,9 @@ function KpisContent() {
             kpis.attendance +
             kpis.profDevelopment;
     
-        return parseFloat(totalScore.toFixed(1)); // المجموع من 50
+        return parseFloat(totalScore.toFixed(1)); // The sum is now out of 50
     };
+
 
     if (isLoadingProfile || isLoadingData) {
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
