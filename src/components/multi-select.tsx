@@ -68,7 +68,9 @@ function MultiSelectFilter({
                   onClick={() => handleUnselect(item)}
                 >
                   {options.find(opt => opt.value === item)?.label ?? item}
-                  <button
+                  <div
+                    role="button"
+                    aria-label={`Remove ${item}`}
                     className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
@@ -79,10 +81,14 @@ function MultiSelectFilter({
                       e.preventDefault();
                       e.stopPropagation();
                     }}
-                    onClick={() => handleUnselect(item)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleUnselect(item);
+                    }}
                   >
                     <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                  </button>
+                  </div>
                 </Badge>
               ))
             ) : (
