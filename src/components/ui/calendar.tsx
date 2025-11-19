@@ -20,7 +20,7 @@ function Calendar({
       showOutsideDays={showOutsideDays}
       numberOfMonths={1}
       /** ✅ إظهار القوائم المنسدلة لاختيار الشهر والسنة */
-      captionLayout="dropdown"
+      captionLayout="dropdown-buttons"
       /** ✅ تحديد مدى السنوات المسموح بها */
       fromYear={1970}
       toYear={2035}
