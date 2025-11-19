@@ -67,6 +67,7 @@ import { useRouter } from "next/navigation";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import * as XLSX from 'xlsx';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { MultiSelectFilter, type OptionType } from "@/components/multi-select";
 
 
 export interface EmployeeFile {
@@ -521,7 +522,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={2025} initialFocus />
+                            <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1970} toYear={2035} initialFocus />
                         </PopoverContent>
                     </Popover>
                     {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
@@ -661,7 +662,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} captionLayout="dropdown-buttons" fromYear={new Date().getFullYear() - 20} toYear={2025} initialFocus />
+                            <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} captionLayout="dropdown-buttons" fromYear={1970} toYear={2035} initialFocus />
                         </PopoverContent>
                     </Popover>
                     {serverState?.errors?.joiningDate && <p className="text-sm text-destructive">{serverState.errors.joiningDate.join(', ')}</p>}
@@ -680,7 +681,7 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                         </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                        <Calendar mode="single" selected={leavingDate || undefined} onSelect={setLeavingDate} captionLayout="dropdown-buttons" fromYear={new Date().getFullYear() - 20} toYear={2025} />
+                        <Calendar mode="single" selected={leavingDate || undefined} onSelect={setLeavingDate} captionLayout="dropdown-buttons" fromYear={1970} toYear={2035} />
                     </PopoverContent>
                 </Popover>
                 {serverState?.errors?.leavingDate && <p className="text-sm text-destructive">{serverState.errors.leavingDate.join(', ')}</p>}
@@ -764,7 +765,7 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0">
-                                    <Calendar mode="single" selected={leavingDate} onSelect={setLeavingDate} captionLayout="dropdown-buttons" fromYear={new Date().getFullYear() - 5} toYear={2025} initialFocus />
+                                    <Calendar mode="single" selected={leavingDate} onSelect={setLeavingDate} captionLayout="dropdown-buttons" fromYear={1970} toYear={2035} initialFocus />
                                 </PopoverContent>
                             </Popover>
                             <input type="hidden" name="leavingDate" value={leavingDate?.toISOString() ?? ''} />
@@ -887,14 +888,15 @@ function EmployeeManagementContent() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { campuses, stage: stages, subjects, reportLines1, reportLines2, isLoading: isLoadingLists } = useOrganizationLists();
-  const [stageFilter, setStageFilter] = useState("All");
-  const [subjectFilter, setSubjectFilter] = useState("All");
-  const [genderFilter, setGenderFilter] = useState("All");
-  const [religionFilter, setReligionFilter] = useState("All");
-  const [campusFilter, setCampusFilter] = useState("All");
-  const [titleFilter, setTitleFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [reportLineFilter, setReportLineFilter] = useState("All");
+  
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [campusFilters, setCampusFilters] = useState<string[]>([]);
+  const [titleFilters, setTitleFilters] = useState<string[]>([]);
+  const [stageFilters, setStageFilters] = useState<string[]>([]);
+  const [subjectFilters, setSubjectFilters] = useState<string[]>([]);
+  const [genderFilters, setGenderFilters] = useState<string[]>([]);
+  const [religionFilters, setReligionFilters] = useState<string[]>([]);
+  const [reportLineFilters, setReportLineFilters] = useState<string[]>([]);
   
   const [dobStartYear, setDobStartYear] = useState<string>("");
   const [dobEndYear, setDobEndYear] = useState<string>("");
@@ -912,14 +914,14 @@ function EmployeeManagementContent() {
 
   const clearAllFilters = () => {
       setSearchTerm("");
-      setCampusFilter("All");
-      setStageFilter("All");
-      setSubjectFilter("All");
-      setGenderFilter("All");
-      setReligionFilter("All");
-      setTitleFilter("All");
-      setStatusFilter("All");
-      setReportLineFilter("All");
+      setStatusFilters([]);
+      setCampusFilters([]);
+      setTitleFilters([]);
+      setStageFilters([]);
+      setSubjectFilters([]);
+      setGenderFilters([]);
+      setReligionFilters([]);
+      setReportLineFilters([]);
       setDobStartYear("");
       setDobEndYear("");
       setJoiningStartYear("");
@@ -1082,31 +1084,43 @@ function EmployeeManagementContent() {
   
   const uniqueTitles = useMemo(() => {
     const titles = allEmployees.map(emp => emp.title).filter(Boolean);
-    return [...new Set(titles)].sort();
+    return [...new Set(titles)].sort().map(t => ({ label: t, value: t }));
   }, [allEmployees]);
+  
+  const uniqueSubjects = useMemo(() => {
+    return [...new Set(subjects.map(s => s.name))].sort().map(s => ({label: s, value: s}));
+  }, [subjects]);
+
+  const uniqueReligions = useMemo(() => {
+    const religions = allEmployees.map(emp => emp.religion).filter(Boolean);
+    return [...new Set(religions)].sort().map(r => ({ label: r, value: r }));
+  }, [allEmployees]);
+
 
   const uniqueReportLines = useMemo(() => {
     const lines = new Set<string>();
     reportLines1.forEach(l => lines.add(l.name));
     reportLines2.forEach(l => lines.add(l.name));
-    return Array.from(lines).sort();
+    return Array.from(lines).sort().map(l => ({ label: l, value: l }));
   }, [reportLines1, reportLines2]);
   
   const filteredEmployees = useMemo(() => {
     let listToFilter = allEmployees;
 
-    if (campusFilter !== "All") listToFilter = listToFilter.filter(emp => emp.campus === campusFilter);
-    if (stageFilter !== "All") listToFilter = listToFilter.filter(emp => emp.stage === stageFilter);
-    if (subjectFilter !== "All") listToFilter = listToFilter.filter(emp => emp.subject === subjectFilter);
-    if (genderFilter !== "All") listToFilter = listToFilter.filter(emp => emp.gender === genderFilter);
-    if (religionFilter !== "All") listToFilter = listToFilter.filter(emp => emp.religion === religionFilter);
-    if (titleFilter !== "All") listToFilter = listToFilter.filter(emp => emp.title === titleFilter);
-    if (reportLineFilter !== "All") {
-        listToFilter = listToFilter.filter(emp => emp.reportLine1 === reportLineFilter || emp.reportLine2 === reportLineFilter);
+    if (campusFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.campus && campusFilters.includes(emp.campus));
+    if (stageFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.stage && stageFilters.includes(emp.stage));
+    if (subjectFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.subject && subjectFilters.includes(emp.subject));
+    if (genderFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.gender && genderFilters.includes(emp.gender));
+    if (religionFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.religion && religionFilters.includes(emp.religion));
+    if (titleFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.title && titleFilters.includes(emp.title));
+    if (reportLineFilters.length > 0) {
+        listToFilter = listToFilter.filter(emp => (emp.reportLine1 && reportLineFilters.includes(emp.reportLine1)) || (emp.reportLine2 && reportLineFilters.includes(emp.reportLine2)));
     }
-    if (statusFilter !== "All") {
-        const isActive = statusFilter === "Active";
-        listToFilter = listToFilter.filter(emp => (emp.status === 'deactivated') !== isActive);
+    if (statusFilters.length > 0) {
+        listToFilter = listToFilter.filter(emp => {
+            const empStatus = emp.status === 'deactivated' ? 'Deactivated' : 'Active';
+            return statusFilters.includes(empStatus);
+        });
     }
 
     if (dobStartYear) {
@@ -1162,7 +1176,7 @@ function EmployeeManagementContent() {
     }
     
     return listToFilter;
-  }, [allEmployees, searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter, statusFilter, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilter]);
+  }, [allEmployees, searchTerm, campusFilters, stageFilters, subjectFilters, genderFilters, religionFilters, titleFilters, statusFilters, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilters]);
   
   const activeEmployeesCount = useMemo(() => {
     return filteredEmployees.filter(emp => emp.status !== 'deactivated').length;
@@ -1179,7 +1193,7 @@ function EmployeeManagementContent() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter, statusFilter, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilter]);
+  }, [searchTerm, campusFilters, stageFilters, subjectFilters, genderFilters, religionFilters, titleFilters, statusFilters, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilters]);
 
 
   const goToNextPage = () => {
@@ -1417,114 +1431,94 @@ function EmployeeManagementContent() {
               </div>
             </div>
              <div className="flex flex-wrap items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground hidden sm:block"/>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-full sm:w-auto flex-1">
-                          <SelectValue placeholder="Filter by status..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="All">All Statuses</SelectItem>
-                          <SelectItem value="Active">Active</SelectItem>
-                          <SelectItem value="deactivated">Deactivated</SelectItem>
-                      </SelectContent>
-                  </Select>
-                  <Select value={campusFilter} onValueChange={setCampusFilter} disabled={isLoadingLists}>
-                      <SelectTrigger className="w-full sm:w-auto flex-1">
-                          <SelectValue placeholder="Filter by campus..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="All">All Campuses</SelectItem>
-                          {campuses.map(campus => <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>)}
-                      </SelectContent>
-                  </Select>
-                  <Select value={titleFilter} onValueChange={setTitleFilter} disabled={isLoading}>
-                      <SelectTrigger className="w-full sm:w-auto flex-1">
-                          <SelectValue placeholder="Filter by title..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="All">All Titles</SelectItem>
-                          {uniqueTitles.map(title => <SelectItem key={title} value={title}>{title}</SelectItem>)}
-                      </SelectContent>
-                  </Select>
-                    <Select value={stageFilter} onValueChange={setStageFilter} disabled={isLoadingLists}>
-                      <SelectTrigger className="w-full sm:w-auto flex-1">
-                          <SelectValue placeholder="Filter by stage..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="All">All Stages</SelectItem>
-                          {stages.map(stage => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}
-                      </SelectContent>
-                  </Select>
-                  <Select value={subjectFilter} onValueChange={setSubjectFilter} disabled={isLoadingLists}>
-                      <SelectTrigger className="w-full sm:w-auto flex-1">
-                          <SelectValue placeholder="Filter by subject..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="All">All Subjects</SelectItem>
-                          {subjects.map(subject => <SelectItem key={subject.id} value={subject.name}>{subject.name}</SelectItem>)}
-                      </SelectContent>
-                  </Select>
-                    <Select value={genderFilter} onValueChange={setGenderFilter}>
-                      <SelectTrigger className="w-full sm:w-auto flex-1">
-                          <SelectValue placeholder="Filter by gender..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="All">All Genders</SelectItem>
-                          <SelectItem value="Male">Male</SelectItem>
-                          <SelectItem value="Female">Female</SelectItem>
-                      </SelectContent>
-                  </Select>
-                  <Select value={religionFilter} onValueChange={setReligionFilter}>
-                      <SelectTrigger className="w-full sm:w-auto flex-1">
-                          <SelectValue placeholder="Filter by religion..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="All">All Religions</SelectItem>
-                          <SelectItem value="Muslim">Muslim</SelectItem>
-                          <SelectItem value="Christian">Christian</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
-                      </SelectContent>
-                  </Select>
-                  <Select value={reportLineFilter} onValueChange={setReportLineFilter} disabled={isLoadingLists}>
-                      <SelectTrigger className="w-full sm:w-auto flex-1">
-                          <SelectValue placeholder="Reports To..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="All">All Managers</SelectItem>
-                          {uniqueReportLines.map(line => <SelectItem key={line} value={line}>{line}</SelectItem>)}
-                      </SelectContent>
-                  </Select>
-              </div>
-                <div className="flex flex-wrap items-center gap-4 pt-2">
-                    <div className="flex items-center gap-2">
-                        <Label>Birth Year:</Label>
-                        <Select value={dobStartYear} onValueChange={setDobStartYear}>
-                            <SelectTrigger className="w-[120px]"><SelectValue placeholder="From..." /></SelectTrigger>
-                            <SelectContent>{yearRange.map(y => <SelectItem key={`dob-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
-                        </Select>
-                        -
-                        <Select value={dobEndYear} onValueChange={setDobEndYear}>
-                             <SelectTrigger className="w-[120px]"><SelectValue placeholder="To..." /></SelectTrigger>
-                             <SelectContent>{yearRange.map(y => <SelectItem key={`dob-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
-                        </Select>
-                    </div>
-                     <div className="flex items-center gap-2">
-                        <Label>Joining Year:</Label>
-                        <Select value={joiningStartYear} onValueChange={setJoiningStartYear}>
-                            <SelectTrigger className="w-[120px]"><SelectValue placeholder="From..." /></SelectTrigger>
-                            <SelectContent>{yearRange.map(y => <SelectItem key={`join-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
-                        </Select>
-                        -
-                        <Select value={joiningEndYear} onValueChange={setJoiningEndYear}>
-                             <SelectTrigger className="w-[120px]"><SelectValue placeholder="To..." /></SelectTrigger>
-                             <SelectContent>{yearRange.map(y => <SelectItem key={`join-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
-                        </Select>
-                    </div>
-                     <Button variant="outline" onClick={clearAllFilters} className="ml-auto">
-                        <X className="mr-2 h-4 w-4" />
-                        Clear All Filters
-                    </Button>
+                <Filter className="h-4 w-4 text-muted-foreground hidden sm:block"/>
+                <MultiSelectFilter
+                    placeholder="Filter by status..."
+                    options={[{label: 'Active', value: 'Active'}, {label: 'Deactivated', value: 'Deactivated'}]}
+                    selected={statusFilters}
+                    onChange={setStatusFilters}
+                    className="w-full sm:w-auto flex-1 min-w-[150px]"
+                />
+                 <MultiSelectFilter
+                    placeholder="Filter by campus..."
+                    options={campuses.map(c => ({ label: c.name, value: c.name }))}
+                    selected={campusFilters}
+                    onChange={setCampusFilters}
+                    className="w-full sm:w-auto flex-1 min-w-[150px]"
+                />
+                 <MultiSelectFilter
+                    placeholder="Filter by title..."
+                    options={uniqueTitles}
+                    selected={titleFilters}
+                    onChange={setTitleFilters}
+                    className="w-full sm:w-auto flex-1 min-w-[150px]"
+                />
+                <MultiSelectFilter
+                    placeholder="Filter by stage..."
+                    options={stages.map(s => ({label: s.name, value: s.name}))}
+                    selected={stageFilters}
+                    onChange={setStageFilters}
+                    className="w-full sm:w-auto flex-1 min-w-[150px]"
+                />
+                <MultiSelectFilter
+                    placeholder="Filter by subject..."
+                    options={uniqueSubjects}
+                    selected={subjectFilters}
+                    onChange={setSubjectFilters}
+                    className="w-full sm:w-auto flex-1 min-w-[150px]"
+                />
+                 <MultiSelectFilter
+                    placeholder="Filter by gender..."
+                    options={[{label: 'Male', value: 'Male'}, {label: 'Female', value: 'Female'}]}
+                    selected={genderFilters}
+                    onChange={setGenderFilters}
+                    className="w-full sm:w-auto flex-1 min-w-[150px]"
+                />
+                <MultiSelectFilter
+                    placeholder="Filter by religion..."
+                    options={uniqueReligions}
+                    selected={religionFilters}
+                    onChange={setReligionFilters}
+                    className="w-full sm:w-auto flex-1 min-w-[150px]"
+                />
+                <MultiSelectFilter
+                    placeholder="Reports to..."
+                    options={uniqueReportLines}
+                    selected={reportLineFilters}
+                    onChange={setReportLineFilters}
+                    className="w-full sm:w-auto flex-1 min-w-[150px]"
+                />
+            </div>
+            <div className="flex flex-wrap items-center gap-4 pt-2">
+                <div className="flex items-center gap-2">
+                    <Label>Birth Year:</Label>
+                    <Select value={dobStartYear} onValueChange={setDobStartYear}>
+                        <SelectTrigger className="w-[120px]"><SelectValue placeholder="From..." /></SelectTrigger>
+                        <SelectContent><SelectItem value="">Any</SelectItem>{yearRange.map(y => <SelectItem key={`dob-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                    </Select>
+                    -
+                    <Select value={dobEndYear} onValueChange={setDobEndYear}>
+                            <SelectTrigger className="w-[120px]"><SelectValue placeholder="To..." /></SelectTrigger>
+                            <SelectContent><SelectItem value="">Any</SelectItem>{yearRange.map(y => <SelectItem key={`dob-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                    </Select>
                 </div>
+                    <div className="flex items-center gap-2">
+                    <Label>Joining Year:</Label>
+                    <Select value={joiningStartYear} onValueChange={setJoiningStartYear}>
+                        <SelectTrigger className="w-[120px]"><SelectValue placeholder="From..." /></SelectTrigger>
+                        <SelectContent><SelectItem value="">Any</SelectItem>{yearRange.map(y => <SelectItem key={`join-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                    </Select>
+                    -
+                    <Select value={joiningEndYear} onValueChange={setJoiningEndYear}>
+                            <SelectTrigger className="w-[120px]"><SelectValue placeholder="To..." /></SelectTrigger>
+                            <SelectContent><SelectItem value="">Any</SelectItem>{yearRange.map(y => <SelectItem key={`join-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                    </Select>
+                </div>
+                    <Button variant="outline" onClick={clearAllFilters} className="ml-auto">
+                    <X className="mr-2 h-4 w-4" />
+                    Clear All Filters
+                </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
