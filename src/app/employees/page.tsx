@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall, UserRoundCheck } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall, UserRoundCheck, X } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback, useTransition } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -909,6 +909,20 @@ function EmployeeManagementContent() {
     return years;
   }, []);
 
+  const clearAllFilters = () => {
+      setSearchTerm("");
+      setCampusFilter("All");
+      setStageFilter("All");
+      setSubjectFilter("All");
+      setGenderFilter("All");
+      setReligionFilter("All");
+      setTitleFilter("All");
+      setStatusFilter("All");
+      setDobStartYear("");
+      setDobEndYear("");
+      setJoiningStartYear("");
+      setJoiningEndYear("");
+  };
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -1485,6 +1499,10 @@ function EmployeeManagementContent() {
                              <SelectContent>{yearRange.map(y => <SelectItem key={`join-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
                         </Select>
                     </div>
+                     <Button variant="outline" onClick={clearAllFilters} className="ml-auto">
+                        <X className="mr-2 h-4 w-4" />
+                        Clear All Filters
+                    </Button>
                 </div>
           </div>
         </CardHeader>
