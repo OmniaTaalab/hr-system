@@ -21,7 +21,7 @@ function Calendar({
       showOutsideDays={showOutsideDays}
       pagedNavigation // This is the key change to allow independent month/year navigation
       captionLayout="dropdown-buttons" // Use dropdowns for navigation
-      fromYear={1990}
+      fromYear={1970}
       toYear={2035}
       className={cn("p-3", className)}
       classNames={{

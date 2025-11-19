@@ -49,7 +49,7 @@ import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayU
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { format, startOfDay, endOfDay } from "date-fns";
+import { format, startOfDay, endOfDay, getYear } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -894,8 +894,21 @@ function EmployeeManagementContent() {
   const [campusFilter, setCampusFilter] = useState("All");
   const [titleFilter, setTitleFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [dobRange, setDobRange] = useState<DateRange | undefined>();
-  const [joiningDateRange, setJoiningDateRange] = useState<DateRange | undefined>();
+  
+  const [dobStartYear, setDobStartYear] = useState<string>("");
+  const [dobEndYear, setDobEndYear] = useState<string>("");
+  const [joiningStartYear, setJoiningStartYear] = useState<string>("");
+  const [joiningEndYear, setJoiningEndYear] = useState<string>("");
+
+  const yearRange = useMemo(() => {
+    const currentYear = getYear(new Date());
+    const years = [];
+    for (let y = currentYear; y >= 1970; y--) {
+      years.push(y.toString());
+    }
+    return years;
+  }, []);
+
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -942,17 +955,17 @@ function EmployeeManagementContent() {
 
     // Managers see only their direct reports
     if (userRole && userRole !== 'admin' && userRole !== 'hr' && profile?.email) {
+        q.push(orderBy("name"));
         q.push(where("reportLine1", "==", profile?.email));
+    } else {
+        q.push(orderBy("name"));
     }
     
-    // Admins and HR see everyone
     const employeeCollection = collection(db, "employee");
     const finalQuery = query(employeeCollection, ...q);
 
     const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
         const employeeData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-        // Sort client-side
-        employeeData.sort((a,b) => a.name.localeCompare(b.name));
         setAllEmployees(employeeData);
         setIsLoading(false);
     }, (error) => {
@@ -1070,32 +1083,32 @@ function EmployeeManagementContent() {
         listToFilter = listToFilter.filter(emp => (emp.status === 'deactivated') !== isActive);
     }
 
-    if (dobRange?.from) {
-      const fromDate = startOfDay(dobRange.from);
+    if (dobStartYear) {
+      const start = getYear(new Date(Number(dobStartYear), 0, 1));
       listToFilter = listToFilter.filter(emp => {
         const dob = safeToDate(emp.dateOfBirth);
-        return dob && dob >= fromDate;
+        return dob && getYear(dob) >= start;
       });
     }
-    if (dobRange?.to) {
-      const toDate = endOfDay(dobRange.to);
+    if (dobEndYear) {
+      const end = getYear(new Date(Number(dobEndYear), 11, 31));
       listToFilter = listToFilter.filter(emp => {
         const dob = safeToDate(emp.dateOfBirth);
-        return dob && dob <= toDate;
+        return dob && getYear(dob) <= end;
       });
     }
-    if (joiningDateRange?.from) {
-      const fromDate = startOfDay(joiningDateRange.from);
+    if (joiningStartYear) {
+      const start = getYear(new Date(Number(joiningStartYear), 0, 1));
       listToFilter = listToFilter.filter(emp => {
         const joiningDate = safeToDate(emp.joiningDate);
-        return joiningDate && joiningDate >= fromDate;
+        return joiningDate && getYear(joiningDate) >= start;
       });
     }
-    if (joiningDateRange?.to) {
-      const toDate = endOfDay(joiningDateRange.to);
-      listToFilter = listToFilter.filter(emp => {
+    if (joiningEndYear) {
+       const end = getYear(new Date(Number(joiningEndYear), 11, 31));
+       listToFilter = listToFilter.filter(emp => {
         const joiningDate = safeToDate(emp.joiningDate);
-        return joiningDate && joiningDate <= toDate;
+        return joiningDate && getYear(joiningDate) <= end;
       });
     }
     
@@ -1123,7 +1136,7 @@ function EmployeeManagementContent() {
     }
     
     return listToFilter;
-  }, [allEmployees, searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter, statusFilter, dobRange, joiningDateRange]);
+  }, [allEmployees, searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter, statusFilter, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear]);
   
   const activeEmployeesCount = useMemo(() => {
     return filteredEmployees.filter(emp => emp.status !== 'deactivated').length;
@@ -1140,7 +1153,7 @@ function EmployeeManagementContent() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter, statusFilter, dobRange, joiningDateRange]);
+  }, [searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter, statusFilter, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear]);
 
 
   const goToNextPage = () => {
@@ -1448,33 +1461,30 @@ function EmployeeManagementContent() {
                   </Select>
               </div>
                 <div className="flex flex-wrap items-center gap-4 pt-2">
-                     <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline" className="w-full sm:w-auto justify-start text-left font-normal">
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {dobRange?.from ? (dobRange.to ? `${format(dobRange.from, "LLL dd, y")} - ${format(dobRange.to, "LLL dd, y")}` : format(dobRange.from, "LLL dd, y")) : <span>Date of Birth</span>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar initialFocus mode="range" defaultMonth={dobRange?.from} selected={dobRange} onSelect={setDobRange} numberOfMonths={2} />
-                        </PopoverContent>
-                    </Popover>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline" className="w-full sm:w-auto justify-start text-left font-normal">
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {joiningDateRange?.from ? (joiningDateRange.to ? `${format(joiningDateRange.from, "LLL dd, y")} - ${format(joiningDateRange.to, "LLL dd, y")}` : format(joiningDateRange.from, "LLL dd, y")) : <span>Joining Date</span>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar initialFocus mode="range" defaultMonth={joiningDateRange?.from} selected={joiningDateRange} onSelect={setJoiningDateRange} numberOfMonths={2} />
-                        </PopoverContent>
-                    </Popover>
-                    {(dobRange || joiningDateRange) && (
-                        <Button variant="ghost" onClick={() => { setDobRange(undefined); setJoiningDateRange(undefined); }}>
-                            Clear Date Filters
-                        </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                        <Label>Birth Year:</Label>
+                        <Select value={dobStartYear} onValueChange={setDobStartYear}>
+                            <SelectTrigger className="w-[120px]"><SelectValue placeholder="From..." /></SelectTrigger>
+                            <SelectContent><SelectItem value="">Any</SelectItem>{yearRange.map(y => <SelectItem key={`dob-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                        </Select>
+                        -
+                        <Select value={dobEndYear} onValueChange={setDobEndYear}>
+                             <SelectTrigger className="w-[120px]"><SelectValue placeholder="To..." /></SelectTrigger>
+                             <SelectContent><SelectItem value="">Any</SelectItem>{yearRange.map(y => <SelectItem key={`dob-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                        </Select>
+                    </div>
+                     <div className="flex items-center gap-2">
+                        <Label>Joining Year:</Label>
+                        <Select value={joiningStartYear} onValueChange={setJoiningStartYear}>
+                            <SelectTrigger className="w-[120px]"><SelectValue placeholder="From..." /></SelectTrigger>
+                            <SelectContent><SelectItem value="">Any</SelectItem>{yearRange.map(y => <SelectItem key={`join-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                        </Select>
+                        -
+                        <Select value={joiningEndYear} onValueChange={setJoiningEndYear}>
+                             <SelectTrigger className="w-[120px]"><SelectValue placeholder="To..." /></SelectTrigger>
+                             <SelectContent><SelectItem value="">Any</SelectItem>{yearRange.map(y => <SelectItem key={`join-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                        </Select>
+                    </div>
                 </div>
           </div>
         </CardHeader>
