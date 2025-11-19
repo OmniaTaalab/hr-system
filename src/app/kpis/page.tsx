@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
@@ -17,6 +18,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { getAttendanceScore, type AttendanceData } from "@/lib/attendance-utils";
 import { Badge } from "@/components/ui/badge";
+import { KpiDonutChart } from "@/components/kpi-donut-chart";
+import { AddKpiDialog } from "@/components/add-kpi-dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
 
 interface Employee {
     id: string;
@@ -57,6 +62,67 @@ function KpiScoreBar({ score, colorClass }: { score: number, colorClass: string 
     );
 }
 
+function EmployeeKpiCard({ employee }: { employee: EmployeeWithKpis }) {
+    const totalScore = useMemo(() => {
+        const kpiValues = Object.values(employee.kpis);
+        const sum = kpiValues.reduce((acc, score) => acc + score, 0);
+        return parseFloat(sum.toFixed(1));
+    }, [employee.kpis]);
+    
+    const getInitials = (name: string) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U';
+
+    const chartData = [
+        { name: "Survey", value: employee.kpis.survey, fill: "#8884d8" },
+        { name: "Student Growth", value: employee.kpis.studentGrowth, fill: "#82ca9d" },
+        { name: "Appraisal", value: employee.kpis.appraisal, fill: "#ffc658" },
+        { name: "ELEOT", value: employee.kpis.eleot, fill: "#ff8042" },
+        { name: "Attendance", value: employee.kpis.attendance, fill: "#00C49F" },
+        { name: "Prof Development", value: employee.kpis.profDevelopment, fill: "#FFBB28" },
+        { name: "TOT", value: employee.kpis.tot, fill: "#0088FE" },
+    ];
+    
+    const totalPercentage = (totalScore / 50) * 100;
+
+    return (
+        <Card className="shadow-lg">
+            <CardHeader className="flex flex-row items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <Avatar>
+                        <AvatarImage src={employee.photoURL} alt={employee.name} />
+                        <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
+                    </Avatar>
+                    <p className="font-semibold">{employee.name}</p>
+                </div>
+                 <Button asChild variant="outline" size="sm">
+                    <Link href={`/kpis/${employee.employeeId}`}>View details</Link>
+                </Button>
+            </CardHeader>
+            <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center justify-center">
+                        <KpiDonutChart data={chartData} totalPercentage={totalPercentage} />
+                    </div>
+                    <div className="text-xs space-y-1">
+                        {chartData.map((item, index) => (
+                            <div key={index} className="flex items-center justify-between">
+                                <div className="flex items-center">
+                                    <span className="h-2 w-2 rounded-full mr-2" style={{ backgroundColor: item.fill }} />
+                                    <span>{item.name}</span>
+                                </div>
+                                <span className="font-medium">({(item.value).toFixed(1)}%)</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </CardContent>
+            <CardFooter className="grid grid-cols-2 gap-2">
+                <AddKpiDialog employee={employee} kpiType="eleot" />
+                <AddKpiDialog employee={employee} kpiType="tot" />
+            </CardFooter>
+        </Card>
+    );
+}
+
 function KpisContent() {
     const { profile, loading: isLoadingProfile } = useUserProfile();
     const router = useRouter();
@@ -65,9 +131,10 @@ function KpisContent() {
     const [isLoadingData, setIsLoadingData] = useState(true);
     
     const [searchTerm, setSearchTerm] = useState("");
-       const [groupFilter, setGroupFilter] = useState("All");
+    const [groupFilter, setGroupFilter] = useState("All");
     const [campusFilter, setCampusFilter] = useState("All");
     const [currentPage, setCurrentPage] = useState(1);
+    const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
     
     const { groupNames, campuses, isLoading: isLoadingLists } = useOrganizationLists();
 
@@ -105,120 +172,25 @@ function KpisContent() {
                 }
             }
 
-             if (employees.length === 0) {
-                setAllEmployees([]);
-                setIsLoadingData(false);
-                return;
-            }
-
-            const allEmployeeCompanyIds = employees.map(e => e.employeeId).filter(Boolean);
-            const allEmployeeDocIds = employees.map(e => e.id);
-            const attendanceData: AttendanceData = { attendance: [], leaves: [] };
-            const profDevData: {employeeDocId: string; status: 'Accepted' | 'Pending' | 'Rejected'}[] = [];
-
-            const CHUNK_SIZE = 30;
-
-            const [eleotSnapshot, totSnapshot, appraisalSnapshot, holidaySnapshot] = await Promise.all([
-                getDocs(collection(db, "eleot")),
-                getDocs(collection(db, "tot")),
-                getDocs(collection(db, "appraisal")),
-                getDocs(collection(db, "holidays")),
-            ]);
-            
-            for (let i = 0; i < allEmployeeDocIds.length; i += CHUNK_SIZE) {
-                const docIdChunk = allEmployeeDocIds.slice(i, i + CHUNK_SIZE);
-                if (docIdChunk.length > 0) {
-                    for (const empId of docIdChunk) {
-                        const profDevQuery = query(collection(db, `employee/${empId}/profDevelopment`));
-                        const profDevSnapshot = await getDocs(profDevQuery);
-                        profDevSnapshot.forEach(doc => profDevData.push({ employeeDocId: empId, ...doc.data() } as any));
-                    }
-                }
-            }
-
-            for (let i = 0; i < allEmployeeCompanyIds.length; i += CHUNK_SIZE) {
-                const companyIdChunk = allEmployeeCompanyIds.slice(i, i + CHUNK_SIZE);
-                if (companyIdChunk.length > 0) {
-                    const attendanceQuery = query(collection(db, "attendance_log"), where("userId", "in", companyIdChunk));
-                    const attSnapshot = await getDocs(attendanceQuery);
-                    attSnapshot.forEach(doc => attendanceData.attendance.push(doc.data() as any));
-                }
-            }
-            for (let i = 0; i < allEmployeeDocIds.length; i += CHUNK_SIZE) {
-                const docIdChunk = allEmployeeDocIds.slice(i, i + CHUNK_SIZE);
-                if (docIdChunk.length > 0) {
-                    const leaveQuery = query(collection(db, "leaveRequests"), where("requestingEmployeeDocId", "in", docIdChunk), where("status", "==", "Approved"));
-                    const leaveSnapshot = await getDocs(leaveQuery);
-                    leaveSnapshot.forEach(doc => attendanceData.leaves.push(doc.data() as any));
-                }
-            }
-             const holidays = holidaySnapshot.docs.map(doc => doc.data().date.toDate());
-
-            const kpiDataByEmployee: Record<string, { eleot: number[], tot: number[], appraisal: number[] }> = {};
-            eleotSnapshot.forEach(d => {
-                const data = d.data();
-                if (!kpiDataByEmployee[data.employeeDocId]) kpiDataByEmployee[data.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
-                kpiDataByEmployee[data.employeeDocId].eleot.push(data.points);
-            });
-            totSnapshot.forEach(d => {
-                const data = d.data();
-                if (!kpiDataByEmployee[data.employeeDocId]) kpiDataByEmployee[data.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
-                kpiDataByEmployee[data.employeeDocId].tot.push(data.points);
-            });
-            appraisalSnapshot.forEach(d => {
-                const data = d.data();
-                if (!kpiDataByEmployee[data.employeeDocId]) kpiDataByEmployee[data.employeeDocId] = { eleot: [], tot: [], appraisal: [] };
-                kpiDataByEmployee[data.employeeDocId].appraisal.push(data.points);
-            });
-            
-            const profDevByEmployee: Record<string, number> = {};
-            profDevData.forEach(item => {
-                if(item.status === 'Accepted') {
-                    if (!profDevByEmployee[item.employeeDocId]) profDevByEmployee[item.employeeDocId] = 0;
-                    profDevByEmployee[item.employeeDocId]++;
-                }
-            });
-
             const employeesWithKpis = employees.map(emp => {
-                const kpis = kpiDataByEmployee[emp.id] || { eleot: [], tot: [], appraisal: [] };
-                const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-                
-                const attendanceScore = getAttendanceScore(emp, attendanceData, holidays);
-                
-                const eleotAvg = avg(kpis.eleot);
-                const totAvg = avg(kpis.tot);
-                const appraisalAvg = avg(kpis.appraisal);
-
-                const profDevCourses = profDevByEmployee[emp.id] || 0;
-                const profDevPoints = Math.min(profDevCourses * 1, 20);
-                const profDevScore = (profDevPoints / 20) * 10;
-                
-                const eleotScoreValue = (eleotAvg / 4) * 10;
-                const totScoreValue = (totAvg / 4) * 10;
-
-                const kpiScores = {
-                    attendance: attendanceScore,
-                    eleot: eleotScoreValue >= 8 ? 10 : eleotScoreValue,
-                    tot: totScoreValue >= 8 ? 10 : totScoreValue,
-                    survey: 0,
-                    studentGrowth: 0,
-                    appraisal: appraisalAvg,
-                    profDevelopment: profDevScore,
-                };
-
                 return {
                     ...emp,
                     kpis: {
-                        ...kpiScores,
+                        eleot: 0,
+                        tot: 0,
+                        survey: 0,
+                        studentGrowth: 0,
+                        appraisal: 0,
+                        attendance: 0,
+                        profDevelopment: 0,
                     }
                 };
             });
-
             setAllEmployees(employeesWithKpis.sort((a,b) => a.name.localeCompare(b.name)));
 
         } catch (error) {
-            console.error("Error fetching KPI data:", error);
-            toast({ variant: "destructive", title: "Error", description: "Failed to load comprehensive KPI data." });
+            console.error("Error fetching initial KPI data:", error);
+            toast({ variant: "destructive", title: "Error", description: "Failed to load employee list." });
         } finally {
             setIsLoadingData(false);
         }
@@ -297,8 +269,8 @@ function KpisContent() {
                     </div>
                 </div>
                  <div className="flex items-center gap-2">
-                    <Button variant="outline"><List className="mr-2 h-4 w-4"/>List</Button>
-                    <Button variant="ghost"><LayoutGrid className="mr-2 h-4 w-4"/>Grid</Button>
+                    <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} onClick={() => setViewMode('list')}><List className="mr-2 h-4 w-4"/>List</Button>
+                    <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} onClick={() => setViewMode('grid')}><LayoutGrid className="mr-2 h-4 w-4"/>Grid</Button>
                     <Button><FileDown className="mr-2 h-4 w-4"/>Export to Excel</Button>
                 </div>
             </header>
@@ -323,6 +295,7 @@ function KpisContent() {
                     </div>
                 </CardHeader>
                 <CardContent>
+                  {viewMode === 'list' ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -378,6 +351,13 @@ function KpisContent() {
                       ))}
                     </TableBody>
                   </Table>
+                   ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {paginatedEmployees.map(emp => (
+                            <EmployeeKpiCard key={emp.id} employee={emp} />
+                        ))}
+                    </div>
+                )}
                 </CardContent>
                  <CardFooter className="flex justify-between items-center">
                     <p className="text-sm text-muted-foreground">Showing {paginatedEmployees.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0}–{Math.min(currentPage * PAGE_SIZE, filteredEmployees.length)} of {filteredEmployees.length}</p>

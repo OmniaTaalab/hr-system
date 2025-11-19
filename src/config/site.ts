@@ -50,7 +50,7 @@ export const navItems: NavItem[] = [
   {
     i18nKey: 'sidebar.attendance_logs',
     href: '/attendance-logs',
-    iconName: 'BookOpenCheck',
+    iconName: 'Logs',
   },
   {
     i18nKey: 'sidebar.job_board',
@@ -65,7 +65,7 @@ export const navItems: NavItem[] = [
   {
     i18nKey: 'sidebar.system_log',
     href: '/system-logs',
-    iconName: 'History',
+    iconName: 'Eye',
   },
   {
     i18nKey: 'sidebar.settings',
