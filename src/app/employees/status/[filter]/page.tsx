@@ -34,7 +34,7 @@ import {
 import Link from "next/link";
 import { format } from "date-fns";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MultiSelectFilter } from "@/components/multi-select";
 
 interface Employee {
   id: string;
@@ -98,7 +98,7 @@ function EmployeeStatusContent() {
   const [rows, setRows] = useState<Row[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [campusFilter, setCampusFilter] = useState("All");
+  const [campusFilters, setCampusFilters] = useState<string[]>([]);
   const { campuses, isLoading: isLoadingLists } = useOrganizationLists();
 
 
@@ -136,8 +136,8 @@ function EmployeeStatusContent() {
           };
         });
 
-        if (campusFilter !== "All") {
-          allEmployees = allEmployees.filter(emp => emp.campus === campusFilter);
+        if (campusFilters.length > 0) {
+          allEmployees = allEmployees.filter(emp => emp.campus && campusFilters.includes(emp.campus));
         }
         
         const empByEmployeeId = new Map(
@@ -160,7 +160,7 @@ function EmployeeStatusContent() {
           if (!logEmployeeId) return;
           
           const emp = empByEmployeeId.get(logEmployeeId);
-          if (campusFilter !== 'All' && emp?.campus !== campusFilter) {
+          if (campusFilters.length > 0 && emp?.campus && !campusFilters.includes(emp.campus)) {
             return;
           }
 
@@ -272,7 +272,7 @@ function EmployeeStatusContent() {
     };
 
     fetchData();
-  }, [dateParam, profileLoading, canViewPage, router, filter, campusFilter]);
+  }, [dateParam, profileLoading, canViewPage, router, filter, campusFilters]);
 
   const formattedDate = format(
     new Date((dateParam || format(new Date(), "yyyy-MM-dd")) + "T00:00:00"),
@@ -319,17 +319,13 @@ function EmployeeStatusContent() {
             <CardTitle>{rows.length} Employees Found</CardTitle>
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
-              <Select value={campusFilter} onValueChange={setCampusFilter} disabled={isLoadingLists}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by campus..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All Campuses</SelectItem>
-                  {campuses.map(campus => (
-                    <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                placeholder="Filter by campus..."
+                options={campuses.map(c => ({ label: c.name, value: c.name }))}
+                selected={campusFilters}
+                onChange={setCampusFilters}
+                className="w-[250px]"
+                />
             </div>
           </div>
         </CardHeader>
