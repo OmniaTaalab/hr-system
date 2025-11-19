@@ -20,6 +20,9 @@ function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       pagedNavigation // This is the key change to allow independent month/year navigation
+      captionLayout="dropdown-buttons" // Use dropdowns for navigation
+      fromYear={1990}
+      toYear={2035}
       className={cn("p-3", className)}
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
