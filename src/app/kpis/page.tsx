@@ -313,7 +313,7 @@ function KpisContent() {
             setLastVisible(null);
             fetchData('first');
         }
-    }, [isLoadingProfile, groupFilter, campusFilter, searchTerm, fetchData]);
+    }, [isLoadingProfile, groupFilter, campusFilter, searchTerm]);
 
 
     const goToNextPage = () => {
@@ -482,5 +482,3 @@ export default function KpisPage() {
         </AppLayout>
     );
 }
-
-    
