@@ -886,7 +886,7 @@ function EmployeeManagementContent() {
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { campuses, stage: stages, subjects, isLoading: isLoadingLists } = useOrganizationLists();
+  const { campuses, stage: stages, subjects, reportLines1, reportLines2, isLoading: isLoadingLists } = useOrganizationLists();
   const [stageFilter, setStageFilter] = useState("All");
   const [subjectFilter, setSubjectFilter] = useState("All");
   const [genderFilter, setGenderFilter] = useState("All");
@@ -894,6 +894,7 @@ function EmployeeManagementContent() {
   const [campusFilter, setCampusFilter] = useState("All");
   const [titleFilter, setTitleFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [reportLineFilter, setReportLineFilter] = useState("All");
   
   const [dobStartYear, setDobStartYear] = useState<string>("");
   const [dobEndYear, setDobEndYear] = useState<string>("");
@@ -918,6 +919,7 @@ function EmployeeManagementContent() {
       setReligionFilter("All");
       setTitleFilter("All");
       setStatusFilter("All");
+      setReportLineFilter("All");
       setDobStartYear("");
       setDobEndYear("");
       setJoiningStartYear("");
@@ -1082,6 +1084,13 @@ function EmployeeManagementContent() {
     const titles = allEmployees.map(emp => emp.title).filter(Boolean);
     return [...new Set(titles)].sort();
   }, [allEmployees]);
+
+  const uniqueReportLines = useMemo(() => {
+    const lines = new Set<string>();
+    reportLines1.forEach(l => lines.add(l.name));
+    reportLines2.forEach(l => lines.add(l.name));
+    return Array.from(lines).sort();
+  }, [reportLines1, reportLines2]);
   
   const filteredEmployees = useMemo(() => {
     let listToFilter = allEmployees;
@@ -1092,6 +1101,9 @@ function EmployeeManagementContent() {
     if (genderFilter !== "All") listToFilter = listToFilter.filter(emp => emp.gender === genderFilter);
     if (religionFilter !== "All") listToFilter = listToFilter.filter(emp => emp.religion === religionFilter);
     if (titleFilter !== "All") listToFilter = listToFilter.filter(emp => emp.title === titleFilter);
+    if (reportLineFilter !== "All") {
+        listToFilter = listToFilter.filter(emp => emp.reportLine1 === reportLineFilter || emp.reportLine2 === reportLineFilter);
+    }
     if (statusFilter !== "All") {
         const isActive = statusFilter === "Active";
         listToFilter = listToFilter.filter(emp => (emp.status === 'deactivated') !== isActive);
@@ -1150,7 +1162,7 @@ function EmployeeManagementContent() {
     }
     
     return listToFilter;
-  }, [allEmployees, searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter, statusFilter, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear]);
+  }, [allEmployees, searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter, statusFilter, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilter]);
   
   const activeEmployeesCount = useMemo(() => {
     return filteredEmployees.filter(emp => emp.status !== 'deactivated').length;
@@ -1167,7 +1179,7 @@ function EmployeeManagementContent() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter, statusFilter, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear]);
+  }, [searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter, statusFilter, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilter]);
 
 
   const goToNextPage = () => {
@@ -1471,6 +1483,15 @@ function EmployeeManagementContent() {
                           <SelectItem value="Muslim">Muslim</SelectItem>
                           <SelectItem value="Christian">Christian</SelectItem>
                           <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                  </Select>
+                  <Select value={reportLineFilter} onValueChange={setReportLineFilter} disabled={isLoadingLists}>
+                      <SelectTrigger className="w-full sm:w-auto flex-1">
+                          <SelectValue placeholder="Reports To..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="All">All Managers</SelectItem>
+                          {uniqueReportLines.map(line => <SelectItem key={line} value={line}>{line}</SelectItem>)}
                       </SelectContent>
                   </Select>
               </div>
