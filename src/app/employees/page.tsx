@@ -1099,8 +1099,8 @@ function EmployeeManagementContent() {
 
   const uniqueReportLines = useMemo(() => {
     const lines = new Set<string>();
-    reportLines1.forEach(l => lines.add(l.name));
-    reportLines2.forEach(l => lines.add(l.name));
+    reportLines1.forEach(l => { if (l.name) lines.add(l.name) });
+    reportLines2.forEach(l => { if (l.name) lines.add(l.name) });
     return Array.from(lines).sort().map(l => ({ label: l, value: l }));
   }, [reportLines1, reportLines2]);
   
