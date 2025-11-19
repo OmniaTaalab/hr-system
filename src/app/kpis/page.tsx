@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { BarChartBig, AlertTriangle, Loader2, Search, ArrowLeft, ArrowRight, List, LayoutGrid, FileDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase/config";
-import { collection, onSnapshot, query, where, QueryConstraint, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, QueryConstraint, getDocs, doc, getDoc, Timestamp, orderBy, limit, startAfter, DocumentData, DocumentSnapshot } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -127,7 +127,7 @@ function KpisContent() {
     const { profile, loading: isLoadingProfile } = useUserProfile();
     const router = useRouter();
     const { toast } = useToast();
-    const [allEmployees, setAllEmployees] = useState<EmployeeWithKpis[]>([]);
+    const [employeesWithKpis, setEmployeesWithKpis] = useState<EmployeeWithKpis[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
     
     const [searchTerm, setSearchTerm] = useState("");
@@ -138,13 +138,19 @@ function KpisContent() {
     
     const { groupNames, campuses, isLoading: isLoadingLists } = useOrganizationLists();
 
+    // New state for server-side pagination
+    const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
+    const [pageCursors, setPageCursors] = useState<(DocumentSnapshot | null)[]>([null]);
+    const [isLastPage, setIsLastPage] = useState(false);
+    const [totalEmployees, setTotalEmployees] = useState(0);
+
     const isPrivilegedUser = useMemo(() => {
         if (!profile) return false;
         const userRole = profile.role?.toLowerCase();
         return userRole === 'admin' || userRole === 'hr';
     }, [profile]);
     
-    const fetchData = useCallback(async () => {
+    const fetchData = useCallback(async (direction: 'next' | 'prev' | 'first' = 'first') => {
         setIsLoadingData(true);
         if (!profile) {
             setIsLoadingData(false);
@@ -152,74 +158,78 @@ function KpisContent() {
         }
 
         try {
-            // 1. Fetch employees based on user role
-            let employeesQueryConstraints: QueryConstraint[] = [];
             const employeeCollectionRef = collection(db, "employee");
+            let q = query(employeeCollectionRef, orderBy("name"));
 
+            // Apply role-based filters
             if (!isPrivilegedUser && profile.email) {
-                employeesQueryConstraints.push(where("reportLine1", "==", profile.email));
+                q = query(q, where("reportLine1", "==", profile.email));
+            }
+            if (isPrivilegedUser) {
+                if (groupFilter !== "All") q = query(q, where("groupName", "==", groupFilter));
+                if (campusFilter !== "All") q = query(q, where("campus", "==", campusFilter));
             }
 
-            const employeesSnapshot = await getDocs(query(employeeCollectionRef, ...employeesQueryConstraints));
-            let employees: Employee[] = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-
-            if (!isPrivilegedUser && profile.id) {
-                const selfDoc = await getDoc(doc(employeeCollectionRef, profile.id));
-                if (selfDoc.exists()) {
-                    const selfEmployee = { id: selfDoc.id, ...selfDoc.data() } as Employee;
-                    if (!employees.some(e => e.id === selfEmployee.id)) {
-                        employees.push(selfEmployee);
-                    }
-                }
+            if (searchTerm) {
+                 q = query(q, where('name', '>=', searchTerm), where('name', '<=', searchTerm + '\uf8ff'));
             }
-
+            
+            // Handle pagination
+            if (direction === 'next' && lastVisible) {
+                q = query(q, startAfter(lastVisible), limit(PAGE_SIZE));
+            } else if (direction === 'prev' && currentPage > 1) {
+                const prevCursor = pageCursors[currentPage - 2];
+                q = query(q, startAfter(prevCursor), limit(PAGE_SIZE));
+            } else { // 'first' or page 1
+                q = query(q, limit(PAGE_SIZE));
+            }
+            
+            const employeesSnapshot = await getDocs(q);
+            const employees = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
             const employeeIds = employees.map(emp => emp.id);
+
+            // Set pagination state
+            setLastVisible(employeesSnapshot.docs[employeesSnapshot.docs.length - 1] || null);
+
+            // Update cursors for navigation
+            if (direction === 'next') {
+                setPageCursors(prev => [...prev, employeesSnapshot.docs[0]]);
+            }
+
+            // Check if this is the last page
+            if (employees.length < PAGE_SIZE) {
+                setIsLastPage(true);
+            } else {
+                 const nextQuery = query(q, startAfter(employeesSnapshot.docs[employeesSnapshot.docs.length - 1]), limit(1));
+                 const nextSnapshot = await getDocs(nextQuery);
+                 setIsLastPage(nextSnapshot.empty);
+            }
+
             if (employeeIds.length === 0) {
-                setAllEmployees([]);
+                setEmployeesWithKpis([]);
                 setIsLoadingData(false);
                 return;
             }
 
+            // --- KPI Calculation Logic (remains the same) ---
             const kpiCollections = ['eleot', 'tot', 'appraisal'];
-            const allPayrollRecords = [];
-            const allLeaveRequests = [];
             const allKpiSnapshots: Record<string, any[]> = { eleot: [], tot: [], appraisal: [] };
             const allProfDevSnapshots: any[] = [];
-            const allAttendanceLogs: any[] = [];
             
-            const CHUNK_SIZE = 30;
-            for (let i = 0; i < employeeIds.length; i += CHUNK_SIZE) {
-                const chunk = employeeIds.slice(i, i + CHUNK_SIZE);
-                const employeeIdChunk = employees.filter(e => chunk.includes(e.id)).map(e => e.employeeId);
-
-                const kpiPromises = kpiCollections.map(coll => 
-                    getDocs(query(collection(db, coll), where('employeeDocId', 'in', chunk)))
-                );
-                const profDevPromises = chunk.map(id => getDocs(collection(db, `employee/${id}/profDevelopment`)));
-                const attendancePromise = getDocs(query(collection(db, "attendance_log"), where("userId", "in", employeeIdChunk)));
-                const leavePromise = getDocs(query(collection(db, "leaveRequests"), where("requestingEmployeeDocId", "in", chunk), where("status", "==", "Approved")));
-                
-                const [
-                    kpiChunkSnapshots,
-                    profDevChunkSnapshots,
-                    attendanceChunkSnapshot,
-                    leaveChunkSnapshot
-                ] = await Promise.all([
-                    Promise.all(kpiPromises),
-                    Promise.all(profDevPromises),
-                    attendancePromise,
-                    leavePromise
-                ]);
-
-                kpiChunkSnapshots[0].forEach(doc => allKpiSnapshots.eleot.push(doc));
-                kpiChunkSnapshots[1].forEach(doc => allKpiSnapshots.tot.push(doc));
-                kpiChunkSnapshots[2].forEach(doc => allKpiSnapshots.appraisal.push(doc));
-                
-                profDevChunkSnapshots.forEach(snap => snap.forEach(doc => allProfDevSnapshots.push(doc)));
-                attendanceChunkSnapshot.forEach(doc => allAttendanceLogs.push(doc));
-                leaveChunkSnapshot.forEach(doc => allLeaveRequests.push(doc));
-            }
-
+            const kpiPromises = kpiCollections.map(coll => 
+                getDocs(query(collection(db, coll), where('employeeDocId', 'in', employeeIds)))
+            );
+            const profDevPromises = employeeIds.map(id => getDocs(collection(db, `employee/${id}/profDevelopment`)));
+            const leavePromise = getDocs(query(collection(db, "leaveRequests"), where("requestingEmployeeDocId", "in", employeeIds), where("status", "==", "Approved")));
+            const [
+                kpiChunkSnapshots,
+                profDevChunkSnapshots,
+                leaveChunkSnapshot
+            ] = await Promise.all([ Promise.all(kpiPromises), Promise.all(profDevPromises), leavePromise]);
+            kpiChunkSnapshots[0].forEach(doc => allKpiSnapshots.eleot.push(doc));
+            kpiChunkSnapshots[1].forEach(doc => allKpiSnapshots.tot.push(doc));
+            kpiChunkSnapshots[2].forEach(doc => allKpiSnapshots.appraisal.push(doc));
+            profDevChunkSnapshots.forEach(snap => snap.forEach(doc => allProfDevSnapshots.push(doc)));
             const holidaysPromise = getDocs(collection(db, 'holidays'));
             const [holidaysSnapshot] = await Promise.all([holidaysPromise]);
 
@@ -242,32 +252,34 @@ function KpisContent() {
                 if (!profDevMap.has(empId)) profDevMap.set(empId, []);
                 profDevMap.get(empId)!.push(data);
             });
-            
             const holidays = holidaysSnapshot.docs.map(d => d.data().date.toDate());
+            
+            const attendanceLogs = [];
+            if(employees.length > 0) {
+                 const employeeIdStrings = employees.map(e => e.employeeId);
+                 const attPromise = getDocs(query(collection(db, "attendance_log"), where("userId", "in", employeeIdStrings)));
+                 const [attSnapshot] = await Promise.all([attPromise]);
+                 attSnapshot.forEach(doc => attendanceLogs.push(doc.data()));
+            }
+
             const bulkAttendanceData: AttendanceData = {
-                attendance: allAttendanceLogs.map(d => d.data() as any),
-                leaves: allLeaveRequests.map(d => d.data() as any),
+                attendance: attendanceLogs,
+                leaves: leaveChunkSnapshot.docs.map(d => d.data() as any),
             };
 
-            const employeesWithKpis = employees.map(emp => {
+            const employeesWithKpisResult = employees.map(emp => {
                 const kpis = kpiDataMap.get(emp.id) || { eleot: [], tot: [], appraisal: [] };
-                
                 const eleotAvg = kpis.eleot.length > 0 ? kpis.eleot.reduce((sum, item) => sum + item.points, 0) / kpis.eleot.length : 0;
                 let eleotScore = (eleotAvg / 4) * 10;
                 if (eleotScore >= 8) eleotScore = 10;
-
                 const totAvg = kpis.tot.length > 0 ? kpis.tot.reduce((sum, item) => sum + item.points, 0) / kpis.tot.length : 0;
                 let totScore = (totAvg / 4) * 10;
                 if (totScore >= 8) totScore = 10;
-                
                 const appraisalAvg = kpis.appraisal.length > 0 ? kpis.appraisal.reduce((sum, item) => sum + item.points, 0) / kpis.appraisal.length : 0;
-                
                 const devSubmissions = profDevMap.get(emp.id) || [];
                 const acceptedDev = devSubmissions.filter(s => s.status === 'Accepted').length;
                 const profDevelopmentScore = Math.min((acceptedDev * 1) / 20 * 10, 10);
-                
                 const attendanceScore = getAttendanceScore(emp, bulkAttendanceData, holidays);
-
                 return {
                     ...emp,
                     kpis: {
@@ -281,8 +293,8 @@ function KpisContent() {
                     }
                 };
             });
-
-            setAllEmployees(employeesWithKpis.sort((a, b) => a.name.localeCompare(b.name)));
+            
+            setEmployeesWithKpis(employeesWithKpisResult);
 
         } catch (error) {
             console.error("Error fetching KPI data:", error);
@@ -290,43 +302,31 @@ function KpisContent() {
         } finally {
             setIsLoadingData(false);
         }
-    }, [toast, isPrivilegedUser, profile]);
+    }, [toast, isPrivilegedUser, profile, groupFilter, campusFilter, searchTerm, lastVisible, currentPage, pageCursors]);
 
 
     useEffect(() => {
         if (!isLoadingProfile) {
-            fetchData();
+            // Reset and fetch first page on filter change
+            setCurrentPage(1);
+            setPageCursors([null]);
+            setLastVisible(null);
+            fetchData('first');
         }
-    }, [isLoadingProfile, fetchData]);
+    }, [isLoadingProfile, groupFilter, campusFilter, searchTerm, fetchData]);
 
-    const filteredEmployees = useMemo(() => {
-        let list = allEmployees;
 
-        if (groupFilter !== "All") list = list.filter(emp => emp.groupName === groupFilter);
-        if (campusFilter !== "All") list = list.filter(emp => emp.campus === campusFilter);
+    const goToNextPage = () => {
+        if (isLastPage) return;
+        setCurrentPage(prev => prev + 1);
+        fetchData('next');
+    };
 
-        if (searchTerm) {
-            const lower = searchTerm.toLowerCase();
-            list = list.filter(emp => emp.name.toLowerCase().includes(lower));
-        }
-
-        return list;
-    }, [allEmployees, searchTerm, groupFilter, campusFilter]);
-    
-    const paginatedEmployees = useMemo(() => {
-        const startIndex = (currentPage - 1) * PAGE_SIZE;
-        return filteredEmployees.slice(startIndex, startIndex + PAGE_SIZE);
-    }, [filteredEmployees, currentPage]);
-
-    const totalPages = useMemo(() => Math.ceil(filteredEmployees.length / PAGE_SIZE), [filteredEmployees]);
-    
-    const goToPage = (page: number) => {
-        setCurrentPage(Math.max(1, Math.min(page, totalPages)));
-    }
-    
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm, groupFilter, campusFilter]);
+    const goToPrevPage = () => {
+        if (currentPage === 1) return;
+        setCurrentPage(prev => prev - 1);
+        fetchData('prev');
+    };
 
     const calculateTotalScore = (kpis: KpiData) => {
         const totalScore =
@@ -340,7 +340,7 @@ function KpisContent() {
     };
 
 
-    if (isLoadingProfile || isLoadingData) {
+    if (isLoadingProfile) {
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     }
     
@@ -363,7 +363,7 @@ function KpisContent() {
                         <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
                             Teachers KPIs
                         </h1>
-                         <Badge variant="secondary" className="mt-1">{filteredEmployees.length} Teacher{filteredEmployees.length !== 1 && 's'}</Badge>
+                         <Badge variant="secondary" className="mt-1">{employeesWithKpis.length} Teacher{employeesWithKpis.length !== 1 && 's'}</Badge>
                     </div>
                 </div>
                  <div className="flex items-center gap-2">
@@ -393,7 +393,9 @@ function KpisContent() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                  {viewMode === 'list' ? (
+                  {isLoadingData ? (
+                        <div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>
+                  ) : viewMode === 'list' ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -409,7 +411,7 @@ function KpisContent() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paginatedEmployees.map(emp => (
+                      {employeesWithKpis.map(emp => (
                         <TableRow key={emp.id}>
                           <TableCell className="font-medium">
                             <Link href={`/kpis/${emp.employeeId}`} className="hover:underline text-primary">
@@ -451,18 +453,21 @@ function KpisContent() {
                   </Table>
                    ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {paginatedEmployees.map(emp => (
+                        {employeesWithKpis.map(emp => (
                             <EmployeeKpiCard key={emp.id} employee={emp} />
                         ))}
                     </div>
                 )}
                 </CardContent>
                  <CardFooter className="flex justify-between items-center">
-                    <p className="text-sm text-muted-foreground">Showing {paginatedEmployees.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0}–{Math.min(currentPage * PAGE_SIZE, filteredEmployees.length)} of {filteredEmployees.length}</p>
+                    <p className="text-sm text-muted-foreground">Showing page {currentPage}</p>
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}><ArrowLeft className="h-4 w-4"/></Button>
-                        <span className="text-sm font-medium">Page {currentPage} of {totalPages || 1}</span>
-                        <Button variant="outline" size="sm" onClick={() => goToPage(currentPage + 1)} disabled={currentPage >= totalPages}><ArrowRight className="h-4 w-4"/></Button>
+                        <Button variant="outline" size="sm" onClick={goToPrevPage} disabled={currentPage === 1 || isLoadingData}>
+                            <ArrowLeft className="h-4 w-4"/> Previous
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={goToNextPage} disabled={isLastPage || isLoadingData}>
+                            Next <ArrowRight className="h-4 w-4"/>
+                        </Button>
                     </div>
                 </CardFooter>
             </Card>
