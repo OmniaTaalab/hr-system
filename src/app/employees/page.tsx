@@ -49,7 +49,8 @@ import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayU
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
+import { DateRange } from "react-day-picker";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -892,6 +893,9 @@ function EmployeeManagementContent() {
   const [religionFilter, setReligionFilter] = useState("All");
   const [campusFilter, setCampusFilter] = useState("All");
   const [titleFilter, setTitleFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [dobRange, setDobRange] = useState<DateRange | undefined>();
+  const [joiningDateRange, setJoiningDateRange] = useState<DateRange | undefined>();
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -1061,6 +1065,39 @@ function EmployeeManagementContent() {
     if (genderFilter !== "All") listToFilter = listToFilter.filter(emp => emp.gender === genderFilter);
     if (religionFilter !== "All") listToFilter = listToFilter.filter(emp => emp.religion === religionFilter);
     if (titleFilter !== "All") listToFilter = listToFilter.filter(emp => emp.title === titleFilter);
+    if (statusFilter !== "All") {
+        const isActive = statusFilter === "Active";
+        listToFilter = listToFilter.filter(emp => (emp.status === 'deactivated') !== isActive);
+    }
+
+    if (dobRange?.from) {
+      const fromDate = startOfDay(dobRange.from);
+      listToFilter = listToFilter.filter(emp => {
+        const dob = safeToDate(emp.dateOfBirth);
+        return dob && dob >= fromDate;
+      });
+    }
+    if (dobRange?.to) {
+      const toDate = endOfDay(dobRange.to);
+      listToFilter = listToFilter.filter(emp => {
+        const dob = safeToDate(emp.dateOfBirth);
+        return dob && dob <= toDate;
+      });
+    }
+    if (joiningDateRange?.from) {
+      const fromDate = startOfDay(joiningDateRange.from);
+      listToFilter = listToFilter.filter(emp => {
+        const joiningDate = safeToDate(emp.joiningDate);
+        return joiningDate && joiningDate >= fromDate;
+      });
+    }
+    if (joiningDateRange?.to) {
+      const toDate = endOfDay(joiningDateRange.to);
+      listToFilter = listToFilter.filter(emp => {
+        const joiningDate = safeToDate(emp.joiningDate);
+        return joiningDate && joiningDate <= toDate;
+      });
+    }
     
     const lowercasedFilter = searchTerm.toLowerCase();
     if (searchTerm.trim()) {
@@ -1086,7 +1123,7 @@ function EmployeeManagementContent() {
     }
     
     return listToFilter;
-  }, [allEmployees, searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter]);
+  }, [allEmployees, searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter, statusFilter, dobRange, joiningDateRange]);
   
   const activeEmployeesCount = useMemo(() => {
     return filteredEmployees.filter(emp => emp.status !== 'deactivated').length;
@@ -1103,7 +1140,7 @@ function EmployeeManagementContent() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter]);
+  }, [searchTerm, campusFilter, stageFilter, subjectFilter, genderFilter, religionFilter, titleFilter, statusFilter, dobRange, joiningDateRange]);
 
 
   const goToNextPage = () => {
@@ -1340,9 +1377,19 @@ function EmployeeManagementContent() {
                 )}
               </div>
             </div>
-             <div className="flex flex-col sm:flex-row items-center gap-2">
+             <div className="flex flex-wrap items-center gap-2">
                   <Filter className="h-4 w-4 text-muted-foreground hidden sm:block"/>
-                    <Select value={campusFilter} onValueChange={setCampusFilter} disabled={isLoadingLists}>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="w-full sm:w-auto flex-1">
+                          <SelectValue placeholder="Filter by status..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="All">All Statuses</SelectItem>
+                          <SelectItem value="Active">Active</SelectItem>
+                          <SelectItem value="deactivated">Deactivated</SelectItem>
+                      </SelectContent>
+                  </Select>
+                  <Select value={campusFilter} onValueChange={setCampusFilter} disabled={isLoadingLists}>
                       <SelectTrigger className="w-full sm:w-auto flex-1">
                           <SelectValue placeholder="Filter by campus..." />
                       </SelectTrigger>
@@ -1400,6 +1447,35 @@ function EmployeeManagementContent() {
                       </SelectContent>
                   </Select>
               </div>
+                <div className="flex flex-wrap items-center gap-4 pt-2">
+                     <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full sm:w-auto justify-start text-left font-normal">
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dobRange?.from ? (dobRange.to ? `${format(dobRange.from, "LLL dd, y")} - ${format(dobRange.to, "LLL dd, y")}` : format(dobRange.from, "LLL dd, y")) : <span>Date of Birth</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar initialFocus mode="range" defaultMonth={dobRange?.from} selected={dobRange} onSelect={setDobRange} numberOfMonths={2} />
+                        </PopoverContent>
+                    </Popover>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full sm:w-auto justify-start text-left font-normal">
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {joiningDateRange?.from ? (joiningDateRange.to ? `${format(joiningDateRange.from, "LLL dd, y")} - ${format(joiningDateRange.to, "LLL dd, y")}` : format(joiningDateRange.from, "LLL dd, y")) : <span>Joining Date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar initialFocus mode="range" defaultMonth={joiningDateRange?.from} selected={joiningDateRange} onSelect={setJoiningDateRange} numberOfMonths={2} />
+                        </PopoverContent>
+                    </Popover>
+                    {(dobRange || joiningDateRange) && (
+                        <Button variant="ghost" onClick={() => { setDobRange(undefined); setJoiningDateRange(undefined); }}>
+                            Clear Date Filters
+                        </Button>
+                    )}
+                </div>
           </div>
         </CardHeader>
         <CardContent>
