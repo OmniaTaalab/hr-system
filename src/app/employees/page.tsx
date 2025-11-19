@@ -1494,24 +1494,24 @@ function EmployeeManagementContent() {
                     <Label>Birth Year:</Label>
                     <Select value={dobStartYear} onValueChange={setDobStartYear}>
                         <SelectTrigger className="w-[120px]"><SelectValue placeholder="From..." /></SelectTrigger>
-                        <SelectContent><SelectItem value="">Any</SelectItem>{yearRange.map(y => <SelectItem key={`dob-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                        <SelectContent>{yearRange.map(y => <SelectItem key={`dob-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
                     </Select>
                     -
                     <Select value={dobEndYear} onValueChange={setDobEndYear}>
                             <SelectTrigger className="w-[120px]"><SelectValue placeholder="To..." /></SelectTrigger>
-                            <SelectContent><SelectItem value="">Any</SelectItem>{yearRange.map(y => <SelectItem key={`dob-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                            <SelectContent>{yearRange.map(y => <SelectItem key={`dob-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
                     </Select>
                 </div>
                     <div className="flex items-center gap-2">
                     <Label>Joining Year:</Label>
                     <Select value={joiningStartYear} onValueChange={setJoiningStartYear}>
                         <SelectTrigger className="w-[120px]"><SelectValue placeholder="From..." /></SelectTrigger>
-                        <SelectContent><SelectItem value="">Any</SelectItem>{yearRange.map(y => <SelectItem key={`join-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                        <SelectContent>{yearRange.map(y => <SelectItem key={`join-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
                     </Select>
                     -
                     <Select value={joiningEndYear} onValueChange={setJoiningEndYear}>
                             <SelectTrigger className="w-[120px]"><SelectValue placeholder="To..." /></SelectTrigger>
-                            <SelectContent><SelectItem value="">Any</SelectItem>{yearRange.map(y => <SelectItem key={`join-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                            <SelectContent>{yearRange.map(y => <SelectItem key={`join-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
                     </Select>
                 </div>
                     <Button variant="outline" onClick={clearAllFilters} className="ml-auto">
