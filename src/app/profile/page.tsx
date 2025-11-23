@@ -47,7 +47,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import Link from "next/link";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { nanoid } from 'nanoid';
-
+import { KpiCard } from '@/components/kpi-card';
 
 // Define the Employee interface to include all necessary fields
 interface EmployeeProfile {
@@ -434,8 +434,6 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateProfileDialog, setShowCreateProfileDialog] = useState(false);
-  const [eleotHistory, setEleotHistory] = useState<KpiEntry[]>([]);
-  const [totHistory, setTotHistory] = useState<KpiEntry[]>([]);
   const [givenEleot, setGivenEleot] = useState<KpiEntry[]>([]);
   const [givenTot, setGivenTot] = useState<KpiEntry[]>([]);
   const [loadingKpis, setLoadingKpis] = useState(true);
@@ -487,8 +485,6 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!employeeProfile?.id) {
-      setEleotHistory([]);
-      setTotHistory([]);
       setGivenEleot([]);
       setGivenTot([]);
       setProfDevelopment([]);
@@ -497,23 +493,10 @@ export default function ProfilePage() {
     
     setLoadingKpis(true);
     setLoadingProfDev(true);
-    const myEleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", employeeProfile.id));
-    const myTotQuery = query(collection(db, "tot"), where("employeeDocId", "==", employeeProfile.id));
+
     const givenEleotQuery = query(collection(db, "eleot"), where("actorId", "==", employeeProfile.id));
     const givenTotQuery = query(collection(db, "tot"), where("actorId", "==", employeeProfile.id));
     const profDevQuery = query(collection(db, `employee/${employeeProfile.id}/profDevelopment`), orderBy("date", "desc"));
-
-    const eleotUnsubscribe = onSnapshot(myEleotQuery, (snapshot) => {
-        const eleotData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
-        eleotData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
-        setEleotHistory(eleotData);
-    }, (error) => console.error("Error fetching ELEOT history:", error));
-    
-    const totUnsubscribe = onSnapshot(myTotQuery, (snapshot) => {
-        const totData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
-        totData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
-        setTotHistory(totData);
-    }, (error) => console.error("Error fetching TOT history:", error));
 
     const givenEleotUnsubscribe = onSnapshot(givenEleotQuery, async (snapshot) => {
         const givenData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
@@ -539,8 +522,6 @@ export default function ProfilePage() {
     setLoadingKpis(false);
 
     return () => {
-        eleotUnsubscribe();
-        totUnsubscribe();
         givenEleotUnsubscribe();
         givenTotUnsubscribe();
         profDevUnsubscribe();
@@ -786,49 +767,25 @@ export default function ProfilePage() {
                   </Card>
               </div>
             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="shadow-lg">
-                    <CardHeader>
-                        <CardTitle className="flex items-center"><Trophy className="mr-2 h-5 w-5 text-primary" />My ELEOT Scores</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {loadingKpis ? <Loader2 className="h-6 w-6 animate-spin" /> : eleotHistory.length === 0 ? <p className="text-sm text-muted-foreground">No ELEOT records found.</p> : (
-                            <Table>
-                                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Points</TableHead><TableHead>Added By</TableHead></TableRow></TableHeader>
-                                <TableBody>
-                                    {eleotHistory.map(entry => (
-                                        <TableRow key={entry.id}>
-                                            <TableCell>{format(entry.date.toDate(), "PPP")}</TableCell>
-                                            <TableCell>{entry.points} / 4</TableCell>
-                                            <TableCell>{entry.actorName || '-'}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        )}
-                    </CardContent>
-                </Card>
-                 <Card className="shadow-lg">
-                    <CardHeader>
-                        <CardTitle className="flex items-center"><Trophy className="mr-2 h-5 w-5 text-primary" />My TOT Scores</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {loadingKpis ? <Loader2 className="h-6 w-6 animate-spin" /> : totHistory.length === 0 ? <p className="text-sm text-muted-foreground">No TOT records found.</p> : (
-                            <Table>
-                                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Points</TableHead><TableHead>Added By</TableHead></TableRow></TableHeader>
-                                <TableBody>
-                                    {totHistory.map(entry => (
-                                        <TableRow key={entry.id}>
-                                            <TableCell>{format(entry.date.toDate(), "PPP")}</TableCell>
-                                            <TableCell>{entry.points} / 4</TableCell>
-                                            <TableCell>{entry.actorName || '-'}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        )}
-                    </CardContent>
-                </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <KpiCard
+                  title="My ELEOT Scores"
+                  kpiType="eleot"
+                  employeeDocId={employeeProfile.id}
+                  canEdit={false}
+                />
+                <KpiCard
+                  title="My TOT Scores"
+                  kpiType="tot"
+                  employeeDocId={employeeProfile.id}
+                  canEdit={false}
+                />
+                <KpiCard
+                  title="My Appraisals"
+                  kpiType="appraisal"
+                  employeeDocId={employeeProfile.id}
+                  canEdit={false}
+                />
             </div>
             
              <Card className="shadow-lg">
