@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
@@ -15,7 +16,7 @@ import {
   updatePassword 
 } from "firebase/auth";
 import { collection, query, where, getDocs, limit, type Timestamp, onSnapshot, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
-import { format, getYear, getMonth, getDate } from 'date-fns';
+import { format, getYear, getMonth, getDate, startOfYear, endOfYear, eachDayOfInterval } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,8 @@ import Link from "next/link";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { nanoid } from "nanoid";
 import { KpiCard } from '@/components/kpi-card';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Label as RechartsLabel } from "recharts";
+
 
 // Define the Employee interface to include all necessary fields
 interface EmployeeProfile {
@@ -235,7 +238,7 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
     const [date, setDate] = useState<Date | undefined>();
     const [isUploading, setIsUploading] = useState(false);
     const [formState, formAction, isActionPending] = useActionState(addProfDevelopmentAction, initialProfDevState);
-    const [_isTransitionPending, startTransition] = useTransition();
+    const [_isPending, startTransition] = useTransition();
 
     const isPending = isUploading || isActionPending || _isTransitionPending;
 
@@ -434,6 +437,260 @@ function UpdateProfDevelopmentDialog({ isOpen, onOpenChange, submission, employe
     );
 }
 
+export function AttendanceChartCard({ employeeDocId, employeeId, onScoreCalculated }: { employeeDocId: string, employeeId: string | undefined, onScoreCalculated: (score: number) => void }) {
+    const [attendanceScore, setAttendanceScore] = useState<{
+      score: number;
+      maxScore: number;
+      percentage: string;
+      scoreOutOf10: string;
+    } | null>(null);
+  
+    const [isLoading, setIsLoading] = useState(true);
+  
+    const [breakdown, setBreakdown] = useState({
+      fullDays: 0,
+      halfDays: 0,
+      leaves: 0,
+      absents: 0,
+    });
+  
+    const [chartData, setChartData] = useState<
+      { name: string; value: number; fill: string }[]
+    >([]);
+  
+    useEffect(() => {
+      const fetchAttendanceStats = async () => {
+        setIsLoading(true);
+        try {
+          if (!employeeId) {
+            setIsLoading(false);
+            return;
+          }
+  
+          const currentYear = new Date().getFullYear();
+          const startDate = new Date(`2025-09-01T00:00:00Z`);
+          const today = new Date();
+  
+          // 🟢 Attendance logs
+          const attendanceQuery = query(
+            collection(db, "attendance_log"),
+            where("userId", "==", employeeId)
+          );
+          
+          const attendanceSnapshot = await getDocs(attendanceQuery);
+          const attendanceLogs = attendanceSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+            type: "attendance",
+          }));
+  
+          // 🟢 Leave requests
+          const leaveQuery = query(
+            collection(db, "leaveRequests"),
+            where("requestingEmployeeDocId", "==", employeeDocId),
+            where("status", "==", "Approved")
+          );
+
+          const leaveSnapshot = await getDocs(leaveQuery);
+          const approvedLeaves = leaveSnapshot.docs
+            .map((doc) => ({ id: doc.id, ...doc.data(), type: "leave" }));
+
+          // 🟢 Official holidays
+          const holidaySnapshot = await getDocs(collection(db, "holidays"));
+          const officialHolidays = new Set(holidaySnapshot.docs.map(d => d.data().date.toDate().toISOString().split('T')[0]));
+
+
+          // 🧮 Process data
+          let onTime = 0;
+          let late = 0;
+          let absent = 0;
+          let totalWorkingDays = 0;
+          
+          const tempDate = new Date(startDate);
+          while (tempDate <= today) {
+              const dateStr = tempDate.toISOString().split("T")[0];
+              const day = tempDate.getDay();
+
+              const isWeekend = day === 5 || day === 6;
+              const isHoliday = officialHolidays.has(dateStr);
+              
+              if (!isWeekend && !isHoliday) {
+                  totalWorkingDays++;
+                  const attendanceForDay = attendanceLogs.find(
+                      (log: any) => log.date === dateStr
+                  );
+
+                  const leaveForDay = approvedLeaves.find((leave: any) => {
+                      const from = leave.startDate.toDate();
+                      const to = leave.endDate.toDate();
+                      from.setHours(0, 0, 0, 0);
+                      to.setHours(23, 59, 59, 999);
+                      return tempDate >= from && tempDate <= to;
+                  });
+
+                  if (leaveForDay) {
+                      onTime++;
+                  } else if (attendanceForDay) {
+                      const [hRaw, mRaw] = (attendanceForDay as any).check_in.split(":");
+                      let hours = parseInt(hRaw);
+                      const isPM = (attendanceForDay as any).check_in.toLowerCase().includes("pm");
+                      if (isPM && hours < 12) hours += 12;
+                      if (!isPM && hours === 12) hours = 0;
+                      
+                      const totalMinutes = hours * 60 + parseInt(mRaw);
+                      const limit = 7 * 60 + 30; // 7:30 AM
+                      
+                      if (totalMinutes <= limit) onTime++;
+                      else late++;
+                  } else {
+                      absent++;
+                  }
+              }
+              tempDate.setDate(tempDate.getDate() + 1);
+          }
+         
+          const presentDays = onTime + late;
+          const onTimePercent = totalWorkingDays > 0 ? (onTime / totalWorkingDays) * 100 : 0;
+          const latePercent = totalWorkingDays > 0 ? (late / totalWorkingDays) * 100 : 0;
+          const absentPercent = totalWorkingDays > 0 ? (absent / totalWorkingDays) * 100 : 0;
+          
+          const totalPresentPercent = totalWorkingDays > 0 ? (presentDays / totalWorkingDays) * 100 : 0;
+          const score = totalPresentPercent / 10;
+          onScoreCalculated(score);
+
+
+          setAttendanceScore({
+            score: presentDays,
+            maxScore: totalWorkingDays,
+            percentage: totalPresentPercent.toFixed(1),
+            scoreOutOf10: (totalPresentPercent / 10).toFixed(1),
+          });
+  
+          setBreakdown({
+            fullDays: onTime,
+            halfDays: late,
+            leaves: approvedLeaves.length,
+            absents: absent,
+          });
+  
+          setChartData([
+            { name: "Present", value: Number(onTimePercent.toFixed(1)), fill: "#16a34a" },
+            { name: "Late", value: Number(latePercent.toFixed(1)), fill: "#eab308" },
+            { name: "Absent", value: Number(absentPercent.toFixed(1)), fill: "#dc2626" },
+          ]);
+        } catch (err) {
+          console.error("Error fetching attendance stats:", err);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+  
+      fetchAttendanceStats();
+    }, [employeeId, employeeDocId, onScoreCalculated]);
+  
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            Attendance ({attendanceScore?.scoreOutOf10 ?? "0.0"} / 10)
+          </CardTitle>
+          <CardDescription>
+            Attendance for current year (excluding weekends/holidays)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center justify-center">
+          {isLoading ? (
+            <div className="flex justify-center items-center h-[250px]">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            </div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={60}
+                    outerRadius={90}
+                    stroke="#fff"
+                    strokeWidth={2}
+                    startAngle={90}
+                    endAngle={450}
+                  >
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                    <RechartsLabel
+                      content={({ viewBox }) => {
+                        if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                          return (
+                            <text
+                              x={viewBox.cx}
+                              y={viewBox.cy}
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                            >
+                              <tspan
+                                x={viewBox.cx}
+                                y={(viewBox.cy || 0) - 10}
+                                className="fill-muted-foreground text-sm"
+                              >
+                                Total Present
+                              </tspan>
+                              <tspan
+                                x={viewBox.cx}
+                                y={(viewBox.cy || 0) + 10}
+                                className="fill-foreground text-2xl font-bold"
+                              >
+                                {attendanceScore?.percentage ?? "0"}%
+                              </tspan>
+                            </text>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                  </Pie>
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="mt-4 w-full text-sm text-center border-t pt-3">
+                <p className="text-muted-foreground mb-1">
+                  <span className="font-medium text-foreground">Total Working Days:</span>{" "}
+                  {attendanceScore?.maxScore}
+                </p>
+                <div className="grid grid-cols-3 gap-2 text-center mt-2">
+                  <div className="bg-green-100 dark:bg-green-900/30 rounded-md py-1">
+                    <p className="text-green-700 dark:text-green-400 font-semibold">Present</p>
+                    <p className="text-xs text-muted-foreground">
+                      {breakdown.fullDays} days ({chartData.find(d => d.name === 'Present')?.value ?? 0}%)
+                    </p>
+                  </div>
+                  <div className="bg-yellow-100 dark:bg-yellow-900/30 rounded-md py-1">
+                    <p className="text-yellow-700 dark:text-yellow-400 font-semibold">Late</p>
+                    <p className="text-xs text-muted-foreground">
+                      {breakdown.halfDays} days ({chartData.find(d => d.name === 'Late')?.value ?? 0}%)
+                    </p>
+                  </div>
+                  <div className="bg-red-100 dark:bg-red-900/30 rounded-md py-1">
+                    <p className="text-red-700 dark:text-red-400 font-semibold">Absent</p>
+                    <p className="text-xs text-muted-foreground">
+                      {breakdown.absents} days ({chartData.find(d => d.name === 'Absent')?.value ?? 0}%)
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Attendance since Sep 1, 2025 (excluding weekends/holidays)
+                </p>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    );
+}
+
 export default function ProfilePage() {
   const [employeeProfile, setEmployeeProfile] = useState<EmployeeProfile | null>(null);
   const [authUser, setAuthUser] = useState<User | null>(null);
@@ -449,6 +706,7 @@ export default function ProfilePage() {
   const [selectedSubmission, setSelectedSubmission] = useState<ProfDevelopmentEntry | null>(null);
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceLog[]>([]);
   const [loadingAttendance, setLoadingAttendance] = useState(true);
+  const [attendanceScore, setAttendanceScore] = useState(0);
 
 
   useEffect(() => {
@@ -847,6 +1105,7 @@ export default function ProfilePage() {
                   employeeDocId={employeeProfile.id}
                   canEdit={false}
                 />
+                <AttendanceChartCard employeeDocId={employeeProfile.id} employeeId={employeeProfile.employeeId} onScoreCalculated={setAttendanceScore} />
             </div>
 
             <Card>
