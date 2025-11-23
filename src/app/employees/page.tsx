@@ -971,26 +971,25 @@ function EmployeeManagementContent() {
     const userRole = profile?.role?.toLowerCase();
     
     // Base query
-    let employeeQuery: QueryConstraint[] = [];
+    let q: QueryConstraint[] = [];
 
     // Role-based filtering
     if (userRole && userRole !== 'admin' && userRole !== 'hr' && profile?.email) {
-      employeeQuery.push(
+      q.push(
         or(
           where("reportLine1", "==", profile.email),
           where("reportLine2", "==", profile.email)
         )
       );
-    } else {
-      // Admins and HR can see everyone, but we still want to sort
-      employeeQuery.push(orderBy("name"));
     }
     
     const employeeCollection = collection(db, "employee");
-    const finalQuery = query(employeeCollection, ...employeeQuery);
+    const finalQuery = query(employeeCollection, ...q);
 
     const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
         const employeeData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        // Client-side sort after fetch
+        employeeData.sort((a,b) => a.name.localeCompare(b.name));
         setAllEmployees(employeeData);
         setIsLoading(false);
     }, (error) => {
@@ -1654,7 +1653,7 @@ function EmployeeManagementContent() {
                 paginatedEmployees.map((employee) => (
                   <TableRow key={employee.id} className={cn(employee.status === 'deactivated' && 'bg-destructive/20 hover:bg-destructive/30')}>
                     <TableCell className="font-medium">
-                      <Link href={`/employees/${employee.employeeId}`} className="flex items-center gap-3 hover:underline">
+                      <Link href={`/employees/${employee.id}`} className="flex items-center gap-3 hover:underline">
                         <Avatar>
                             <AvatarImage src={employee.photoURL || undefined} alt={employee.name || ''} />
                             <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
@@ -1685,7 +1684,7 @@ function EmployeeManagementContent() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                           <DropdownMenuItem onSelect={() => router.push(`/employees/${employee.employeeId}`)}>
+                           <DropdownMenuItem onSelect={() => router.push(`/employees/${employee.id}`)}>
                               <Eye className="mr-2 h-4 w-4" />
                               View Full Profile
                             </DropdownMenuItem>
@@ -2070,3 +2069,4 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
