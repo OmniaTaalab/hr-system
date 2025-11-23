@@ -76,7 +76,7 @@ export function SidebarNav() {
     }
 
     const userRole = profile.role?.toLowerCase();
-    const isPrivilegedUser = userRole === "admin" || userRole === "hr";
+    const isPrivilegedUser = userRole === "admin" || userRole === "hr"|| isManager;
 
     return siteConfig.navItems.filter((item) => {
       if (item.href?.startsWith("/system-logs")) {

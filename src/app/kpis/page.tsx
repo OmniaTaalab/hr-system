@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
@@ -159,13 +160,13 @@ function KpisContent() {
 
         try {
             const employeeCollectionRef = collection(db, "employee");
-            let q = query(employeeCollectionRef, orderBy("name"));
+            let q;
 
             // Apply role-based filters
             if (!isPrivilegedUser && profile.email) {
-                q = query(q, where("reportLine1", "==", profile.email));
-            }
-            if (isPrivilegedUser) {
+                q = query(employeeCollectionRef, where("reportLine1", "==", profile.email));
+            } else {
+                 q = query(employeeCollectionRef, orderBy("name"));
                 if (groupFilter !== "All") q = query(q, where("groupName", "==", groupFilter));
                 if (campusFilter !== "All") q = query(q, where("campus", "==", campusFilter));
             }

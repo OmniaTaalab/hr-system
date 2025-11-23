@@ -45,7 +45,7 @@ import {
   updateAuthUserPasswordAction, type UpdateAuthPasswordState
 } from "@/app/actions/auth-creation-actions";
 import { db, storage } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayUnion, arrayRemove, getDocs, orderBy, limit, startAfter, endBefore, limitToLast, DocumentData, DocumentSnapshot, QueryConstraint, or, Query } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayUnion, arrayRemove, getDocs, orderBy, limit, startAfter, endBefore, limitToLast, DocumentData, DocumentSnapshot, QueryConstraint, or } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -840,7 +840,7 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
         formData.append('recordsJson', JSON.stringify(json));
         
         startTransition(() => {
-            batchAction(formData);
+          (batchAction as any)(formData);
         });
       } catch (error) {
         console.error("Error parsing Excel file:", error);
@@ -968,24 +968,28 @@ function EmployeeManagementContent() {
     if (isLoadingProfile) return;
 
     setIsLoading(true);
-    const userRole = profile?.role?.toLowerCase();
-    const employeeCollection = collection(db, "employee");
-    let finalQuery: Query;
+const userRole = profile?.role?.toLowerCase();
+let q;
+const employeeCollection = collection(db, "employee");
 
-    if (userRole && userRole !== "admin" && userRole !== "hr" && profile?.email) {
-      finalQuery = query(
-        employeeCollection,
-        or(
-          where("reportLine1", "==", profile.email),
-          where("reportLine2", "==", profile.email)
-        )
-      );
-    } else {
-      finalQuery = query(employeeCollection);
-    }
+if (userRole && userRole !== "admin" && userRole !== "hr" && profile?.email) {
+  // Restrict results to employees whose reportLine1 OR reportLine2 matches the logged-in user's email
+  q = query(
+    employeeCollection,
+    or(
+      where("reportLine1", "==", profile.email),
+      where("reportLine2", "==", profile.email)
+    )
+  );
+} else {
+  // Admin/HR → gets all data
+  q = query(employeeCollection);
+}
 
-    const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
         const employeeData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        // Client-side sort after fetch
         employeeData.sort((a,b) => a.name.localeCompare(b.name));
         setAllEmployees(employeeData);
         setIsLoading(false);
@@ -2066,3 +2070,4 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
