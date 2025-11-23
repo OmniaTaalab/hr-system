@@ -45,7 +45,7 @@ import {
   updateAuthUserPasswordAction, type UpdateAuthPasswordState
 } from "@/app/actions/auth-creation-actions";
 import { db, storage } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayUnion, arrayRemove, getDocs, orderBy, limit, startAfter, endBefore, limitToLast, DocumentData, DocumentSnapshot, QueryConstraint, or } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayUnion, arrayRemove, getDocs, orderBy, limit, startAfter, endBefore, limitToLast, DocumentData, DocumentSnapshot, QueryConstraint, or, Query } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -969,26 +969,23 @@ function EmployeeManagementContent() {
 
     setIsLoading(true);
     const userRole = profile?.role?.toLowerCase();
-    
-    // Base query
-    let q: QueryConstraint[] = [];
+    const employeeCollection = collection(db, "employee");
+    let finalQuery: Query;
 
-    // Role-based filtering
-    if (userRole && userRole !== 'admin' && userRole !== 'hr' && profile?.email) {
-      q.push(
+    if (userRole && userRole !== "admin" && userRole !== "hr" && profile?.email) {
+      finalQuery = query(
+        employeeCollection,
         or(
           where("reportLine1", "==", profile.email),
           where("reportLine2", "==", profile.email)
         )
       );
+    } else {
+      finalQuery = query(employeeCollection);
     }
-    
-    const employeeCollection = collection(db, "employee");
-    const finalQuery = query(employeeCollection, ...q);
 
     const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
         const employeeData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-        // Client-side sort after fetch
         employeeData.sort((a,b) => a.name.localeCompare(b.name));
         setAllEmployees(employeeData);
         setIsLoading(false);
@@ -1162,7 +1159,7 @@ function EmployeeManagementContent() {
   
   const uniqueSubjects = useMemo(() => {
     return normalizeOptions(allEmployees.map(e => e.subject));
-  }, [subjects]);
+  }, [allEmployees,subjects]);
 
   const uniqueReligions = useMemo(() => {
     const set = new Set<string>();
@@ -2069,4 +2066,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
