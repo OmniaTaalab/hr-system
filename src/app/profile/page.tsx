@@ -508,11 +508,10 @@ export default function ProfilePage() {
     const givenTotQuery = query(collection(db, "tot"), where("actorId", "==", employeeProfile.id));
     const profDevQuery = query(collection(db, `employee/${employeeProfile.id}/profDevelopment`), orderBy("date", "desc"));
     
-    // Fetch Attendance History
+    // Fetch Attendance History - remove orderBy
     const attendanceQuery = query(
         collection(db, "attendance_log"), 
-        where("userId", "==", employeeProfile.employeeId),
-        orderBy("date", "desc")
+        where("userId", "==", employeeProfile.employeeId)
     );
     const attendanceUnsubscribe = onSnapshot(attendanceQuery, (snapshot) => {
         const rawLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as { id: string, date: string, check_in?: string, check_out?: string }));
@@ -550,6 +549,7 @@ export default function ProfilePage() {
                 check_out: check_outs.length > 0 ? check_outs[check_outs.length - 1] : null,
             };
         });
+        // Sort client-side
         processedLogs.sort((a,b) => b.date.localeCompare(a.date));
         setAttendanceHistory(processedLogs);
         setLoadingAttendance(false);
@@ -1042,5 +1042,3 @@ export default function ProfilePage() {
     </AppLayout>
   );
 }
-
-    
