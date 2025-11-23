@@ -167,6 +167,10 @@ function EmployeeProfileContent() {
   const [totHistory, setTotHistory] = useState<KpiEntry[]>([]);
   const [loadingKpis, setLoadingKpis] = useState(false);
 
+  const getInitials = (name?: string | null) => {
+    if (!name) return "U";
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  };
 
   useEffect(() => {
     if (!identifier) return;
@@ -959,4 +963,5 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
 
