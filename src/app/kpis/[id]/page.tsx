@@ -39,6 +39,7 @@ interface Employee {
   id: string;
   name: string;
   reportLine1?: string;
+  reportLine2?: string
   employeeId?: string;
   photoURL?: string;
 }
@@ -809,6 +810,7 @@ function KpiDashboardContent() {
     const userRole = currentUserProfile.role?.toLowerCase();
     if (userRole === 'admin' || userRole === 'hr') return true;
     if (employee.reportLine1 === currentUserProfile.email) return true;
+    if (employee.reportLine2 === currentUserProfile.email) return true;
     return false;
   }, [isLoadingCurrentUser, currentUserProfile, employee]);
 
@@ -817,6 +819,7 @@ function KpiDashboardContent() {
     const userRole = currentUserProfile.role?.toLowerCase();
     if (userRole === 'admin' || userRole === 'hr') return true;
     if (employee.reportLine1 === currentUserProfile.email) return true;
+    if (employee.reportLine2 === currentUserProfile.email) return true;
     return false;
   }, [isLoadingCurrentUser, currentUserProfile, employee]);
   

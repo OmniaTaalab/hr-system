@@ -1,12 +1,11 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users, FileText, Trophy, PlusCircle, UploadCloud, Download, RefreshCw } from "lucide-react";
+import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users, FileText, Trophy, PlusCircle, UploadCloud, Download, RefreshCw, BookOpenCheck } from "lucide-react";
 import { auth, db, storage } from "@/lib/firebase/config";
 import { 
   onAuthStateChanged, 
@@ -84,6 +83,13 @@ interface ProfDevelopmentEntry {
   attachmentUrl: string;
   status: 'Pending' | 'Accepted' | 'Rejected';
   managerNotes: string;
+}
+
+interface AttendanceLog {
+  id: string;
+  date: string;
+  check_in: string | null;
+  check_out: string | null;
 }
 
 
@@ -441,6 +447,8 @@ export default function ProfilePage() {
   const [loadingProfDev, setLoadingProfDev] = useState(true);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
   const [selectedSubmission, setSelectedSubmission] = useState<ProfDevelopmentEntry | null>(null);
+  const [attendanceHistory, setAttendanceHistory] = useState<AttendanceLog[]>([]);
+  const [loadingAttendance, setLoadingAttendance] = useState(true);
 
 
   useEffect(() => {
@@ -488,15 +496,67 @@ export default function ProfilePage() {
       setGivenEleot([]);
       setGivenTot([]);
       setProfDevelopment([]);
+      setAttendanceHistory([]);
       return;
     }
     
     setLoadingKpis(true);
     setLoadingProfDev(true);
+    setLoadingAttendance(true);
 
     const givenEleotQuery = query(collection(db, "eleot"), where("actorId", "==", employeeProfile.id));
     const givenTotQuery = query(collection(db, "tot"), where("actorId", "==", employeeProfile.id));
     const profDevQuery = query(collection(db, `employee/${employeeProfile.id}/profDevelopment`), orderBy("date", "desc"));
+    
+    // Fetch Attendance History
+    const attendanceQuery = query(
+        collection(db, "attendance_log"), 
+        where("userId", "==", employeeProfile.employeeId),
+        orderBy("date", "desc")
+    );
+    const attendanceUnsubscribe = onSnapshot(attendanceQuery, (snapshot) => {
+        const rawLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as { id: string, date: string, check_in?: string, check_out?: string }));
+        
+        const groupedLogs: { [key: string]: { check_ins: string[], check_outs: string[] } } = {};
+        rawLogs.forEach(log => {
+            if (!groupedLogs[log.date]) {
+                groupedLogs[log.date] = { check_ins: [], check_outs: [] };
+            }
+            if (log.check_in) {
+                const timeParts = log.check_in.split(/[:\s]/);
+                let hour = parseInt(timeParts[0], 10);
+                if (log.check_in.toLowerCase().includes('pm') && hour < 12) hour += 12;
+                if (!log.check_in.toLowerCase().includes('pm') && hour === 12) hour = 0;
+                
+                if (hour >= 12) { // Consider times from noon onwards as check-outs
+                    groupedLogs[log.date].check_outs.push(log.check_in);
+                } else {
+                    groupedLogs[log.date].check_ins.push(log.check_in);
+                }
+            }
+            if (log.check_out) {
+                groupedLogs[log.date].check_outs.push(log.check_out);
+            }
+        });
+
+        const processedLogs: AttendanceLog[] = Object.keys(groupedLogs).map(date => {
+            const { check_ins, check_outs } = groupedLogs[date];
+            check_ins.sort();
+            check_outs.sort();
+            return {
+                id: date, // Use date as a key since it's grouped
+                date: date,
+                check_in: check_ins[0] || null,
+                check_out: check_outs.length > 0 ? check_outs[check_outs.length - 1] : null,
+            };
+        });
+        processedLogs.sort((a,b) => b.date.localeCompare(a.date));
+        setAttendanceHistory(processedLogs);
+        setLoadingAttendance(false);
+    }, (error) => {
+        console.error("Error fetching attendance history:", error);
+        setLoadingAttendance(false);
+    });
 
     const givenEleotUnsubscribe = onSnapshot(givenEleotQuery, async (snapshot) => {
         const givenData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
@@ -525,8 +585,9 @@ export default function ProfilePage() {
         givenEleotUnsubscribe();
         givenTotUnsubscribe();
         profDevUnsubscribe();
+        attendanceUnsubscribe();
     };
-}, [employeeProfile?.id]);
+}, [employeeProfile?.id, employeeProfile?.employeeId]);
 
   const getInitials = (name?: string | null) => {
     if (!name) return "U";
@@ -787,8 +848,8 @@ export default function ProfilePage() {
                   canEdit={false}
                 />
             </div>
-         
-             <Card>
+
+            <Card>
                 <CardHeader>
                     <CardTitle className="flex justify-between items-center">
                     Professional Development (10%)
@@ -838,6 +899,46 @@ export default function ProfilePage() {
                                 )}
                             </TableBody>
                         </Table>
+                    )}
+                </CardContent>
+            </Card>
+
+            <Card className="shadow-lg">
+                <CardHeader>
+                    <CardTitle className="flex items-center">
+                        <BookOpenCheck className="mr-2 h-6 w-6 text-primary" />
+                        My Attendance History
+                    </CardTitle>
+                    <CardDescription>
+                        A log of your recent check-in and check-out events.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {loadingAttendance ? (
+                        <div className="flex justify-center items-center h-40">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    ) : attendanceHistory.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-10">No attendance history found.</p>
+                    ) : (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Check-In</TableHead>
+                                <TableHead>Check-Out</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {attendanceHistory.map((record) => (
+                                <TableRow key={record.id}>
+                                    <TableCell>{record.date}</TableCell>
+                                    <TableCell>{record.check_in || '-'}</TableCell>
+                                    <TableCell>{record.check_out || '-'}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                     )}
                 </CardContent>
             </Card>
@@ -941,3 +1042,5 @@ export default function ProfilePage() {
     </AppLayout>
   );
 }
+
+    
