@@ -973,7 +973,6 @@ function EmployeeManagementContent() {
 
     // Managers see only their direct reports
     if (userRole && userRole !== 'admin' && userRole !== 'hr' && profile?.email) {
-        q.push(orderBy("name"));
         q.push(where("reportLine1", "==", profile?.email));
     } else {
         q.push(orderBy("name"));
@@ -1080,30 +1079,131 @@ function EmployeeManagementContent() {
         });
     }
   }, [activateState, toast]);
-
+  function normalizeOptions(values: (string | undefined)[]) {
+    const set = new Set<string>();
   
+    const normalize = (value?: string) => {
+      if (!value) return null;
+  
+      let v = value.trim();
+  
+      // Ignore invalid words
+      const invalid = ["", "null", "undefined", "religion", "subject", "title"];
+      if (invalid.includes(v.toLowerCase())) return null;
+  
+      // Split comma-based lists: "English Social Studies, Arabic Social Studies"
+      const parts = v
+        .split(",")
+        .map(s => s.trim())
+        .filter(Boolean);
+  
+      return parts.map(part =>
+        part
+          .toLowerCase()
+          .replace(/\s+/g, " ") // normalize spaces
+          .replace("muslin", "muslim") // fix typo
+          .split(" ")
+          .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ")
+      );
+    };
+  
+    values.forEach(v => {
+      const normalizedParts = normalize(v);
+      if (normalizedParts) {
+        normalizedParts.forEach(p => set.add(p));
+      }
+    });
+  
+    return Array.from(set)
+      .sort()
+      .map(v => ({ label: v, value: v }));
+  }
   const uniqueTitles = useMemo(() => {
-    const titles = allEmployees.map(emp => emp.title).filter(Boolean);
-    return [...new Set(titles)].sort().map(t => ({ label: t, value: t }));
+    const set = new Set<string>();
+  
+    const normalize = (value?: string) => {
+      if (!value) return null;
+  
+      // Clean & normalize
+      let v = value.trim().toLowerCase();
+  
+      if (v === "" || v === "title" || v === "undefined" || v === "null") return null;
+  
+      // Capitalize each word
+      v = v
+        .split(" ")
+        .filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+  
+      return v;
+    };
+  
+    allEmployees.forEach(emp => {
+      const normalized = normalize(emp.title);
+      if (normalized) set.add(normalized);
+    });
+  
+    return Array.from(set)
+      .sort()
+      .map(t => ({
+        label: t,
+        value: t
+      }));
   }, [allEmployees]);
   
   const uniqueSubjects = useMemo(() => {
-    return [...new Set(subjects.map(s => s.name))].sort().map(s => ({label: s, value: s}));
+    return normalizeOptions(allEmployees.map(e => e.subject));
   }, [subjects]);
 
   const uniqueReligions = useMemo(() => {
-    const religions = allEmployees.map(emp => emp.religion).filter(Boolean);
-    return [...new Set(religions)].sort().map(r => ({ label: r, value: r }));
+    const set = new Set<string>();
+  
+    const normalize = (value?: string) => {
+      if (!value) return null;
+  
+      let v = value.trim().toLowerCase();
+  
+      // Ignore invalid values
+      if (v === "" || v === "religion" || v === "null" || v === "undefined") return null;
+  
+      // Correct common spelling mistakes
+      if (v === "muslin") v = "muslim";
+  
+      return v;
+    };
+  
+    allEmployees.forEach(emp => {
+      const normalized = normalize(emp.religion);
+      if (normalized) set.add(normalized);
+    });
+  
+    return Array.from(set)
+      .sort()
+      .map(r => ({
+        label: r.charAt(0).toUpperCase() + r.slice(1),
+        value: r
+      }));
   }, [allEmployees]);
-
+  
 
   const uniqueReportLines = useMemo(() => {
     const lines = new Set<string>();
-    reportLines1.forEach(l => { if (l.name) lines.add(l.name) });
-    reportLines2.forEach(l => { if (l.name) lines.add(l.name) });
-    return Array.from(lines).sort().map(l => ({ label: l, value: l }));
-  }, [reportLines1, reportLines2]);
   
+    const addIfValid = (email?: string) => {
+      if (!email) return;
+      const normalized = email.trim().toLowerCase();
+      lines.add(normalized);
+    };
+  
+    reportLines1.forEach(l => addIfValid(l.name));
+    reportLines2.forEach(l => addIfValid(l.name));
+  
+    return Array.from(lines)
+      .sort()
+      .map(l => ({ label: l, value: l }));
+  }, [reportLines1, reportLines2]);
   const filteredEmployees = useMemo(() => {
     let listToFilter = allEmployees;
 
