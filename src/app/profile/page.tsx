@@ -46,7 +46,7 @@ import { ImageUploader } from "@/components/image-uploader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { nanoid } from 'nanoid';
+import { nanoid } from "nanoid";
 import { KpiCard } from '@/components/kpi-card';
 
 // Define the Employee interface to include all necessary fields
@@ -787,8 +787,62 @@ export default function ProfilePage() {
                   canEdit={false}
                 />
             </div>
-            
-             <Card className="shadow-lg">
+         
+             <Card>
+                <CardHeader>
+                    <CardTitle className="flex justify-between items-center">
+                    Professional Development (10%)
+                        <AddProfDevelopmentDialog employee={employeeProfile} actorProfile={authUser} />
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {loadingProfDev ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Course name</TableHead>
+                                    <TableHead>Attachments</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Reason</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {profDevelopment.length > 0 ? profDevelopment.map(item => (
+                                    <TableRow key={item.id}>
+                                        <TableCell>{format(item.date.toDate(), "dd MMM yyyy")}</TableCell>
+                                        <TableCell>{item.courseName}</TableCell>
+                                        <TableCell>
+                                            <a href={item.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                                                Download <Download className="h-3 w-3" />
+                                            </a>
+                                        </TableCell>
+                                        <TableCell>
+                                            <ProfDevelopmentStatusBadge status={item.status} />
+                                        </TableCell>
+                                        <TableCell>{item.managerNotes}</TableCell>
+                                        <TableCell className="text-right">
+                                            {item.status === 'Rejected' && (
+                                                <Button size="sm" variant="secondary" onClick={() => handleUpdateClick(item)}>
+                                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                                    Update
+                                                </Button>
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                )) : (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="text-center text-muted-foreground">No development entries yet.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
+   
+            <Card className="shadow-lg">
                 <CardHeader>
                     <CardTitle className="flex items-center"><Trophy className="mr-2 h-5 w-5 text-primary" />My Given KPIs</CardTitle>
                     <CardDescription>A log of all ELEOT and TOT evaluations you have submitted for other employees.</CardDescription>
@@ -839,61 +893,6 @@ export default function ProfilePage() {
                                 </div>
                             </div>
                        </div>
-                    )}
-                </CardContent>
-            </Card>
-
-             <Card>
-                <CardHeader>
-                    <CardTitle className="flex justify-between items-center">
-                    Professional Development (10%)
-                        <AddProfDevelopmentDialog employee={employeeProfile} actorProfile={authUser} />
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {loadingProfDev ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Course name</TableHead>
-                                    <TableHead>Attachments</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Reason</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {profDevelopment.length > 0 ? profDevelopment.map(item => (
-                                    <TableRow key={item.id}>
-                                        <TableCell>{format(item.date.toDate(), "dd MMM yyyy")}</TableCell>
-                                        <TableCell>{item.courseName}</TableCell>
-                                        <TableCell>
-                                            <a href={item.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                                                Download <Download className="h-3 w-3" />
-                                            </a>
-                                            
-                                        </TableCell>
-                                        <TableCell>
-                                            <ProfDevelopmentStatusBadge status={item.status} />
-                                        </TableCell>
-                                        <TableCell>{item.managerNotes}</TableCell>
-                                        <TableCell className="text-right">
-                                            {item.status === 'Rejected' && (
-                                                <Button size="sm" variant="secondary" onClick={() => handleUpdateClick(item)}>
-                                                    <RefreshCw className="mr-2 h-4 w-4" />
-                                                    Update
-                                                </Button>
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
-                                )) : (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="text-center text-muted-foreground">No development entries yet.</TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
                     )}
                 </CardContent>
             </Card>
