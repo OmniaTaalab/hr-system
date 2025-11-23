@@ -968,18 +968,26 @@ function EmployeeManagementContent() {
     if (isLoadingProfile) return;
 
     setIsLoading(true);
-    let q: QueryConstraint[] = [];
     const userRole = profile?.role?.toLowerCase();
+    
+    // Base query
+    let employeeQuery: QueryConstraint[] = [];
 
-    // Managers see only their direct reports
+    // Role-based filtering
     if (userRole && userRole !== 'admin' && userRole !== 'hr' && profile?.email) {
-        q.push(where("reportLine1", "==", profile?.email));
+      employeeQuery.push(
+        or(
+          where("reportLine1", "==", profile.email),
+          where("reportLine2", "==", profile.email)
+        )
+      );
     } else {
-        q.push(orderBy("name"));
+      // Admins and HR can see everyone, but we still want to sort
+      employeeQuery.push(orderBy("name"));
     }
     
     const employeeCollection = collection(db, "employee");
-    const finalQuery = query(employeeCollection, ...q);
+    const finalQuery = query(employeeCollection, ...employeeQuery);
 
     const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
         const employeeData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
