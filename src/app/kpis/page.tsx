@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { BarChartBig, AlertTriangle, Loader2, Search, ArrowLeft, ArrowRight, List, LayoutGrid, FileDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase/config";
-import { collection, onSnapshot, query, where, QueryConstraint, getDocs, doc, getDoc, Timestamp, orderBy, limit, startAfter, DocumentData, DocumentSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, QueryConstraint, getDocs, doc, getDoc, Timestamp, orderBy, limit, startAfter, DocumentData, DocumentSnapshot, or } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -164,7 +164,7 @@ function KpisContent() {
 
             // Apply role-based filters
             if (!isPrivilegedUser && profile.email) {
-                q = query(employeeCollectionRef, where("reportLine1", "==", profile.email));
+                q = query(employeeCollectionRef, or(where("reportLine1", "==", profile.email), where("reportLine2", "==", profile.email)));
             } else {
                  q = query(employeeCollectionRef, orderBy("name"));
                 if (groupFilter !== "All") q = query(q, where("groupName", "==", groupFilter));
