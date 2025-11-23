@@ -240,7 +240,7 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
     const [formState, formAction, isActionPending] = useActionState(addProfDevelopmentAction, initialProfDevState);
     const [_isPending, startTransition] = useTransition();
 
-    const isPending = isUploading || isActionPending || _isTransitionPending;
+    const isPending = isUploading || isActionPending || _isPending;
 
     useEffect(() => {
         if (formState?.message) {
@@ -350,9 +350,9 @@ function UpdateProfDevelopmentDialog({ isOpen, onOpenChange, submission, employe
     const [courseName, setCourseName] = useState(submission.courseName);
     const [isUploading, setIsUploading] = useState(false);
     const [formState, formAction, isActionPending] = useActionState(updateProfDevelopmentAction, initialProfDevState);
-    const [_isTransitionPending, startTransition] = useTransition();
+    const [_isPending, startTransition] = useTransition();
 
-    const isPending = isUploading || isActionPending || _isTransitionPending;
+    const isPending = isUploading || isActionPending || _isPending;
 
     useEffect(() => {
         if (formState?.message) {
