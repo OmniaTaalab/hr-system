@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -15,7 +16,7 @@ import { iconMap } from "@/components/icon-map";
 import { useUserProfile } from "./app-layout";
 import { Skeleton } from "../ui/skeleton";
 import { db } from "@/lib/firebase/config";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, or } from "firebase/firestore";
 
 function formatI18nKey(key: string): string {
   if (!key) return "";
@@ -31,77 +32,80 @@ export function SidebarNav() {
   const { profile, loading } = useUserProfile();
   const [isManager, setIsManager] = useState(false);
 
-  // ✅ Check if the current user is actually a reportLine1 or reportLine2 for others
   useEffect(() => {
     const checkIfManager = async () => {
-      if (!profile?.email) return;
+      if (!profile?.email) {
+        setIsManager(false);
+        return;
+      }
 
       try {
         const empCol = collection(db, "employee");
+        
+        const managerQuery = query(
+          empCol,
+          or(
+            where("reportLine1", "==", profile.email),
+            where("reportLine2", "==", profile.email)
+          )
+        );
 
-        // Check if there are employees who report to this user
-        const [r1Snap, r2Snap] = await Promise.all([
-          getDocs(query(empCol, where("reportLine1", "==", profile.email))),
-          getDocs(query(empCol, where("reportLine2", "==", profile.email))),
-        ]);
+        const managerSnapshot = await getDocs(managerQuery);
 
-        if (r1Snap.size > 0 || r2Snap.size > 0) {
-          setIsManager(true);
-        } else {
-          setIsManager(false);
-        }
+        setIsManager(!managerSnapshot.empty);
       } catch (err) {
         console.error("Error checking manager role:", err);
         setIsManager(false);
       }
     };
 
-    checkIfManager();
-  }, [profile?.email]);
+    if (!loading && profile) {
+      checkIfManager();
+    }
+  }, [profile, loading]);
 
   const navItems = useMemo(() => {
     if (!profile) {
-      // لو لسه البروفايل محمّلش
+      // Show a minimal set for non-logged-in users or while loading
       return siteConfig.navItems.filter((item) => {
-        const isProtected =
-          item.href?.startsWith("/leave/all-requests") ||
-          item.href?.startsWith("/settings") ||
-          item.href?.startsWith("/career-advisor") ||
-          item.href?.startsWith("/attendance") ||
-          item.href?.startsWith("/payroll") ||
-          item.href?.startsWith("/jobs/applications") ||
-          item.href?.startsWith("/tpi") ||
-          item.href?.startsWith("/system-logs") ||
-          item.href?.startsWith("/omnia");
-        return !isProtected;
+        const isPublic =
+          item.href === "/" ||
+          item.href === "/jobs";
+        return isPublic;
       });
     }
 
     const userRole = profile.role?.toLowerCase();
-    const isPrivilegedUser = userRole === "admin" || userRole === "hr" || isManager;
+    const isPrivilegedUser = userRole === "admin" || userRole === "hr";
 
     return siteConfig.navItems.filter((item) => {
       if (item.href?.startsWith("/system-logs")) {
         return userRole === "hr";
       }
 
-      // لو المستخدم HR أو Admin أو Manager حقيقي → يشوف كل حاجة
+      // Show everything to Admin/HR
       if (isPrivilegedUser) {
         return true;
       }
+      
+      // If the user is a manager (checked via state), show them the employee list
+      if (isManager && item.href === '/employees') {
+        return true;
+      }
 
-      // الباقي بيتحجب
-      const isProtected =
+      // For regular users (not admin, not hr, not a manager)
+      const protectedForRegularUsers =
         item.href?.startsWith("/leave/all-requests") ||
         item.href?.startsWith("/settings") ||
-        item.href?.startsWith("/career-advisor") ||
-        item.href?.startsWith("/attendance") ||
+        item.href?.startsWith("/employees") ||
+        item.href?.startsWith("/employees-chart") ||
+        item.href?.startsWith("/attendance-logs") ||
         item.href?.startsWith("/payroll") ||
         item.href?.startsWith("/jobs/applications") ||
         item.href?.startsWith("/tpi") ||
-        item.href?.startsWith("/omnia");
+        item.href?.startsWith("/system-logs");
 
-      return !isProtected;
+      return !protectedForRegularUsers;
     });
   }, [profile, isManager]);
 
