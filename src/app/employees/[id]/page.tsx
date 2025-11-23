@@ -371,20 +371,56 @@ function EmployeeProfileContent() {
     if (!name) return "U";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
-  
+  const [managerOfManager, setManagerOfManager] = useState<string | null>(null);
+
   const canView = useMemo(() => {
     if (profileLoading || !currentUserProfile || !employee) return false;
-    const userRole = currentUserProfile.role?.toLowerCase();
-    if (userRole === 'admin' || userRole === 'hr' || currentUserProfile.id === employee.id) {
-        return true;
-    }
-    // Check if current user is the manager of the viewed employee
-    if (employee.reportLine1 === currentUserProfile.email) {
-        return true;
-    }
-    return false;
-  }, [profileLoading, currentUserProfile, employee]);
   
+    const userRole = currentUserProfile.role?.toLowerCase();
+    const userEmail = currentUserProfile.email;
+  
+    // Admin / HR / Self
+    if (userRole === "admin" || userRole === "hr" || currentUserProfile.id === employee.id) {
+      return true;
+    }
+  
+    // Direct manager
+    if (employee.reportLine1 === userEmail) {
+      return true;
+    }
+  
+    // Manager of the direct manager
+    if (managerOfManager === userEmail) {
+      return true;
+    }
+  
+    return false;
+}, [profileLoading, currentUserProfile, employee, managerOfManager]);
+
+  async function fetchManagerOfManager() {
+    if (!employee?.reportLine1) return;
+
+    // هات المدير المباشر
+    const managerQuery = query(
+      collection(db, "employee"),
+      where("email", "==", employee.reportLine1)
+    );
+
+    const managerSnapshot = await getDocs(managerQuery);
+
+    if (!managerSnapshot.empty) {
+      const managerDoc = managerSnapshot.docs[0].data();
+
+      // لو المدير له مدير تاني
+      if (managerDoc.reportLine1) {
+        setManagerOfManager(managerDoc.reportLine1);
+      }
+    }
+  }
+
+  useEffect(() => {
+    fetchManagerOfManager();
+  }, [employee]);
 
   useEffect(() => {
     if (!loading && !profileLoading && !canView) {
