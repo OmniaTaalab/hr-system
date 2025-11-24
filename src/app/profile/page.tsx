@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
@@ -16,7 +15,7 @@ import {
   updatePassword 
 } from "firebase/auth";
 import { collection, query, where, getDocs, limit, type Timestamp, onSnapshot, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
-import { format, getYear, getMonth, getDate, startOfYear, endOfYear, eachDayOfInterval } from 'date-fns';
+import { format, getYear, getMonth, getDate, startOfYear, endOfYear, eachDayOfInterval, startOfDay } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -88,11 +87,22 @@ interface ProfDevelopmentEntry {
   managerNotes: string;
 }
 
-interface AttendanceLog {
-  id: string;
-  date: string;
-  check_in: string | null;
-  check_out: string | null;
+interface HistoryEntry {
+    id: string;
+    date: string;
+    check_in: string | null;
+    check_out: string | null;
+    type: 'attendance' | 'leave';
+}
+
+interface AttendanceLog extends HistoryEntry {
+    type: 'attendance';
+}
+
+interface LeaveLog extends HistoryEntry {
+    type: 'leave';
+    check_in: null;
+    check_out: null;
 }
 
 
@@ -698,7 +708,7 @@ export default function ProfilePage() {
   const [loadingProfDev, setLoadingProfDev] = useState(true);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
   const [selectedSubmission, setSelectedSubmission] = useState<ProfDevelopmentEntry | null>(null);
-  const [attendanceHistory, setAttendanceHistory] = useState<AttendanceLog[]>([]);
+  const [attendanceHistory, setAttendanceHistory] = useState<HistoryEntry[]>([]);
   const [loadingAttendance, setLoadingAttendance] = useState(true);
   const [attendanceScore, setAttendanceScore] = useState(0);
 
@@ -745,13 +755,13 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!employeeProfile?.id) {
-      setGivenEleot([]);
-      setGivenTot([]);
-      setProfDevelopment([]);
-      setAttendanceHistory([]);
-      return;
+        setGivenEleot([]);
+        setGivenTot([]);
+        setProfDevelopment([]);
+        setAttendanceHistory([]);
+        return;
     }
-    
+
     setLoadingKpis(true);
     setLoadingProfDev(true);
     setLoadingAttendance(true);
@@ -760,11 +770,16 @@ export default function ProfilePage() {
     const givenTotQuery = query(collection(db, "tot"), where("actorId", "==", employeeProfile.id));
     const profDevQuery = query(collection(db, `employee/${employeeProfile.id}/profDevelopment`), orderBy("date", "desc"));
     
-    // Fetch Attendance History - remove orderBy
     const attendanceQuery = query(
         collection(db, "attendance_log"), 
         where("userId", "==", employeeProfile.employeeId)
     );
+    const leavesQuery = query(
+        collection(db, "leaveRequests"),
+        where("requestingEmployeeDocId", "==", employeeProfile.id),
+        where("status", "==", "Approved")
+    );
+
     const attendanceUnsubscribe = onSnapshot(attendanceQuery, (snapshot) => {
         const rawLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as { id: string, date: string, check_in?: string, check_out?: string }));
         
@@ -779,7 +794,7 @@ export default function ProfilePage() {
                 if (log.check_in.toLowerCase().includes('pm') && hour < 12) hour += 12;
                 if (!log.check_in.toLowerCase().includes('pm') && hour === 12) hour = 0;
                 
-                if (hour >= 12) { // Consider times from noon onwards as check-outs
+                if (hour >= 12) { 
                     groupedLogs[log.date].check_outs.push(log.check_in);
                 } else {
                     groupedLogs[log.date].check_ins.push(log.check_in);
@@ -790,23 +805,62 @@ export default function ProfilePage() {
             }
         });
 
-        const processedLogs: AttendanceLog[] = Object.keys(groupedLogs).map(date => {
+        const processedAttendance: AttendanceLog[] = Object.keys(groupedLogs).map(date => {
             const { check_ins, check_outs } = groupedLogs[date];
             check_ins.sort();
             check_outs.sort();
             return {
-                id: date, // Use date as a key since it's grouped
+                id: date,
                 date: date,
                 check_in: check_ins[0] || null,
                 check_out: check_outs.length > 0 ? check_outs[check_outs.length - 1] : null,
+                type: 'attendance',
             };
         });
-        // Sort client-side
-        processedLogs.sort((a,b) => b.date.localeCompare(a.date));
+        
+        // This is a temporary measure. We'll merge with leaves once they are fetched.
         setAttendanceHistory(processedLogs);
-        setLoadingAttendance(false);
+        
+        // Don't set loading to false here yet
     }, (error) => {
         console.error("Error fetching attendance history:", error);
+        setLoadingAttendance(false);
+    });
+    
+    const leavesUnsubscribe = onSnapshot(leavesQuery, (snapshot) => {
+        const processedLeaves: LeaveLog[] = [];
+        snapshot.forEach(doc => {
+            const leave = doc.data() as { startDate: Timestamp, endDate: Timestamp };
+            const start = startOfDay(leave.startDate.toDate());
+            const end = startOfDay(leave.endDate.toDate());
+            const leaveDays = eachDayOfInterval({ start, end });
+            leaveDays.forEach(day => {
+                processedLeaves.push({
+                    id: `${doc.id}-${format(day, 'yyyy-MM-dd')}`,
+                    date: format(day, 'yyyy-MM-dd'),
+                    type: 'leave',
+                    check_in: null,
+                    check_out: null,
+                });
+            });
+        });
+        
+        // Now merge with attendance history
+        setAttendanceHistory(prevHistory => {
+             const mergedHistoryMap = new Map<string, HistoryEntry>();
+             const attendanceOnly = prevHistory.filter(h => h.type === 'attendance');
+             
+             attendanceOnly.forEach(att => mergedHistoryMap.set(att.date, att));
+             processedLeaves.forEach(leave => mergedHistoryMap.set(leave.date, leave));
+             
+             const mergedHistory = Array.from(mergedHistoryMap.values());
+             mergedHistory.sort((a, b) => b.date.localeCompare(a.date));
+             return mergedHistory;
+        });
+
+        setLoadingAttendance(false);
+    }, (error) => {
+        console.error("Error fetching leave requests:", error);
         setLoadingAttendance(false);
     });
 
@@ -838,6 +892,7 @@ export default function ProfilePage() {
         givenTotUnsubscribe();
         profDevUnsubscribe();
         attendanceUnsubscribe();
+        leavesUnsubscribe();
     };
 }, [employeeProfile?.id, employeeProfile?.employeeId]);
 
@@ -1163,7 +1218,7 @@ export default function ProfilePage() {
                         My Attendance History
                     </CardTitle>
                     <CardDescription>
-                        A log of your recent check-in and check-out events.
+                        A log of your recent check-in and check-out events, and approved leave.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1185,8 +1240,14 @@ export default function ProfilePage() {
                         <TableBody>
                             {attendanceHistory.map((record) => (
                                 <TableRow key={record.id}>
-                                    <TableCell>{record.date}</TableCell>
-                                    <TableCell>{record.check_in || '-'}</TableCell>
+                                    <TableCell>{format(new Date(record.date.replace(/-/g, '/')), 'PPP')}</TableCell>
+                                    <TableCell>
+                                        {record.type === 'leave' ? (
+                                            <Badge variant="outline" className="border-blue-500 text-blue-500">Approved Leave</Badge>
+                                        ) : (
+                                            record.check_in || '-'
+                                        )}
+                                    </TableCell>
                                     <TableCell>{record.check_out || '-'}</TableCell>
                                 </TableRow>
                             ))}
