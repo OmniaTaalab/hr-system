@@ -238,7 +238,7 @@ function CreateProfileForm({ user }: { user: User }) {
     </form>
   );
 }
-const initialProfDevState: ProfDevelopmentState = { success: false };
+const initialProfDevState: ProfDevelopmentState = { success: false, message: null, errors: {} };
 
 function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: EmployeeProfile; actorProfile: User | null }) {
     const { toast } = useToast();
@@ -246,7 +246,7 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
     const [file, setFile] = useState<File | null>(null);
     const [date, setDate] = useState<Date | undefined>();
     const [isSubmitting, setIsSubmitting] = useState(false);
-
+    
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
@@ -284,6 +284,7 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
             setIsSubmitting(false);
         }
     };
+
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -357,9 +358,9 @@ function UpdateProfDevelopmentDialog({ isOpen, onOpenChange, submission, employe
     const [date, setDate] = useState<Date | undefined>(submission.date.toDate());
     const [courseName, setCourseName] = useState(submission.courseName);
     const [formState, formAction, isActionPending] = useActionState(updateProfDevelopmentAction, initialProfDevState);
-    const [_isTransitionPending, startTransition] = useTransition();
+    const [_isPending, startTransition] = useTransition();
 
-    const isPending = isActionPending || _isTransitionPending;
+    const isPending = isActionPending || _isPending;
 
     useEffect(() => {
         if (formState?.message) {
@@ -819,9 +820,8 @@ export default function ProfilePage() {
         });
         
         // This is a temporary measure. We'll merge with leaves once they are fetched.
-        setAttendanceHistory(processedLogs);
+        setAttendanceHistory(processedAttendance);
         
-        // Don't set loading to false here yet
     }, (error) => {
         console.error("Error fetching attendance history:", error);
         setLoadingAttendance(false);
