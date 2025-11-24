@@ -236,11 +236,10 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
     const [isOpen, setIsOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [date, setDate] = useState<Date | undefined>();
-    const [isUploading, setIsUploading] = useState(false);
     const [formState, formAction, isActionPending] = useActionState(addProfDevelopmentAction, initialProfDevState);
-    const [_isPending, startTransition] = useTransition();
+    const [_isTransitionPending, startTransition] = useTransition();
 
-    const isPending = isUploading || isActionPending || _isPending;
+    const isPending = isActionPending || _isTransitionPending;
 
     useEffect(() => {
         if (formState?.message) {
@@ -270,26 +269,23 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
             return;
         }
 
-        setIsUploading(true);
         const formData = new FormData(event.currentTarget);
         formData.set('date', date.toISOString());
 
-        try {
-            const filePath = `employee-documents/${employee.id}/prof-development/${nanoid()}-${file.name}`;
-            const fileRef = ref(storage, filePath);
-            const snapshot = await uploadBytes(fileRef, file);
-            const downloadURL = await getDownloadURL(snapshot.ref);
+        startTransition(async () => {
+            try {
+                const filePath = `employee-documents/${employee.id}/prof-development/${nanoid()}-${file.name}`;
+                const fileRef = ref(storage, filePath);
+                const snapshot = await uploadBytes(fileRef, file);
+                const downloadURL = await getDownloadURL(snapshot.ref);
 
-            formData.set('attachmentUrl', downloadURL);
-            startTransition(() => {
+                formData.set('attachmentUrl', downloadURL);
                 formAction(formData);
-            });
-        } catch (error) {
-            console.error("Error uploading file:", error);
-            toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload file.' });
-        } finally {
-            setIsUploading(false);
-        }
+            } catch (error) {
+                console.error("Error uploading file:", error);
+                toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload file.' });
+            }
+        });
     };
 
     return (
@@ -348,11 +344,10 @@ function UpdateProfDevelopmentDialog({ isOpen, onOpenChange, submission, employe
     const [file, setFile] = useState<File | null>(null);
     const [date, setDate] = useState<Date | undefined>(submission.date.toDate());
     const [courseName, setCourseName] = useState(submission.courseName);
-    const [isUploading, setIsUploading] = useState(false);
     const [formState, formAction, isActionPending] = useActionState(updateProfDevelopmentAction, initialProfDevState);
-    const [_isPending, startTransition] = useTransition();
+    const [_isTransitionPending, startTransition] = useTransition();
 
-    const isPending = isUploading || isActionPending || _isPending;
+    const isPending = isActionPending || _isTransitionPending;
 
     useEffect(() => {
         if (formState?.message) {
@@ -374,29 +369,26 @@ function UpdateProfDevelopmentDialog({ isOpen, onOpenChange, submission, employe
             return;
         }
 
-        setIsUploading(true);
         const formData = new FormData(event.currentTarget);
         formData.set('date', date.toISOString());
 
-        try {
-            let downloadURL = submission.attachmentUrl;
-            if (file) {
-                const filePath = `employee-documents/${employee.id}/prof-development/${nanoid()}-${file.name}`;
-                const fileRef = ref(storage, filePath);
-                const snapshot = await uploadBytes(fileRef, file);
-                downloadURL = await getDownloadURL(snapshot.ref);
-            }
-            
-            formData.set('attachmentUrl', downloadURL);
-            startTransition(() => {
+        startTransition(async () => {
+            try {
+                let downloadURL = submission.attachmentUrl;
+                if (file) {
+                    const filePath = `employee-documents/${employee.id}/prof-development/${nanoid()}-${file.name}`;
+                    const fileRef = ref(storage, filePath);
+                    const snapshot = await uploadBytes(fileRef, file);
+                    downloadURL = await getDownloadURL(snapshot.ref);
+                }
+                
+                formData.set('attachmentUrl', downloadURL);
                 formAction(formData);
-            });
-        } catch (error) {
-            console.error("Error uploading file:", error);
-            toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload new file.' });
-        } finally {
-            setIsUploading(false);
-        }
+            } catch (error) {
+                console.error("Error during file upload or action:", error);
+                toast({ variant: 'destructive', title: 'Submission Failed', description: 'An error occurred.' });
+            }
+        });
     };
 
     return (
