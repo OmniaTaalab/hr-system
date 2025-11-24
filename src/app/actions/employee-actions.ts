@@ -120,117 +120,187 @@ export type ProfDevelopmentState = {
   message?: string | null;
   success?: boolean;
 };
-
 export async function addProfDevelopmentAction(
   prevState: ProfDevelopmentState,
   formData: FormData
 ): Promise<ProfDevelopmentState> {
+
+  console.log("STEP 1 → ACTION STARTED");
+  console.log("Raw FormData:", Object.fromEntries(formData.entries()));
+
   const validatedFields = ProfDevelopmentSchema.safeParse({
-    employeeDocId: formData.get('employeeDocId'),
-    courseName: formData.get('courseName'),
-    date: formData.get('date'),
-    attachmentUrl: formData.get('attachmentUrl'),
-    actorId: formData.get('actorId'),
-    actorEmail: formData.get('actorEmail'),
-    actorRole: formData.get('actorRole'),
+    employeeDocId: formData.get("employeeDocId"),
+    courseName: formData.get("courseName"),
+    date: formData.get("date"),
+    attachmentUrl: formData.get("attachmentUrl"),
+    actorId: formData.get("actorId"),
+    actorEmail: formData.get("actorEmail"),
+    actorRole: formData.get("actorRole"),
   });
 
+  console.log("STEP 2 → AFTER VALIDATION:", validatedFields);
+
   if (!validatedFields.success) {
+    console.log("❌ VALIDATION FAILED:", validatedFields.error.flatten().fieldErrors);
     return {
       errors: validatedFields.error.flatten().fieldErrors,
       message: "Validation failed.",
       success: false,
     };
   }
-  
-  const { employeeDocId, courseName, date, attachmentUrl, actorId, actorEmail, actorRole } = validatedFields.data;
+
+  console.log("STEP 3 → VALIDATION PASSED");
+
+  const {
+    employeeDocId,
+    courseName,
+    date,
+    attachmentUrl,
+    actorId,
+    actorEmail,
+    actorRole,
+  } = validatedFields.data;
 
   try {
-    const employeeRef = doc(db, 'employee', employeeDocId);
-    const employeeSnap = await getDoc(employeeRef);
-    if (!employeeSnap.exists()) {
-        return { errors: { form: ["Employee record not found."] }, success: false };
-    }
-    const employeeData = employeeSnap.data();
+    console.log("STEP 4 → FETCH EMPLOYEE DOC:", employeeDocId);
 
-    const profDevCollectionRef = collection(db, `employee/${employeeDocId}/profDevelopment`);
-    
-    const newEntryRef = await addDoc(profDevCollectionRef, {
+    const employeeRef = doc(db, "employee", employeeDocId);
+    const employeeSnap = await getDoc(employeeRef);
+
+    console.log("STEP 5 → EMPLOYEE SNAP EXISTS?", employeeSnap.exists());
+
+    if (!employeeSnap.exists()) {
+      console.log("❌ EMPLOYEE NOT FOUND");
+      return {
+        errors: { form: ["Employee record not found."] },
+        success: false,
+      };
+    }
+
+    const employeeData = employeeSnap.data();
+    console.log("STEP 6 → EMPLOYEE DATA:", employeeData);
+
+    const profDevCollectionRef = collection(
+      db,
+      `employee/${employeeDocId}/profDevelopment`
+    );
+
+    console.log("STEP 7 → ADDING DOCUMENT");
+
+    await addDoc(profDevCollectionRef, {
       courseName,
       date: Timestamp.fromDate(date),
       attachmentUrl,
-      status: "Pending", // Default status
+      status: "Pending",
       submittedAt: serverTimestamp(),
     });
-    
+
+    console.log("STEP 8 → DOCUMENT ADDED SUCCESSFULLY");
+
+    // Log system event
+    console.log("STEP 9 → LOGGING SYSTEM EVENT");
+
     await logSystemEvent("Add Professional Development", {
-        actorId,
-        actorEmail,
-        actorRole,
-        targetEmployeeId: employeeDocId,
-        courseName,
+      actorId,
+      actorEmail,
+      actorRole,
+      targetEmployeeId: employeeDocId,
+      courseName,
     });
-    
-    // --- Notification Logic ---
+
+    console.log("STEP 10 → SYSTEM EVENT LOGGED SUCCESSFULLY");
+
+    // Manager notification logic
+    console.log("STEP 11 → CHECK MANAGER REPORT LINE 1");
+
     if (employeeData.reportLine1) {
-        const managerQuery = query(collection(db, "employee"), where("email", "==", employeeData.reportLine1), limit(1));
-        const managerSnapshot = await getDocs(managerQuery);
-        
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-        const submissionLink = `${appUrl}/kpis/${employeeData.employeeId}`;
-        
-        if (!managerSnapshot.empty) {
-            const managerDoc = managerSnapshot.docs[0];
-            const managerData = managerDoc.data();
-            const managerUserId = managerData.userId;
-            const managerEmail = managerData.email;
+      console.log("STEP 12 → MANAGER FOUND:", employeeData.reportLine1);
 
-            const notificationMessage = `New professional development entry for "${courseName}" submitted by ${employeeData.name}.`;
+      const managerQuery = query(
+        collection(db, "employee"),
+        where("email", "==", employeeData.reportLine1),
+        limit(1)
+      );
 
-            // In-app notification
-            if (managerUserId) {
-                await addDoc(collection(db, `users/${managerUserId}/notifications`), {
-                    message: notificationMessage,
-                    link: submissionLink,
-                    createdAt: serverTimestamp(),
-                    isRead: false,
-                });
-            }
+      const managerSnapshot = await getDocs(managerQuery);
 
-            // Email notification
-            if (managerEmail) {
-                const emailHtml = render(
-                    ProfDevelopmentNotificationEmail({
-                        managerName: managerData.name,
-                        employeeName: employeeData.name,
-                        courseName,
-                        date: date.toLocaleDateString(),
-                        submissionLink,
-                    })
-                );
-                await addDoc(collection(db, "mail"), {
-                    to: managerEmail,
-                    message: {
-                        subject: `New Professional Development Submission from ${employeeData.name}`,
-                        html: emailHtml,
-                    },
-                    status: "pending",
-                    createdAt: serverTimestamp(),
-                });
-            }
+      console.log("STEP 13 → MANAGER SNAPSHOT EMPTY?", managerSnapshot.empty);
+
+      const appUrl =
+        process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+      const submissionLink = `${appUrl}/kpis/${employeeData.employeeId}`;
+
+      if (!managerSnapshot.empty) {
+        const managerDoc = managerSnapshot.docs[0];
+        const managerData = managerDoc.data();
+
+        console.log("STEP 14 → MANAGER DATA:", managerData);
+
+        const notificationMessage = `New professional development entry for "${courseName}" submitted by ${employeeData.name}.`;
+
+        // In-app notification
+        if (managerData.userId) {
+          console.log("STEP 15 → ADDING IN-APP NOTIFICATION");
+          await addDoc(collection(db, `users/${managerData.userId}/notifications`), {
+            message: notificationMessage,
+            link: submissionLink,
+            createdAt: serverTimestamp(),
+            isRead: false,
+          });
+        } else {
+          console.log("⚠️ MANAGER HAS NO USER ID");
         }
+
+        // Email notification
+        if (managerData.email) {
+          console.log("STEP 16 → SENDING EMAIL TO:", managerData.email);
+
+          const emailHtml = render(
+            ProfDevelopmentNotificationEmail({
+              managerName: managerData.name,
+              employeeName: employeeData.name,
+              courseName,
+              date: date.toLocaleDateString(),
+              submissionLink,
+            })
+          );
+
+          await addDoc(collection(db, "mail"), {
+            to: managerData.email,
+            message: {
+              subject: `New Professional Development Submission from ${employeeData.name}`,
+              html: emailHtml,
+            },
+            status: "pending",
+            createdAt: serverTimestamp(),
+          });
+
+          console.log("STEP 17 → EMAIL QUEUED SUCCESSFULLY");
+        } else {
+          console.log("⚠️ MANAGER HAS NO EMAIL");
+        }
+      }
     }
 
-    return { success: true, message: "Professional development entry added successfully. Your manager has been notified." };
-  } catch (error: any) {
-    console.error('Error adding professional development entry:', error);
+    console.log("STEP 18 → DONE SUCCESSFULLY");
+
     return {
-      errors: { form: ['Failed to save entry. An unexpected error occurred.'] },
+      success: true,
+      message:
+        "Professional development entry added successfully. Your manager has been notified.",
+    };
+
+  } catch (error: any) {
+    console.error("❌ ERROR IN ACTION:", error);
+    return {
+      errors: { form: ["Failed to save entry. An unexpected error occurred."] },
       message: `Error: ${error.message}`,
       success: false,
     };
   }
 }
+
 
 // --- New Action to Update Professional Development Status ---
 const UpdateProfDevStatusSchema = z.object({

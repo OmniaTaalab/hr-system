@@ -237,9 +237,9 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
     const [file, setFile] = useState<File | null>(null);
     const [date, setDate] = useState<Date | undefined>();
     const [formState, formAction, isActionPending] = useActionState(addProfDevelopmentAction, initialProfDevState);
-    const [_isTransitionPending, startTransition] = useTransition();
+    const [isUploading, setIsUploading] = useState(false);
 
-    const isPending = isActionPending || _isTransitionPending;
+    const isPending = isActionPending || isUploading;
 
     useEffect(() => {
         if (formState?.message) {
@@ -272,20 +272,21 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
         const formData = new FormData(event.currentTarget);
         formData.set('date', date.toISOString());
 
-        startTransition(async () => {
-            try {
-                const filePath = `employee-documents/${employee.id}/prof-development/${nanoid()}-${file.name}`;
-                const fileRef = ref(storage, filePath);
-                const snapshot = await uploadBytes(fileRef, file);
-                const downloadURL = await getDownloadURL(snapshot.ref);
+        setIsUploading(true);
+        try {
+            const filePath = `employee-documents/${employee.id}/prof-development/${nanoid()}-${file.name}`;
+            const fileRef = ref(storage, filePath);
+            const snapshot = await uploadBytes(fileRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
 
-                formData.set('attachmentUrl', downloadURL);
-                formAction(formData);
-            } catch (error) {
-                console.error("Error uploading file:", error);
-                toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload file.' });
-            }
-        });
+            formData.set('attachmentUrl', downloadURL);
+            formAction(formData);
+        } catch (error) {
+            console.error("Error uploading file:", error);
+            toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload file.' });
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     return (
@@ -300,11 +301,10 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
                         <DialogDescription>Add a new course or training entry.</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                        <input type="hidden" name="employeeDocId" value={employee.id} />
-                        <input type="hidden" name="actorId" value={actorProfile?.uid || ''} />
-                        <input type="hidden" name="actorEmail" value={actorProfile?.email || ''} />
-                        <input type="hidden" name="actorRole" value={employee.role || ''} />
-
+                    <input type="hidden" name="employeeDocId" value={employee.id} />
+<input type="hidden" name="actorId" value={actorProfile?.uid || ''} />
+<input type="hidden" name="actorEmail" value={actorProfile?.email || ''} />
+<input type="hidden" name="actorName" value={actorProfile?.displayName || actorProfile?.email || ''} />
                         <div className="space-y-2">
                             <Label htmlFor="courseName">Course Name</Label>
                             <Input id="courseName" name="courseName" required disabled={isPending} />
