@@ -23,7 +23,7 @@ if (!admin.apps.length) {
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         privateKey: privateKey,
       }),
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+      storageBucket: "gs://streamlined-hr-assistant",
     });
 
     console.log("Firebase Admin SDK initialized successfully.");

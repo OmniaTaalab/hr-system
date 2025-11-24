@@ -228,7 +228,6 @@ function CreateProfileForm({ user }: { user: User }) {
     </form>
   );
 }
-
 const initialProfDevState: ProfDevelopmentState = { success: false };
 
 function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: EmployeeProfile; actorProfile: User | null }) {
@@ -236,56 +235,43 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
     const [isOpen, setIsOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [date, setDate] = useState<Date | undefined>();
-    const [formState, formAction, isActionPending] = useActionState(addProfDevelopmentAction, initialProfDevState);
-    const [isUploading, setIsUploading] = useState(false);
-
-    const isPending = isActionPending || isUploading;
-
-    useEffect(() => {
-        if (formState?.message) {
-            toast({
-                title: formState.success ? "Success" : "Error",
-                description: formState.message,
-                variant: formState.success ? "default" : "destructive",
-            });
-            if (formState.success) {
-                setIsOpen(false);
-                setFile(null);
-                setDate(undefined);
-            }
-        }
-    }, [formState, toast]);
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (!selectedFile) return;
-        setFile(selectedFile);
-    };
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+
         if (!file || !date) {
             toast({ variant: 'destructive', title: 'Missing Info', description: 'Please provide all fields and a file.' });
             return;
         }
 
+        setIsSubmitting(true);
         const formData = new FormData(event.currentTarget);
         formData.set('date', date.toISOString());
 
-        setIsUploading(true);
         try {
             const filePath = `employee-documents/${employee.id}/prof-development/${nanoid()}-${file.name}`;
             const fileRef = ref(storage, filePath);
             const snapshot = await uploadBytes(fileRef, file);
             const downloadURL = await getDownloadURL(snapshot.ref);
-
             formData.set('attachmentUrl', downloadURL);
-            formAction(formData);
+
+            const result = await addProfDevelopmentAction(initialProfDevState, formData);
+
+            if (result.success) {
+                toast({ title: 'Success', description: result.message });
+                setIsOpen(false);
+                setFile(null);
+                setDate(undefined);
+            } else {
+                toast({ variant: 'destructive', title: 'Submission Failed', description: result.errors?.form?.join(", ") || result.message });
+            }
+
         } catch (error) {
-            console.error("Error uploading file:", error);
-            toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload file.' });
+            console.error("Error uploading file or submitting form:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'An unexpected error occurred.' });
         } finally {
-            setIsUploading(false);
+            setIsSubmitting(false);
         }
     };
 
@@ -300,28 +286,43 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
                         <DialogTitle>Add Professional Development</DialogTitle>
                         <DialogDescription>Add a new course or training entry.</DialogDescription>
                     </DialogHeader>
+
                     <div className="grid gap-4 py-4">
-                    <input type="hidden" name="employeeDocId" value={employee.id} />
-<input type="hidden" name="actorId" value={actorProfile?.uid || ''} />
-<input type="hidden" name="actorEmail" value={actorProfile?.email || ''} />
-<input type="hidden" name="actorName" value={actorProfile?.displayName || actorProfile?.email || ''} />
+                        <input type="hidden" name="employeeDocId" value={employee.id} />
+                        <input type="hidden" name="actorId" value={actorProfile?.uid || ''} />
+                        <input type="hidden" name="actorEmail" value={actorProfile?.email || ''} />
+                        <input type="hidden" name="actorRole" value={employee.role || ''} />
+
                         <div className="space-y-2">
                             <Label htmlFor="courseName">Course Name</Label>
-                            <Input id="courseName" name="courseName" required disabled={isPending} />
+                            <Input id="courseName" name="courseName" required disabled={isSubmitting} />
                         </div>
+
                         <div className="space-y-2">
                             <Label>Date</Label>
-                            <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{date ? format(date, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent></Popover>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-start text-left font-normal" disabled={isSubmitting}>
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {date ? format(date, "PPP") : <span>Pick a date</span>}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
+                                </PopoverContent>
+                            </Popover>
                         </div>
+
                         <div className="space-y-2">
                             <Label htmlFor="attachmentFile">Attachment File</Label>
-                            <Input id="attachmentFile" type="file" onChange={handleFileChange} required disabled={isPending} />
+                            <Input id="attachmentFile" type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} required disabled={isSubmitting} />
                         </div>
                     </div>
+
                     <DialogFooter>
-                        <DialogClose asChild><Button type="button" variant="outline" disabled={isPending}>Cancel</Button></DialogClose>
-                        <Button type="submit" disabled={isPending || !file || !date}>
-                            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Submit'}
+                        <DialogClose asChild><Button type="button" variant="outline" disabled={isSubmitting}>Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isSubmitting || !file || !date}>
+                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Submit'}
                         </Button>
                     </DialogFooter>
                 </form>
@@ -329,6 +330,7 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
         </Dialog>
     );
 }
+
 
 function ProfDevelopmentStatusBadge({ status }: { status: ProfDevelopmentEntry['status'] }) {
     switch (status) {

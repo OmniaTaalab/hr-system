@@ -116,6 +116,7 @@ function LeaveRequestForm() {
         const fileName = `leave-attachments/${user.uid}/${nanoid()}.${fileExtension}`;
         const fileRef = ref(storage, fileName);
         const snapshot = await uploadBytes(fileRef, attachment);
+        console.log('zzzzzzzzzzzzzzzzzzz');
         attachmentURL = await getDownloadURL(snapshot.ref);
         formData.set('attachmentURL', attachmentURL);
       } catch (error: any) {
