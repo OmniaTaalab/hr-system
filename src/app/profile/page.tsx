@@ -37,6 +37,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { createEmployeeProfileAction, type CreateProfileState } from "@/lib/firebase/admin-actions";
 import { addProfDevelopmentAction, type ProfDevelopmentState, updateProfDevelopmentAction } from "@/app/actions/employee-actions";
+import { addAttendancePointsAction, type AddPointsState } from "@/app/actions/attendance-actions";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import jsPDF from "jspdf";
@@ -92,7 +93,9 @@ interface HistoryEntry {
     date: string;
     check_in: string | null;
     check_out: string | null;
-    type: 'attendance' | 'leave';
+    type: 'attendance' | 'leave' | 'manual_points';
+    points?: number;
+    reason?: string;
 }
 
 interface AttendanceLog extends HistoryEntry {
@@ -340,6 +343,84 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
             </DialogContent>
         </Dialog>
     );
+}
+
+const initialPointsState: AddPointsState = { success: false, errors: {} };
+
+function AddAttendancePointsDialog({ employee, actorEmail }: { employee: EmployeeProfile, actorEmail: string | undefined }) {
+  const { toast } = useToast();
+  const [isOpen, setIsOpen] = useState(false);
+  const [state, formAction, isPending] = useActionState(addAttendancePointsAction, initialPointsState);
+  const [date, setDate] = useState<Date | undefined>();
+
+  useEffect(() => {
+    if (state.message) {
+      toast({
+        title: state.success ? "Success" : "Error",
+        description: state.message,
+        variant: state.success ? "default" : "destructive",
+      });
+      if (state.success) {
+        setIsOpen(false);
+        setDate(undefined);
+      }
+    }
+  }, [state, toast]);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Add Attendance Points
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <form action={formAction}>
+          <DialogHeader>
+            <DialogTitle>Add Manual Attendance Points for {employee.name}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <input type="hidden" name="employeeDocId" value={employee.id} />
+            <input type="hidden" name="actorEmail" value={actorEmail} />
+            <div className="space-y-2">
+              <Label htmlFor="date">Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date ? format(date, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
+                </PopoverContent>
+              </Popover>
+              <input type="hidden" name="date" value={date?.toISOString() || ""} />
+              {state.errors?.date && <p className="text-sm text-destructive">{state.errors.date.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="points">Points (out of 10)</Label>
+              <Input id="points" name="points" type="number" step="0.5" max="10" required />
+              {state.errors?.points && <p className="text-sm text-destructive">{state.errors.points.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reason">Reason (Optional)</Label>
+              <Input id="reason" name="reason" />
+              {state.errors?.reason && <p className="text-sm text-destructive">{state.errors.reason.join(', ')}</p>}
+            </div>
+          </div>
+           {state.errors?.form && <p className="text-sm text-destructive text-center mb-2">{state.errors.form.join(', ')}</p>}
+          <DialogFooter>
+            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Add Points"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 
@@ -713,6 +794,32 @@ export default function ProfilePage() {
   const [loadingAttendance, setLoadingAttendance] = useState(true);
   const [attendanceScore, setAttendanceScore] = useState(0);
 
+  const getAttendancePointValue = (entry: any): number => {
+    if (entry.type === "leave") return 1;
+    if (!entry.check_in) return 0;
+  
+    const timeParts = entry.check_in.split(":");
+    let hours = parseInt(timeParts[0], 10);
+    const minutes = parseInt(timeParts[1], 10);
+    const isPM = entry.check_in.toLowerCase().includes("pm");
+    if (isPM && hours < 12) hours += 12;
+    if (!isPM && hours === 12) hours = 0;
+  
+    const checkInMinutes = hours * 60 + minutes;
+    const targetMinutes = 7 * 60 + 30; // 7:30 AM
+    return checkInMinutes < targetMinutes ? 1 : 0.5;
+  };
+  
+    const getAttendancePointDisplay = (entry: HistoryEntry): string => {
+        if (entry.type === 'leave') return "1 / 1";
+        if (entry.type === 'manual_points' && typeof entry.points === 'number') {
+          return `${entry.points} / 10`;
+        }
+        const value = getAttendancePointValue(entry);
+        if (value === 0) return "-";
+        return `${value} / 1`;
+    };
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -780,6 +887,10 @@ export default function ProfilePage() {
         where("requestingEmployeeDocId", "==", employeeProfile.id),
         where("status", "==", "Approved")
     );
+    const pointsQuery = query(
+      collection(db, "attendancePoints"),
+      where("employeeId", "==", employeeProfile.id)
+    );
 
     const attendanceUnsubscribe = onSnapshot(attendanceQuery, (snapshot) => {
         const rawLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as { id: string, date: string, check_in?: string, check_out?: string }));
@@ -819,12 +930,15 @@ export default function ProfilePage() {
             };
         });
         
-        // This is a temporary measure. We'll merge with leaves once they are fetched.
-        setAttendanceHistory(processedAttendance);
-        
+        setAttendanceHistory(prev => {
+            const otherEntries = prev.filter(h => h.type !== 'attendance');
+            const merged = [...otherEntries, ...processedAttendance];
+            merged.sort((a, b) => b.date.localeCompare(a.date));
+            return merged;
+        });
+
     }, (error) => {
         console.error("Error fetching attendance history:", error);
-        setLoadingAttendance(false);
     });
     
     const leavesUnsubscribe = onSnapshot(leavesQuery, (snapshot) => {
@@ -845,23 +959,39 @@ export default function ProfilePage() {
             });
         });
         
-        // Now merge with attendance history
-        setAttendanceHistory(prevHistory => {
-             const mergedHistoryMap = new Map<string, HistoryEntry>();
-             const attendanceOnly = prevHistory.filter(h => h.type === 'attendance');
-             
-             attendanceOnly.forEach(att => mergedHistoryMap.set(att.date, att));
-             processedLeaves.forEach(leave => mergedHistoryMap.set(leave.date, leave));
-             
-             const mergedHistory = Array.from(mergedHistoryMap.values());
-             mergedHistory.sort((a, b) => b.date.localeCompare(a.date));
-             return mergedHistory;
+        setAttendanceHistory(prev => {
+             const otherEntries = prev.filter(h => h.type !== 'leave');
+             const merged = [...otherEntries, ...processedLeaves];
+             merged.sort((a, b) => b.date.localeCompare(a.date));
+             return merged;
         });
-
-        setLoadingAttendance(false);
     }, (error) => {
         console.error("Error fetching leave requests:", error);
-        setLoadingAttendance(false);
+    });
+    
+    const pointsUnsubscribe = onSnapshot(pointsQuery, (snapshot) => {
+        const manualPoints: HistoryEntry[] = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                date: format(data.date.toDate(), 'yyyy-MM-dd'),
+                type: 'manual_points',
+                points: data.points,
+                reason: data.reason,
+                check_in: null,
+                check_out: null,
+            };
+        });
+
+        setAttendanceHistory(prev => {
+            const otherEntries = prev.filter(h => h.type !== 'manual_points');
+            const merged = [...otherEntries, ...manualPoints];
+            merged.sort((a, b) => b.date.localeCompare(a.date));
+            return merged;
+        });
+
+    }, (error) => {
+        console.error("Error fetching attendance points:", error);
     });
 
     const givenEleotUnsubscribe = onSnapshot(givenEleotQuery, async (snapshot) => {
@@ -886,6 +1016,7 @@ export default function ProfilePage() {
     });
     
     setLoadingKpis(false);
+    setLoadingAttendance(false);
 
     return () => {
         givenEleotUnsubscribe();
@@ -893,6 +1024,7 @@ export default function ProfilePage() {
         profDevUnsubscribe();
         attendanceUnsubscribe();
         leavesUnsubscribe();
+        pointsUnsubscribe();
     };
 }, [employeeProfile?.id, employeeProfile?.employeeId]);
 
@@ -1213,13 +1345,21 @@ export default function ProfilePage() {
 
             <Card className="shadow-lg">
                 <CardHeader>
-                    <CardTitle className="flex items-center">
-                        <BookOpenCheck className="mr-2 h-6 w-6 text-primary" />
-                        My Attendance History
-                    </CardTitle>
-                    <CardDescription>
-                        A log of your recent check-in and check-out events, and approved leave.
-                    </CardDescription>
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <CardTitle className="flex items-center">
+                                <BookOpenCheck className="mr-2 h-6 w-6 text-primary" />
+                                My Attendance History
+                            </CardTitle>
+                            <CardDescription>
+                                A log of your check-in/out events, approved leaves, and manual adjustments.
+                            </CardDescription>
+                        </div>
+                         <div className="text-right">
+                            <p className="text-sm font-medium text-muted-foreground">Attendance Score (10%)</p>
+                            <p className="text-2xl font-bold text-primary">{attendanceScore.toFixed(1)} / 10</p>
+                        </div>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     {loadingAttendance ? (
@@ -1235,6 +1375,7 @@ export default function ProfilePage() {
                                 <TableHead>Date</TableHead>
                                 <TableHead>Check-In</TableHead>
                                 <TableHead>Check-Out</TableHead>
+                                <TableHead>Point</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1244,11 +1385,14 @@ export default function ProfilePage() {
                                     <TableCell>
                                         {record.type === 'leave' ? (
                                             <Badge variant="outline" className="border-blue-500 text-blue-500">Approved Leave</Badge>
+                                        ) : record.type === 'manual_points' ? (
+                                            <Badge variant="outline" className="border-purple-500 text-purple-500" title={record.reason}>Manual Entry</Badge>
                                         ) : (
                                             record.check_in || '-'
                                         )}
                                     </TableCell>
                                     <TableCell>{record.check_out || '-'}</TableCell>
+                                    <TableCell>{getAttendancePointDisplay(record)}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -1257,61 +1401,6 @@ export default function ProfilePage() {
                 </CardContent>
             </Card>
    
-            <Card className="shadow-lg">
-                <CardHeader>
-                    <CardTitle className="flex items-center"><Trophy className="mr-2 h-5 w-5 text-primary" />My Given KPIs</CardTitle>
-                    <CardDescription>A log of all ELEOT and TOT evaluations you have submitted for other employees.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                     {loadingKpis ? <Loader2 className="h-6 w-6 animate-spin" /> : (givenEleot.length === 0 && givenTot.length === 0) ? <p className="text-sm text-muted-foreground text-center py-4">You have not submitted any KPI entries.</p> : (
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <h3 className="font-semibold mb-2">Given ELEOTs</h3>
-                                <div className="border rounded-md max-h-60 overflow-y-auto">
-                                    <Table>
-                                        <TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Date</TableHead><TableHead>Points</TableHead></TableRow></TableHeader>
-                                        <TableBody>
-                                            {givenEleot.map(entry => (
-                                                <TableRow key={entry.id}>
-                                                    <TableCell>
-                                                        <Link href={`/kpis/${entry.employeeDocId}`} className="hover:underline text-primary">
-                                                            {entry.employeeName || "View"}
-                                                        </Link>
-                                                    </TableCell>
-                                                    <TableCell>{format(entry.date.toDate(), "P")}</TableCell>
-                                                    <TableCell>{entry.points} / 4</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            </div>
-                             <div>
-                                <h3 className="font-semibold mb-2">Given TOTs</h3>
-                                <div className="border rounded-md max-h-60 overflow-y-auto">
-                                    <Table>
-                                        <TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Date</TableHead><TableHead>Points</TableHead></TableRow></TableHeader>
-                                        <TableBody>
-                                            {givenTot.map(entry => (
-                                                <TableRow key={entry.id}>
-                                                    <TableCell>
-                                                        <Link href={`/kpis/${entry.employeeDocId}`} className="hover:underline text-primary">
-                                                            {entry.employeeName || "View"}
-                                                        </Link>
-                                                    </TableCell>
-                                                    <TableCell>{format(entry.date.toDate(), "P")}</TableCell>
-                                                    <TableCell>{entry.points} / 4</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            </div>
-                       </div>
-                    )}
-                </CardContent>
-            </Card>
-
             <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle>Actions</CardTitle>

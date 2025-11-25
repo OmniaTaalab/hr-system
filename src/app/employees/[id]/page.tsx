@@ -601,7 +601,7 @@ const getAttendancePointValue = (entry: any): number => {
   const getAttendancePointDisplay = (entry: HistoryEntry): string => {
       if (entry.type === 'leave') return "1/1";
       if (entry.type === 'manual_points' && typeof entry.points === 'number') {
-        return `${entry.points}/10`;
+        return `${entry.points}/1`;
       }
       const value = getAttendancePointValue(entry);
       if (value === 0) return "-";

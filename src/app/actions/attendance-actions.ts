@@ -125,7 +125,7 @@ export async function manageAttendanceExemptionAction(
 // --- Add Manual Attendance Points Action ---
 const AddPointsSchema = z.object({
   employeeDocId: z.string().min(1, "Employee ID is required."),
-  points: z.coerce.number(),
+  points: z.coerce.number().max(10, "Points cannot exceed 10."),
   date: z.coerce.date(),
   reason: z.string().optional(),
   actorEmail: z.string().optional(),
@@ -165,7 +165,7 @@ export async function addAttendancePointsAction(prevState: AddPointsState, formD
     await addDoc(collection(db, "attendancePoints"), {
       employeeId: employeeDocId,
       points,
-      reason,
+      reason: reason || null,
       date: Timestamp.fromDate(date),
       createdAt: serverTimestamp(),
       createdBy: actorEmail,
