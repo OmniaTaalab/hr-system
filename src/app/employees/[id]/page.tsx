@@ -159,7 +159,15 @@ function AddAttendancePointsDialog({ employee, actorEmail }: { employee: Employe
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
-                  <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
+                  <Calendar 
+                    mode="single" 
+                    selected={date} 
+                    onSelect={setDate} 
+                    captionLayout="dropdown-buttons"
+                    fromYear={getYear(new Date()) - 5}
+                    toYear={getYear(new Date())}
+                    initialFocus 
+                   />
                 </PopoverContent>
               </Popover>
               <input type="hidden" name="date" value={date?.toISOString() || ""} />
@@ -1019,3 +1027,4 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
