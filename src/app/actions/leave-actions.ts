@@ -117,21 +117,28 @@ if (leaveType === "Late Arrival" || leaveType === "Early Dismissal") {
 
   // 🟦 Fetch all existing excuses for the month
   const q = query(
-      collection(db, "leaveRequests"),
-      where("requestingEmployeeDocId", "==", requestingEmployeeDocId),
-      where("leaveType", "in", ["Late Arrival", "Early Dismissal"]),
-      where("startDate", ">=", Timestamp.fromDate(monthStart)),
-      where("startDate", "<=", Timestamp.fromDate(monthEnd)),
-      where("status", "in", ["Pending", "Approved"])
+    collection(db, "leaveRequests"),
+    where("requestingEmployeeDocId", "==", requestingEmployeeDocId),
+    where("startDate", ">=", Timestamp.fromDate(monthStart)),
+    where("startDate", "<=", Timestamp.fromDate(monthEnd))
   );
-
-  const existingRequests = await getDocs(q);
+  
+  const snap = await getDocs(q);
+  
+  // Apply logic locally (safe & fast)
+  const existingRequests = snap.docs.filter((doc) => {
+    const data = doc.data();
+    return (
+      ["Late Arrival", "Early Dismissal"].includes(data.leaveType) &&
+      ["Pending", "Approved"].includes(data.status)
+    );
+  });
 
   // 🟧 Each excuse = 2 hours
   const HOURS_PER_REQUEST = 2;
 
   // 🟩 Calculate total used hours
-  const usedHours = existingRequests.size * HOURS_PER_REQUEST;
+  const usedHours = existingRequests.length * HOURS_PER_REQUEST;
 
   // 🟥 If already used 4 hours → reject completely
   if (usedHours >= 4) {

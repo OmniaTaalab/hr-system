@@ -12,6 +12,7 @@ const settingsNavItems = [
   { title: "General", href: "/settings/general" },
   { title: "Organization", href: "/settings/organization" },
   { title: "Working Hours", href: "/settings/working-hours" },
+  { title: "Attendance", href: "/settings/attendance" },
   { title: "Sync Data", href: "/settings/sync-data" },
 ];
 
