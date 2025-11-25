@@ -28,6 +28,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { addAttendancePointsAction, deleteAttendancePointsAction, type AddPointsState, type DeletePointsState } from "@/app/actions/attendance-actions";
 import { DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DateRange } from "react-day-picker";
 
 
 interface EmergencyContact {
@@ -117,7 +118,7 @@ function AddAttendancePointsDialog({ employee, actorEmail }: { employee: Employe
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [state, formAction, isPending] = useActionState(addAttendancePointsAction, initialPointsState);
-  const [date, setDate] = useState<Date | undefined>();
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
   useEffect(() => {
     if (state.message) {
@@ -128,7 +129,7 @@ function AddAttendancePointsDialog({ employee, actorEmail }: { employee: Employe
       });
       if (state.success) {
         setIsOpen(false);
-        setDate(undefined);
+        setDateRange(undefined);
       }
     }
   }, [state, toast]);
@@ -153,25 +154,47 @@ function AddAttendancePointsDialog({ employee, actorEmail }: { employee: Employe
               <Label htmlFor="date">Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}>
+                  <Button
+                    id="date"
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !dateRange && "text-muted-foreground"
+                    )}
+                  >
                     <CalendarDays className="mr-2 h-4 w-4" />
-                    {date ? format(date, "PPP") : <span>Pick a date</span>}
+                    {dateRange?.from ? (
+                      dateRange.to ? (
+                        <>
+                          {format(dateRange.from, "LLL dd, y")} -{" "}
+                          {format(dateRange.to, "LLL dd, y")}
+                        </>
+                      ) : (
+                        format(dateRange.from, "LLL dd, y")
+                      )
+                    ) : (
+                      <span>Pick a date or range</span>
+                    )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar 
-                    mode="single" 
-                    selected={date} 
-                    onSelect={setDate} 
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={dateRange?.from}
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={2}
                     captionLayout="dropdown-buttons"
                     fromYear={getYear(new Date()) - 5}
                     toYear={getYear(new Date())}
-                    initialFocus 
-                   />
+                  />
                 </PopoverContent>
               </Popover>
-              <input type="hidden" name="date" value={date?.toISOString() || ""} />
-              {state.errors?.date && <p className="text-sm text-destructive">{state.errors.date.join(', ')}</p>}
+              <input type="hidden" name="startDate" value={dateRange?.from?.toISOString() || ""} />
+              <input type="hidden" name="endDate" value={dateRange?.to?.toISOString() || ""} />
+              {state.errors?.startDate && <p className="text-sm text-destructive">{state.errors.startDate.join(', ')}</p>}
+               {state.errors?.endDate && <p className="text-sm text-destructive">{state.errors.endDate.join(', ')}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="points">Points</Label>
@@ -1027,4 +1050,3 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
-
