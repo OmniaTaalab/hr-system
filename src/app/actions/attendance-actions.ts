@@ -182,3 +182,40 @@ export async function addAttendancePointsAction(prevState: AddPointsState, formD
     };
   }
 }
+
+// --- New Delete Attendance Points Action ---
+const DeletePointsSchema = z.object({
+  pointId: z.string().min(1, "Point ID is required."),
+  actorEmail: z.string().optional(),
+});
+
+export type DeletePointsState = {
+  errors?: { form?: string[] };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function deleteAttendancePointsAction(prevState: DeletePointsState, formData: FormData): Promise<DeletePointsState> {
+  const validatedFields = DeletePointsSchema.safeParse({
+    pointId: formData.get('pointId'),
+    actorEmail: formData.get('actorEmail'),
+  });
+
+  if (!validatedFields.success) {
+    return { errors: { form: ["Invalid Point ID."] }, success: false };
+  }
+
+  const { pointId, actorEmail } = validatedFields.data;
+
+  try {
+    await deleteDoc(doc(db, "attendancePoints", pointId));
+    await logSystemEvent("Delete Attendance Points", { actorEmail, deletedPointId: pointId });
+    return { success: true, message: "Manual attendance point deleted successfully." };
+  } catch (error: any) {
+    return {
+      errors: { form: ["Failed to delete manual point."] },
+      message: `Error: ${error.message}`,
+      success: false,
+    };
+  }
+}

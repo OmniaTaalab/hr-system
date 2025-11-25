@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useActionState, useRef, useTransit
 import { AppLayout } from "@/components/layout/app-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users, FileText, Trophy, PlusCircle, UploadCloud, Download, RefreshCw, BookOpenCheck } from "lucide-react";
+import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users, FileText, Trophy, PlusCircle, UploadCloud, Download, RefreshCw, BookOpenCheck, Trash2 } from "lucide-react";
 import { auth, db, storage } from "@/lib/firebase/config";
 import { 
   onAuthStateChanged, 
@@ -37,7 +37,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { createEmployeeProfileAction, type CreateProfileState } from "@/lib/firebase/admin-actions";
 import { addProfDevelopmentAction, type ProfDevelopmentState, updateProfDevelopmentAction } from "@/app/actions/employee-actions";
-import { addAttendancePointsAction, type AddPointsState } from "@/app/actions/attendance-actions";
+import { addAttendancePointsAction, type AddPointsState, deleteAttendancePointsAction, type DeletePointsState } from "@/app/actions/attendance-actions";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import jsPDF from "jspdf";
@@ -346,6 +346,7 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
 }
 
 const initialPointsState: AddPointsState = { success: false, errors: {} };
+const initialDeletePointsState: DeletePointsState = { success: false };
 
 function AddAttendancePointsDialog({ employee, actorEmail }: { employee: EmployeeProfile, actorEmail: string | undefined }) {
   const { toast } = useToast();
@@ -794,6 +795,20 @@ export default function ProfilePage() {
   const [loadingAttendance, setLoadingAttendance] = useState(true);
   const [attendanceScore, setAttendanceScore] = useState(0);
 
+  const [deletePointsState, deletePointsAction, isDeletePointsPending] = useActionState(deleteAttendancePointsAction, initialDeletePointsState);
+  const toast = useToast();
+
+   useEffect(() => {
+    if (deletePointsState.message) {
+      toast.toast({
+        title: deletePointsState.success ? "Success" : "Error",
+        description: deletePointsState.message,
+        variant: deletePointsState.success ? "default" : "destructive",
+      });
+    }
+  }, [deletePointsState, toast]);
+
+
   const getAttendancePointValue = (entry: any): number => {
     if (entry.type === "leave") return 1;
     if (!entry.check_in) return 0;
@@ -807,7 +822,7 @@ export default function ProfilePage() {
   
     const checkInMinutes = hours * 60 + minutes;
     const targetMinutes = 7 * 60 + 30; // 7:30 AM
-    return checkInMinutes < targetMinutes ? 1 : 0.5;
+    return checkInMinutes <= targetMinutes ? 1 : 0.5;
   };
   
     const getAttendancePointDisplay = (entry: HistoryEntry): string => {
@@ -1376,11 +1391,12 @@ export default function ProfilePage() {
                                 <TableHead>Check-In</TableHead>
                                 <TableHead>Check-Out</TableHead>
                                 <TableHead>Point</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {attendanceHistory.map((record) => (
-                                <TableRow key={record.id}>
+                                <TableRow key={record.id} className="group">
                                     <TableCell>{format(new Date(record.date.replace(/-/g, '/')), 'PPP')}</TableCell>
                                     <TableCell>
                                         {record.type === 'leave' ? (
@@ -1393,6 +1409,17 @@ export default function ProfilePage() {
                                     </TableCell>
                                     <TableCell>{record.check_out || '-'}</TableCell>
                                     <TableCell>{getAttendancePointDisplay(record)}</TableCell>
+                                    <TableCell className="text-right">
+                                        {record.type === 'manual_points' && (
+                                            <form action={deletePointsAction} className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <input type="hidden" name="pointId" value={record.id} />
+                                                <input type="hidden" name="actorEmail" value={authUser?.email || ''} />
+                                                <Button type="submit" variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled={isDeletePointsPending}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </form>
+                                        )}
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
