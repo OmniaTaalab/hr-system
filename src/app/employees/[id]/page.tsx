@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { addAttendancePointsAction, type AddPointsState } from "@/app/actions/attendance-actions";
+import { DialogTrigger } from "@/components/ui/dialog";
 
 interface EmergencyContact {
   name: string;
@@ -76,7 +77,9 @@ interface HistoryEntry {
   date: string;
   check_in: string | null;
   check_out: string | null;
-  type: 'attendance' | 'leave';
+  type: 'attendance' | 'leave' | 'manual_points';
+  points?: number;
+  reason?: string;
 }
 
 interface AttendanceLog extends HistoryEntry {
@@ -165,7 +168,7 @@ function AddAttendancePointsDialog({ employee, actorEmail }: { employee: Employe
             </div>
             <div className="space-y-2">
               <Label htmlFor="reason">Reason</Label>
-              <Input id="reason" name="reason" required />
+              <Input id="reason" name="reason" />
               {state.errors?.reason && <p className="text-sm text-destructive">{state.errors.reason.join(', ')}</p>}
             </div>
           </div>
@@ -378,10 +381,30 @@ function EmployeeProfileContent() {
             });
           });
         });
+
+        // Fetch manual attendance points
+        const pointsQuery = query(
+          collection(db, "attendancePoints"),
+          where("employeeId", "==", emp.id)
+        );
+        const pointsSnapshot = await getDocs(pointsQuery);
+        const manualPoints: HistoryEntry[] = pointsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                date: format(data.date.toDate(), 'yyyy-MM-dd'),
+                type: 'manual_points',
+                points: data.points,
+                reason: data.reason,
+                check_in: null,
+                check_out: null,
+            };
+        });
     
         const mergedHistoryMap = new Map<string, HistoryEntry>();
         processedAttendance.forEach((att) => mergedHistoryMap.set(att.date, att));
         processedLeaves.forEach((leave) => mergedHistoryMap.set(leave.date, leave));
+        manualPoints.forEach((point) => mergedHistoryMap.set(point.date, point));
     
         const mergedHistory = Array.from(mergedHistoryMap.values());
         mergedHistory.sort((a, b) => b.date.localeCompare(a.date));
@@ -577,6 +600,9 @@ const getAttendancePointValue = (entry: any): number => {
 
   const getAttendancePointDisplay = (entry: HistoryEntry): string => {
       if (entry.type === 'leave') return "1/1";
+      if (entry.type === 'manual_points' && typeof entry.points === 'number') {
+        return `${entry.points}/10`;
+      }
       const value = getAttendancePointValue(entry);
       if (value === 0) return "-";
       return `${value}/1`;
@@ -700,7 +726,7 @@ const getAttendancePointValue = (entry: any): number => {
                                 <UserX className="h-4 w-4" /> Attendance Exempt
                             </Badge>
                        )}
-                       {currentUserProfile?.role.toLowerCase() === 'admin' && employee.isExemptFromAttendance && (
+                       {currentUserProfile?.role.toLowerCase() === 'hr' && employee.isExemptFromAttendance && (
                             <AddAttendancePointsDialog employee={employee} actorEmail={currentUserProfile?.email} />
                        )}
                    </div>
@@ -941,7 +967,15 @@ const getAttendancePointValue = (entry: any): number => {
                           {attendanceAndLeaveHistory.map((record) => (
                               <TableRow key={record.id}>
                                   <TableCell>{record.date}</TableCell>
-                                  <TableCell>{record.type === 'leave' ? <Badge variant="outline" className="border-blue-500 text-blue-500">Approved Leave</Badge> : record.check_in || '-'}</TableCell>
+                                  <TableCell>
+                                    {record.type === 'leave' ? (
+                                        <Badge variant="outline" className="border-blue-500 text-blue-500">Approved Leave</Badge>
+                                    ) : record.type === 'manual_points' ? (
+                                        <Badge variant="outline" className="border-purple-500 text-purple-500">Manual Entry</Badge>
+                                    ) : (
+                                        record.check_in || '-'
+                                    )}
+                                  </TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
                                   <TableCell>{getAttendancePointDisplay(record)}</TableCell>
                               </TableRow>

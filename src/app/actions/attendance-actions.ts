@@ -127,7 +127,7 @@ const AddPointsSchema = z.object({
   employeeDocId: z.string().min(1, "Employee ID is required."),
   points: z.coerce.number(),
   date: z.coerce.date(),
-  reason: z.string().min(1, "Reason is required."),
+  reason: z.string().optional(),
   actorEmail: z.string().optional(),
 });
 
