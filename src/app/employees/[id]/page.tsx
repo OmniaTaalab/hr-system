@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit, or, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle, Trophy, Plus, UserX } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle, Trophy, Plus, UserX, Trash2 } from 'lucide-react';
 import { format, getYear, getMonth, getDate, intervalToDuration, formatDistanceToNow, eachDayOfInterval, startOfDay } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,7 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { addAttendancePointsAction, type AddPointsState } from "@/app/actions/attendance-actions";
+import { addAttendancePointsAction, deleteAttendancePointsAction, type AddPointsState, type DeletePointsState } from "@/app/actions/attendance-actions";
 import { DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -110,6 +110,8 @@ interface KpiEntry {
 }
 
 const initialPointsState: AddPointsState = { success: false, errors: {} };
+const initialDeletePointsState: DeletePointsState = { success: false };
+
 
 function AddAttendancePointsDialog({ employee, actorEmail }: { employee: Employee, actorEmail: string | undefined }) {
   const { toast } = useToast();
@@ -265,10 +267,23 @@ function EmployeeProfileContent() {
   const [totHistory, setTotHistory] = useState<KpiEntry[]>([]);
   const [loadingKpis, setLoadingKpis] = useState(false);
 
+  const [deletePointsState, deletePointsAction, isDeletePointsPending] = useActionState(deleteAttendancePointsAction, initialDeletePointsState);
+
+
   const getInitials = (name?: string | null) => {
     if (!name) return "U";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
+
+  useEffect(() => {
+    if (deletePointsState.message) {
+      toast({
+        title: deletePointsState.success ? "Success" : "Error",
+        description: deletePointsState.message,
+        variant: deletePointsState.success ? "default" : "destructive",
+      });
+    }
+  }, [deletePointsState, toast]);
 
   useEffect(() => {
     if (!identifier) return;
@@ -327,109 +342,93 @@ function EmployeeProfileContent() {
     };
   
     const fetchHistory = async (emp: Employee) => {
-      const identifierToUse = emp.employeeId || emp.badgeNumber;
-      if (!identifierToUse) {
-        setAttendanceAndLeaveHistory([]);
-        return;
+      if (!emp.id) {
+          setAttendanceAndLeaveHistory([]);
+          return;
       }
-    
       setLoadingHistory(true);
-      try {
-        const idString = String(identifierToUse).trim();
-    
-        const attendanceSnapshot = await getDocs(
-          query(collection(db, "attendance_log"), where("userId", "==", idString))
-        );
-    
-        const attendanceLogs = attendanceSnapshot.docs.map(
-          (doc) => ({ id: doc.id, ...doc.data() } as AttendanceLog)
-        );
-    
-        const groupedLogs: { [key: string]: { check_ins: string[]; check_outs: string[]; date: string } } = {};
-        attendanceLogs.forEach((log) => {
-          if (!groupedLogs[log.date]) {
-            groupedLogs[log.date] = { check_ins: [], check_outs: [], date: log.date };
-          }
-          if (log.check_in) groupedLogs[log.date].check_ins.push(log.check_in);
-          if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
-        });
-    
-        const processedAttendance: AttendanceLog[] = Object.values(groupedLogs).map((group) => {
-          group.check_ins.sort();
-          group.check_outs.sort();
-          return {
-            id: group.date,
-            date: group.date,
-            check_in: group.check_ins[0] || null,
-            check_out:
-              group.check_outs.length > 0
-                ? group.check_outs[group.check_outs.length - 1]
-                : null,
-            type: "attendance",
-          };
-        });
-    
-        const leavesQuery = query(
-          collection(db, "leaveRequests"),
-          where("requestingEmployeeDocId", "==", emp.id),
-          where("status", "==", "Approved")
-        );
-        const leaveSnapshot = await getDocs(leavesQuery);
-        const processedLeaves: LeaveLog[] = [];
-        leaveSnapshot.forEach((doc) => {
-          const leave = doc.data() as LeaveRequest;
-          const start = startOfDay(leave.startDate.toDate());
-          const end = startOfDay(leave.endDate.toDate());
-          const leaveDays = eachDayOfInterval({ start, end });
-          leaveDays.forEach((day) => {
-            processedLeaves.push({
-              id: `${doc.id}-${format(day, "yyyy-MM-dd")}`,
-              date: format(day, "yyyy-MM-dd"),
-              type: "leave",
-              check_in: null,
-              check_out: null,
-            });
-          });
-        });
+      
+      const unsubscribes: (() => void)[] = [];
 
-        // Fetch manual attendance points
-        const pointsQuery = query(
-          collection(db, "attendancePoints"),
-          where("employeeId", "==", emp.id)
-        );
-        const pointsSnapshot = await getDocs(pointsQuery);
-        const manualPoints: HistoryEntry[] = pointsSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                date: format(data.date.toDate(), 'yyyy-MM-dd'),
-                type: 'manual_points',
-                points: data.points,
-                reason: data.reason,
-                check_in: null,
-                check_out: null,
-            };
-        });
-    
-        const mergedHistoryMap = new Map<string, HistoryEntry>();
-        processedAttendance.forEach((att) => mergedHistoryMap.set(att.date, att));
-        processedLeaves.forEach((leave) => mergedHistoryMap.set(leave.date, leave));
-        manualPoints.forEach((point) => mergedHistoryMap.set(point.date, point));
-    
-        const mergedHistory = Array.from(mergedHistoryMap.values());
-        mergedHistory.sort((a, b) => b.date.localeCompare(a.date));
-    
-        setAttendanceAndLeaveHistory(mergedHistory);
+      try {
+          const attendanceQuery = query(collection(db, "attendance_log"), where("userId", "==", emp.employeeId));
+          unsubscribes.push(onSnapshot(attendanceQuery, (snapshot) => {
+              const attendanceLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
+              const groupedLogs: { [key: string]: { check_ins: string[]; check_outs: string[]; date: string } } = {};
+              attendanceLogs.forEach((log) => {
+                  if (!groupedLogs[log.date]) groupedLogs[log.date] = { check_ins: [], check_outs: [], date: log.date };
+                  if (log.check_in) groupedLogs[log.date].check_ins.push(log.check_in);
+                  if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
+              });
+              const processedAttendance: AttendanceLog[] = Object.values(groupedLogs).map((group) => {
+                  group.check_ins.sort();
+                  group.check_outs.sort();
+                  return {
+                      id: group.date,
+                      date: group.date,
+                      check_in: group.check_ins[0] || null,
+                      check_out: group.check_outs.length > 0 ? group.check_outs[group.check_outs.length - 1] : null,
+                      type: "attendance",
+                  };
+              });
+
+              setAttendanceAndLeaveHistory(current => {
+                  const others = current.filter(item => item.type !== 'attendance');
+                  return [...others, ...processedAttendance].sort((a, b) => b.date.localeCompare(a.date));
+              });
+          }));
+
+          const leavesQuery = query(collection(db, "leaveRequests"), where("requestingEmployeeDocId", "==", emp.id), where("status", "==", "Approved"));
+          unsubscribes.push(onSnapshot(leavesQuery, (snapshot) => {
+              const processedLeaves: LeaveLog[] = [];
+              snapshot.forEach((doc) => {
+                  const leave = doc.data() as LeaveRequest;
+                  const start = startOfDay(leave.startDate.toDate());
+                  const end = startOfDay(leave.endDate.toDate());
+                  const leaveDays = eachDayOfInterval({ start, end });
+                  leaveDays.forEach((day) => {
+                      processedLeaves.push({
+                          id: `${doc.id}-${format(day, "yyyy-MM-dd")}`,
+                          date: format(day, "yyyy-MM-dd"),
+                          type: "leave",
+                          check_in: null,
+                          check_out: null,
+                      });
+                  });
+              });
+              setAttendanceAndLeaveHistory(current => {
+                   const others = current.filter(item => item.type !== 'leave');
+                  return [...others, ...processedLeaves].sort((a, b) => b.date.localeCompare(a.date));
+              });
+          }));
+
+          const pointsQuery = query(collection(db, "attendancePoints"), where("employeeId", "==", emp.id));
+          unsubscribes.push(onSnapshot(pointsQuery, (snapshot) => {
+              const manualPoints: HistoryEntry[] = snapshot.docs.map(doc => {
+                  const data = doc.data();
+                  return {
+                      id: doc.id,
+                      date: format(data.date.toDate(), 'yyyy-MM-dd'),
+                      type: 'manual_points',
+                      points: data.points,
+                      reason: data.reason,
+                      check_in: null,
+                      check_out: null,
+                  };
+              });
+              setAttendanceAndLeaveHistory(current => {
+                  const others = current.filter(item => item.type !== 'manual_points');
+                  return [...others, ...manualPoints].sort((a, b) => b.date.localeCompare(a.date));
+              });
+          }));
+
       } catch (e) {
-        console.error("Error fetching history:", e);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Could not load history.",
-        });
+          console.error("Error fetching history:", e);
+          toast({ variant: "destructive", title: "Error", description: "Could not load history." });
       } finally {
-        setLoadingHistory(false);
+          setLoadingHistory(false);
       }
+      return () => unsubscribes.forEach(unsub => unsub());
     };
     
     const fetchLeaveRequests = async (employeeDocId: string) => {
@@ -971,23 +970,35 @@ const getAttendancePointValue = (entry: any): number => {
                               <TableHead>Check-In</TableHead>
                               <TableHead>Check-Out</TableHead>
                               <TableHead>POINT</TableHead>
+                              <TableHead className="text-right">Action</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
                           {attendanceAndLeaveHistory.map((record) => (
-                              <TableRow key={record.id}>
+                              <TableRow key={record.id} className="group">
                                   <TableCell>{record.date}</TableCell>
                                   <TableCell>
                                     {record.type === 'leave' ? (
                                         <Badge variant="outline" className="border-blue-500 text-blue-500">Approved Leave</Badge>
                                     ) : record.type === 'manual_points' ? (
-                                        <Badge variant="outline" className="border-purple-500 text-purple-500">Manual Entry</Badge>
+                                        <Badge variant="outline" className="border-purple-500 text-purple-500" title={record.reason}>Manual Entry</Badge>
                                     ) : (
                                         record.check_in || '-'
                                     )}
                                   </TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
                                   <TableCell>{getAttendancePointDisplay(record)}</TableCell>
+                                  <TableCell className="text-right">
+                                    {record.type === 'manual_points' && (
+                                        <form action={deletePointsAction} className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <input type="hidden" name="pointId" value={record.id} />
+                                            <input type="hidden" name="actorEmail" value={currentUserProfile?.email || ''} />
+                                            <Button type="submit" variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled={isDeletePointsPending}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </form>
+                                    )}
+                                  </TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
@@ -1008,6 +1019,3 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
-
-
-    

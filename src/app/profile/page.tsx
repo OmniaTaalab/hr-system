@@ -1390,8 +1390,7 @@ export default function ProfilePage() {
                                 <TableHead>Date</TableHead>
                                 <TableHead>Check-In</TableHead>
                                 <TableHead>Check-Out</TableHead>
-                                <TableHead>Point</TableHead>
-                                <TableHead className="text-right">Action</TableHead>
+                                <TableHead>POINT</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1409,17 +1408,6 @@ export default function ProfilePage() {
                                     </TableCell>
                                     <TableCell>{record.check_out || '-'}</TableCell>
                                     <TableCell>{getAttendancePointDisplay(record)}</TableCell>
-                                    <TableCell className="text-right">
-                                        {record.type === 'manual_points' && (
-                                            <form action={deletePointsAction} className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <input type="hidden" name="pointId" value={record.id} />
-                                                <input type="hidden" name="actorEmail" value={authUser?.email || ''} />
-                                                <Button type="submit" variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled={isDeletePointsPending}>
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </form>
-                                        )}
-                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
