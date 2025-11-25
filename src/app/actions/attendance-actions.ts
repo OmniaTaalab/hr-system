@@ -3,9 +3,15 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { doc, deleteDoc, setDoc, query, where, getDocs, collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, deleteDoc, setDoc, query, where, getDocs, collection, addDoc, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
 import { logSystemEvent } from '@/lib/system-log';
 import { revalidatePath } from 'next/cache';
+
+interface Employee {
+  id: string;
+  name: string;
+  employeeId: string;
+}
 
 
 const DeleteAttendanceLogSchema = z.object({
@@ -59,39 +65,61 @@ export async function deleteAttendanceLogAction(
 }
 
 // --- Attendance Exemption Actions ---
-const ManageExemptionSchema = z.object({
-    employeeDocId: z.string().min(1, "Employee ID is required."),
-    employeeName: z.string().min(1, "Employee name is required."),
-    exempt: z.boolean(),
-    actorId: z.string().optional(),
-    actorEmail: z.string().optional(),
-});
-
-export async function manageAttendanceExemptionAction(employeeDocId: string, employeeName: string, exempt: boolean, actorId?: string, actorEmail?: string) {
+export async function manageAttendanceExemptionAction(
+    originalExemptedIds: string[], 
+    newlySelectedIds: string[],
+    allEmployees: Employee[],
+    actorId?: string, 
+    actorEmail?: string
+) {
     try {
-        const exemptionRef = doc(db, 'attendanceExemptions', employeeDocId);
+        const originalSet = new Set(originalExemptedIds);
+        const newSet = new Set(newlySelectedIds);
+        
+        const toAdd = newlySelectedIds.filter(id => !originalSet.has(id));
+        const toRemove = originalExemptedIds.filter(id => !newSet.has(id));
+        
+        const batch = writeBatch(db);
+        
+        // Handle additions
+        toAdd.forEach(employeeId => {
+            const employee = allEmployees.find(e => e.id === employeeId);
+            if (employee) {
+                const exemptionRef = doc(db, 'attendanceExemptions', employee.id); // Use Firestore doc ID
+                batch.set(exemptionRef, {
+                    employeeId: employee.id, // Storing doc ID for consistency
+                    employeeName: employee.name,
+                    createdAt: serverTimestamp(),
+                    createdBy: actorEmail || 'System',
+                    active: true,
+                });
+            }
+        });
 
-        if (exempt) {
-            await setDoc(exemptionRef, {
-                employeeId: employeeDocId,
-                employeeName: employeeName,
-                createdAt: serverTimestamp(),
-                createdBy: actorEmail || 'System',
-                active: true,
+        // Handle removals
+        toRemove.forEach(employeeId => {
+             const exemptionRef = doc(db, 'attendanceExemptions', employeeId);
+             batch.delete(exemptionRef);
+        });
+
+        if (toAdd.length > 0 || toRemove.length > 0) {
+            await batch.commit();
+            await logSystemEvent('Manage Attendance Exemptions', { 
+                actorId, 
+                actorEmail, 
+                added: toAdd.length, 
+                removed: toRemove.length 
             });
-            await logSystemEvent('Add Attendance Exemption', { actorId, actorEmail, targetEmployeeId: employeeDocId, targetEmployeeName: employeeName });
-        } else {
-            await deleteDoc(exemptionRef);
-            await logSystemEvent('Remove Attendance Exemption', { actorId, actorEmail, targetEmployeeId: employeeDocId, targetEmployeeName: employeeName });
         }
+        
         revalidatePath('/settings/attendance');
-        revalidatePath(`/employees/${employeeDocId}`);
-        return { success: true, message: `Exemption status updated for ${employeeName}.` };
+        return { success: true, message: `Exemption list updated: ${toAdd.length} added, ${toRemove.length} removed.` };
     } catch (error: any) {
-        console.error('Error managing exemption:', error);
-        return { success: false, message: `Failed to update exemption status: ${error.message}` };
+        console.error('Error managing exemptions:', error);
+        return { success: false, message: `Failed to update exemption list: ${error.message}` };
     }
 }
+
 
 
 // --- Add Manual Attendance Points Action ---

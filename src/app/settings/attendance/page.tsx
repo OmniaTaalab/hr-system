@@ -5,42 +5,61 @@ import React, { useState, useEffect, useMemo, useTransition } from 'react';
 import SettingsPageWrapper from '../settings-page-wrapper';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, UserCheck, UserX } from "lucide-react";
+import { Loader2, UserCheck, UserX, Search, Save } from "lucide-react";
 import { db } from '@/lib/firebase/config';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
-import { MultiSelectFilter, type OptionType } from "@/components/multi-select";
 import { useToast } from '@/hooks/use-toast';
 import { manageAttendanceExemptionAction } from '@/app/actions/attendance-actions';
 import { useUserProfile } from '@/components/layout/app-layout';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface Employee {
   id: string;
   name: string;
   employeeId: string;
+  role?: string;
+  email?: string;
+  photoURL?: string;
 }
 
 interface Exemption {
     id: string;
-    employeeId: string;
+    employeeId: string; // This is the doc ID of the employee
     employeeName: string;
 }
 
 export default function AttendanceSettingsPage() {
     const { toast } = useToast();
     const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
-    const [exemptedEmployees, setExemptedEmployees] = useState<Exemption[]>([]);
+    const [exemptions, setExemptions] = useState<Exemption[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isUpdating, startTransition] = useTransition();
+    const [searchTerm, setSearchTerm] = useState("");
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [isSaving, startTransition] = useTransition();
     const { profile } = useUserProfile();
 
     useEffect(() => {
+        setIsLoading(true);
         const empUnsub = onSnapshot(query(collection(db, 'employee'), orderBy('name')), (snapshot) => {
-            setAllEmployees(snapshot.docs.map(doc => ({ id: doc.id, employeeId: doc.data().employeeId, name: doc.data().name })));
-            setIsLoading(false);
+            setAllEmployees(snapshot.docs.map(doc => ({ 
+                id: doc.id, 
+                employeeId: doc.data().employeeId, 
+                name: doc.data().name,
+                role: doc.data().role,
+                email: doc.data().email,
+                photoURL: doc.data().photoURL
+            })));
         });
 
         const exemptionUnsub = onSnapshot(query(collection(db, 'attendanceExemptions'), where('active', '==', true)), (snapshot) => {
-            setExemptedEmployees(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Exemption)));
+            const exemptedData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Exemption));
+            setExemptions(exemptedData);
+            // Initialize the selected state with currently exempted employees
+            setSelectedIds(new Set(exemptedData.map(e => e.employeeId)));
+             setIsLoading(false);
         });
 
         return () => {
@@ -49,43 +68,51 @@ export default function AttendanceSettingsPage() {
         }
     }, []);
 
-    const employeeOptions: OptionType[] = useMemo(() => allEmployees.map(e => ({ value: e.id, label: e.name })), [allEmployees]);
-    const selectedExemptedIds = useMemo(() => exemptedEmployees.map(e => e.employeeId), [exemptedEmployees]);
+    const filteredEmployees = useMemo(() => {
+        if (!searchTerm) return allEmployees;
+        const lowercasedTerm = searchTerm.toLowerCase();
+        return allEmployees.filter(emp => 
+            emp.name.toLowerCase().includes(lowercasedTerm) ||
+            emp.email?.toLowerCase().includes(lowercasedTerm) ||
+            emp.role?.toLowerCase().includes(lowercasedTerm)
+        );
+    }, [allEmployees, searchTerm]);
 
-    const handleSelectionChange = (newSelection: string[]) => {
-        const currentSelection = new Set(selectedExemptedIds);
-        const added = newSelection.filter(id => !currentSelection.has(id));
-        const removed = Array.from(currentSelection).filter(id => !newSelection.includes(id));
+    const handleSelect = (employeeId: string) => {
+        setSelectedIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(employeeId)) {
+                newSet.delete(employeeId);
+            } else {
+                newSet.add(employeeId);
+            }
+            return newSet;
+        });
+    };
 
+    const handleSave = () => {
+        const originalExemptionIds = new Set(exemptions.map(e => e.employeeId));
+        const newSelectionIds = selectedIds;
+        
         startTransition(async () => {
-            const actions: Promise<any>[] = [];
+            const result = await manageAttendanceExemptionAction(
+                Array.from(originalExemptionIds), 
+                Array.from(newSelectionIds), 
+                allEmployees,
+                profile?.id, 
+                profile?.email
+            );
 
-            added.forEach(id => {
-                const employee = allEmployees.find(e => e.id === id);
-                if (employee) {
-                    actions.push(manageAttendanceExemptionAction(employee.id, employee.name, true, profile?.id, profile?.email));
-                }
-            });
-
-            removed.forEach(id => {
-                const employee = exemptedEmployees.find(e => e.employeeId === id);
-                 if (employee) {
-                    actions.push(manageAttendanceExemptionAction(employee.employeeId, employee.employeeName, false, profile?.id, profile?.email));
-                }
-            });
-
-            const results = await Promise.all(actions);
-            results.forEach(res => {
-                if (!res.success) {
-                    toast({ title: "Update Failed", description: res.message, variant: "destructive" });
-                }
-            });
-             if (results.every(r => r.success) && results.length > 0) {
-                toast({ title: "Success", description: "Exemption list updated."});
+            if (result.success) {
+                toast({ title: "Success", description: result.message });
+            } else {
+                toast({ title: "Error", description: result.message, variant: "destructive" });
             }
         });
     };
-    
+
+    const getInitials = (name: string) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U';
+
     return (
         <SettingsPageWrapper>
             <div className="space-y-8">
@@ -107,30 +134,65 @@ export default function AttendanceSettingsPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {isLoading ? (
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                                <Loader2 className="h-5 w-5 animate-spin" />
-                                <span>Loading employees...</span>
+                         <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                            <div className="relative flex-grow">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Search by name, email, or title..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-8"
+                                />
                             </div>
-                        ) : (
-                            <MultiSelectFilter
-                                placeholder="Select employees to exempt..."
-                                options={employeeOptions}
-                                selected={selectedExemptedIds}
-                                onChange={handleSelectionChange}
-                                className="w-full"
-                            />
-                        )}
-                         {isUpdating && (
-                            <div className="mt-4 flex items-center gap-2 text-primary">
-                                <Loader2 className="h-5 w-5 animate-spin" />
-                                <span>Updating exemptions...</span>
-                            </div>
-                         )}
+                            <Button onClick={handleSave} disabled={isSaving}>
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                Save Exemptions
+                            </Button>
+                        </div>
+                        <ScrollArea className="h-96 border rounded-lg">
+                            {isLoading ? (
+                                <div className="flex items-center justify-center h-full gap-2 text-muted-foreground">
+                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                    <span>Loading employees...</span>
+                                </div>
+                            ) : filteredEmployees.length === 0 ? (
+                                <div className="flex items-center justify-center h-full text-muted-foreground">
+                                    No employees found.
+                                </div>
+                            ) : (
+                                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {filteredEmployees.map(employee => (
+                                    <div 
+                                        key={employee.id} 
+                                        onClick={() => handleSelect(employee.id)}
+                                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${selectedIds.has(employee.id) ? 'bg-primary/10 border-primary' : 'hover:bg-muted/50'}`}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <Avatar className="h-10 w-10">
+                                                    <AvatarImage src={employee.photoURL} alt={employee.name} />
+                                                    <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
+                                                </Avatar>
+                                                <div className="flex-grow">
+                                                    <p className="font-semibold text-sm truncate">{employee.name}</p>
+                                                    <p className="text-xs text-muted-foreground truncate">{employee.role || 'No title'}</p>
+                                                    <p className="text-xs text-muted-foreground truncate">{employee.email || 'No email'}</p>
+                                                </div>
+                                            </div>
+                                             <Checkbox
+                                                checked={selectedIds.has(employee.id)}
+                                                onCheckedChange={() => handleSelect(employee.id)}
+                                                aria-label={`Select ${employee.name}`}
+                                             />
+                                        </div>
+                                    </div>
+                                ))}
+                                </div>
+                            )}
+                        </ScrollArea>
                     </CardContent>
                 </Card>
             </div>
         </SettingsPageWrapper>
     );
 }
-

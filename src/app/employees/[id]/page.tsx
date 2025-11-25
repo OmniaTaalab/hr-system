@@ -1,15 +1,14 @@
 
-
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useActionState } from "react";
 import { useParams, useRouter } from 'next/navigation';
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit, or, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle, Trophy } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle, Trophy, Plus } from 'lucide-react';
 import { format, getYear, getMonth, getDate, intervalToDuration, formatDistanceToNow, eachDayOfInterval, startOfDay } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -21,6 +20,12 @@ import autoTable from 'jspdf-autotable';
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { CertificateUploader } from "@/components/certificate-uploader";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { addAttendancePointsAction, type AddPointsState } from "@/app/actions/attendance-actions";
 
 interface EmergencyContact {
   name: string;
@@ -62,6 +67,7 @@ interface Employee {
   leavingDate?: Timestamp | { _seconds: number; _nanoseconds: number; } | null;
   reasonForLeaving?: string;
   deactivatedBy?: string;
+  isExemptFromAttendance?: boolean;
   [key: string]: any; // Allow other properties
 }
 
@@ -97,6 +103,85 @@ interface KpiEntry {
   date: Timestamp;
   points: number;
 }
+
+const initialPointsState: AddPointsState = { success: false, errors: {} };
+
+function AddAttendancePointsDialog({ employee, actorEmail }: { employee: Employee, actorEmail: string | undefined }) {
+  const { toast } = useToast();
+  const [isOpen, setIsOpen] = useState(false);
+  const [state, formAction, isPending] = useActionState(addAttendancePointsAction, initialPointsState);
+  const [date, setDate] = useState<Date | undefined>();
+
+  useEffect(() => {
+    if (state.message) {
+      toast({
+        title: state.success ? "Success" : "Error",
+        description: state.message,
+        variant: state.success ? "default" : "destructive",
+      });
+      if (state.success) {
+        setIsOpen(false);
+        setDate(undefined);
+      }
+    }
+  }, [state, toast]);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Attendance Points
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <form action={formAction}>
+          <DialogHeader>
+            <DialogTitle>Add Manual Attendance Points for {employee.name}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <input type="hidden" name="employeeDocId" value={employee.id} />
+            <input type="hidden" name="actorEmail" value={actorEmail} />
+            <div className="space-y-2">
+              <Label htmlFor="date">Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}>
+                    <CalendarDays className="mr-2 h-4 w-4" />
+                    {date ? format(date, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
+                </PopoverContent>
+              </Popover>
+              <input type="hidden" name="date" value={date?.toISOString() || ""} />
+              {state.errors?.date && <p className="text-sm text-destructive">{state.errors.date.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="points">Points</Label>
+              <Input id="points" name="points" type="number" step="0.5" required />
+              {state.errors?.points && <p className="text-sm text-destructive">{state.errors.points.join(', ')}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reason">Reason</Label>
+              <Input id="reason" name="reason" required />
+              {state.errors?.reason && <p className="text-sm text-destructive">{state.errors.reason.join(', ')}</p>}
+            </div>
+          </div>
+           {state.errors?.form && <p className="text-sm text-destructive text-center mb-2">{state.errors.form.join(', ')}</p>}
+          <DialogFooter>
+            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Add Points"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 
 function safeToDate(timestamp: any): Date | undefined {
@@ -179,44 +264,40 @@ function EmployeeProfileContent() {
       setLoading(true);
       setError(null);
       try {
-        const decodedId = decodeURIComponent(identifier).trim();
-        const employeeRef = collection(db, 'employee');
-        
-        // Main query attempts to find by employeeId (as string), or emails.
-        let q = query(
-          employeeRef,
-          or(
-            where('employeeId', '==', decodedId),
-            where('email', '==', decodedId.toLowerCase()),
-            where('personalEmail', '==', decodedId.toLowerCase())
-          ),
-          limit(1)
-        );
-        let employeeDocSnapshot = await getDocs(q);
-  
-        // Fallback for document ID if direct query fails (e.g., from an old link)
-        if (employeeDocSnapshot.empty) {
-          const docRef = doc(db, 'employee', decodedId);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-             const empData = { id: docSnap.id, ...docSnap.data() } as Employee;
-             setEmployee(empData);
-             fetchHistory(empData);
-             fetchLeaveRequests(empData.id);
-             fetchKpiData(empData.id);
-             setLoading(false);
-             return; // Exit after successful doc ID fetch
-          }
+        let employeeData: Employee | null = null;
+        // Main query attempts to find by document ID first, then by employeeId, then emails.
+        const docRef = doc(db, 'employee', identifier);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+           employeeData = { id: docSnap.id, ...docSnap.data() } as Employee;
+        } else {
+            const employeeRef = collection(db, 'employee');
+            const q = query(
+              employeeRef,
+              or(
+                where('employeeId', '==', identifier),
+                where('email', '==', identifier.toLowerCase()),
+                where('personalEmail', '==', identifier.toLowerCase())
+              ),
+              limit(1)
+            );
+            const employeeDocSnapshot = await getDocs(q);
+            if (!employeeDocSnapshot.empty) {
+                 const employeeDoc = employeeDocSnapshot.docs[0];
+                 employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
+            }
         }
   
-        if (!employeeDocSnapshot.empty) {
-          const employeeDoc = employeeDocSnapshot.docs[0];
-          const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
-          setEmployee(employeeData);
-  
-          fetchHistory(employeeData);
-          fetchLeaveRequests(employeeData.id);
-          fetchKpiData(employeeData.id);
+        if (employeeData) {
+            // Check for exemption status
+            const exemptionDoc = await getDoc(doc(db, 'attendanceExemptions', employeeData.id));
+            employeeData.isExemptFromAttendance = exemptionDoc.exists();
+
+            setEmployee(employeeData);
+            fetchHistory(employeeData);
+            fetchLeaveRequests(employeeData.id);
+            fetchKpiData(employeeData.id);
         } else {
           setError('Employee not found.');
         }
@@ -233,7 +314,7 @@ function EmployeeProfileContent() {
     };
   
     const fetchHistory = async (emp: Employee) => {
-      const identifierToUse = emp.badgeNumber || emp.employeeId;
+      const identifierToUse = emp.employeeId || emp.badgeNumber;
       if (!identifierToUse) {
         setAttendanceAndLeaveHistory([]);
         return;
@@ -241,19 +322,16 @@ function EmployeeProfileContent() {
     
       setLoadingHistory(true);
       try {
-        // Use String for badgeNumber which can sometimes be numeric
         const idString = String(identifierToUse).trim();
     
-        // Fetch attendance logs based on badgeNumber
         const attendanceSnapshot = await getDocs(
-          query(collection(db, "attendance_log"), where("badgeNumber", "==", idString))
+          query(collection(db, "attendance_log"), where("userId", "==", idString))
         );
     
         const attendanceLogs = attendanceSnapshot.docs.map(
           (doc) => ({ id: doc.id, ...doc.data() } as AttendanceLog)
         );
     
-        // Group logs by date to find first check-in and last check-out
         const groupedLogs: { [key: string]: { check_ins: string[]; check_outs: string[]; date: string } } = {};
         attendanceLogs.forEach((log) => {
           if (!groupedLogs[log.date]) {
@@ -263,7 +341,6 @@ function EmployeeProfileContent() {
           if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
         });
     
-        // Sort check-ins/outs to find earliest and latest
         const processedAttendance: AttendanceLog[] = Object.values(groupedLogs).map((group) => {
           group.check_ins.sort();
           group.check_outs.sort();
@@ -279,7 +356,6 @@ function EmployeeProfileContent() {
           };
         });
     
-        // Fetch approved leave requests for the employee
         const leavesQuery = query(
           collection(db, "leaveRequests"),
           where("requestingEmployeeDocId", "==", emp.id),
@@ -303,7 +379,6 @@ function EmployeeProfileContent() {
           });
         });
     
-        // Merge attendance and leave data
         const mergedHistoryMap = new Map<string, HistoryEntry>();
         processedAttendance.forEach((att) => mergedHistoryMap.set(att.date, att));
         processedLeaves.forEach((leave) => mergedHistoryMap.set(leave.date, leave));
@@ -333,7 +408,6 @@ function EmployeeProfileContent() {
         );
         const querySnapshot = await getDocs(leavesQuery);
         const leaves = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequest));
-        // Sort client-side
         leaves.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
         setLeaveRequests(leaves);
       } catch (e) {
@@ -360,7 +434,7 @@ function EmployeeProfileContent() {
             setTotHistory(totData);
         }, (error) => console.error("Error fetching TOT history:", error));
 
-        setLoadingKpis(false); // Can set this earlier as listeners will update
+        setLoadingKpis(false);
         
         return () => {
             eleotUnsubscribe();
@@ -377,12 +451,10 @@ function EmployeeProfileContent() {
     const userRole = currentUserProfile.role?.toLowerCase();
     const userEmail = currentUserProfile.email;
   
-    // Admin, HR, or viewing own profile
     if (userRole === "admin" || userRole === "hr" || currentUserProfile.id === employee.id) {
       return true;
     }
   
-    // Manager (reportLine1 or reportLine2)
     if (userEmail && (employee.reportLine1 === userEmail || employee.reportLine2 === userEmail)) {
         return true;
     }
@@ -406,7 +478,6 @@ function EmployeeProfileContent() {
     doc.setFont("helvetica", "bold");
     doc.text(`Employee Profile`, 105, 20, { align: "center" });
 
-    // Add Image
     if (employee.photoURL) {
       try {
         const response = await fetch(employee.photoURL);
@@ -504,85 +575,6 @@ const getAttendancePointValue = (entry: any): number => {
   return checkInMinutes < targetMinutes ? 1 : 0.5;
 };
 
-const calculateAttendanceScore = async (employeeId: string) => {
-  const startDate = new Date("2025-09-01T00:00:00Z");
-  const today = new Date();
-
-  // 🟢 Attendance
-  const attendanceQuery = query(
-    collection(db, "attendance_log"),
-    where("badgeNumber", "==", String(employeeId))
-  );
-  const attendanceSnapshot = await getDocs(attendanceQuery);
-
-  const attendanceLogs = attendanceSnapshot.docs.map((d) => ({
-    ...d.data(),
-    type: "attendance",
-  }));
-
-  // 🟢 Leaves
-  const leaveQuery = query(
-    collection(db, "leaveRequests"),
-    where("requestingEmployeeId", "==", String(employeeId))
-  );
-  const leaveSnapshot = await getDocs(leaveQuery);
-
-  const approvedLeaves = leaveSnapshot.docs
-    .map((d) => ({ ...d.data(), type: "leave" }))
-    .filter((l: any) => l.status === "Approved");
-
-  // 🟢 Official holidays
-  const holidaySnapshot = await getDocs(collection(db, "officialHolidays"));
-  const officialHolidays = holidaySnapshot.docs.map((d) => d.data().date); // e.g. ["2025-10-06", "2025-10-27"]
-
-  // 🧮 Loop over each workday
-  let totalDays = 0;
-  let totalPoints = 0;
-
-  const tempDate = new Date(startDate);
-  while (tempDate <= today) {
-    const dateStr = tempDate.toISOString().split("T")[0];
-    const day = tempDate.getDay();
-    
-    const isWeekend = day === 5 || day === 6; // Friday/Saturday
-    const isHoliday = officialHolidays.includes(dateStr);
-    const attendanceForDay = attendanceLogs.find(
-      (log: any) => log.date === dateStr
-    );
-    const leaveForDay = approvedLeaves.find((leave: any) => {
-      const from = leave.startDate?.toDate?.() || new Date(leave.startDate);
-      const to = leave.endDate?.toDate?.() || new Date(leave.endDate);
-      return tempDate >= from && tempDate <= to;
-    });
-
-    // ✅ حساب النقطة حسب الأولوية
-    let points = 0;
-    if (isWeekend || isHoliday) {
-      points = 1; // عطلة رسمية أو ويك إند
-    } else if (leaveForDay) {
-      points = 1; // إجازة معتمدة
-    } else if (attendanceForDay) {
-      points = getAttendancePointValue(attendanceForDay);
-    } else {
-      points = 0; // غياب
-    }
-
-    totalPoints += points;
-    totalDays++;
-    tempDate.setDate(tempDate.getDate() + 1);
-  }
-
-  const percentage = (totalPoints / totalDays) * 100;
-  const scoreOutOf10 = (percentage / 10).toFixed(1);
-
-  return {
-    totalPoints,
-    totalDays,
-    percentage: percentage.toFixed(1),
-    scoreOutOf10,
-  };
-};
-
   const getAttendancePointDisplay = (entry: HistoryEntry): string => {
       if (entry.type === 'leave') return "1/1";
       const value = getAttendancePointValue(entry);
@@ -595,7 +587,6 @@ const calculateAttendanceScore = async (employeeId: string) => {
       return null;
     }
   
-    // Filter history from Sep 1, 2025 onwards
     const startDate = new Date('2025-09-01T00:00:00Z');
   
     const recentHistory = attendanceAndLeaveHistory.filter(entry => {
@@ -703,6 +694,16 @@ const calculateAttendanceScore = async (employeeId: string) => {
                         </div>
                       )}
                   </div>
+                   <div className="ml-auto flex flex-col items-center gap-2">
+                      {employee.isExemptFromAttendance && (
+                            <Badge variant="warning" className="flex items-center gap-2">
+                                <UserX className="h-4 w-4" /> Attendance Exempt
+                            </Badge>
+                       )}
+                       {currentUserProfile?.role.toLowerCase() === 'admin' && employee.isExemptFromAttendance && (
+                            <AddAttendancePointsDialog employee={employee} actorEmail={currentUserProfile?.email} />
+                       )}
+                   </div>
               </CardHeader>
               <CardContent className="p-6">
                 {employee.status === 'deactivated' && (
@@ -963,5 +964,3 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
-
-
