@@ -168,12 +168,12 @@ export default function AttendanceSettingsPage() {
                                         className={`p-3 border rounded-lg cursor-pointer transition-colors ${selectedIds.has(employee.id) ? 'bg-primary/10 border-primary' : 'hover:bg-muted/50'}`}
                                     >
                                         <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-3 min-w-0">
                                                 <Avatar className="h-10 w-10">
                                                     <AvatarImage src={employee.photoURL} alt={employee.name} />
                                                     <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
                                                 </Avatar>
-                                                <div className="flex-grow">
+                                                <div className="flex-grow min-w-0">
                                                     <p className="font-semibold text-sm truncate">{employee.name}</p>
                                                     <p className="text-xs text-muted-foreground truncate">{employee.role || 'No title'}</p>
                                                     <p className="text-xs text-muted-foreground truncate">{employee.email || 'No email'}</p>
