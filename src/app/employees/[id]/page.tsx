@@ -151,7 +151,7 @@ function AddAttendancePointsDialog({ employee, actorEmail }: { employee: Employe
             <input type="hidden" name="employeeDocId" value={employee.id} />
             <input type="hidden" name="actorEmail" value={actorEmail} />
             <div className="space-y-2">
-              <Label htmlFor="date">Date</Label>
+              <Label htmlFor="date">Date (Optional)</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -198,15 +198,7 @@ function AddAttendancePointsDialog({ employee, actorEmail }: { employee: Employe
             </div>
             <div className="space-y-2">
               <Label htmlFor="points">Points</Label>
-               <Select name="points" required>
-                <SelectTrigger id="points">
-                  <SelectValue placeholder="Select points" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1</SelectItem>
-                  <SelectItem value="0.5">0.5</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input id="points" name="points" type="number" step="0.5" required />
               {state.errors?.points && <p className="text-sm text-destructive">{state.errors.points.join(', ')}</p>}
             </div>
             <div className="space-y-2">
@@ -641,7 +633,7 @@ const getAttendancePointValue = (entry: any): number => {
   const getAttendancePointDisplay = (entry: HistoryEntry): string => {
       if (entry.type === 'leave') return "1/1";
       if (entry.type === 'manual_points' && typeof entry.points === 'number') {
-        return `${entry.points}/1`;
+        return `${entry.points}/10`;
       }
       const value = getAttendancePointValue(entry);
       if (value === 0) return "-";
