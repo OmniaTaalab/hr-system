@@ -15,6 +15,8 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
+
 
 interface Employee {
   id: string;
@@ -160,31 +162,35 @@ export default function AttendanceSettingsPage() {
                                     No employees found.
                                 </div>
                             ) : (
-                                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div className="p-4 grid grid-cols-1 gap-2">
                                 {filteredEmployees.map(employee => (
                                     <div 
                                         key={employee.id} 
                                         onClick={() => handleSelect(employee.id)}
-                                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${selectedIds.has(employee.id) ? 'bg-primary/10 border-primary' : 'hover:bg-muted/50'}`}
+                                        className={cn(
+                                            'p-3 border rounded-lg cursor-pointer transition-colors flex items-center justify-between',
+                                            selectedIds.has(employee.id) 
+                                                ? 'bg-primary text-primary-foreground border-primary' 
+                                                : 'hover:bg-muted/50'
+                                        )}
                                     >
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3 min-w-0">
-                                                <Avatar className="h-10 w-10">
-                                                    <AvatarImage src={employee.photoURL} alt={employee.name} />
-                                                    <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
-                                                </Avatar>
-                                                <div className="flex-grow min-w-0">
-                                                    <p className="font-semibold text-sm truncate">{employee.name}</p>
-                                                    <p className="text-xs text-muted-foreground truncate">{employee.role || 'No title'}</p>
-                                                    <p className="text-xs text-muted-foreground truncate">{employee.email || 'No email'}</p>
-                                                </div>
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <Avatar className="h-10 w-10">
+                                                <AvatarImage src={employee.photoURL} alt={employee.name} />
+                                                <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex-grow min-w-0">
+                                                <p className="font-semibold text-sm truncate">{employee.name}</p>
+                                                <p className={cn("text-xs truncate", selectedIds.has(employee.id) ? 'text-primary-foreground/80' : 'text-muted-foreground')}>{employee.role || 'No title'}</p>
+                                                <p className={cn("text-xs truncate", selectedIds.has(employee.id) ? 'text-primary-foreground/80' : 'text-muted-foreground')}>{employee.email || 'No email'}</p>
                                             </div>
-                                             <Checkbox
-                                                checked={selectedIds.has(employee.id)}
-                                                onCheckedChange={() => handleSelect(employee.id)}
-                                                aria-label={`Select ${employee.name}`}
-                                             />
                                         </div>
+                                         <Checkbox
+                                            checked={selectedIds.has(employee.id)}
+                                            onCheckedChange={() => handleSelect(employee.id)}
+                                            aria-label={`Select ${employee.name}`}
+                                            className={cn(selectedIds.has(employee.id) && "border-primary-foreground data-[state=checked]:bg-primary-foreground data-[state=checked]:text-primary")}
+                                         />
                                     </div>
                                 ))}
                                 </div>
