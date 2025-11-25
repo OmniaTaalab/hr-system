@@ -27,6 +27,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { addAttendancePointsAction, type AddPointsState } from "@/app/actions/attendance-actions";
 import { DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 interface EmergencyContact {
   name: string;
@@ -163,11 +165,19 @@ function AddAttendancePointsDialog({ employee, actorEmail }: { employee: Employe
             </div>
             <div className="space-y-2">
               <Label htmlFor="points">Points</Label>
-              <Input id="points" name="points" type="number" step="0.5" required />
+               <Select name="points" required>
+                <SelectTrigger id="points">
+                  <SelectValue placeholder="Select points" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1</SelectItem>
+                  <SelectItem value="0.5">0.5</SelectItem>
+                </SelectContent>
+              </Select>
               {state.errors?.points && <p className="text-sm text-destructive">{state.errors.points.join(', ')}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="reason">Reason</Label>
+              <Label htmlFor="reason">Reason (Optional)</Label>
               <Input id="reason" name="reason" />
               {state.errors?.reason && <p className="text-sm text-destructive">{state.errors.reason.join(', ')}</p>}
             </div>
@@ -998,3 +1008,6 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
+
+    
