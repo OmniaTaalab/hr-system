@@ -352,7 +352,6 @@ function AddAttendancePointsDialog({ employee, actorEmail, onPointAdded }: { emp
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [state, formAction, isPending] = useActionState(addAttendancePointsAction, initialPointsState);
-  const [date, setDate] = useState<Date | undefined>();
 
   useEffect(() => {
     if (state.message) {
@@ -363,7 +362,6 @@ function AddAttendancePointsDialog({ employee, actorEmail, onPointAdded }: { emp
       });
       if (state.success) {
         setIsOpen(false);
-        setDate(undefined);
         onPointAdded();
       }
     }
@@ -382,32 +380,13 @@ function AddAttendancePointsDialog({ employee, actorEmail, onPointAdded }: { emp
           <div className="grid gap-4 py-4">
             <input type="hidden" name="employeeDocId" value={employee.id} />
             <input type="hidden" name="actorEmail" value={actorEmail} />
-            <div className="space-y-2">
-              <Label htmlFor="date">Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {date ? format(date, "PPP") : <span>Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
-                </PopoverContent>
-              </Popover>
-              <input type="hidden" name="date" value={date?.toISOString() || ""} />
-              {state.errors?.date && <p className="text-sm text-destructive">{state.errors.date.join(', ')}</p>}
-            </div>
+            
             <div className="space-y-2">
               <Label htmlFor="points">Points (out of 10)</Label>
               <Input id="points" name="points" type="number" step="0.5" max="10" required />
               {state.errors?.points && <p className="text-sm text-destructive">{state.errors.points.join(', ')}</p>}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="reason">Reason (Optional)</Label>
-              <Input id="reason" name="reason" />
-              {state.errors?.reason && <p className="text-sm text-destructive">{state.errors.reason.join(', ')}</p>}
-            </div>
+            
           </div>
            {state.errors?.form && <p className="text-sm text-destructive text-center mb-2">{state.errors.form.join(', ')}</p>}
           <DialogFooter>

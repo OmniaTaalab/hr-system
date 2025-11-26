@@ -128,22 +128,13 @@ export async function manageAttendanceExemptionAction(
 const AddPointsSchema = z.object({
   employeeDocId: z.string().min(1, "Employee ID is required."),
   points: z.coerce.number(),
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
-  reason: z.string().optional(),
   actorEmail: z.string().optional(),
-}).refine(data => !data.endDate || !data.startDate || data.endDate >= data.startDate, {
-  message: "End date must be after or the same as start date.",
-  path: ["endDate"],
 });
 
 
 export type AddPointsState = {
   errors?: {
     points?: string[];
-    startDate?: string[];
-    endDate?: string[];
-    reason?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -154,9 +145,6 @@ export async function addAttendancePointsAction(prevState: AddPointsState, formD
   const validatedFields = AddPointsSchema.safeParse({
     employeeDocId: formData.get('employeeDocId'),
     points: formData.get('points'),
-    startDate: formData.get('startDate') || undefined,
-    endDate: formData.get('endDate') || undefined,
-    reason: formData.get('reason'),
     actorEmail: formData.get('actorEmail'),
   });
 
@@ -168,44 +156,31 @@ export async function addAttendancePointsAction(prevState: AddPointsState, formD
     };
   }
 
-  const { employeeDocId, points, startDate, endDate, reason, actorEmail } = validatedFields.data;
+  const { employeeDocId, points, actorEmail } = validatedFields.data;
   
-  const finalStartDate = startDate ? startOfDay(startDate) : startOfDay(new Date());
-  const finalEndDate = endDate ? startOfDay(endDate) : finalStartDate;
-  
-  const dateInterval = eachDayOfInterval({
-    start: finalStartDate,
-    end: finalEndDate,
-  });
+  const date = new Date();
 
   try {
-    const batch = writeBatch(db);
-    
-    dateInterval.forEach(day => {
-        const newPointRef = doc(collection(db, "attendancePoints"));
-        batch.set(newPointRef, {
-            employeeId: employeeDocId,
-            points,
-            reason: reason || null,
-            date: Timestamp.fromDate(day),
-            createdAt: serverTimestamp(),
-            createdBy: actorEmail,
-        });
+    const newPointRef = doc(collection(db, "attendancePoints"));
+    await setDoc(newPointRef, {
+        employeeId: employeeDocId,
+        points,
+        reason: null, // Reason is removed from form
+        date: Timestamp.fromDate(startOfDay(date)), // Always use the start of the current day
+        createdAt: serverTimestamp(),
+        createdBy: actorEmail,
     });
-
-    await batch.commit();
+    
 
     await logSystemEvent("Add Attendance Points", { 
         actorEmail, 
         targetEmployeeId: employeeDocId, 
         points, 
-        reason, 
-        startDate: finalStartDate.toISOString().split('T')[0],
-        endDate: finalEndDate.toISOString().split('T')[0],
-        daysAffected: dateInterval.length,
+        date: date.toISOString().split('T')[0],
+        daysAffected: 1,
     });
     
-    return { success: true, message: `Successfully added ${points} points for ${dateInterval.length} day(s).` };
+    return { success: true, message: `Successfully added ${points} points.` };
   } catch (error: any) {
     console.error("Error adding attendance points:", error);
     return {
