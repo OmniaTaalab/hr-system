@@ -1,10 +1,9 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useActionState, useMemo, useTransition } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
-import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save, Download, Edit, RefreshCw, ArrowLeft } from "lucide-react";
+import { BarChartBig, Loader2, AlertTriangle, Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save, Download, Edit, RefreshCw, ArrowLeft, UserX } from "lucide-react";
 import { useParams, useRouter } from 'next/navigation';
 import { db, storage } from '@/lib/firebase/config';
 import { doc, getDoc, collection, query, where, onSnapshot, orderBy, Timestamp, getDocs, limit, updateDoc } from 'firebase/firestore';
@@ -465,6 +464,7 @@ function KpiDashboardContent() {
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [selectedSubmission, setSelectedSubmission] = useState<ProfDevelopmentEntry | null>(null);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
+  const [isExempt, setIsExempt] = useState(false);
 
     // Add state for overall score
     const [eleotScore, setEleotScore] = useState(0);
@@ -497,11 +497,16 @@ function KpiDashboardContent() {
     const fetchEmployee = async () => {
       try {
         const q = query(collection(db, 'employee'), where("employeeId", "==", companyEmployeeId), limit(1));
-        const unsubscribeEmployee = onSnapshot(q, (querySnapshot) => {
+        const unsubscribeEmployee = onSnapshot(q, async (querySnapshot) => {
             if (!querySnapshot.empty) {
                 const employeeDoc = querySnapshot.docs[0];
                 const employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
                 setEmployee(employeeData);
+
+                // Check for exemption status
+                const exemptionDoc = await getDoc(doc(db, 'attendanceExemptions', employeeData.id));
+                setIsExempt(exemptionDoc.exists());
+
                 setLoading(false);
 
                 // Now that we have employeeData.id, we can set up the prof development listener
@@ -631,9 +636,16 @@ function KpiDashboardContent() {
                     <AvatarImage src={employee?.photoURL || undefined} alt={employee?.name} />
                     <AvatarFallback>{getInitials(employee?.name)}</AvatarFallback>
                 </Avatar>
-                <h1 className="font-headline text-2xl font-bold tracking-tight">
-                    {employee?.name}
-                </h1>
+                <div>
+                  <h1 className="font-headline text-2xl font-bold tracking-tight">
+                      {employee?.name}
+                  </h1>
+                  {isExempt && (
+                    <Badge variant="warning" className="flex items-center gap-2 mt-1 w-fit">
+                        <UserX className="h-4 w-4" /> Attendance Exempt
+                    </Badge>
+                  )}
+                </div>
             </div>
             <Badge variant="outline" className="text-xl py-2 px-6 rounded-full">
             Overall: {overallScore}% 
@@ -825,14 +837,3 @@ export default function KpiDashboardPage() {
         </AppLayout>
     );
 }
-
-    
-    
-
-
-
-
-
-
-
-
