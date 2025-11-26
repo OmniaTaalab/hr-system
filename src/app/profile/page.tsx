@@ -349,7 +349,7 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
 const initialPointsState: AddPointsState = { success: false, errors: {} };
 const initialDeletePointsState: DeletePointsState = { success: false };
 
-function AddAttendancePointsDialog({ employee, actorProfile, onPointAdded }: { employee: EmployeeProfile, actorProfile: {id?:string, name?: string} | null, onPointAdded: () => void }) {
+function AddAttendancePointsDialog({ employee, actorProfile, onPointAdded }: { employee: Pick<EmployeeProfile, 'id' | 'name'>, actorProfile: { id?: string, name?: string } | null, onPointAdded: () => void }) {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [state, formAction, isPending] = useActionState(addAttendancePointsAction, initialPointsState);
