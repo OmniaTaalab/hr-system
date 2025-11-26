@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
@@ -231,7 +232,22 @@ function KpisContent() {
             kpiChunkSnapshots[2].forEach(doc => allKpiSnapshots.appraisal.push(doc));
             profDevChunkSnapshots.forEach(snap => snap.forEach(doc => allProfDevSnapshots.push(doc)));
             const holidaysPromise = getDocs(collection(db, 'holidays'));
-            const [holidaysSnapshot] = await Promise.all([holidaysPromise]);
+            
+            // New logic for exemptions and manual points
+            const exemptionsPromise = getDocs(query(collection(db, 'attendanceExemptions'), where('employeeId', 'in', employeeIds)));
+            const manualPointsPromise = getDocs(query(collection(db, 'attendancePoints'), where('employeeId', 'in', employeeIds)));
+
+            const [holidaysSnapshot, exemptionsSnapshot, manualPointsSnapshot] = await Promise.all([holidaysPromise, exemptionsPromise, manualPointsPromise]);
+            
+            const exemptEmployeeIds = new Set(exemptionsSnapshot.docs.map(doc => doc.data().employeeId));
+            const manualPointsByEmployee = new Map<string, any[]>();
+            manualPointsSnapshot.forEach(doc => {
+                const data = doc.data();
+                if (!manualPointsByEmployee.has(data.employeeId)) {
+                    manualPointsByEmployee.set(data.employeeId, []);
+                }
+                manualPointsByEmployee.get(data.employeeId)!.push(data);
+            });
 
             const kpiDataMap = new Map<string, { eleot: any[], tot: any[], appraisal: any[] }>();
             const processKpiSnapshot = (snapshot: any[], key: 'eleot' | 'tot' | 'appraisal') => {
@@ -254,7 +270,7 @@ function KpisContent() {
             });
             const holidays = holidaysSnapshot.docs.map(d => d.data().date.toDate());
             
-            const attendanceLogs = [];
+            const attendanceLogs: DocumentData[] = [];
             if(employees.length > 0) {
                  const employeeIdStrings = employees.map(e => e.employeeId);
                  const attPromise = getDocs(query(collection(db, "attendance_log"), where("userId", "in", employeeIdStrings)));
@@ -279,7 +295,19 @@ function KpisContent() {
                 const devSubmissions = profDevMap.get(emp.id) || [];
                 const acceptedDev = devSubmissions.filter(s => s.status === 'Accepted').length;
                 const profDevelopmentScore = Math.min((acceptedDev * 1) / 20 * 10, 10);
-                const attendanceScore = getAttendanceScore(emp, bulkAttendanceData, holidays);
+                
+                let attendanceScore = 0;
+                const isExempt = exemptEmployeeIds.has(emp.id);
+                if (isExempt) {
+                    const points = manualPointsByEmployee.get(emp.id);
+                    if (points && points.length > 0) {
+                        const totalPoints = points.reduce((sum, item) => sum + item.points, 0);
+                        attendanceScore = totalPoints / points.length; // Average of points (already out of 10)
+                    }
+                } else {
+                    attendanceScore = getAttendanceScore(emp, bulkAttendanceData, holidays);
+                }
+
                 return {
                     ...emp,
                     kpis: {

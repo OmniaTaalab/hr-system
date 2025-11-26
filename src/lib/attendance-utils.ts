@@ -1,4 +1,5 @@
 
+
 import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { eachDayOfInterval, startOfDay } from 'date-fns';
@@ -44,8 +45,13 @@ export function getAttendancePointValue(entry: any): number {
 }
 
 
-export function getAttendanceScore(employee: { id: string, employeeId: string }, bulkData: AttendanceData, holidays: Date[]): number {
+export function getAttendanceScore(employee: { id: string, employeeId: string }, bulkData: AttendanceData, holidays: Date[], isExempt?: boolean): number {
     if (!employee?.employeeId) {
+        return 0;
+    }
+    
+    if (isExempt) {
+        // This part can be enhanced if manual points are also passed in bulkData
         return 0;
     }
 
