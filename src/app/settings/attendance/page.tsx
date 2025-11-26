@@ -175,7 +175,7 @@ export default function AttendanceSettingsPage() {
                                 Save Exemptions
                             </Button>
                         </div>
-                        <ScrollArea className="h-96 border rounded-lg">
+                        <ScrollArea className="h-[40rem] border rounded-lg">
                             {isLoading ? (
                                 <div className="flex items-center justify-center h-full gap-2 text-muted-foreground">
                                     <Loader2 className="h-5 w-5 animate-spin" />
