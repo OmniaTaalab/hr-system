@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition, useCallback } from "react";
@@ -14,7 +15,7 @@ import {
   reauthenticateWithCredential,
   updatePassword 
 } from "firebase/auth";
-import { collection, query, where, getDocs, limit, type Timestamp, onSnapshot, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, type Timestamp, onSnapshot, orderBy, addDoc, serverTimestamp, doc } from 'firebase/firestore';
 import { format, getYear, getMonth, getDate, startOfYear, endOfYear, eachDayOfInterval, startOfDay } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -502,11 +503,12 @@ function UpdateProfDevelopmentDialog({ isOpen, onOpenChange, submission, employe
 }
 
 export function AttendanceChartCard({ employeeDocId, employeeId, onScoreCalculated }: { employeeDocId: string, employeeId: string | undefined, onScoreCalculated: (score: number) => void }) {
-    const [attendanceScore, setAttendanceScore] = useState<{
+    const [attendanceStats, setAttendanceStats] = useState<{
       score: number;
-      maxScore: number;
-      percentage: string;
-      scoreOutOf10: string;
+      onTime: number;
+      late: number;
+      absent: number;
+      totalWorkingDays: number;
     } | null>(null);
   
     const [isExempt, setIsExempt] = useState(false);
@@ -530,7 +532,6 @@ export function AttendanceChartCard({ employeeDocId, employeeId, onScoreCalculat
                 });
                 return unsubscribe;
             } else {
-                // Fetch regular attendance data for non-exempt employees
                 if (!employeeId) {
                   setIsLoading(false);
                   return () => {};
@@ -559,23 +560,33 @@ export function AttendanceChartCard({ employeeDocId, employeeId, onScoreCalculat
                             from.setHours(0, 0, 0, 0); to.setHours(23, 59, 59, 999);
                             return tempDate >= from && tempDate <= to;
                         });
-                        if (leaveForDay) onTime++;
-                        else if (attendanceForDay) {
+                        if (leaveForDay) {
+                            onTime++;
+                        } else if (attendanceForDay) {
                             const [hRaw, mRaw] = (attendanceForDay as any).check_in.split(":");
                             let hours = parseInt(hRaw);
                             if ((attendanceForDay as any).check_in.toLowerCase().includes("pm") && hours < 12) hours += 12;
                             if (!(attendanceForDay as any).check_in.toLowerCase().includes("pm") && hours === 12) hours = 0;
                             if ((hours * 60 + parseInt(mRaw)) <= (7 * 60 + 30)) onTime++;
                             else late++;
-                        } else absent++;
+                        } else {
+                            absent++;
+                        }
                     }
                     tempDate.setDate(tempDate.getDate() + 1);
                 }
                 const presentDays = onTime + late;
                 const totalPresentPercent = totalWorkingDays > 0 ? (presentDays / totalWorkingDays) * 100 : 0;
                 const score = totalPresentPercent / 10;
+                
+                setAttendanceStats({
+                  score,
+                  onTime,
+                  late,
+                  absent,
+                  totalWorkingDays,
+                });
                 onScoreCalculated(score);
-                setAttendanceScore({ score: presentDays, maxScore: totalWorkingDays, percentage: totalPresentPercent.toFixed(1), scoreOutOf10: score.toFixed(1) });
             }
         } catch (err) {
             console.error("Error fetching attendance exemption/stats:", err);
@@ -646,25 +657,69 @@ export function AttendanceChartCard({ employeeDocId, employeeId, onScoreCalculat
         );
     }
   
-    // Regular attendance chart for non-exempt employees
+    const chartData = [
+      { name: "Present", value: attendanceStats?.onTime || 0, fill: "hsl(var(--chart-2))" },
+      { name: "Late", value: attendanceStats?.late || 0, fill: "hsl(var(--chart-4))" },
+      { name: "Absent", value: attendanceStats?.absent || 0, fill: "hsl(var(--chart-5))" },
+    ];
+    const totalPresent = (attendanceStats?.onTime || 0) + (attendanceStats?.late || 0);
+    const totalPresentPercentage = attendanceStats?.totalWorkingDays ? (totalPresent / attendanceStats.totalWorkingDays) * 100 : 0;
+    
     return (
       <Card>
         <CardHeader>
           <CardTitle>
-            Attendance ({attendanceScore?.scoreOutOf10 ?? "0.0"} / 10)
+            Attendance ({attendanceStats?.score.toFixed(1) ?? "0.0"} / 10)
           </CardTitle>
           <CardDescription>
             Attendance for current year (excluding weekends/holidays)
           </CardDescription>
         </CardHeader>
-         <CardContent>
-            {/* The existing chart rendering logic will go here */}
-            {attendanceScore ? (
-                <div className="text-center">
-                    <p className="text-2xl font-bold">{attendanceScore.percentage}%</p>
-                    <p className="text-sm text-muted-foreground">({attendanceScore.score} / {attendanceScore.maxScore} days)</p>
+         <CardContent className="flex flex-col items-center gap-6">
+            <div className="relative h-40 w-40">
+                <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                        <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={70} startAngle={90} endAngle={-270} stroke="none">
+                            {chartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                            ))}
+                        </Pie>
+                    </PieChart>
+                </ResponsiveContainer>
+                 <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <p className="text-xs text-muted-foreground">Total Present</p>
+                    <p className="text-3xl font-bold">{totalPresentPercentage.toFixed(0)}%</p>
                 </div>
-            ) : <p className="text-center text-muted-foreground">No data available.</p>}
+            </div>
+            
+            <div className="w-full text-center">
+              <div className="flex justify-center items-center gap-4 text-sm">
+                  {chartData.map((entry) => (
+                      <div key={entry.name} className="flex items-center">
+                          <span className="h-2.5 w-2.5 rounded-full mr-1.5" style={{ backgroundColor: entry.fill }}/>
+                          {entry.name}
+                      </div>
+                  ))}
+              </div>
+              <p className="text-sm text-muted-foreground mt-4">Total Working Days: {attendanceStats?.totalWorkingDays || 0}</p>
+            </div>
+            
+             <div className="grid grid-cols-3 gap-2 w-full">
+                <div className="p-2 rounded-lg text-center" style={{backgroundColor: 'hsl(var(--chart-2) / 0.1)'}}>
+                    <p className="font-bold text-lg" style={{color: 'hsl(var(--chart-2))'}}>Present</p>
+                    <p className="text-sm text-muted-foreground">{attendanceStats?.onTime || 0} days ({attendanceStats?.totalWorkingDays ? ((attendanceStats.onTime / attendanceStats.totalWorkingDays) * 100).toFixed(0) : 0}%)</p>
+                </div>
+                <div className="p-2 rounded-lg text-center" style={{backgroundColor: 'hsl(var(--chart-4) / 0.1)'}}>
+                    <p className="font-bold text-lg" style={{color: 'hsl(var(--chart-4))'}}>Late</p>
+                    <p className="text-sm text-muted-foreground">{attendanceStats?.late || 0} days ({attendanceStats?.totalWorkingDays ? ((attendanceStats.late / attendanceStats.totalWorkingDays) * 100).toFixed(0) : 0}%)</p>
+                </div>
+                 <div className="p-2 rounded-lg text-center" style={{backgroundColor: 'hsl(var(--chart-5) / 0.1)'}}>
+                    <p className="font-bold text-lg" style={{color: 'hsl(var(--chart-5))'}}>Absent</p>
+                    <p className="text-sm text-muted-foreground">{attendanceStats?.absent || 0} days ({attendanceStats?.totalWorkingDays ? ((attendanceStats.absent / attendanceStats.totalWorkingDays) * 100).toFixed(0) : 0}%)</p>
+                </div>
+            </div>
+             <p className="text-xs text-muted-foreground text-center">Attendance since Sep 1, 2025 (excluding weekends/holidays)</p>
+
         </CardContent>
       </Card>
     );
@@ -705,17 +760,29 @@ export default function ProfilePage() {
     if (entry.type === "leave") return 1;
     if (!entry.check_in) return 0;
   
-    const timeParts = entry.check_in.split(":");
-    let hours = parseInt(timeParts[0], 10);
-    const minutes = parseInt(timeParts[1], 10);
-    const isPM = entry.check_in.toLowerCase().includes("pm");
-    if (isPM && hours < 12) hours += 12;
-    if (!isPM && hours === 12) hours = 0;
+    const timeString = entry.check_in.replace(/\s/g, '');
+    const isPM = timeString.toLowerCase().includes('pm');
+    const timeDigits = timeString.replace(/(am|pm)/i, '');
+    const parts = timeDigits.split(':');
+    let hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1], 10);
+
+    if (isNaN(hours) || isNaN(minutes)) return 0;
+
+    if (isPM && hours < 12) {
+        hours += 12;
+    } else if (!isPM && hours === 12) { // Handle 12 AM (midnight)
+        hours = 0;
+    }
   
     const checkInMinutes = hours * 60 + minutes;
     const targetMinutes = 7 * 60 + 30; // 7:30 AM
-    return checkInMinutes <= targetMinutes ? 1 : 0.5;
-  };
+  
+    if (checkInMinutes <= targetMinutes) return 1; // on time
+    if (checkInMinutes > targetMinutes) return 0.5; // late
+    
+    return 0; 
+};
   
     const getAttendancePointDisplay = (entry: HistoryEntry): string => {
         if (entry.type === 'leave') return "1 / 1";
