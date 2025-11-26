@@ -100,7 +100,7 @@ interface KpiEntry {
   points: number;
 }
 
-const initialDeletePointsState: DeletePointsState = { success: false };
+
 
 
 function safeToDate(timestamp: any): Date | undefined {
@@ -171,7 +171,6 @@ function EmployeeProfileContent() {
   const [totHistory, setTotHistory] = useState<KpiEntry[]>([]);
   const [loadingKpis, setLoadingKpis] = useState(false);
   
-  const [deletePointsState, deletePointsAction, isDeletePointsPending] = useActionState(deleteAttendancePointsAction, initialDeletePointsState);
 
 
   const getInitials = (name?: string | null) => {
@@ -179,15 +178,7 @@ function EmployeeProfileContent() {
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
 
-   useEffect(() => {
-    if (deletePointsState.message) {
-      toast({
-        title: deletePointsState.success ? "Success" : "Error",
-        description: deletePointsState.message,
-        variant: deletePointsState.success ? "default" : "destructive",
-      });
-    }
-  }, [deletePointsState, toast]);
+   
 
   useEffect(() => {
     if (!identifier) return;
@@ -892,7 +883,6 @@ const getAttendancePointValue = (entry: any): number => {
                               <TableHead>Check-In</TableHead>
                               <TableHead>Check-Out</TableHead>
                               <TableHead>POINT</TableHead>
-                              <TableHead className="text-right">Action</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -910,17 +900,6 @@ const getAttendancePointValue = (entry: any): number => {
                                   </TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
                                   <TableCell>{getAttendancePointDisplay(record)}</TableCell>
-                                  <TableCell className="text-right opacity-0 group-hover:opacity-100 transition-opacity">
-                                      {record.type === 'manual_points' && (
-                                          <form action={deletePointsAction}>
-                                              <input type="hidden" name="pointId" value={record.id} />
-                                              <input type="hidden" name="actorEmail" value={currentUserProfile?.email} />
-                                              <Button type="submit" variant="ghost" size="icon" className="h-8 w-8" disabled={isDeletePointsPending}>
-                                                  {isDeletePointsPending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4 text-destructive"/>}
-                                              </Button>
-                                          </form>
-                                      )}
-                                  </TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
@@ -941,5 +920,6 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
 
 
