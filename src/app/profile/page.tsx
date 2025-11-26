@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition, useCallback } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -379,7 +379,7 @@ function AddAttendancePointsDialog({ employee, actorProfile, onPointAdded }: { e
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <input type="hidden" name="employeeDocId" value={employee.id} />
-            <input type="hidden" name="actorName" value={actorProfile?.name} />
+            <input type="hidden" name="actorName" value={actorProfile?.name || 'System'} />
             
             <div className="space-y-2">
               <Label htmlFor="points">Points (out of 10)</Label>
@@ -392,7 +392,7 @@ function AddAttendancePointsDialog({ employee, actorProfile, onPointAdded }: { e
           <DialogFooter>
             <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
             <Button type="submit" disabled={isPending}>
-              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Add Points"}
+              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Add Points"}
             </Button>
           </DialogFooter>
         </form>
@@ -458,7 +458,7 @@ function UpdateProfDevelopmentDialog({ isOpen, onOpenChange, submission, employe
                 formAction(formData);
             } catch (error) {
                 console.error("Error during file upload or action:", error);
-                toast({ variant: 'destructive', title: 'Submission Failed', description: 'An error occurred.' });
+                toast({ variant: 'destructive', title: 'Submission Failed', description: 'An unexpected error occurred.' });
             }
         });
     };
