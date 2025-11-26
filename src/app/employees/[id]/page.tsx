@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { addAttendancePointsAction, type AddPointsState, deleteAttendancePointsAction, type DeletePointsState } from "@/app/actions/attendance-actions";
+import { deleteAttendancePointsAction, type DeletePointsState } from "@/app/actions/attendance-actions";
 import { DialogTrigger } from "@/components/ui/dialog";
 import { DateRange } from "react-day-picker";
 
@@ -94,132 +94,13 @@ interface LeaveLog extends HistoryEntry {
   check_out: null;
 }
 
-interface LeaveRequest {
-  id: string;
-  leaveType: string;
-  startDate: Timestamp;
-  endDate: Timestamp;
-  numberOfDays?: number;
-  status: "Pending" | "Approved" | "Rejected";
-}
-
 interface KpiEntry {
   id: string;
   date: Timestamp;
   points: number;
 }
 
-const initialPointsState: AddPointsState = { success: false, errors: {} };
 const initialDeletePointsState: DeletePointsState = { success: false };
-
-
-function AddAttendancePointsDialog({ employee, actorEmail }: { employee: Employee, actorEmail: string | undefined }) {
-  const { toast } = useToast();
-  const [isOpen, setIsOpen] = useState(false);
-  const [state, formAction, isPending] = useActionState(addAttendancePointsAction, initialPointsState);
-  const [date, setDate] = React.useState<DateRange | undefined>({
-    from: new Date(),
-  });
-
-  useEffect(() => {
-    if (state.message) {
-      toast({
-        title: state.success ? "Success" : "Error",
-        description: state.message,
-        variant: state.success ? "default" : "destructive",
-      });
-      if (state.success) {
-        setIsOpen(false);
-        setDate({ from: new Date() }); // Reset date
-      }
-    }
-  }, [state, toast]);
-
-  return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Attendance Points
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <form action={formAction}>
-          <DialogHeader>
-            <DialogTitle>Add Manual Attendance Points for {employee.name}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <input type="hidden" name="employeeDocId" value={employee.id} />
-            <input type="hidden" name="actorEmail" value={actorEmail} />
-             <div className="space-y-2">
-              <Label htmlFor="date">Date Range</Label>
-               <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="date"
-                    variant={"outline"}
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !date && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarDays className="mr-2 h-4 w-4" />
-                    {date?.from ? (
-                      date.to ? (
-                        <>
-                          {format(date.from, "LLL dd, y")} -{" "}
-                          {format(date.to, "LLL dd, y")}
-                        </>
-                      ) : (
-                        format(date.from, "LLL dd, y")
-                      )
-                    ) : (
-                      <span>Pick a date range</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={date?.from}
-                    selected={date}
-                    onSelect={setDate}
-                    numberOfMonths={2}
-                    captionLayout="dropdown-buttons" 
-                    fromYear={2020} toYear={2030}
-                  />
-                </PopoverContent>
-              </Popover>
-              <input type="hidden" name="startDate" value={date?.from?.toISOString() || ""} />
-              <input type="hidden" name="endDate" value={date?.to?.toISOString() || date?.from?.toISOString() || ""} />
-              {state.errors?.startDate && <p className="text-sm text-destructive">{state.errors.startDate.join(', ')}</p>}
-              {state.errors?.endDate && <p className="text-sm text-destructive">{state.errors.endDate.join(', ')}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="points">Points (out of 10)</Label>
-              <Input id="points" name="points" type="number" step="0.5" max="10" required />
-              {state.errors?.points && <p className="text-sm text-destructive">{state.errors.points.join(', ')}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reason">Reason (Optional)</Label>
-              <Input id="reason" name="reason" />
-              {state.errors?.reason && <p className="text-sm text-destructive">{state.errors.reason.join(', ')}</p>}
-            </div>
-          </div>
-           {state.errors?.form && <p className="text-sm text-destructive text-center mb-2">{state.errors.form.join(', ')}</p>}
-          <DialogFooter>
-            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Add Points"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 
 
 function safeToDate(timestamp: any): Date | undefined {
@@ -245,7 +126,7 @@ function safeToDate(timestamp: any): Date | undefined {
 }
 
 
-function LeaveStatusBadge({ status }: { status: LeaveRequest["status"] }) {
+function LeaveStatusBadge({ status }: { status: "Pending" | "Approved" | "Rejected" }) {
   switch (status) {
     case "Approved":
       return <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"><ShieldCheck className="mr-1 h-3 w-3" />Approved</Badge>;
@@ -283,7 +164,7 @@ function EmployeeProfileContent() {
   const [attendanceAndLeaveHistory, setAttendanceAndLeaveHistory] = useState<HistoryEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<{ id: string; leaveType: string; startDate: Timestamp; endDate: Timestamp; numberOfDays?: number; status: "Pending" | "Approved" | "Rejected"; }[]>([]);
   const [loadingLeaves, setLoadingLeaves] = useState(false);
   
   const [eleotHistory, setEleotHistory] = useState<KpiEntry[]>([]);
@@ -415,7 +296,7 @@ function EmployeeProfileContent() {
         const leaveSnapshot = await getDocs(leavesQuery);
         const processedLeaves: LeaveLog[] = [];
         leaveSnapshot.forEach((doc) => {
-          const leave = doc.data() as LeaveRequest;
+          const leave = doc.data() as { startDate: Timestamp; endDate: Timestamp };
           const start = startOfDay(leave.startDate.toDate());
           const end = startOfDay(leave.endDate.toDate());
           const leaveDays = eachDayOfInterval({ start, end });
@@ -478,7 +359,7 @@ function EmployeeProfileContent() {
           where('requestingEmployeeDocId', '==', employeeDocId)
         );
         const querySnapshot = await getDocs(leavesQuery);
-        const leaves = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequest));
+        const leaves = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as { id: string; leaveType: string; startDate: Timestamp; endDate: Timestamp; numberOfDays?: number; status: "Pending" | "Approved" | "Rejected"; }));
         leaves.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
         setLeaveRequests(leaves);
       } catch (e) {
@@ -779,9 +660,6 @@ const getAttendancePointValue = (entry: any): number => {
                                 <UserX className="h-4 w-4" /> Attendance Exempt
                             </Badge>
                        )}
-                       {currentUserProfile?.role.toLowerCase() === 'hr' && employee.isExemptFromAttendance && (
-                            <AddAttendancePointsDialog employee={employee} actorEmail={currentUserProfile?.email} />
-                       )}
                    </div>
               </CardHeader>
               <CardContent className="p-6">
@@ -1063,4 +941,5 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
 
