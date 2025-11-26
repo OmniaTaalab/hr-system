@@ -128,7 +128,7 @@ export async function manageAttendanceExemptionAction(
 const AddPointsSchema = z.object({
   employeeDocId: z.string().min(1, "Employee ID is required."),
   points: z.coerce.number(),
-  actorEmail: z.string().optional(),
+  actorName: z.string().optional(),
 });
 
 
@@ -145,7 +145,7 @@ export async function addAttendancePointsAction(prevState: AddPointsState, formD
   const validatedFields = AddPointsSchema.safeParse({
     employeeDocId: formData.get('employeeDocId'),
     points: formData.get('points'),
-    actorEmail: formData.get('actorEmail'),
+    actorName: formData.get('actorName'),
   });
 
   if (!validatedFields.success) {
@@ -156,7 +156,7 @@ export async function addAttendancePointsAction(prevState: AddPointsState, formD
     };
   }
 
-  const { employeeDocId, points, actorEmail } = validatedFields.data;
+  const { employeeDocId, points, actorName } = validatedFields.data;
   
   const date = new Date();
 
@@ -165,15 +165,14 @@ export async function addAttendancePointsAction(prevState: AddPointsState, formD
     await setDoc(newPointRef, {
         employeeId: employeeDocId,
         points,
-        reason: null, // Reason is removed from form
         date: Timestamp.fromDate(startOfDay(date)), // Always use the start of the current day
         createdAt: serverTimestamp(),
-        createdBy: actorEmail,
+        actorName: actorName || "System",
     });
     
 
     await logSystemEvent("Add Attendance Points", { 
-        actorEmail, 
+        actorName, 
         targetEmployeeId: employeeDocId, 
         points, 
         date: date.toISOString().split('T')[0],

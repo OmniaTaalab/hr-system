@@ -348,7 +348,7 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
 const initialPointsState: AddPointsState = { success: false, errors: {} };
 const initialDeletePointsState: DeletePointsState = { success: false };
 
-function AddAttendancePointsDialog({ employee, actorEmail, onPointAdded }: { employee: EmployeeProfile, actorEmail: string | undefined, onPointAdded: () => void }) {
+function AddAttendancePointsDialog({ employee, actorProfile, onPointAdded }: { employee: EmployeeProfile, actorProfile: {id?:string, name?: string} | null, onPointAdded: () => void }) {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [state, formAction, isPending] = useActionState(addAttendancePointsAction, initialPointsState);
@@ -379,7 +379,7 @@ function AddAttendancePointsDialog({ employee, actorEmail, onPointAdded }: { emp
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <input type="hidden" name="employeeDocId" value={employee.id} />
-            <input type="hidden" name="actorEmail" value={actorEmail} />
+            <input type="hidden" name="actorName" value={actorProfile?.name} />
             
             <div className="space-y-2">
               <Label htmlFor="points">Points (out of 10)</Label>
@@ -514,7 +514,7 @@ export function AttendanceChartCard({ employeeDocId, employeeId, onScoreCalculat
     const [isLoading, setIsLoading] = useState(true);
     const { profile } = useUserProfile();
 
-    const fetchExemptionAndPoints = async () => {
+    const fetchExemptionAndPoints = useCallback(async () => {
         setIsLoading(true);
         try {
             const exemptionDoc = await getDocs(query(collection(db, "attendanceExemptions"), where("employeeId", "==", employeeDocId), limit(1)));
@@ -533,7 +533,7 @@ export function AttendanceChartCard({ employeeDocId, employeeId, onScoreCalculat
                 // Fetch regular attendance data for non-exempt employees
                 if (!employeeId) {
                   setIsLoading(false);
-                  return;
+                  return () => {};
                 }
                 const startDate = new Date(`2025-09-01T00:00:00Z`);
                 const today = new Date();
@@ -582,16 +582,18 @@ export function AttendanceChartCard({ employeeDocId, employeeId, onScoreCalculat
         } finally {
             setIsLoading(false);
         }
-    };
+        return () => {};
+    }, [employeeId, employeeDocId, onScoreCalculated]);
 
     useEffect(() => {
-        const unsubscribe = fetchExemptionAndPoints();
+        let unsubscribe: (() => void) | undefined;
+        fetchExemptionAndPoints().then(unsub => {
+            if (unsub) unsubscribe = unsub;
+        });
         return () => {
-            if (unsubscribe) {
-              unsubscribe.then(unsub => { if (unsub) unsub(); });
-            }
+            if (unsubscribe) unsubscribe();
         };
-    }, [employeeId, employeeDocId, onScoreCalculated]);
+    }, [fetchExemptionAndPoints]);
 
     const manualPointsAverage = useMemo(() => {
         if (!manualPoints || manualPoints.length === 0) return 0;
@@ -619,7 +621,7 @@ export function AttendanceChartCard({ employeeDocId, employeeId, onScoreCalculat
                         <CardTitle>Manual Attendance ({manualPointsAverage} / 10)</CardTitle>
                         <CardDescription>Points awarded for exempt employee.</CardDescription>
                       </div>
-                      <AddAttendancePointsDialog employee={{id: employeeDocId, name: ''}} actorEmail={profile?.email} onPointAdded={fetchExemptionAndPoints} />
+                      <AddAttendancePointsDialog employee={{id: employeeDocId, name: ''}} actorProfile={profile} onPointAdded={fetchExemptionAndPoints} />
                     </div>
                 </CardHeader>
                 <CardContent>
