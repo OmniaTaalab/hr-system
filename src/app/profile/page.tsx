@@ -543,9 +543,10 @@ export function AttendanceChartCard({ employeeDocId, employeeId, onScoreCalculat
             setIsExempt(isEmployeeExempt);
 
             if (isEmployeeExempt) {
-                const pointsQuery = query(collection(db, "attendancePoints"), where("employeeId", "==", employeeDocId), orderBy("date", "desc"));
+                const pointsQuery = query(collection(db, "attendancePoints"), where("employeeId", "==", employeeDocId));
                 const unsubscribe = onSnapshot(pointsQuery, (snapshot) => {
                     const pointsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KpiEntry));
+                    pointsData.sort((a, b) => b.date.toMillis() - a.date.toMillis());
                     setManualPoints(pointsData);
                 });
                 return unsubscribe;
