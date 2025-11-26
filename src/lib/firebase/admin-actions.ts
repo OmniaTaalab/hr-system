@@ -577,7 +577,9 @@ export async function updateEmployeeAction(
       
       if (value !== undefined) {
           if (key.startsWith('emergencyContact')) {
-            if (!emergencyContact) emergencyContact = { ...(currentEmployeeData.emergencyContact || {}) };
+            if (!emergencyContact) {
+                emergencyContact = { ...(currentEmployeeData.emergencyContact || {}) };
+            }
             const fieldName = key.replace('emergencyContact', '').charAt(0).toLowerCase() + key.slice('emergencyContact'.length + 1);
             emergencyContact[fieldName] = value;
           } else {
@@ -890,6 +892,7 @@ const keyMap: Record<string, string> = {
   "childrenAtNIS": "childrenAtNIS",
   "NIS Email": "nisEmail",
   "Title": "title",
+  "Role":"role",
   "Department": "department",
   "Campus": "campus",
   "Stage": "stage",

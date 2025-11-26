@@ -60,7 +60,7 @@ interface Employee {
   groupName: string;
   system: string;
   campus: string;
-  email: string; // This is the NIS Email
+  nisEmail: string; // This is the NIS Email
   phone: string; // Personal Phone
   hourlyRate?: number;
   photoURL?: string | null;
@@ -200,7 +200,7 @@ function EmployeeProfileContent() {
               employeeRef,
               or(
                 where('employeeId', '==', identifier),
-                where('email', '==', identifier.toLowerCase()),
+                where('nisEmail', '==', identifier.toLowerCase()),
                 where('personalEmail', '==', identifier.toLowerCase())
               ),
               limit(1)
@@ -394,7 +394,7 @@ function EmployeeProfileContent() {
     const userRole = currentUserProfile.role?.toLowerCase();
     const userEmail = currentUserProfile.email;
   
-    if (userRole === "admin" || userRole === "hr" || currentUserProfile.id === employee.id) {
+    if (userRole === "admin" || userRole === "hr" || userRole ==="HR"|| currentUserProfile.id === employee.id) {
       return true;
     }
   
@@ -450,7 +450,7 @@ function EmployeeProfileContent() {
 
     const tableData = [
       ['Employee ID', employee.employeeId],
-      ['NIS Email', employee.email],
+      ['NIS Email', employee.nisEmail],
       ['Personal Email', employee.personalEmail || '-'],
       ['Phone', employee.phone],
       ['Department', employee.department],
@@ -665,7 +665,7 @@ const getAttendancePointValue = (entry: any): number => {
 
                 <h3 className="text-lg font-semibold flex items-center mb-4"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                   <DetailItem icon={Mail} label="NIS Email" value={employee.email || "-"} />
+                   <DetailItem icon={Mail} label="NIS Email" value={employee.nisEmail || "-"} />
                    <DetailItem icon={User} label="Title" value={employee.title || "-"} />
                    <DetailItem icon={Briefcase} label="Department" value={employee.department || "-"} />
                    <DetailItem icon={Hash} label="Employee ID" value={employee.employeeId || "-"} />
