@@ -1,9 +1,8 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState, useRef, useTransition } from "react";
-import { AppLayout } from "@/components/layout/app-layout";
+import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, UserCircle2, AlertTriangle, KeyRound, Eye, EyeOff, Calendar as CalendarIcon, FileDown, Users, FileText, Trophy, PlusCircle, UploadCloud, Download, RefreshCw, BookOpenCheck, Trash2 } from "lucide-react";
@@ -608,7 +607,9 @@ export function AttendanceChartCard({ employeeDocId, employeeId, onScoreCalculat
     useEffect(() => {
         const unsubscribe = fetchExemptionAndPoints();
         return () => {
-            unsubscribe.then(unsub => { if (unsub) unsub(); });
+            if (unsubscribe) {
+              unsubscribe.then(unsub => { if (unsub) unsub(); });
+            }
         };
     }, [employeeId, employeeDocId, onScoreCalculated]);
 
