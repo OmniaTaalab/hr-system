@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useTransition } from 'react';
 import SettingsPageWrapper from '../settings-page-wrapper';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, UserCheck, UserX, Search, Save } from "lucide-react";
+import { Loader2, UserCheck, UserX, Search, Save, Filter } from "lucide-react";
 import { db } from '@/lib/firebase/config';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -16,6 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 interface Employee {
@@ -39,6 +40,7 @@ export default function AttendanceSettingsPage() {
     const [exemptions, setExemptions] = useState<Exemption[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
+    const [exemptionFilter, setExemptionFilter] = useState<"all" | "exempted" | "not_exempted">("all");
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [isSaving, startTransition] = useTransition();
     const { profile } = useUserProfile();
@@ -71,14 +73,23 @@ export default function AttendanceSettingsPage() {
     }, []);
 
     const filteredEmployees = useMemo(() => {
-        if (!searchTerm) return allEmployees;
+        let employees = allEmployees;
+
+        if (exemptionFilter === 'exempted') {
+            employees = employees.filter(emp => selectedIds.has(emp.id));
+        } else if (exemptionFilter === 'not_exempted') {
+            employees = employees.filter(emp => !selectedIds.has(emp.id));
+        }
+
+        if (!searchTerm) return employees;
+        
         const lowercasedTerm = searchTerm.toLowerCase();
-        return allEmployees.filter(emp => 
+        return employees.filter(emp => 
             emp.name.toLowerCase().includes(lowercasedTerm) ||
             emp.email?.toLowerCase().includes(lowercasedTerm) ||
             emp.role?.toLowerCase().includes(lowercasedTerm)
         );
-    }, [allEmployees, searchTerm]);
+    }, [allEmployees, searchTerm, exemptionFilter, selectedIds]);
 
     const handleSelect = (employeeId: string) => {
         setSelectedIds(prev => {
@@ -146,6 +157,19 @@ export default function AttendanceSettingsPage() {
                                     className="pl-8"
                                 />
                             </div>
+                             <div className="flex items-center gap-2">
+                                <Filter className="h-4 w-4 text-muted-foreground" />
+                                <Select value={exemptionFilter} onValueChange={(value) => setExemptionFilter(value as any)}>
+                                    <SelectTrigger className="w-[180px]">
+                                        <SelectValue placeholder="Filter by status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Employees</SelectItem>
+                                        <SelectItem value="exempted">Exempted Only</SelectItem>
+                                        <SelectItem value="not_exempted">Not Exempted</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                             <Button onClick={handleSave} disabled={isSaving}>
                                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                 Save Exemptions
@@ -159,7 +183,7 @@ export default function AttendanceSettingsPage() {
                                 </div>
                             ) : filteredEmployees.length === 0 ? (
                                 <div className="flex items-center justify-center h-full text-muted-foreground">
-                                    No employees found.
+                                    No employees found matching your filters.
                                 </div>
                             ) : (
                                 <div className="p-4 grid grid-cols-1 gap-2">
