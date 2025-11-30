@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
@@ -163,21 +164,24 @@ function KpisContent() {
 
         try {
             const employeeCollectionRef = collection(db, "employee");
-            let q;
+            let constraints: QueryConstraint[] = [];
 
-            // Apply role-based filters
             if (!isPrivilegedUser && profile.email) {
-                q = query(employeeCollectionRef, or(where("reportLine1", "==", profile.email), where("reportLine2", "==", profile.email)));
+                constraints.push(or(where("reportLine1", "==", profile.email), where("reportLine2", "==", profile.email)));
             } else {
-                 q = query(employeeCollectionRef, orderBy("name"));
-                if (campusFilter !== "All") q = query(q, where("campus", "==", campusFilter));
-                if (stageFilter !== "All") q = query(q, where("stage", "==", stageFilter));
-                if (titleFilter !== "All") q = query(q, where("title", "==", titleFilter));
-                if (reportLineFilter !== "All") q = query(q, or(where("reportLine1", "==", reportLineFilter), where("reportLine2", "==", reportLineFilter)));
+                 constraints.push(orderBy("name"));
+                if (campusFilter !== "All") constraints.push(where("campus", "==", campusFilter));
+                if (stageFilter !== "All") constraints.push(where("stage", "==", stageFilter));
+                if (titleFilter !== "All") constraints.push(where("title", "==", titleFilter));
+            }
+    
+            if (reportLineFilter !== "All" && isPrivilegedUser) {
+                constraints.push(or(where("reportLine1", "==", reportLineFilter), where("reportLine2", "==", reportLineFilter)));
             }
 
+
             if (searchTerm) {
-                 q = query(q, where('name', '>=', searchTerm), where('name', '<=', searchTerm + '\uf8ff'));
+                 constraints.push(where('name', '>=', searchTerm), where('name', '<=', searchTerm + '\uf8ff'));
             }
             
             // Handle pagination
@@ -189,10 +193,12 @@ function KpisContent() {
             }
 
             if(direction !== 'first' && currentCursor) {
-              q = query(q, startAfter(currentCursor), limit(PAGE_SIZE));
+              constraints.push(startAfter(currentCursor), limit(PAGE_SIZE));
             } else {
-              q = query(q, limit(PAGE_SIZE));
+              constraints.push(limit(PAGE_SIZE));
             }
+            
+            const q = query(employeeCollectionRef, ...constraints);
 
             const employeesSnapshot = await getDocs(q);
             const employees = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
@@ -261,7 +267,7 @@ function KpisContent() {
                 eleotSnapshot.forEach(doc => allKpiSnapshots.eleot.push(doc.data()));
                 totSnapshot.forEach(doc => allKpiSnapshots.tot.push(doc.data()));
                 appraisalSnapshot.forEach(doc => allKpiSnapshots.appraisal.push(doc.data()));
-                profDevChunkSnapshots.forEach(snap => snap.docs.forEach(doc => allProfDevSnapshots.push({ ...doc.data(), employeeDocId: doc.ref.parent.parent!.id })));
+                profDevChunkSnapshots.forEach(snap => snap.forEach(doc => allProfDevSnapshots.push({ ...doc.data(), employeeDocId: doc.ref.parent.parent!.id })));
                 leaveChunkSnapshot.forEach(doc => allLeaveRequests.push(doc.data()));
                 exemptionsChunkSnapshot.forEach(doc => allExemptions.push(doc.data()));
                 manualPointsChunkSnapshot.forEach(doc => allManualPoints.push(doc.data()));
