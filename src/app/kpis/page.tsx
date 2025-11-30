@@ -212,75 +212,90 @@ function KpisContent() {
                 return;
             }
 
-            // --- KPI Calculation Logic (remains the same) ---
-            const kpiCollections = ['eleot', 'tot', 'appraisal'];
-            const allKpiSnapshots: Record<string, any[]> = { eleot: [], tot: [], appraisal: [] };
-            const allProfDevSnapshots: any[] = [];
-            
-            const kpiPromises = kpiCollections.map(coll => 
-                getDocs(query(collection(db, coll), where('employeeDocId', 'in', employeeIds)))
-            );
-            const profDevPromises = employeeIds.map(id => getDocs(collection(db, `employee/${id}/profDevelopment`)));
-            const leavePromise = getDocs(query(collection(db, "leaveRequests"), where("requestingEmployeeDocId", "in", employeeIds), where("status", "==", "Approved")));
-            const [
-                kpiChunkSnapshots,
-                profDevChunkSnapshots,
-                leaveChunkSnapshot
-            ] = await Promise.all([ Promise.all(kpiPromises), Promise.all(profDevPromises), leavePromise]);
-            kpiChunkSnapshots[0].forEach(doc => allKpiSnapshots.eleot.push(doc));
-            kpiChunkSnapshots[1].forEach(doc => allKpiSnapshots.tot.push(doc));
-            kpiChunkSnapshots[2].forEach(doc => allKpiSnapshots.appraisal.push(doc));
-            profDevChunkSnapshots.forEach(snap => snap.forEach(doc => allProfDevSnapshots.push(doc)));
-            const holidaysPromise = getDocs(collection(db, 'holidays'));
-            
-            // New logic for exemptions and manual points
-            const exemptionsPromise = getDocs(query(collection(db, 'attendanceExemptions'), where('employeeId', 'in', employeeIds)));
-            const manualPointsPromise = getDocs(query(collection(db, 'attendancePoints'), where('employeeId', 'in', employeeIds)));
+            // --- CHUNKED KPI/LEAVE/ATTENDANCE FETCHING ---
+            const CHUNK_SIZE = 30; // Firestore 'in' query limit is 30
+            const allKpiSnapshots: Record<string, DocumentData[]> = { eleot: [], tot: [], appraisal: [] };
+            const allProfDevSnapshots: DocumentData[] = [];
+            const allLeaveRequests: DocumentData[] = [];
+            const allExemptions: DocumentData[] = [];
+            const allManualPoints: DocumentData[] = [];
 
-            const [holidaysSnapshot, exemptionsSnapshot, manualPointsSnapshot] = await Promise.all([holidaysPromise, exemptionsPromise, manualPointsPromise]);
+            for (let i = 0; i < employeeIds.length; i += CHUNK_SIZE) {
+                const chunk = employeeIds.slice(i, i + CHUNK_SIZE);
+                
+                const kpiPromises = ['eleot', 'tot', 'appraisal'].map(coll => 
+                    getDocs(query(collection(db, coll), where('employeeDocId', 'in', chunk)))
+                );
+                const profDevPromises = chunk.map(id => getDocs(collection(db, `employee/${id}/profDevelopment`)));
+                const leavePromise = getDocs(query(collection(db, "leaveRequests"), where("requestingEmployeeDocId", "in", chunk), where("status", "==", "Approved")));
+                const exemptionsPromise = getDocs(query(collection(db, 'attendanceExemptions'), where('employeeId', 'in', chunk)));
+                const manualPointsPromise = getDocs(query(collection(db, 'attendancePoints'), where('employeeId', 'in', chunk)));
+
+                const [
+                    kpiChunkSnapshots,
+                    profDevChunkSnapshots,
+                    leaveChunkSnapshot,
+                    exemptionsChunkSnapshot,
+                    manualPointsChunkSnapshot
+                ] = await Promise.all([
+                    Promise.all(kpiPromises),
+                    Promise.all(profDevPromises),
+                    leavePromise,
+                    exemptionsPromise,
+                    manualPointsPromise
+                ]);
+
+                kpiChunkSnapshots[0].forEach(doc => allKpiSnapshots.eleot.push(doc.data()));
+                kpiChunkSnapshots[1].forEach(doc => allKpiSnapshots.tot.push(doc.data()));
+                kpiChunkSnapshots[2].forEach(doc => allKpiSnapshots.appraisal.push(doc.data()));
+                profDevChunkSnapshots.forEach(snap => snap.forEach(doc => allProfDevSnapshots.push({ ...doc.data(), employeeDocId: doc.ref.parent.parent!.id })));
+                leaveChunkSnapshot.forEach(doc => allLeaveRequests.push(doc.data()));
+                exemptionsChunkSnapshot.forEach(doc => allExemptions.push(doc.data()));
+                manualPointsChunkSnapshot.forEach(doc => allManualPoints.push(doc.data()));
+            }
+
+            const holidaysPromise = getDocs(collection(db, 'holidays'));
+            const [holidaysSnapshot] = await Promise.all([holidaysPromise]);
             
-            const exemptEmployeeIds = new Set(exemptionsSnapshot.docs.map(doc => doc.data().employeeId));
+            const exemptEmployeeIds = new Set(allExemptions.map(doc => doc.employeeId));
             const manualPointsByEmployee = new Map<string, any[]>();
-            manualPointsSnapshot.forEach(doc => {
-                const data = doc.data();
+            allManualPoints.forEach(data => {
                 if (!manualPointsByEmployee.has(data.employeeId)) {
                     manualPointsByEmployee.set(data.employeeId, []);
                 }
                 manualPointsByEmployee.get(data.employeeId)!.push(data);
             });
-
+            
             const kpiDataMap = new Map<string, { eleot: any[], tot: any[], appraisal: any[] }>();
-            const processKpiSnapshot = (snapshot: any[], key: 'eleot' | 'tot' | 'appraisal') => {
-                snapshot.forEach((doc: any) => {
-                    const data = doc.data();
-                    if (!kpiDataMap.has(data.employeeDocId)) kpiDataMap.set(data.employeeDocId, { eleot: [], tot: [], appraisal: [] });
-                    kpiDataMap.get(data.employeeDocId)![key].push(data);
+            const processKpiData = (data: DocumentData[], key: 'eleot' | 'tot' | 'appraisal') => {
+                data.forEach(item => {
+                    if (!kpiDataMap.has(item.employeeDocId)) kpiDataMap.set(item.employeeDocId, { eleot: [], tot: [], appraisal: [] });
+                    kpiDataMap.get(item.employeeDocId)![key].push(item);
                 });
             };
-            processKpiSnapshot(allKpiSnapshots.eleot, 'eleot');
-            processKpiSnapshot(allKpiSnapshots.tot, 'tot');
-            processKpiSnapshot(allKpiSnapshots.appraisal, 'appraisal');
+            processKpiData(allKpiSnapshots.eleot, 'eleot');
+            processKpiData(allKpiSnapshots.tot, 'tot');
+            processKpiData(allKpiSnapshots.appraisal, 'appraisal');
 
             const profDevMap = new Map<string, any[]>();
-            allProfDevSnapshots.forEach((doc) => {
-                const data = doc.data();
-                const empId = doc.ref.parent.parent!.id;
-                if (!profDevMap.has(empId)) profDevMap.set(empId, []);
-                profDevMap.get(empId)!.push(data);
+            allProfDevSnapshots.forEach((data) => {
+                if (!profDevMap.has(data.employeeDocId)) profDevMap.set(data.employeeDocId, []);
+                profDevMap.get(data.employeeDocId)!.push(data);
             });
             const holidays = holidaysSnapshot.docs.map(d => d.data().date.toDate());
             
             const attendanceLogs: DocumentData[] = [];
-            if(employees.length > 0) {
-                 const employeeIdStrings = employees.map(e => e.employeeId);
-                 const attPromise = getDocs(query(collection(db, "attendance_log"), where("userId", "in", employeeIdStrings)));
-                 const [attSnapshot] = await Promise.all([attPromise]);
-                 attSnapshot.forEach(doc => attendanceLogs.push(doc.data()));
+            const employeeIdStrings = employees.map(e => e.employeeId).filter(Boolean);
+             for (let i = 0; i < employeeIdStrings.length; i += CHUNK_SIZE) {
+                const chunk = employeeIdStrings.slice(i, i + CHUNK_SIZE);
+                const attPromise = getDocs(query(collection(db, "attendance_log"), where("userId", "in", chunk)));
+                const attSnapshot = await attPromise;
+                attSnapshot.forEach(doc => attendanceLogs.push(doc.data()));
             }
 
             const bulkAttendanceData: AttendanceData = {
                 attendance: attendanceLogs,
-                leaves: leaveChunkSnapshot.docs.map(d => d.data() as any),
+                leaves: allLeaveRequests as any[],
             };
 
             const employeesWithKpisResult = employees.map(emp => {
@@ -341,7 +356,7 @@ function KpisContent() {
             setLastVisible(null);
             fetchData('first');
         }
-    }, [isLoadingProfile, groupFilter, campusFilter, searchTerm]);
+    }, [isLoadingProfile, groupFilter, campusFilter, searchTerm, fetchData]);
 
 
     const goToNextPage = () => {
