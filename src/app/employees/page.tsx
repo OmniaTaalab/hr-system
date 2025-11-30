@@ -52,6 +52,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { format, getYear } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ImageUploader } from "@/components/image-uploader";
 import { useOrganizationLists, type ListItem } from "@/hooks/use-organization-lists";
@@ -1112,54 +1113,30 @@ function EmployeeManagementContent() {
     }
   }, [activateState, toast]);
   
-  function normalizeOptions(values: (string | undefined)[]) {
-    const set = new Set<string>();
-  
-    const normalize = (value?: string) => {
-      if (!value || typeof value !== 'string') return null;
-  
-      let v = value.trim();
-  
-      const invalid = ["", "null", "undefined", "religion", "subject", "title"];
-      if (invalid.includes(v.toLowerCase())) return null;
-      
-      return v
-        .toLowerCase()
-        .replace(/\s+/g, " ")
-        .replace("muslin", "muslim")
-        .split(" ")
-        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(" ");
-    };
-  
-    values.forEach(v => {
-      const normalized = normalize(v);
-      if (normalized) {
-        set.add(normalized);
-      }
-    });
-  
-    return Array.from(set)
-      .sort()
-      .map(v => ({ label: v, value: v }));
-  }
+  const normalizeTitle = (title?: string) => {
+    if (!title || typeof title !== 'string') return null;
+    const cleanedTitle = title.trim();
+    if (["", "null", "undefined", "title"].includes(cleanedTitle.toLowerCase())) return null;
+    return cleanedTitle
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .split(/[,/]/)
+      .map(t => t.trim())
+      .filter(Boolean)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join('/');
+};
+
 
   const uniqueTitles = useMemo(() => {
-    const set = new Set<string>();
-  
-    const normalize = (value?: string) => {
-      if (!value) return null;
-      let v = value.trim();
-      if (v === "" || v === "title" || v === "undefined" || v === "null") return null;
-      return v;
-    };
+    const titleSet = new Set<string>();
   
     allEmployees.forEach(emp => {
-      const normalized = normalize(emp.title);
-      if (normalized) set.add(normalized);
+      const normalized = normalizeTitle(emp.title);
+      if (normalized) titleSet.add(normalized);
     });
   
-    return Array.from(set)
+    return Array.from(titleSet)
       .sort()
       .map(t => ({
         label: t,
@@ -1168,37 +1145,19 @@ function EmployeeManagementContent() {
   }, [allEmployees]);
   
   const uniqueSubjects = useMemo(() => {
-    return normalizeOptions(allEmployees.map(e => e.subject));
-  }, [allEmployees,subjects]);
+    const subjectSet = new Set<string>();
+    allEmployees.forEach(e => {
+        if(e.subject) subjectSet.add(e.subject);
+    });
+    return Array.from(subjectSet).sort().map(s => ({label: s, value: s}));
+  }, [allEmployees]);
 
   const uniqueReligions = useMemo(() => {
-    const set = new Set<string>();
-  
-    const normalize = (value?: string) => {
-      if (!value) return null;
-  
-      let v = value.trim().toLowerCase();
-  
-      // Ignore invalid values
-      if (v === "" || v === "religion" || v === "null" || v === "undefined") return null;
-  
-      // Correct common spelling mistakes
-      if (v === "muslin") v = "muslim";
-  
-      return v;
-    };
-  
-    allEmployees.forEach(emp => {
-      const normalized = normalize(emp.religion);
-      if (normalized) set.add(normalized);
+    const religionSet = new Set<string>();
+    allEmployees.forEach(e => {
+        if(e.religion) religionSet.add(e.religion);
     });
-  
-    return Array.from(set)
-      .sort()
-      .map(r => ({
-        label: r.charAt(0).toUpperCase() + r.slice(1),
-        value: r
-      }));
+    return Array.from(religionSet).sort().map(r => ({label: r, value: r}));
   }, [allEmployees]);
   
 
@@ -1226,7 +1185,12 @@ function EmployeeManagementContent() {
     if (subjectFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.subject && subjectFilters.includes(emp.subject));
     if (genderFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.gender && genderFilters.includes(emp.gender));
     if (religionFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.religion && religionFilters.includes(emp.religion));
-    if (titleFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.title && titleFilters.includes(emp.title));
+    if (titleFilters.length > 0) {
+        listToFilter = listToFilter.filter(emp => {
+            const normalizedEmpTitle = normalizeTitle(emp.title);
+            return normalizedEmpTitle && titleFilters.includes(normalizedEmpTitle);
+        });
+    }
     if (reportLineFilters.length > 0) {
         listToFilter = listToFilter.filter(emp => (emp.reportLine1 && reportLineFilters.includes(emp.reportLine1)) || (emp.reportLine2 && reportLineFilters.includes(emp.reportLine2)));
     }
@@ -2087,4 +2051,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-

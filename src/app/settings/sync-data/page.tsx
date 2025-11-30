@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useActionState, useEffect } from "react";
@@ -21,14 +22,13 @@ import {
 import { 
     deduplicateEmployeesAction,
     type DeduplicationState,
-    type CorrectionState
 } from "@/lib/firebase/admin-actions";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/components/layout/app-layout";
 
 
 const initialSyncState: SyncState = { success: false, message: null };
-const initialCorrectionState: CorrectionState = { success: false, message: null };
+const initialCorrectionState: DeduplicationState = { success: false, message: null };
 const initialDeduplicationState: DeduplicationState = { success: false, message: null };
 
 
@@ -90,7 +90,7 @@ function CorrectionButton({
   description: string;
   action: (formData: FormData) => void;
   isPending: boolean;
-  state: CorrectionState | DeduplicationState;
+  state: DeduplicationState;
   actorDetails: { id?: string, email?: string, role?: string }
 }) {
     const { toast } = useToast();
