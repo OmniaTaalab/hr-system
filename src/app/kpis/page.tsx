@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
@@ -350,13 +349,13 @@ function KpisContent() {
 
     useEffect(() => {
         if (!isLoadingProfile) {
-            // Reset and fetch first page on filter change
+            // Reset to page 1 and fetch logs whenever a filter changes
             setCurrentPage(1);
             setPageCursors([null]);
             setLastVisible(null);
             fetchData('first');
         }
-    }, [isLoadingProfile, groupFilter, campusFilter, searchTerm, fetchData]);
+    }, [isLoadingProfile, groupFilter, campusFilter, searchTerm]);
 
 
     const goToNextPage = () => {
