@@ -1111,39 +1111,31 @@ function EmployeeManagementContent() {
         });
     }
   }, [activateState, toast]);
+  
   function normalizeOptions(values: (string | undefined)[]) {
     const set = new Set<string>();
   
     const normalize = (value?: string) => {
-      if (!value) return null;
+      if (!value || typeof value !== 'string') return null;
   
       let v = value.trim();
   
-      // Ignore invalid words
       const invalid = ["", "null", "undefined", "religion", "subject", "title"];
       if (invalid.includes(v.toLowerCase())) return null;
-  
-      // Split comma-based lists: "English Social Studies, Arabic Social Studies"
-      const parts = v
-        .split(",")
-        .map(s => s.trim())
-        .filter(Boolean);
-  
-      return parts.map(part =>
-        part
-          .toLowerCase()
-          .replace(/\s+/g, " ") // normalize spaces
-          .replace("muslin", "muslim") // fix typo
-          .split(" ")
-          .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(" ")
-      );
+      
+      return v
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .replace("muslin", "muslim")
+        .split(" ")
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
     };
   
     values.forEach(v => {
-      const normalizedParts = normalize(v);
-      if (normalizedParts) {
-        normalizedParts.forEach(p => set.add(p));
+      const normalized = normalize(v);
+      if (normalized) {
+        set.add(normalized);
       }
     });
   
@@ -1151,24 +1143,14 @@ function EmployeeManagementContent() {
       .sort()
       .map(v => ({ label: v, value: v }));
   }
+
   const uniqueTitles = useMemo(() => {
     const set = new Set<string>();
   
     const normalize = (value?: string) => {
       if (!value) return null;
-  
-      // Clean & normalize
-      let v = value.trim().toLowerCase();
-  
+      let v = value.trim();
       if (v === "" || v === "title" || v === "undefined" || v === "null") return null;
-  
-      // Capitalize each word
-      v = v
-        .split(" ")
-        .filter(Boolean)
-        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(" ");
-  
       return v;
     };
   
