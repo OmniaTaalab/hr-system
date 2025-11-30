@@ -55,6 +55,7 @@ import {
 import * as XLSX from "xlsx";
 import { useRouter } from "next/navigation";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
+import { useLeaveTypes } from "@/hooks/use-leave-types";
 
 export interface LeaveRequestEntry {
   id: string;
@@ -127,11 +128,13 @@ function AllLeaveRequestsContent() {
   >("All");
   const [campusFilter, setCampusFilter] = useState<string>("All");
   const [stageFilter, setStageFilter] = useState<string>("All");
+  const [leaveTypeFilter, setLeaveTypeFilter] = useState<string>("All");
   const [allRequests, setAllRequests] = useState<LeaveRequestEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { campuses, groupNames: stages, isLoading: isLoadingLists } =
     useOrganizationLists();
+  const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
 
   const [selectedRequestToDelete, setSelectedRequestToDelete] =
     useState<LeaveRequestEntry | null>(null);
@@ -341,6 +344,10 @@ function AllLeaveRequestsContent() {
       }
     }
 
+    if (leaveTypeFilter !== "All") {
+      requests = requests.filter((item) => item.leaveType === leaveTypeFilter);
+    }
+
     if (campusFilter !== "All") {
       requests = requests.filter((item) => item.employeeCampus === campusFilter);
     }
@@ -365,7 +372,7 @@ function AllLeaveRequestsContent() {
       });
     }
     return requests;
-  }, [allRequests, searchTerm, statusFilter, campusFilter, stageFilter, profile?.email]);
+  }, [allRequests, searchTerm, statusFilter, campusFilter, stageFilter, leaveTypeFilter, profile?.email]);
 
   const handleExportExcel = () => {
     if (filteredRequests.length === 0) {
@@ -515,6 +522,24 @@ function AllLeaveRequestsContent() {
                   <SelectItem value="Pending">Pending</SelectItem>
                   <SelectItem value="Approved">Approved</SelectItem>
                   <SelectItem value="Rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Select
+                value={leaveTypeFilter}
+                onValueChange={(v) => setLeaveTypeFilter(v as string)}
+                disabled={isLoadingLeaveTypes}
+              >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Filter by leave type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All Leave Types</SelectItem>
+                  {leaveTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.name}>
+                      {type.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
