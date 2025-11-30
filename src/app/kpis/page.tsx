@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
@@ -223,7 +222,7 @@ function KpisContent() {
             }
 
             // --- CHUNKED KPI/LEAVE/ATTENDANCE FETCHING ---
-            const CHUNK_SIZE = 30; // Firestore 'in' query limit is 30
+            const CHUNK_SIZE = 30; // Firestore 'in' query limit
             const allKpiSnapshots: Record<string, DocumentData[]> = { eleot: [], tot: [], appraisal: [] };
             const allProfDevSnapshots: DocumentData[] = [];
             const allLeaveRequests: DocumentData[] = [];
@@ -242,23 +241,27 @@ function KpisContent() {
                 const manualPointsPromise = getDocs(query(collection(db, 'attendancePoints'), where('employeeId', 'in', chunk)));
 
                 const [
-                    kpiChunkSnapshots,
+                    eleotSnapshot,
+                    totSnapshot,
+                    appraisalSnapshot,
                     profDevChunkSnapshots,
                     leaveChunkSnapshot,
                     exemptionsChunkSnapshot,
                     manualPointsChunkSnapshot
                 ] = await Promise.all([
-                    Promise.all(kpiPromises),
+                    kpiPromises[0],
+                    kpiPromises[1],
+                    kpiPromises[2],
                     Promise.all(profDevPromises),
                     leavePromise,
                     exemptionsPromise,
                     manualPointsPromise
                 ]);
 
-                kpiChunkSnapshots[0].forEach(snap => snap.docs.forEach(doc => allKpiSnapshots.eleot.push(doc.data())));
-                kpiChunkSnapshots[1].forEach(snap => snap.docs.forEach(doc => allKpiSnapshots.tot.push(doc.data())));
-                kpiChunkSnapshots[2].forEach(snap => snap.docs.forEach(doc => allKpiSnapshots.appraisal.push(doc.data())));
-                profDevChunkSnapshots.forEach(snap => snap.forEach(doc => allProfDevSnapshots.push({ ...doc.data(), employeeDocId: doc.ref.parent.parent!.id })));
+                eleotSnapshot.forEach(doc => allKpiSnapshots.eleot.push(doc.data()));
+                totSnapshot.forEach(doc => allKpiSnapshots.tot.push(doc.data()));
+                appraisalSnapshot.forEach(doc => allKpiSnapshots.appraisal.push(doc.data()));
+                profDevChunkSnapshots.forEach(snap => snap.docs.forEach(doc => allProfDevSnapshots.push({ ...doc.data(), employeeDocId: doc.ref.parent.parent!.id })));
                 leaveChunkSnapshot.forEach(doc => allLeaveRequests.push(doc.data()));
                 exemptionsChunkSnapshot.forEach(doc => allExemptions.push(doc.data()));
                 manualPointsChunkSnapshot.forEach(doc => allManualPoints.push(doc.data()));
@@ -563,6 +566,8 @@ export default function KpisPage() {
         </AppLayout>
     );
 }
+
+    
 
     
 
