@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
