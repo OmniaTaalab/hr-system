@@ -284,7 +284,11 @@ function EmployeesChartContent() {
   }, [allEmployees]);
   
   const rootEmployees = useMemo(() => {
-    if (!allEmployees.length) return [];
+    const noFiltersApplied = campusFilter.length === 0 && titleFilter.length === 0 && statusFilter.length === 0 && religionFilter.length === 0 && stageFilter.length === 0;
+
+    if (!allEmployees.length || noFiltersApplied) {
+        return [];
+    }
   
     const emailMap = new Map<string, Employee>();
     allEmployees.forEach(emp => {
@@ -316,7 +320,6 @@ function EmployeesChartContent() {
     if (religionFilter.length > 0) roots = roots.filter(e => e.religion && religionFilter.includes(e.religion));
     if (stageFilter.length > 0) roots = roots.filter(e => e.stage && stageFilter.includes(e.stage));
     
-    // After filtering, find the top-level employees (those who are not subordinates of anyone else in the filtered set)
     const subordinateEmails = new Set<string>();
     const allFilteredEmails = new Set<string>(roots.map(e => e.nisEmail?.toLowerCase()).filter(Boolean));
 
@@ -486,4 +489,3 @@ export default function EmployeesChartPage() {
     </AppLayout>
   );
 }
-
