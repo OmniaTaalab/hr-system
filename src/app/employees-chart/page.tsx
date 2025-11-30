@@ -44,7 +44,7 @@ function EmployeeCard({ employee }: { employee: Employee }) {
           <AvatarImage src={employee.photoURL} alt={employee.name} />
           <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
         </Avatar>
-        <p className="w-full break-words text-[6px] leading-tight font-semibold">{employee.name}</p>
+        <p className="w-full break-words text-sm leading-tight font-semibold">{employee.name}</p>
         <p className="w-full break-words text-[10px] leading-tight text-muted-foreground">{employee.title || employee.role}</p>
       </CardContent>
     </Card>
@@ -274,13 +274,13 @@ function EmployeesChartContent() {
     allEmployees.forEach(employee => {
         employee.subordinates = []; // Reset subordinates
         if (employee.nisEmail) {
-            emailMap.set(employee.nisEmail, employee);
+            emailMap.set(employee.nisEmail.toLowerCase(), employee);
         }
     });
 
     allEmployees.forEach(employee => {
       if (employee.reportLine1) {
-        const manager = emailMap.get(employee.reportLine1);
+        const manager = emailMap.get(employee.reportLine1.toLowerCase());
         if (manager) {
           manager.subordinates.push(employee);
         }
