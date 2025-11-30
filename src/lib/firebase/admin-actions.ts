@@ -849,7 +849,7 @@ export type BatchCreateEmployeesState = {
 
 const BatchEmployeeSchema = z.object({
   employeeId: z.any().optional().nullable(),
-  name: z.string().min(1, "Name is required"),
+  name: z.string().optional().nullable(),
   nameAr: z.string().optional().nullable(),
   childrenAtNIS: z.enum(["Yes", "No"]).optional().nullable(),
 
@@ -1097,7 +1097,6 @@ export type DeduplicationState = {
   message?: string | null;
   success?: boolean;
 };
-
 export async function deduplicateEmployeesAction(
   prevState: DeduplicationState,
   formData: FormData
@@ -1106,63 +1105,55 @@ export async function deduplicateEmployeesAction(
     const employeeCollectionRef = collection(db, "employee");
     const snapshot = await getDocs(employeeCollectionRef);
 
-    const seenEmployeeIds = new Map<string, { docId: string, timestamp: Timestamp }>();
-    const seenEmails = new Map<string, { docId: string, timestamp: Timestamp }>();
+    // Maps to track duplicates by (name + nisEmail)
+    const seenRecords = new Map<
+      string,
+      { docId: string; timestamp: Timestamp }
+    >();
+
     const docsToDelete = new Set<string>();
 
-    for (const doc of snapshot.docs) {
-      const data = doc.data();
-      const employeeId = data.employeeId;
-      const email = data.email;
-      const docId = doc.id;
-      const createdAt = data.createdAt || Timestamp.now(); // Fallback timestamp
-      const name = data.name;
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data();
+      const docId = docSnap.id;
 
-      // Mark docs with no name for deletion
-      if (!name || name.trim() === '') {
+      const name = (data.name || "").trim().toLowerCase();
+      const nisEmail = (data.nisEmail || "").trim().toLowerCase();
+      const createdAt = data.createdAt || Timestamp.now(); // fallback
+
+      // 1) Delete if name is missing
+      if (!name) {
         docsToDelete.add(docId);
-        continue; // Skip other checks for this doc
+        continue;
       }
 
-      // De-duplicate by employeeId
-      if (employeeId) {
-        const trimmedEmployeeId = String(employeeId).trim();
-        if (seenEmployeeIds.has(trimmedEmployeeId)) {
-          const existing = seenEmployeeIds.get(trimmedEmployeeId)!;
-          // Keep the newest record
-          if (createdAt.toMillis() > existing.timestamp.toMillis()) {
-            docsToDelete.add(existing.docId);
-            seenEmployeeIds.set(trimmedEmployeeId, { docId, timestamp: createdAt });
-          } else {
-            docsToDelete.add(docId);
-          }
-        } else {
-          seenEmployeeIds.set(trimmedEmployeeId, { docId, timestamp: createdAt });
-        }
-      }
+      // 2) Build key for deduplication
+      const key = `${name}__${nisEmail}`;
 
-      // De-duplicate by email
-      if (email) {
-        const trimmedEmail = String(email).trim().toLowerCase();
-        if (seenEmails.has(trimmedEmail)) {
-          const existing = seenEmails.get(trimmedEmail)!;
-          // Keep the newest record
-          if (createdAt.toMillis() > existing.timestamp.toMillis()) {
-            docsToDelete.add(existing.docId);
-            seenEmails.set(trimmedEmail, { docId, timestamp: createdAt });
-          } else {
-            docsToDelete.add(docId);
-          }
+      if (seenRecords.has(key)) {
+        const existing = seenRecords.get(key)!;
+
+        // Keep the newest record
+        if (createdAt.toMillis() > existing.timestamp.toMillis()) {
+          // current one is newer → delete old
+          docsToDelete.add(existing.docId);
+          seenRecords.set(key, { docId, timestamp: createdAt });
         } else {
-          seenEmails.set(trimmedEmail, { docId, timestamp: createdAt });
+          // current one is older → delete current
+          docsToDelete.add(docId);
         }
+      } else {
+        // first time seeing this combination
+        seenRecords.set(key, { docId, timestamp: createdAt });
       }
     }
 
+    // No duplicates?
     if (docsToDelete.size === 0) {
-      return { success: true, message: "No duplicate or invalid employees found." };
+      return { success: true, message: "No duplicate employees found." };
     }
 
+    // 3) Delete duplicates
     const batch = writeBatch(db);
     docsToDelete.forEach(docId => {
       batch.delete(doc(employeeCollectionRef, docId));
@@ -1170,24 +1161,30 @@ export async function deduplicateEmployeesAction(
 
     await batch.commit();
 
+    // Log event
     await logSystemEvent("Deduplicate Employees", {
-        actorId: formData.get('actorId') as string,
-        actorEmail: formData.get('actorEmail') as string,
-        actorRole: formData.get('actorRole') as string,
-        duplicatesRemoved: docsToDelete.size
+      actorId: formData.get("actorId") as string,
+      actorEmail: formData.get("actorEmail") as string,
+      actorRole: formData.get("actorRole") as string,
+      duplicatesRemoved: docsToDelete.size
     });
 
     revalidatePath("/employees");
-    return { success: true, message: `Successfully removed ${docsToDelete.size} duplicate or invalid employee records.` };
+
+    return {
+      success: true,
+      message: `Successfully removed ${docsToDelete.size} duplicate employees based on name + nisEmail.`
+    };
 
   } catch (error: any) {
     console.error("Error deduplicating employees:", error);
     return {
       success: false,
-      errors: { form: ["An unexpected error occurred while removing duplicates."] },
+      errors: { form: ["Unexpected error during deduplication."] },
     };
   }
 }
+
 export type CorrectionState = {
     message?: string | null;
     success?: boolean;

@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from "@/hooks/use-toast";
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { MultiSelectFilter } from '@/components/multi-select';
 
 // Enhanced Employee interface to support the tree structure
 interface Employee {
@@ -28,6 +29,9 @@ interface Employee {
   reportLine1?: string | null;
   campus?: string;
   title?: string;
+  status?: "Active" | "deactivated";
+  religion?: string;
+  stage?: string;
   subordinates: Employee[];
 }
 
@@ -213,10 +217,11 @@ function EmployeesChartContent() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const [campusFilter, setCampusFilter] = useState("");
-  const [titleFilter, setTitleFilter] = useState("");
-  const [campusList, setCampusList] = useState<string[]>([]);
-  const [titleList, setTitleList] = useState<string[]>([]);
+  const [campusFilter, setCampusFilter] = useState<string[]>([]);
+  const [titleFilter, setTitleFilter] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [religionFilter, setReligionFilter] = useState<string[]>([]);
+  const [stageFilter, setStageFilter] = useState<string[]>([]);
   
   const [zoom, setZoom] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
@@ -236,16 +241,16 @@ function EmployeesChartContent() {
 
     const q = query(collection(db, "employee"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const employeesData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        subordinates: [],
-        ...doc.data()
-      } as unknown as Employee));
+      const employeesData: Employee[] = snapshot.docs.map(doc => {
+        const data = doc.data() as Omit<Employee, "id" | "subordinates">;
+      
+        return {
+          id: doc.id,
+          subordinates: [],
+          ...data,
+        };
+      });
       setAllEmployees(employeesData);
-      
-      const derivedCampuses = [...new Set(employeesData.map(e => e.campus).filter(Boolean))].sort();
-      setCampusList(derivedCampuses);
-      
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching employees for chart: ", error);
@@ -255,29 +260,40 @@ function EmployeesChartContent() {
     return () => unsubscribe();
   }, [isLoadingProfile, canViewPage, router]);
 
-  useEffect(() => {
-    // When campus changes, update the available titles and reset title filter
-    if (campusFilter && allEmployees.length > 0) {
-      const titlesInCampus = [...new Set(allEmployees.filter(e => e.campus === campusFilter).map(e => e.title).filter(Boolean))].sort();
-      setTitleList(titlesInCampus);
-      setTitleFilter(""); // Reset title filter
-    } else {
-      setTitleList([]);
-      setTitleFilter("");
-    }
-  }, [campusFilter, allEmployees]);
+  const { campusList, titleList, religionList, stageList } = useMemo(() => {
+    const campusSet = new Set<string>();
+    const titleSet = new Set<string>();
+    const religionSet = new Set<string>();
+    const stageSet = new Set<string>();
 
-  const rootEmployees = useMemo(() => {
-    if (!allEmployees.length) return [];
-
-    const emailMap = new Map<string, Employee>();
-    allEmployees.forEach(employee => {
-        employee.subordinates = []; // Reset subordinates
-        if (employee.nisEmail) {
-            emailMap.set(employee.nisEmail.toLowerCase(), employee);
-        }
+    allEmployees.forEach(e => {
+        if(e.campus) campusSet.add(e.campus);
+        if(e.title) titleSet.add(e.title);
+        if(e.religion) religionSet.add(e.religion);
+        if(e.stage) stageSet.add(e.stage);
     });
 
+    const toOptions = (set: Set<string>) => Array.from(set).sort().map(v => ({ label: v, value: v }));
+
+    return {
+        campusList: toOptions(campusSet),
+        titleList: toOptions(titleSet),
+        religionList: toOptions(religionSet),
+        stageList: toOptions(stageSet)
+    }
+  }, [allEmployees]);
+  
+  const rootEmployees = useMemo(() => {
+    if (!allEmployees.length) return [];
+  
+    const emailMap = new Map<string, Employee>();
+    allEmployees.forEach(emp => {
+      emp.subordinates = [];
+      if (emp.nisEmail) {
+        emailMap.set(emp.nisEmail.toLowerCase(), emp);
+      }
+    });
+  
     allEmployees.forEach(employee => {
       if (employee.reportLine1) {
         const manager = emailMap.get(employee.reportLine1.toLowerCase());
@@ -286,16 +302,38 @@ function EmployeesChartContent() {
         }
       }
     });
-    
-    if (!campusFilter || !titleFilter) {
-      return [];
+
+    let roots = allEmployees;
+
+    if (campusFilter.length > 0) roots = roots.filter(e => e.campus && campusFilter.includes(e.campus));
+    if (titleFilter.length > 0) roots = roots.filter(e => e.title && titleFilter.includes(e.title));
+    if (statusFilter.length > 0) {
+        roots = roots.filter(e => {
+            const status = e.status === 'deactivated' ? 'Deactivated' : 'Active';
+            return statusFilter.includes(status);
+        });
     }
+    if (religionFilter.length > 0) roots = roots.filter(e => e.religion && religionFilter.includes(e.religion));
+    if (stageFilter.length > 0) roots = roots.filter(e => e.stage && stageFilter.includes(e.stage));
+    
+    // After filtering, find the top-level employees (those who are not subordinates of anyone else in the filtered set)
+    const subordinateEmails = new Set<string>();
+    const allFilteredEmails = new Set<string>(roots.map(e => e.nisEmail?.toLowerCase()).filter(Boolean));
 
-    const employeesInCampus = allEmployees.filter(emp => emp.campus === campusFilter);
-    return employeesInCampus.filter(emp => emp.title === titleFilter);
+    roots.forEach(emp => {
+        emp.subordinates.forEach(sub => {
+            if(allFilteredEmails.has(sub.nisEmail?.toLowerCase())) {
+                 subordinateEmails.add(sub.nisEmail.toLowerCase());
+            }
+        });
+    });
 
-  }, [allEmployees, campusFilter, titleFilter]);
-
+    const finalRoots = roots.filter(e => e.nisEmail && !subordinateEmails.has(e.nisEmail.toLowerCase()));
+    
+    return finalRoots;
+  
+  }, [allEmployees, campusFilter, titleFilter, statusFilter, religionFilter, stageFilter]);
+  
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.1, 2));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.1, 0.2));
 
@@ -304,7 +342,7 @@ function EmployeesChartContent() {
       toast({
         variant: "destructive",
         title: "Nothing to Export",
-        description: "Please select a campus and title to generate a chart first.",
+        description: "Please select filters to generate a chart first.",
       });
       return;
     }
@@ -313,7 +351,6 @@ function EmployeesChartContent() {
     toast({ title: "Generating PDF...", description: "This may take a moment." });
   
     const originalScale = contentRef.current.style.transform;
-    // Temporarily reset scale for accurate capture
     contentRef.current.style.transform = 'scale(1)';
   
     try {
@@ -332,7 +369,7 @@ function EmployeesChartContent() {
       });
   
       pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-      pdf.save(`Org_Chart_${campusFilter}_${titleFilter}.pdf`);
+      pdf.save(`Org_Chart.pdf`);
   
     } catch (error) {
       console.error("Error generating PDF:", error);
@@ -342,7 +379,6 @@ function EmployeesChartContent() {
         description: "An error occurred while creating the PDF.",
       });
     } finally {
-      // Restore the original scale
       if (contentRef.current) {
         contentRef.current.style.transform = originalScale;
       }
@@ -385,39 +421,19 @@ function EmployeesChartContent() {
         <CardHeader>
           <CardTitle>Reporting Hierarchy</CardTitle>
           <CardDescription>
-            This chart is generated based on the "Report Line 1" field for each employee. Select a campus then a title to view its structure.
+            This chart is generated based on the "Report Line 1" field for each employee. Use filters to view specific structures.
           </CardDescription>
-           <div className="flex flex-col sm:flex-row gap-4 pt-2">
-               <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <Label htmlFor="campus-filter">Filter by Campus</Label>
-              </div>
-              <Select onValueChange={setCampusFilter} value={campusFilter}>
-                <SelectTrigger id="campus-filter" className="w-full sm:w-[250px]">
-                  <SelectValue placeholder="Select a campus..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {campusList.map(campus => (
-                    <SelectItem key={campus} value={campus}>{campus}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-               <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <Label htmlFor="title-filter">Filter by Title</Label>
-              </div>
-              <Select onValueChange={setTitleFilter} value={titleFilter} disabled={!campusFilter}>
-                <SelectTrigger id="title-filter" className="w-full sm:w-[250px]">
-                  <SelectValue placeholder={!campusFilter ? "Select campus first" : "Select a title..."} />
-                </SelectTrigger>
-                <SelectContent>
-                  {titleList.map(title => (
-                    <SelectItem key={title} value={title}>{title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-               <div className="flex items-center gap-2 ml-auto">
-                    <Button variant="outline" size="icon" onClick={handleZoomOut}><ZoomOut className="h-4 w-4"/></Button>
+           <div className="space-y-4 pt-4">
+                <div className="flex flex-wrap items-center gap-2">
+                    <Filter className="h-4 w-4 text-muted-foreground" />
+                    <MultiSelectFilter placeholder="Filter by campus..." options={campusList} selected={campusFilter} onChange={setCampusFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
+                    <MultiSelectFilter placeholder="Filter by title..." options={titleList} selected={titleFilter} onChange={setTitleFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
+                    <MultiSelectFilter placeholder="Filter by status..." options={[{label: 'Active', value: 'Active'}, {label: 'Deactivated', value: 'Deactivated'}]} selected={statusFilter} onChange={setStatusFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
+                    <MultiSelectFilter placeholder="Filter by religion..." options={religionList} selected={religionFilter} onChange={setReligionFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
+                    <MultiSelectFilter placeholder="Filter by stage..." options={stageList} selected={stageFilter} onChange={setStageFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
+                </div>
+                <div className="flex items-center gap-2">
+                     <Button variant="outline" size="icon" onClick={handleZoomOut}><ZoomOut className="h-4 w-4"/></Button>
                     <Button variant="outline" size="icon" onClick={handleZoomIn}><ZoomIn className="h-4 w-4"/></Button>
                      <Button variant="outline" onClick={handleExportPDF} disabled={isExporting}>
                       {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <FileDown className="mr-2 h-4 w-4"/>}
@@ -451,21 +467,9 @@ function EmployeesChartContent() {
             </div>
           ) : (
             <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
-              <h3 className="text-xl font-semibold">
-                {!campusFilter 
-                    ? "Select a Campus" 
-                    : !titleFilter 
-                        ? "Select a Title" 
-                        : "No Chart Data"
-                }
-              </h3>
+              <h3 className="text-xl font-semibold">Select Filters to Generate Chart</h3>
               <p className="mt-2">
-                {!campusFilter 
-                    ? "Please select a campus from the dropdown to begin." 
-                    : !titleFilter 
-                        ? "Please select a title to view the hierarchy." 
-                        : "No reporting structure found for the selected filters."
-                }
+                Please select at least one filter (e.g., Campus, Title) to display the organizational structure.
               </p>
             </div>
           )}
@@ -482,3 +486,4 @@ export default function EmployeesChartPage() {
     </AppLayout>
   );
 }
+
