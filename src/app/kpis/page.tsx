@@ -131,12 +131,16 @@ function KpisContent() {
     const [isLoadingData, setIsLoadingData] = useState(true);
     
     const [searchTerm, setSearchTerm] = useState("");
-    const [groupFilter, setGroupFilter] = useState("All");
     const [campusFilter, setCampusFilter] = useState("All");
+    const [stageFilter, setStageFilter] = useState("All");
+    const [titleFilter, setTitleFilter] = useState("All");
+    const [reportLineFilter, setReportLineFilter] = useState("All");
+
     const [currentPage, setCurrentPage] = useState(1);
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
     
-    const { groupNames, campuses, isLoading: isLoadingLists } = useOrganizationLists();
+    const { campuses, stage, reportLines1, reportLines2, isLoading: isLoadingLists } = useOrganizationLists();
+    const [titles, setTitles] = useState<string[]>([]);
 
     // New state for server-side pagination
     const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
@@ -166,8 +170,10 @@ function KpisContent() {
                 q = query(employeeCollectionRef, or(where("reportLine1", "==", profile.email), where("reportLine2", "==", profile.email)));
             } else {
                  q = query(employeeCollectionRef, orderBy("name"));
-                if (groupFilter !== "All") q = query(q, where("groupName", "==", groupFilter));
                 if (campusFilter !== "All") q = query(q, where("campus", "==", campusFilter));
+                if (stageFilter !== "All") q = query(q, where("stage", "==", stageFilter));
+                if (titleFilter !== "All") q = query(q, where("title", "==", titleFilter));
+                if (reportLineFilter !== "All") q = query(q, or(where("reportLine1", "==", reportLineFilter), where("reportLine2", "==", reportLineFilter)));
             }
 
             if (searchTerm) {
@@ -344,18 +350,38 @@ function KpisContent() {
         } finally {
             setIsLoadingData(false);
         }
-    }, [toast, isPrivilegedUser, profile, groupFilter, campusFilter, searchTerm, lastVisible, currentPage, pageCursors]);
+    }, [profile, isPrivilegedUser, toast, campusFilter, stageFilter, titleFilter, reportLineFilter, searchTerm, lastVisible, currentPage, pageCursors]);
+
+    const allReportLines = useMemo(() => {
+        const lines = new Set<string>();
+        reportLines1.forEach(l => lines.add(l.name));
+        reportLines2.forEach(l => lines.add(l.name));
+        return Array.from(lines).sort();
+    }, [reportLines1, reportLines2]);
+
+    useEffect(() => {
+        if(isPrivilegedUser) {
+            getDocs(query(collection(db, "employee")))
+                .then(snapshot => {
+                    const uniqueTitles = new Set<string>();
+                    snapshot.forEach(doc => {
+                        const title = doc.data().title;
+                        if (title) uniqueTitles.add(title);
+                    });
+                    setTitles(Array.from(uniqueTitles).sort());
+                });
+        }
+    }, [isPrivilegedUser]);
 
 
     useEffect(() => {
         if (!isLoadingProfile) {
-            // Reset to page 1 and fetch logs whenever a filter changes
             setCurrentPage(1);
             setPageCursors([null]);
             setLastVisible(null);
             fetchData('first');
         }
-    }, [isLoadingProfile, groupFilter, campusFilter, searchTerm]);
+    }, [isLoadingProfile, campusFilter, stageFilter, titleFilter, reportLineFilter, searchTerm, fetchData]);
 
 
     const goToNextPage = () => {
@@ -421,13 +447,21 @@ function KpisContent() {
                         <Input placeholder="Teacher name" className="max-w-xs" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                         {isPrivilegedUser && (
                             <>
-                                <Select value={groupFilter} onValueChange={setGroupFilter}>
-                                    <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select Group"/></SelectTrigger>
-                                    <SelectContent><SelectItem value="All">All Groups</SelectItem>{groupNames.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
-                                </Select>
                                 <Select value={campusFilter} onValueChange={setCampusFilter}>
                                     <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select School"/></SelectTrigger>
                                     <SelectContent><SelectItem value="All">All Schools</SelectItem>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                                <Select value={stageFilter} onValueChange={setStageFilter}>
+                                    <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select Stage"/></SelectTrigger>
+                                    <SelectContent><SelectItem value="All">All Stages</SelectItem>{stage.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                                <Select value={titleFilter} onValueChange={setTitleFilter}>
+                                    <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select Title"/></SelectTrigger>
+                                    <SelectContent><SelectItem value="All">All Titles</SelectItem>{titles.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                                </Select>
+                                <Select value={reportLineFilter} onValueChange={setReportLineFilter}>
+                                    <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select Report Line"/></SelectTrigger>
+                                    <SelectContent><SelectItem value="All">All Report Lines</SelectItem>{allReportLines.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                                 </Select>
                             </>
                         )}
@@ -524,3 +558,5 @@ export default function KpisPage() {
         </AppLayout>
     );
 }
+
+    
