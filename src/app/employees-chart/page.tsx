@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
@@ -18,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { MultiSelectFilter } from '@/components/multi-select';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 // Enhanced Employee interface to support the tree structure
 interface Employee {
@@ -426,24 +426,33 @@ function EmployeesChartContent() {
           <CardDescription>
             This chart is generated based on the "Report Line 1" field for each employee. Use filters to view specific structures.
           </CardDescription>
-           <div className="space-y-4 pt-4">
-                <div className="flex flex-wrap items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
-                    <MultiSelectFilter placeholder="Filter by campus..." options={campusList} selected={campusFilter} onChange={setCampusFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
-                    <MultiSelectFilter placeholder="Filter by title..." options={titleList} selected={titleFilter} onChange={setTitleFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
-                    <MultiSelectFilter placeholder="Filter by status..." options={[{label: 'Active', value: 'Active'}, {label: 'Deactivated', value: 'Deactivated'}]} selected={statusFilter} onChange={setStatusFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
-                    <MultiSelectFilter placeholder="Filter by religion..." options={religionList} selected={religionFilter} onChange={setReligionFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
-                    <MultiSelectFilter placeholder="Filter by stage..." options={stageList} selected={stageFilter} onChange={setStageFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
-                </div>
-                <div className="flex items-center gap-2">
-                     <Button variant="outline" size="icon" onClick={handleZoomOut}><ZoomOut className="h-4 w-4"/></Button>
-                    <Button variant="outline" size="icon" onClick={handleZoomIn}><ZoomIn className="h-4 w-4"/></Button>
-                     <Button variant="outline" onClick={handleExportPDF} disabled={isExporting}>
-                      {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <FileDown className="mr-2 h-4 w-4"/>}
-                      Export PDF
-                    </Button>
-                </div>
+            <div className="flex items-center gap-2 pt-4">
+                <Button variant="outline" size="icon" onClick={handleZoomOut}><ZoomOut className="h-4 w-4"/></Button>
+                <Button variant="outline" size="icon" onClick={handleZoomIn}><ZoomIn className="h-4 w-4"/></Button>
+                <Button variant="outline" onClick={handleExportPDF} disabled={isExporting}>
+                    {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <FileDown className="mr-2 h-4 w-4"/>}
+                    Export PDF
+                </Button>
             </div>
+           <Accordion type="single" collapsible className="w-full pt-2">
+                <AccordionItem value="filters">
+                    <AccordionTrigger>
+                        <div className="flex items-center gap-2 text-sm">
+                            <Filter className="h-4 w-4" />
+                            Advanced Filters
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <MultiSelectFilter placeholder="Filter by campus..." options={campusList} selected={campusFilter} onChange={setCampusFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
+                            <MultiSelectFilter placeholder="Filter by title..." options={titleList} selected={titleFilter} onChange={setTitleFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
+                            <MultiSelectFilter placeholder="Filter by status..." options={[{label: 'Active', value: 'Active'}, {label: 'Deactivated', value: 'Deactivated'}]} selected={statusFilter} onChange={setStatusFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
+                            <MultiSelectFilter placeholder="Filter by religion..." options={religionList} selected={religionFilter} onChange={setReligionFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
+                            <MultiSelectFilter placeholder="Filter by stage..." options={stageList} selected={stageFilter} onChange={setStageFilter} className="w-full sm:w-auto flex-1 min-w-[150px]" />
+                        </div>
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
         </CardHeader>
         <CardContent>
           {isLoading ? (
