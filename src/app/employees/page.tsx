@@ -50,11 +50,8 @@ import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayU
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { format, startOfDay, endOfDay, getYear } from "date-fns";
-import { DateRange } from "react-day-picker";
-import { Calendar } from "@/components/ui/calendar";
+import { format, getYear } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ImageUploader } from "@/components/image-uploader";
 import { useOrganizationLists, type ListItem } from "@/hooks/use-organization-lists";
@@ -64,10 +61,9 @@ import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { EmployeeFileManager } from "@/components/employee-file-manager";
 import { Textarea } from "@/components/ui/textarea";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import * as XLSX from 'xlsx';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { MultiSelectFilter, type OptionType } from "@/components/multi-select";
 
 
@@ -884,25 +880,30 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
 function EmployeeManagementContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const { toast } = useToast();
   const { campuses, stage: stages, subjects, reportLines1, reportLines2, isLoading: isLoadingLists } = useOrganizationLists();
   
-  const [statusFilters, setStatusFilters] = useState<string[]>([]);
-  const [campusFilters, setCampusFilters] = useState<string[]>([]);
-  const [titleFilters, setTitleFilters] = useState<string[]>([]);
-  const [stageFilters, setStageFilters] = useState<string[]>([]);
-  const [subjectFilters, setSubjectFilters] = useState<string[]>([]);
-  const [genderFilters, setGenderFilters] = useState<string[]>([]);
-  const [religionFilters, setReligionFilters] = useState<string[]>([]);
-  const [reportLineFilters, setReportLineFilters] = useState<string[]>([]);
-  
-  const [dobStartYear, setDobStartYear] = useState<string>("");
-  const [dobEndYear, setDobEndYear] = useState<string>("");
-  const [joiningStartYear, setJoiningStartYear] = useState<string>("");
-  const [joiningEndYear, setJoiningEndYear] = useState<string>("");
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Filter states
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') || "");
+  const [statusFilters, setStatusFilters] = useState(() => searchParams.getAll('status') || []);
+  const [campusFilters, setCampusFilters] = useState(() => searchParams.getAll('campus') || []);
+  const [titleFilters, setTitleFilters] = useState(() => searchParams.getAll('title') || []);
+  const [stageFilters, setStageFilters] = useState(() => searchParams.getAll('stage') || []);
+  const [subjectFilters, setSubjectFilters] = useState(() => searchParams.getAll('subject') || []);
+  const [genderFilters, setGenderFilters] = useState(() => searchParams.getAll('gender') || []);
+  const [religionFilters, setReligionFilters] = useState(() => searchParams.getAll('religion') || []);
+  const [reportLineFilters, setReportLineFilters] = useState(() => searchParams.getAll('reportLine') || []);
+  const [dobStartYear, setDobStartYear] = useState(() => searchParams.get('dobStart') || "");
+  const [dobEndYear, setDobEndYear] = useState(() => searchParams.get('dobEnd') || "");
+  const [joiningStartYear, setJoiningStartYear] = useState(() => searchParams.get('joinStart') || "");
+  const [joiningEndYear, setJoiningEndYear] = useState(() => searchParams.get('joinEnd') || "");
+  const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page') || '1', 10));
 
   const yearRange = useMemo(() => {
     const currentYear = getYear(new Date());
@@ -927,7 +928,35 @@ function EmployeeManagementContent() {
       setDobEndYear("");
       setJoiningStartYear("");
       setJoiningEndYear("");
+      setCurrentPage(1);
   };
+  
+  // URL update effect
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchTerm) params.set('q', searchTerm);
+    statusFilters.forEach(s => params.append('status', s));
+    campusFilters.forEach(c => params.append('campus', c));
+    titleFilters.forEach(t => params.append('title', t));
+    stageFilters.forEach(s => params.append('stage', s));
+    subjectFilters.forEach(s => params.append('subject', s));
+    genderFilters.forEach(g => params.append('gender', g));
+    religionFilters.forEach(r => params.append('religion', r));
+    reportLineFilters.forEach(r => params.append('reportLine', r));
+    if (dobStartYear) params.set('dobStart', dobStartYear);
+    if (dobEndYear) params.set('dobEnd', dobEndYear);
+    if (joiningStartYear) params.set('joinStart', joiningStartYear);
+    if (joiningEndYear) params.set('joinEnd', joiningEndYear);
+    if (currentPage > 1) params.set('page', currentPage.toString());
+
+    // Using push to update the URL.
+    router.push(`${pathname}?${params.toString()}`);
+  }, [
+    searchTerm, statusFilters, campusFilters, titleFilters, stageFilters,
+    subjectFilters, genderFilters, religionFilters, reportLineFilters,
+    dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, currentPage,
+    router, pathname
+  ]);
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -962,35 +991,29 @@ function EmployeeManagementContent() {
 
   const [isBatchImportOpen, setIsBatchImportOpen] = useState(false);
 
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-
   useEffect(() => {
     if (isLoadingProfile) return;
 
     setIsLoading(true);
-const userRole = profile?.role?.toLowerCase();
-let q;
-const employeeCollection = collection(db, "employee");
+    const userRole = profile?.role?.toLowerCase();
+    let q;
+    const employeeCollection = collection(db, "employee");
 
-if (userRole && userRole !== "admin" && userRole !== "hr" && profile?.email) {
-  // Restrict results to employees whose reportLine1 OR reportLine2 matches the logged-in user's email
-  q = query(
-    employeeCollection,
-    or(
-      where("reportLine1", "==", profile.email),
-      where("reportLine2", "==", profile.email)
-    )
-  );
-} else {
-  // Admin/HR → gets all data
-  q = query(employeeCollection);
-}
+    if (userRole && userRole !== "admin" && userRole !== "hr" && profile?.email) {
+      q = query(
+        employeeCollection,
+        or(
+          where("reportLine1", "==", profile.email),
+          where("reportLine2", "==", profile.email)
+        )
+      );
+    } else {
+      q = query(employeeCollection);
+    }
 
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const employeeData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-        // Client-side sort after fetch
         employeeData.sort((a,b) => a.name.localeCompare(b.name));
         setAllEmployees(employeeData);
         setIsLoading(false);
