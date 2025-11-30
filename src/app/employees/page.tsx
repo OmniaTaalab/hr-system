@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Label } from "@/components/ui/label";
 import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall, UserRoundCheck, X } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback, useTransition } from "react";
@@ -1538,95 +1539,106 @@ if (userRole && userRole !== "admin" && userRole !== "hr" && profile?.email) {
                 )}
               </div>
             </div>
-             <div className="flex flex-wrap items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground hidden sm:block"/>
-                <MultiSelectFilter
-                    placeholder="Filter by status..."
-                    options={[{label: 'Active', value: 'Active'}, {label: 'Deactivated', value: 'Deactivated'}]}
-                    selected={statusFilters}
-                    onChange={setStatusFilters}
-                    className="w-full sm:w-auto flex-1 min-w-[150px]"
-                />
-                 <MultiSelectFilter
-                    placeholder="Filter by campus..."
-                    options={campuses.map(c => ({ label: c.name, value: c.name }))}
-                    selected={campusFilters}
-                    onChange={setCampusFilters}
-                    className="w-full sm:w-auto flex-1 min-w-[150px]"
-                />
-                 <MultiSelectFilter
-                    placeholder="Filter by title..."
-                    options={uniqueTitles}
-                    selected={titleFilters}
-                    onChange={setTitleFilters}
-                    className="w-full sm:w-auto flex-1 min-w-[150px]"
-                />
-                <MultiSelectFilter
-                    placeholder="Filter by stage..."
-                    options={stages.map(s => ({label: s.name, value: s.name}))}
-                    selected={stageFilters}
-                    onChange={setStageFilters}
-                    className="w-full sm:w-auto flex-1 min-w-[150px]"
-                />
-                <MultiSelectFilter
-                    placeholder="Filter by subject..."
-                    options={uniqueSubjects}
-                    selected={subjectFilters}
-                    onChange={setSubjectFilters}
-                    className="w-full sm:w-auto flex-1 min-w-[150px]"
-                />
-                 <MultiSelectFilter
-                    placeholder="Filter by gender..."
-                    options={[{label: 'Male', value: 'Male'}, {label: 'Female', value: 'Female'}]}
-                    selected={genderFilters}
-                    onChange={setGenderFilters}
-                    className="w-full sm:w-auto flex-1 min-w-[150px]"
-                />
-                <MultiSelectFilter
-                    placeholder="Filter by religion..."
-                    options={uniqueReligions}
-                    selected={religionFilters}
-                    onChange={setReligionFilters}
-                    className="w-full sm:w-auto flex-1 min-w-[150px]"
-                />
-                <MultiSelectFilter
-                    placeholder="Reports to..."
-                    options={uniqueReportLines}
-                    selected={reportLineFilters}
-                    onChange={setReportLineFilters}
-                    className="w-full sm:w-auto flex-1 min-w-[150px]"
-                />
-            </div>
-            <div className="flex flex-wrap items-center gap-4 pt-2">
-                <div className="flex items-center gap-2">
-                    <Label>Birth Year:</Label>
-                    <Select value={dobStartYear} onValueChange={setDobStartYear}>
-                        <SelectTrigger className="w-[120px]"><SelectValue placeholder="From..." /></SelectTrigger>
-                        <SelectContent>{yearRange.map(y => <SelectItem key={`dob-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
-                    </Select>
-                    -
-                    <Select value={dobEndYear} onValueChange={setDobEndYear}>
-                            <SelectTrigger className="w-[120px]"><SelectValue placeholder="To..." /></SelectTrigger>
-                            <SelectContent>{yearRange.map(y => <SelectItem key={`dob-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
-                    </Select>
-                </div>
-                    <div className="flex items-center gap-2">
-                    <Label>Joining Year:</Label>
-                    <Select value={joiningStartYear} onValueChange={setJoiningStartYear}>
-                        <SelectTrigger className="w-[120px]"><SelectValue placeholder="From..." /></SelectTrigger>
-                        <SelectContent>{yearRange.map(y => <SelectItem key={`join-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
-                    </Select>
-                    -
-                    <Select value={joiningEndYear} onValueChange={setJoiningEndYear}>
-                            <SelectTrigger className="w-[120px]"><SelectValue placeholder="To..." /></SelectTrigger>
-                            <SelectContent>{yearRange.map(y => <SelectItem key={`join-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
-                    </Select>
-                </div>
-                    <Button variant="outline" onClick={clearAllFilters} className="ml-auto">
-                    <X className="mr-2 h-4 w-4" />
-                    Clear All Filters
-                </Button>
-            </div>
+            <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="filters">
+                    <AccordionTrigger>
+                        <div className="flex items-center gap-2 text-sm">
+                            <Filter className="h-4 w-4" />
+                            Advanced Filters
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-4 space-y-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <MultiSelectFilter
+                                placeholder="Filter by status..."
+                                options={[{label: 'Active', value: 'Active'}, {label: 'Deactivated', value: 'Deactivated'}]}
+                                selected={statusFilters}
+                                onChange={setStatusFilters}
+                                className="w-full sm:w-auto flex-1 min-w-[150px]"
+                            />
+                            <MultiSelectFilter
+                                placeholder="Filter by campus..."
+                                options={campuses.map(c => ({ label: c.name, value: c.name }))}
+                                selected={campusFilters}
+                                onChange={setCampusFilters}
+                                className="w-full sm:w-auto flex-1 min-w-[150px]"
+                            />
+                            <MultiSelectFilter
+                                placeholder="Filter by title..."
+                                options={uniqueTitles}
+                                selected={titleFilters}
+                                onChange={setTitleFilters}
+                                className="w-full sm:w-auto flex-1 min-w-[150px]"
+                            />
+                            <MultiSelectFilter
+                                placeholder="Filter by stage..."
+                                options={stages.map(s => ({label: s.name, value: s.name}))}
+                                selected={stageFilters}
+                                onChange={setStageFilters}
+                                className="w-full sm:w-auto flex-1 min-w-[150px]"
+                            />
+                            <MultiSelectFilter
+                                placeholder="Filter by subject..."
+                                options={uniqueSubjects}
+                                selected={subjectFilters}
+                                onChange={setSubjectFilters}
+                                className="w-full sm:w-auto flex-1 min-w-[150px]"
+                            />
+                            <MultiSelectFilter
+                                placeholder="Filter by gender..."
+                                options={[{label: 'Male', value: 'Male'}, {label: 'Female', value: 'Female'}]}
+                                selected={genderFilters}
+                                onChange={setGenderFilters}
+                                className="w-full sm:w-auto flex-1 min-w-[150px]"
+                            />
+                            <MultiSelectFilter
+                                placeholder="Filter by religion..."
+                                options={uniqueReligions}
+                                selected={religionFilters}
+                                onChange={setReligionFilters}
+                                className="w-full sm:w-auto flex-1 min-w-[150px]"
+                            />
+                            <MultiSelectFilter
+                                placeholder="Reports to..."
+                                options={uniqueReportLines}
+                                selected={reportLineFilters}
+                                onChange={setReportLineFilters}
+                                className="w-full sm:w-auto flex-1 min-w-[150px]"
+                            />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-4 pt-2">
+                            <div className="flex items-center gap-2">
+                                <Label>Birth Year:</Label>
+                                <Select value={dobStartYear} onValueChange={setDobStartYear}>
+                                    <SelectTrigger className="w-[120px]"><SelectValue placeholder="From..." /></SelectTrigger>
+                                    <SelectContent>{yearRange.map(y => <SelectItem key={`dob-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                                </Select>
+                                -
+                                <Select value={dobEndYear} onValueChange={setDobEndYear}>
+                                        <SelectTrigger className="w-[120px]"><SelectValue placeholder="To..." /></SelectTrigger>
+                                        <SelectContent>{yearRange.map(y => <SelectItem key={`dob-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </div>
+                                <div className="flex items-center gap-2">
+                                <Label>Joining Year:</Label>
+                                <Select value={joiningStartYear} onValueChange={setJoiningStartYear}>
+                                    <SelectTrigger className="w-[120px]"><SelectValue placeholder="From..." /></SelectTrigger>
+                                    <SelectContent>{yearRange.map(y => <SelectItem key={`join-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                                </Select>
+                                -
+                                <Select value={joiningEndYear} onValueChange={setJoiningEndYear}>
+                                        <SelectTrigger className="w-[120px]"><SelectValue placeholder="To..." /></SelectTrigger>
+                                        <SelectContent>{yearRange.map(y => <SelectItem key={`join-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </div>
+                                <Button variant="outline" onClick={clearAllFilters} className="ml-auto">
+                                <X className="mr-2 h-4 w-4" />
+                                Clear All Filters
+                            </Button>
+                        </div>
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
           </div>
         </CardHeader>
         <CardContent>
