@@ -36,7 +36,7 @@ import {
   FileDown,
   Eye,
 } from "lucide-react";
-import React, { useState, useEffect, useMemo, useActionState } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useCallback } from "react";
 import { format } from "date-fns";
 import { db } from "@/lib/firebase/config";
 import {
@@ -144,161 +144,71 @@ function AllLeaveRequestsContent() {
     initialDeleteState
   );
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     if (isLoadingProfile) return;
 
+    setIsLoading(true);
     const userRole = profile?.role?.toLowerCase();
     const isPrivileged = userRole === "admin" || userRole === "hr";
-    let unsubscribe: () => void = () => {};
-    let unsubscribes: (() => void)[] = [];
 
-    const fetchManagerRequests = async () => {
-      setIsLoading(true);
-      if (!profile?.email) {
-        setAllRequests([]);
-        setIsLoading(false);
-        return;
-      }
+    let finalQuery;
 
-      try {
-        const reportingEmployeesQuery = query(
-          collection(db, "employee"),
-          or(
-            where("reportLine1", "==", profile.email),
-            where("reportLine2", "==", profile.email)
-          )
-        );
-        const reportingEmployeesSnapshot = await getDocs(reportingEmployeesQuery);
-        const employeeIds = reportingEmployeesSnapshot.docs.map((doc) => doc.id);
+    try {
+        if (isPrivileged) {
+            finalQuery = query(collection(db, "leaveRequests"), orderBy("submittedAt", "desc"));
+        } else if (profile?.email) {
+            // Manager's view
+            const reportingEmployeesQuery = query(
+                collection(db, "employee"),
+                or(
+                    where("reportLine1", "==", profile.email),
+                    where("reportLine2", "==", profile.email)
+                )
+            );
+            const reportingEmployeesSnapshot = await getDocs(reportingEmployeesQuery);
+            const employeeIds = reportingEmployeesSnapshot.docs.map((doc) => doc.id);
 
-        if (employeeIds.length === 0) {
-          setAllRequests([]);
-          setIsLoading(false);
-          return;
+            if (employeeIds.length === 0) {
+                setAllRequests([]);
+                setIsLoading(false);
+                return;
+            }
+            
+            // Use a single 'in' query for all subordinate requests
+            finalQuery = query(
+              collection(db, "leaveRequests"),
+              where("requestingEmployeeDocId", "in", employeeIds),
+              orderBy("submittedAt", "desc")
+            );
+        } else {
+            // No profile/email, shouldn't happen if properly guarded, but good to handle
+            setAllRequests([]);
+            setIsLoading(false);
+            return;
         }
 
-        // 🔹 إذا عندنا عدد كبير جدًا (> 30) → نستخدم batching عادي بـ getDocs
-        if (employeeIds.length > 30) {
-          let allManagerRequests: LeaveRequestEntry[] = [];
-          const batchSize = 30;
-
-          for (let i = 0; i < employeeIds.length; i += batchSize) {
-            const batch = employeeIds.slice(i, i + batchSize);
-            const batchRequests: LeaveRequestEntry[] = [];
-
-            for (const empId of batch) {
-              const leaveQuery = query(
-                collection(db, "leaveRequests"),
-                where("requestingEmployeeDocId", "==", empId)
-              );
-              const snapshot = await getDocs(leaveQuery);
-              const requests = snapshot.docs.map(
-                (doc) => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry)
-              );
-              batchRequests.push(...requests);
-            }
-
-            allManagerRequests.push(...batchRequests);
-          }
-
-          allManagerRequests.sort(
-            (a, b) => b.submittedAt.toMillis() - a.submittedAt.toMillis()
-          );
-          setAllRequests(allManagerRequests);
-          setIsLoading(false);
-          return;
+        if (finalQuery) {
+            const snapshot = await getDocs(finalQuery);
+            const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+            setAllRequests(requestsData);
         }
 
-        // 🔹 لو أقل من أو يساوي 30 → نستخدم snapshot live
-        let allManagerRequests: LeaveRequestEntry[] = [];
-        const listeners: (() => void)[] = [];
-
-        employeeIds.forEach((empId) => {
-          const leaveRequestsQuery = query(
-            collection(db, "leaveRequests"),
-            where("requestingEmployeeDocId", "==", empId)
-          );
-
-          const unsub = onSnapshot(
-            leaveRequestsQuery,
-            (snapshot) => {
-              const newRequests = snapshot.docs.map(
-                (doc) => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry)
-              );
-
-              allManagerRequests = [
-                ...allManagerRequests.filter(
-                  (req) => req.requestingEmployeeDocId !== empId
-                ),
-                ...newRequests,
-              ];
-
-              allManagerRequests.sort(
-                (a, b) => b.submittedAt.toMillis() - a.submittedAt.toMillis()
-              );
-              setAllRequests([...allManagerRequests]);
-            },
-            (error) => {
-              console.error(
-                `Error fetching leave requests for employee ${empId}:`,
-                error
-              );
-            }
-          );
-          listeners.push(unsub);
-        });
-
-        unsubscribes = listeners;
-        setIsLoading(false);
-      } catch (error) {
-        console.error("Error setting up manager's leave request fetch:", error);
+    } catch (error) {
+        console.error("Error fetching leave requests:", error);
         toast({
-          variant: "destructive",
-          title: "Error",
-          description: "An error occurred while setting up your view.",
-        });
-        setIsLoading(false);
-      }
-    };
-
-    const fetchAllRequests = () => {
-      setIsLoading(true);
-      const q = query(
-        collection(db, "leaveRequests"),
-        orderBy("submittedAt", "desc")
-      );
-      unsubscribe = onSnapshot(
-        q,
-        (snapshot) => {
-          const requestsData = snapshot.docs.map(
-            (doc) => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry)
-          );
-          setAllRequests(requestsData);
-          setIsLoading(false);
-        },
-        (error) => {
-          console.error("Error fetching all leave requests:", error);
-          toast({
             variant: "destructive",
             title: "Error",
-            description: "Could not fetch leave requests.",
-          });
-          setIsLoading(false);
-        }
-      );
-    };
-
-    if (isPrivileged) {
-      fetchAllRequests();
-    } else {
-      fetchManagerRequests();
+            description: "Could not fetch leave requests. You may need to create a database index in Firestore.",
+        });
+    } finally {
+        setIsLoading(false);
     }
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-      unsubscribes.forEach((unsub) => unsub());
-    };
   }, [profile, isLoadingProfile, toast]);
+
+  useEffect(() => {
+      fetchData();
+  }, [fetchData]);
+
 
   useEffect(() => {
     if (deleteServerState?.message) {

@@ -96,14 +96,14 @@ export function SidebarNav() {
       // For regular users (not admin, not hr, not a manager)
       const protectedForRegularUsers =
         item.href?.startsWith("/leave/all-requests") ||
-        item.href?.startsWith("/settings") ||
+        // item.href?.startsWith("/settings") ||
         item.href?.startsWith("/employees") ||
-        item.href?.startsWith("/employees-chart") ||
-        item.href?.startsWith("/attendance-logs") ||
-        item.href?.startsWith("/payroll") ||
-        item.href?.startsWith("/jobs/applications") ||
-        item.href?.startsWith("/tpi") ||
-        item.href?.startsWith("/system-logs");
+        // item.href?.startsWith("/employees-chart") ||
+        item.href?.startsWith("/attendance-logs") ;
+        // item.href?.startsWith("/payroll") ||
+        // item.href?.startsWith("/jobs/applications") ||
+        // item.href?.startsWith("/tpi") ||
+        // item.href?.startsWith("/system-logs");
 
       return !protectedForRegularUsers;
     });

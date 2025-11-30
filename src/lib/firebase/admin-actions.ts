@@ -837,7 +837,6 @@ export async function activateEmployeeAction(
     }
 }
 
-
 export type BatchCreateEmployeesState = {
     errors?: {
         file?: string[];
@@ -1105,11 +1104,9 @@ export async function deduplicateEmployeesAction(
     const employeeCollectionRef = collection(db, "employee");
     const snapshot = await getDocs(employeeCollectionRef);
 
-    // Maps to track duplicates by (name + nisEmail)
-    const seenRecords = new Map<
-      string,
-      { docId: string; timestamp: Timestamp }
-    >();
+    // Maps to track unique names + emails
+    const seenNames = new Map<string, { docId: string; timestamp: Timestamp }>();
+    const seenEmails = new Map<string, { docId: string; timestamp: Timestamp }>();
 
     const docsToDelete = new Set<string>();
 
@@ -1119,49 +1116,62 @@ export async function deduplicateEmployeesAction(
 
       const name = (data.name || "").trim().toLowerCase();
       const nisEmail = (data.nisEmail || "").trim().toLowerCase();
-      const createdAt = data.createdAt || Timestamp.now(); // fallback
+      const createdAt = data.createdAt || Timestamp.now();
 
-      // 1) Delete if name is missing
+      // Delete if name missing
       if (!name) {
         docsToDelete.add(docId);
         continue;
       }
 
-      // 2) Build key for deduplication
-      const key = `${name}__${nisEmail}`;
+      // -------- 1) DEDUPE BY NAME --------
+      if (seenNames.has(name)) {
+        const existing = seenNames.get(name)!;
 
-      if (seenRecords.has(key)) {
-        const existing = seenRecords.get(key)!;
-
-        // Keep the newest record
         if (createdAt.toMillis() > existing.timestamp.toMillis()) {
-          // current one is newer → delete old
+          // current newer → delete old
           docsToDelete.add(existing.docId);
-          seenRecords.set(key, { docId, timestamp: createdAt });
+          seenNames.set(name, { docId, timestamp: createdAt });
         } else {
-          // current one is older → delete current
+          // current older → delete current
           docsToDelete.add(docId);
         }
       } else {
-        // first time seeing this combination
-        seenRecords.set(key, { docId, timestamp: createdAt });
+        seenNames.set(name, { docId, timestamp: createdAt });
+      }
+
+      // -------- 2) DEDUPE BY EMAIL --------
+      // Only if email exists
+      if (nisEmail) {
+        if (seenEmails.has(nisEmail)) {
+          const existing = seenEmails.get(nisEmail)!;
+
+          if (createdAt.toMillis() > existing.timestamp.toMillis()) {
+            // current newer → delete old
+            docsToDelete.add(existing.docId);
+            seenEmails.set(nisEmail, { docId, timestamp: createdAt });
+          } else {
+            // current older → delete current
+            docsToDelete.add(docId);
+          }
+        } else {
+          seenEmails.set(nisEmail, { docId, timestamp: createdAt });
+        }
       }
     }
 
-    // No duplicates?
+    // Nothing to delete
     if (docsToDelete.size === 0) {
       return { success: true, message: "No duplicate employees found." };
     }
 
-    // 3) Delete duplicates
+    // Batch delete
     const batch = writeBatch(db);
     docsToDelete.forEach(docId => {
       batch.delete(doc(employeeCollectionRef, docId));
     });
-
     await batch.commit();
 
-    // Log event
     await logSystemEvent("Deduplicate Employees", {
       actorId: formData.get("actorId") as string,
       actorEmail: formData.get("actorEmail") as string,
@@ -1173,17 +1183,19 @@ export async function deduplicateEmployeesAction(
 
     return {
       success: true,
-      message: `Successfully removed ${docsToDelete.size} duplicate employees based on name + nisEmail.`
+      message: `Successfully removed ${docsToDelete.size} duplicate employees (by name or nisEmail).`
     };
 
   } catch (error: any) {
     console.error("Error deduplicating employees:", error);
+
     return {
       success: false,
       errors: { form: ["Unexpected error during deduplication."] },
     };
   }
 }
+
 
 export type CorrectionState = {
     message?: string | null;
