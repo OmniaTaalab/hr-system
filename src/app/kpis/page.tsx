@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
@@ -181,15 +182,19 @@ function KpisContent() {
             }
             
             // Handle pagination
+            let currentCursor = pageCursors[currentPage - 1];
             if (direction === 'next' && lastVisible) {
-                q = query(q, startAfter(lastVisible), limit(PAGE_SIZE));
+                currentCursor = lastVisible;
             } else if (direction === 'prev' && currentPage > 1) {
-                const prevCursor = pageCursors[currentPage - 2];
-                q = query(q, startAfter(prevCursor), limit(PAGE_SIZE));
-            } else { // 'first' or page 1
-                q = query(q, limit(PAGE_SIZE));
+                currentCursor = pageCursors[currentPage - 2] || null;
             }
-            
+
+            if(direction !== 'first' && currentCursor) {
+              q = query(q, startAfter(currentCursor), limit(PAGE_SIZE));
+            } else {
+              q = query(q, limit(PAGE_SIZE));
+            }
+
             const employeesSnapshot = await getDocs(q);
             const employees = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
             const employeeIds = employees.map(emp => emp.id);
@@ -250,9 +255,9 @@ function KpisContent() {
                     manualPointsPromise
                 ]);
 
-                kpiChunkSnapshots[0].forEach(doc => allKpiSnapshots.eleot.push(doc.data()));
-                kpiChunkSnapshots[1].forEach(doc => allKpiSnapshots.tot.push(doc.data()));
-                kpiChunkSnapshots[2].forEach(doc => allKpiSnapshots.appraisal.push(doc.data()));
+                kpiChunkSnapshots[0].forEach(snap => snap.docs.forEach(doc => allKpiSnapshots.eleot.push(doc.data())));
+                kpiChunkSnapshots[1].forEach(snap => snap.docs.forEach(doc => allKpiSnapshots.tot.push(doc.data())));
+                kpiChunkSnapshots[2].forEach(snap => snap.docs.forEach(doc => allKpiSnapshots.appraisal.push(doc.data())));
                 profDevChunkSnapshots.forEach(snap => snap.forEach(doc => allProfDevSnapshots.push({ ...doc.data(), employeeDocId: doc.ref.parent.parent!.id })));
                 leaveChunkSnapshot.forEach(doc => allLeaveRequests.push(doc.data()));
                 exemptionsChunkSnapshot.forEach(doc => allExemptions.push(doc.data()));
@@ -381,7 +386,7 @@ function KpisContent() {
             setLastVisible(null);
             fetchData('first');
         }
-    }, [isLoadingProfile, campusFilter, stageFilter, titleFilter, reportLineFilter, searchTerm, fetchData]);
+    }, [isLoadingProfile, campusFilter, stageFilter, titleFilter, reportLineFilter, searchTerm]);
 
 
     const goToNextPage = () => {
@@ -558,5 +563,7 @@ export default function KpisPage() {
         </AppLayout>
     );
 }
+
+    
 
     
