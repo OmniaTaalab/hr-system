@@ -1015,7 +1015,6 @@ function EmployeeManagementContent() {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const employeeData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-        employeeData.sort((a,b) => a.name.localeCompare(b.name));
         setAllEmployees(employeeData);
         setIsLoading(false);
     }, (error) => {
@@ -1115,9 +1114,7 @@ function EmployeeManagementContent() {
   
   const normalizeTitle = (title?: string) => {
     if (!title || typeof title !== 'string') return null;
-    const cleanedTitle = title.trim();
-    if (["", "null", "undefined", "title"].includes(cleanedTitle.toLowerCase())) return null;
-    return cleanedTitle
+    return title.trim()
       .toLowerCase()
       .replace(/\s+/g, " ")
       .split(/[,/]/)
@@ -1177,6 +1174,7 @@ function EmployeeManagementContent() {
       .sort()
       .map(l => ({ label: l, value: l }));
   }, [reportLines1, reportLines2]);
+  
   const filteredEmployees = useMemo(() => {
     let listToFilter = allEmployees;
 
@@ -1253,6 +1251,43 @@ function EmployeeManagementContent() {
       });
     }
     
+     // Identify duplicates
+    const nameCounts = new Map<string, number>();
+    const emailCounts = new Map<string, number>();
+
+    listToFilter.forEach(emp => {
+      const normName = emp.name.trim().toLowerCase();
+      nameCounts.set(normName, (nameCounts.get(normName) || 0) + 1);
+
+      if (emp.email) {
+        const normEmail = emp.email.trim().toLowerCase();
+        emailCounts.set(normEmail, (emailCounts.get(normEmail) || 0) + 1);
+      }
+    });
+
+    const isDuplicate = (emp: Employee) => {
+      const normName = emp.name.trim().toLowerCase();
+      if ((nameCounts.get(normName) || 0) > 1) return true;
+
+      if (emp.email) {
+        const normEmail = emp.email.trim().toLowerCase();
+        if ((emailCounts.get(normEmail) || 0) > 1) return true;
+      }
+      return false;
+    };
+    
+    // Sort the list
+    listToFilter.sort((a, b) => {
+      const aIsDuplicate = isDuplicate(a);
+      const bIsDuplicate = isDuplicate(b);
+
+      if (aIsDuplicate && !bIsDuplicate) return -1;
+      if (!aIsDuplicate && bIsDuplicate) return 1;
+      
+      // If both are duplicates or both are not, sort by name
+      return a.name.localeCompare(b.name);
+    });
+
     return listToFilter;
   }, [allEmployees, searchTerm, campusFilters, stageFilters, subjectFilters, genderFilters, religionFilters, titleFilters, statusFilters, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilters]);
   
