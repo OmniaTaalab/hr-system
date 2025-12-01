@@ -76,7 +76,8 @@ export function SidebarNav() {
     }
 
     const userRole = profile.role?.toLowerCase();
-    const isPrivilegedUser = userRole === "admin" || userRole === "hr"|| isManager;
+    const isPrivilegedUser = userRole === "admin" || userRole === "hr" || isManager;
+
 
     return siteConfig.navItems.filter((item) => {
       if (item.href?.startsWith("/system-logs")) {
@@ -96,14 +97,14 @@ export function SidebarNav() {
       // For regular users (not admin, not hr, not a manager)
       const protectedForRegularUsers =
         item.href?.startsWith("/leave/all-requests") ||
-        // item.href?.startsWith("/settings") ||
+         item.href?.startsWith("/settings") ||
         item.href?.startsWith("/employees") ||
-        // item.href?.startsWith("/employees-chart") ||
+         item.href?.startsWith("/employees-chart") ||
         item.href?.startsWith("/attendance-logs") ;
-        // item.href?.startsWith("/payroll") ||
-        // item.href?.startsWith("/jobs/applications") ||
-        // item.href?.startsWith("/tpi") ||
-        // item.href?.startsWith("/system-logs");
+         item.href?.startsWith("/payroll") ||
+         item.href?.startsWith("/jobs/applications") ||
+         item.href?.startsWith("/tpi") ||
+         item.href?.startsWith("/system-logs");
 
       return !protectedForRegularUsers;
     });

@@ -62,11 +62,7 @@ export const navItems: NavItem[] = [
     href: '/jobs/applications',
     iconName: 'FileText',
   },
-   {
-    i18nKey: 'sidebar.payroll',
-    href: '/payroll',
-    iconName: 'Calculator',
-  },
+  
   {
     i18nKey: 'sidebar.system_log',
     href: '/system-logs',
