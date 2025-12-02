@@ -1392,6 +1392,7 @@ function EmployeeManagementContent() {
             'Status': emp.status || "Active",
             'Report Line 1': emp.reportLine1,
             'Report Line 2': emp.reportLine2,
+            'Reason For Leaving': emp.status === 'deactivated' ? emp.reasonForLeaving : '-',
             'Emergency Contact Name': emp.emergencyContact?.name,
             'Emergency Contact Relationship': emp.emergencyContact?.relationship,
             'Emergency Contact Number': emp.emergencyContact?.number,
