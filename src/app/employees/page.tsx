@@ -1149,6 +1149,7 @@ function EmployeeManagementContent() {
     });
     return Array.from(subjectSet).sort().map(s => ({label: s, value: s}));
   }, [allEmployees]);
+  
 
   const uniqueReligions = useMemo(() => {
     const religionSet = new Set<string>();
@@ -1177,7 +1178,7 @@ function EmployeeManagementContent() {
   }, [reportLines1, reportLines2]);
   
   const filteredEmployees = useMemo(() => {
-    let listToFilter = allEmployees;
+    let listToFilter = [...allEmployees];
 
     if (campusFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.campus && campusFilters.includes(emp.campus));
     if (stageFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.stage && stageFilters.includes(emp.stage));
@@ -1389,6 +1390,8 @@ function EmployeeManagementContent() {
             'Religion': emp.religion,
             'Hourly Rate': emp.hourlyRate,
             'Status': emp.status || "Active",
+            'Report Line 1': emp.reportLine1,
+            'Report Line 2': emp.reportLine2,
             'Emergency Contact Name': emp.emergencyContact?.name,
             'Emergency Contact Relationship': emp.emergencyContact?.relationship,
             'Emergency Contact Number': emp.emergencyContact?.number,
