@@ -125,8 +125,6 @@ export async function addProfDevelopmentAction(
   formData: FormData
 ): Promise<ProfDevelopmentState> {
 
-  console.log("STEP 1 → ACTION STARTED");
-  console.log("Raw FormData:", Object.fromEntries(formData.entries()));
 
   const validatedFields = ProfDevelopmentSchema.safeParse({
     employeeDocId: formData.get("employeeDocId"),
@@ -138,10 +136,8 @@ export async function addProfDevelopmentAction(
     actorRole: formData.get("actorRole"),
   });
 
-  console.log("STEP 2 → AFTER VALIDATION:", validatedFields);
 
   if (!validatedFields.success) {
-    console.log("❌ VALIDATION FAILED:", validatedFields.error.flatten().fieldErrors);
     return {
       errors: validatedFields.error.flatten().fieldErrors,
       message: "Validation failed.",
@@ -149,7 +145,6 @@ export async function addProfDevelopmentAction(
     };
   }
 
-  console.log("STEP 3 → VALIDATION PASSED");
 
   const {
     employeeDocId,
@@ -162,15 +157,12 @@ export async function addProfDevelopmentAction(
   } = validatedFields.data;
 
   try {
-    console.log("STEP 4 → FETCH EMPLOYEE DOC:", employeeDocId);
 
     const employeeRef = doc(db, "employee", employeeDocId);
     const employeeSnap = await getDoc(employeeRef);
 
-    console.log("STEP 5 → EMPLOYEE SNAP EXISTS?", employeeSnap.exists());
 
     if (!employeeSnap.exists()) {
-      console.log("❌ EMPLOYEE NOT FOUND");
       return {
         errors: { form: ["Employee record not found."] },
         success: false,
@@ -178,14 +170,12 @@ export async function addProfDevelopmentAction(
     }
 
     const employeeData = employeeSnap.data();
-    console.log("STEP 6 → EMPLOYEE DATA:", employeeData);
 
     const profDevCollectionRef = collection(
       db,
       `employee/${employeeDocId}/profDevelopment`
     );
 
-    console.log("STEP 7 → ADDING DOCUMENT");
 
     await addDoc(profDevCollectionRef, {
       courseName,
@@ -195,10 +185,8 @@ export async function addProfDevelopmentAction(
       submittedAt: serverTimestamp(),
     });
 
-    console.log("STEP 8 → DOCUMENT ADDED SUCCESSFULLY");
 
     // Log system event
-    console.log("STEP 9 → LOGGING SYSTEM EVENT");
 
     await logSystemEvent("Add Professional Development", {
       actorId,
@@ -208,13 +196,10 @@ export async function addProfDevelopmentAction(
       courseName,
     });
 
-    console.log("STEP 10 → SYSTEM EVENT LOGGED SUCCESSFULLY");
 
     // Manager notification logic
-    console.log("STEP 11 → CHECK MANAGER REPORT LINE 1");
 
     if (employeeData.reportLine1) {
-      console.log("STEP 12 → MANAGER FOUND:", employeeData.reportLine1);
 
       const managerQuery = query(
         collection(db, "employee"),
@@ -224,7 +209,6 @@ export async function addProfDevelopmentAction(
 
       const managerSnapshot = await getDocs(managerQuery);
 
-      console.log("STEP 13 → MANAGER SNAPSHOT EMPTY?", managerSnapshot.empty);
 
       const appUrl =
         process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -235,13 +219,11 @@ export async function addProfDevelopmentAction(
         const managerDoc = managerSnapshot.docs[0];
         const managerData = managerDoc.data();
 
-        console.log("STEP 14 → MANAGER DATA:", managerData);
 
         const notificationMessage = `New professional development entry for "${courseName}" submitted by ${employeeData.name}.`;
 
         // In-app notification
         if (managerData.userId) {
-          console.log("STEP 15 → ADDING IN-APP NOTIFICATION");
           await addDoc(collection(db, `users/${managerData.userId}/notifications`), {
             message: notificationMessage,
             link: submissionLink,
@@ -254,7 +236,6 @@ export async function addProfDevelopmentAction(
 
         // Email notification
         if (managerData.email) {
-          console.log("STEP 16 → SENDING EMAIL TO:", managerData.email);
 
           const emailHtml = render(
             ProfDevelopmentNotificationEmail({
@@ -276,14 +257,12 @@ export async function addProfDevelopmentAction(
             createdAt: serverTimestamp(),
           });
 
-          console.log("STEP 17 → EMAIL QUEUED SUCCESSFULLY");
         } else {
           console.log("⚠️ MANAGER HAS NO EMAIL");
         }
       }
     }
 
-    console.log("STEP 18 → DONE SUCCESSFULLY");
 
     return {
       success: true,

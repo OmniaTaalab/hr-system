@@ -976,12 +976,7 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
   let parsedRecords;
   try {
     parsedRecords = JSON.parse(recordsJson);    
-console.log("🔥 RAW RECORDS FROM EXCEL:", parsedRecords);
-console.log("🔥 FIRST ROW:", parsedRecords[0]);
-console.log("🔥 HEADERS:", Object.keys(parsedRecords[0]));
-console.log("🔥 NORMALIZED HEADERS:", Object.keys(parsedRecords[0]).map(h => normalizeHeader(h)))
-console.log("🔥 FIRST ROW:", parsedRecords[0]);
-console.log("🔥 HEADERS:", Object.keys(parsedRecords[0]));
+
   } catch (e) {
     return { errors: { file: ["Failed to parse file data."] }, success: false };
   }
@@ -989,7 +984,6 @@ console.log("🔥 HEADERS:", Object.keys(parsedRecords[0]));
   if (parsedRecords.length === 0) {
     return { success: false, errors: { file: ["No data found in Excel file."] } };
   }
-  console.log("ORIGINAL HEADERS FROM EXCEL:", Object.keys(parsedRecords[0]));
   
   const mappedData = parsedRecords.map((row: Record<string, any>) => {
     const cleanedRow: Record<string, any> = {};
@@ -1054,7 +1048,7 @@ console.log("🔥 HEADERS:", Object.keys(parsedRecords[0]));
           return Timestamp.fromDate(d);
         }
        
-        const newEmployeeData = {
+        const newEmployeeData: any = {
           name: record.name,
           firstName,
           lastName,
@@ -1083,15 +1077,14 @@ console.log("🔥 HEADERS:", Object.keys(parsedRecords[0]));
           joiningDate: toTimestamp(record.joiningDate),
              reportLine1: record.reportLine1 || null,
           reportLine2: record.reportLine2 || null,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          reasonForLeaving: record.status === "deactivated"
-          ? record.reasonForLeaving || "-"
-          : null,      
-              documents: [],
+          documents: [],
           photoURL: null,
-          
         };
+
+        if (record.status === 'deactivated') {
+            newEmployeeData.reasonForLeaving = record.reasonForLeaving || "-";
+        }
+
 
         if (recordEmployeeId && employeeIdToDocIdMap.has(recordEmployeeId)) {
   
@@ -1114,7 +1107,7 @@ console.log("🔥 HEADERS:", Object.keys(parsedRecords[0]));
         
         } else {
             const docRef = doc(employeeCollectionRef);
-             const dataWithId = { ...newEmployeeData, employeeId: recordEmployeeId || (nextEmployeeId++).toString() };
+             const dataWithId = { ...newEmployeeData, employeeId: recordEmployeeId || (nextEmployeeId++).toString(), createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
             batch.set(docRef, dataWithId);
             createdCount++;
         }
@@ -1126,7 +1119,7 @@ console.log("🔥 HEADERS:", Object.keys(parsedRecords[0]));
     return {
       success: true,
       message: `Import complete. ${createdCount} employees created, ${updatedCount} employees updated.`,
-    };
+   };
   } catch (error: any) {
     console.error("Error in batchCreateEmployeesAction:", error);
     return {
@@ -1334,3 +1327,5 @@ export async function correctAttendanceNamesAction(
         };
     }
 }
+
+    

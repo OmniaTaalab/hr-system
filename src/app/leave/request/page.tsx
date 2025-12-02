@@ -113,7 +113,6 @@ function LeaveRequestForm() {
   // Submit handler
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    console.log("STEP 0: SUBMIT CLICKED");
   
     const currentForm = formRef.current;
     if (!currentForm || !user || isSubmittingFile) return;
@@ -123,16 +122,13 @@ function LeaveRequestForm() {
     const formData = new FormData(currentForm);
   
     // Dates
-    console.log("STEP 1: SET DATES");
     if (startDate) formData.set("startDate", startDate.toISOString());
     if (endDate) formData.set("endDate", endDate.toISOString());
   
     // File Upload
     if (attachment) {
-      console.log("STEP 2: FILE SELECTED:", attachment.name, attachment.size);
   
       try {
-        console.log("STEP 3: START UPLOAD…");
   
         const ext = attachment.name.split(".").pop();
         const fileName = `leave-attachments/${user.uid}/${nanoid()}.${ext}`;
@@ -140,10 +136,8 @@ function LeaveRequestForm() {
   
         const snapshot = await uploadBytes(fileRef, attachment);
   
-        console.log("STEP 4: AFTER uploadBytes");
   
         const downloadURL = await getDownloadURL(snapshot.ref);
-        console.log("STEP 5: AFTER getDownloadURL", downloadURL);
   
         formData.set("attachmentURL", downloadURL);
         formData.delete("attachment");
@@ -158,7 +152,6 @@ function LeaveRequestForm() {
     }
   
     // Server Action
-    console.log("STEP 6: CALLING ACTION…");
   
     try {
       startTransition(() => formAction(formData));

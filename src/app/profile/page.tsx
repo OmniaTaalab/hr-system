@@ -1029,9 +1029,7 @@ export default function ProfilePage() {
   }, [employeeProfile?.dateOfBirth]);
   
   const handleUpdateClick = (submission: ProfDevelopmentEntry) => {
-    console.log(submission.employeeDocId);
-    console.log(employeeProfile?.id);
-    console.log('sssssssssssss');
+
     setSelectedSubmission(submission);
       setIsUpdateDialogOpen(true);
   
