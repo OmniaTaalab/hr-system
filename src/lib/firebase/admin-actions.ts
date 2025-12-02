@@ -1,7 +1,5 @@
 
-
 'use server';
-
 import { z } from 'zod';
 import * as XLSX from "xlsx";
 import { revalidatePath } from "next/cache";
@@ -124,6 +122,7 @@ const CreateEmployeeFormSchema = z.object({
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
+  reasonForLeaving:z.string().optional(),
 });
 
 
@@ -154,6 +153,7 @@ export type CreateEmployeeState = {
     campus?: string[];
     reportLine1?: string[];
     reportLine2?: string[];
+    reasonForLeaving?:string[];
     subject?: string[];
     hourlyRate?: string[];
     form?: string[];
@@ -213,8 +213,8 @@ export async function createEmployeeAction(
     campus,
     reportLine1,
     reportLine2,
+    reasonForLeaving,
     subject,
-    hourlyRate,
     actorId,
     actorEmail,
     actorRole,
@@ -226,7 +226,7 @@ export async function createEmployeeAction(
 
     // Check if email is already in use
     if (nisEmail) {
-      const q = query(employeeCollection, where("email", "==", nisEmail));
+      const q = query(employeeCollection, where("nisEmail", "==", nisEmail));
       const existing = await getDocs(q);
       if (!existing.empty) {
         return {
@@ -267,7 +267,7 @@ export async function createEmployeeAction(
       lastName: lastName || null,
       nameAr: nameAr || null,
       childrenAtNIS: childrenAtNIS || 'No',
-      email: nisEmail || null,
+      nisEmail: nisEmail || null,
       personalEmail: personalEmail || null,
       phone: personalPhone || null,
       title: title || null,
@@ -283,7 +283,7 @@ export async function createEmployeeAction(
       emergencyContact,
       reportLine1: reportLine1 || null,
       reportLine2: reportLine2 || null,
-      hourlyRate: hourlyRate ?? 0,
+      reasonForLeaving:reasonForLeaving ||null,
       status: "Active",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -335,7 +335,7 @@ export type CreateProfileState = {
 
 const CreateProfileSchema = z.object({
   userId: z.string().min(1, 'User ID is required.'),
-  email: z.string().email('A valid email is required.'),
+  nisEmail: z.string().email('A valid email is required.'),
   firstName: z.string().min(1, 'First name is required.'),
   lastName: z.string().min(1, 'Last name is required.'),
   department: z.string().min(1, 'Department is required.'),
@@ -372,7 +372,7 @@ export async function createEmployeeProfileAction(
     };
   }
   
-  const { userId, email, firstName, lastName, ...profileData } = validatedFields.data;
+  const { userId, nisEmail, firstName, lastName, ...profileData } = validatedFields.data;
 
   try {
     // Check if an employee with this userId or email already exists
@@ -386,7 +386,7 @@ export async function createEmployeeProfileAction(
     }
     const qEmail = query(
       collection(db, "employee"),
-      where("email", "==", email)
+      where("nisEmail", "==", nisEmail)
     );
     const existingEmail = await getDocs(qEmail);
     if (!existingEmail.empty) {
@@ -398,7 +398,7 @@ export async function createEmployeeProfileAction(
 
     await addDoc(collection(db, "employee"), {
       userId,
-      email,
+      nisEmail,
       name: `${firstName} ${lastName}`.trim(),
       firstName,
       lastName,
@@ -505,6 +505,7 @@ export type UpdateEmployeeState = {
     joiningDate?: string[];
     leavingDate?: string[];
     gender?: string[];
+    reasonForLeaving? :string[];
     nationalId?: string[];
     religion?: string[];
     stage?: string[];
@@ -851,19 +852,31 @@ const BatchEmployeeSchema = z.object({
   name: z.string().optional().nullable(),
   nameAr: z.string().optional().nullable(),
   childrenAtNIS: z.enum(["Yes", "No"]).optional().nullable(),
-
   nisEmail: z.preprocess(
-    (val) => (val === "" || val === null ? undefined : val),
-    z.string().email().optional().nullable()
+    (val) => {
+      if (!val) return null;              // null or empty → null
+      const str = String(val).trim();
+  
+      if (str === "") return null;        // Empty string → null
+      if (!str.includes("@")) return null; // Not an email → ignore it completely
+  
+      return str; // Return only if valid-like email
+    },
+    z.string().email().nullable().optional()
   ),
-
   personalEmail: z.preprocess(
     (val) => {
-      if (val === null || val === undefined) return null;
-      return String(val).trim(); // ✅ Always convert to string
+      if (!val) return null;              // null or empty → null
+      const str = String(val).trim();
+  
+      if (str === "") return null;        // Empty string → null
+      if (!str.includes("@")) return null; // Not an email → ignore it completely
+  
+      return str; // Return only if valid-like email
     },
-    z.string().nullable()
+    z.string().email().nullable().optional()
   ),
+
   phone: z.any().optional().nullable(),
   department: z.string().optional().nullable(),
   role: z.string().optional().nullable(),
@@ -882,48 +895,49 @@ const BatchEmployeeSchema = z.object({
   emergencyContactNumber: z.any().optional().nullable(),
   reportLine1: z.any().optional().nullable(),
   reportLine2: z.any().optional().nullable(),
+  reasonForLeaving: z.any().optional().nullable(),
 });
-
 const keyMap: Record<string, string> = {
-  "Employee ID": "employeeId",
-  "Name": "name",
-  "NameAr": "nameAr",
-  "childrenAtNIS": "childrenAtNIS",
-  "NIS Email": "nisEmail",
-  "Title": "title",
-  "Role":"role",
-  "Department": "department",
-  "Campus": "campus",
-  "Stage": "stage",
-  "Status": "status",
-  "Subject": "subject",
-  "personal Email": "personalEmail",
-  "Phone": "phone",
-  "Date Of Birth": "dateOfBirth",
-  "joining Date": "joiningDate",
-  "Gender": "gender",
-  "National ID": "nationalId",
-  "Religion": "religion",
-  "Emergency Contact Name": "emergencyContactName",
-  "Emergency Contact Relationship": "emergencyContactRelationship",
-  "Emergency Contact Number": "emergencyContactNumber",
-  "ReportLine1": "reportLine1",
-  "ReportLine2": "reportLine2",
+  "employee id": "employeeId",
+  "name": "name",
+  "namear": "nameAr",
+  "childrenatnis": "childrenAtNIS",
+  "nis email": "nisEmail",
+  "personal email": "personalEmail",
+  "phone": "phone",
+  "title": "title",
+  "role": "role",
+  "department": "department",
+  "campus": "campus",
+  "stage": "stage",
+  "subject": "subject",
+  "status": "status",
+  "date of birth": "dateOfBirth",
+  "joining date": "joiningDate",
+  "gender": "gender",
+  "national id": "nationalId",
+  "religion": "religion",
+  "report line1": "reportLine1",
+  "report line2": "reportLine2",
+  "reason for leaving": "reasonForLeaving",
+  "emergency contact name": "emergencyContactName",
+  "emergency contact relationship": "emergencyContactRelationship",
+  "emergency contact number": "emergencyContactNumber"
 };
 
 function normalizeHeader(header: string): string {
-  if (!header) return "";
   return header
-    .replace(/[\r\n\t]+/g, " ")
-    .replace(/["']/g, "")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .toLowerCase();
+    
 }
-
 // More specific cleaning function for values
 function cleanValue(value: any, key: string): any {
-  if (value == null) return null;
-
+  if (key === "employeeId") {
+    if (value === null || value === undefined) return null;
+    return String(value).trim();
+  }
   // Don't convert employeeId, nationalId, phone to dates.
   const nonDateNumericKeys = ['employeeId', 'nationalId', 'phone', 'emergencyContactNumber'];
   if (nonDateNumericKeys.includes(key)) {
@@ -961,7 +975,13 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
 
   let parsedRecords;
   try {
-    parsedRecords = JSON.parse(recordsJson);
+    parsedRecords = JSON.parse(recordsJson);    
+console.log("🔥 RAW RECORDS FROM EXCEL:", parsedRecords);
+console.log("🔥 FIRST ROW:", parsedRecords[0]);
+console.log("🔥 HEADERS:", Object.keys(parsedRecords[0]));
+console.log("🔥 NORMALIZED HEADERS:", Object.keys(parsedRecords[0]).map(h => normalizeHeader(h)))
+console.log("🔥 FIRST ROW:", parsedRecords[0]);
+console.log("🔥 HEADERS:", Object.keys(parsedRecords[0]));
   } catch (e) {
     return { errors: { file: ["Failed to parse file data."] }, success: false };
   }
@@ -969,6 +989,7 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
   if (parsedRecords.length === 0) {
     return { success: false, errors: { file: ["No data found in Excel file."] } };
   }
+  console.log("ORIGINAL HEADERS FROM EXCEL:", Object.keys(parsedRecords[0]));
   
   const mappedData = parsedRecords.map((row: Record<string, any>) => {
     const cleanedRow: Record<string, any> = {};
@@ -1020,16 +1041,25 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
     for (const record of validRecords) {
         const recordEmployeeId = record.employeeId ? String(record.employeeId).trim() : null;
         
-        const nameParts = record.name.trim().split(/\s+/);
-        const firstName = nameParts[0] || "";
-        const lastName = nameParts.slice(1).join(" ");
-
+        const nameParts = record.name?.trim().split(/\s+/);
+        const firstName = nameParts![0] || "";
+        const lastName = nameParts?.slice(1).join(" ");
+        function toTimestamp(value: any) {
+          if (!value) return null;
+        
+          const d = new Date(value);
+        
+          if (isNaN(d.getTime())) return null;
+        
+          return Timestamp.fromDate(d);
+        }
+       
         const newEmployeeData = {
           name: record.name,
           firstName,
           lastName,
           nameAr: record.nameAr || null,
-          email: record.nisEmail || null,
+          nisEmail: record.nisEmail || null,
           personalEmail: record.personalEmail || null,
           phone: record.phone ? String(record.phone) : null,
           childrenAtNIS: record.childrenAtNIS || null,
@@ -1049,22 +1079,39 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
             relationship: record.emergencyContactRelationship || null,
             number: record.emergencyContactNumber ? String(record.emergencyContactNumber) : null,
           },
-          dateOfBirth: record.dateOfBirth && !isNaN(new Date(record.dateOfBirth).getTime()) ? Timestamp.fromDate(new Date(record.dateOfBirth)) : null,
-          joiningDate: record.joiningDate && !isNaN(new Date(record.joiningDate).getTime()) ? Timestamp.fromDate(new Date(record.joiningDate)) : serverTimestamp(),
-          reportLine1: record.reportLine1 || null,
+          dateOfBirth: toTimestamp(record.dateOfBirth),
+          joiningDate: toTimestamp(record.joiningDate),
+             reportLine1: record.reportLine1 || null,
           reportLine2: record.reportLine2 || null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-          hourlyRate: 0,
-          documents: [],
+          reasonForLeaving: record.status === "deactivated"
+          ? record.reasonForLeaving || "-"
+          : null,      
+              documents: [],
           photoURL: null,
+          
         };
 
         if (recordEmployeeId && employeeIdToDocIdMap.has(recordEmployeeId)) {
-            const existingDocId = employeeIdToDocIdMap.get(recordEmployeeId)!;
-            const docRef = doc(employeeCollectionRef, existingDocId);
-            batch.set(docRef, newEmployeeData, { merge: true }); // Use merge: true
-            updatedCount++;
+  
+          const existingDocId = employeeIdToDocIdMap.get(recordEmployeeId)!;
+          const existingSnap = allEmployeesSnapshot.docs.find(d => d.id === existingDocId);
+          const existingData = existingSnap?.data() || {};
+        
+          // حافظ على employeeId مهما حصل
+          const finalData = {
+            ...existingData,      // البيانات القديمة
+            ...newEmployeeData,   // البيانات الجديدة من الشيت
+            employeeId: recordEmployeeId, // دايمًا نحافظ عليه
+            updatedAt: serverTimestamp()
+          };
+        
+          const docRef = doc(employeeCollectionRef, existingDocId);
+          batch.set(docRef, finalData, { merge: true });
+        
+          updatedCount++;
+        
         } else {
             const docRef = doc(employeeCollectionRef);
              const dataWithId = { ...newEmployeeData, employeeId: recordEmployeeId || (nextEmployeeId++).toString() };

@@ -67,6 +67,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import * as XLSX from 'xlsx';
 import { MultiSelectFilter, type OptionType } from "@/components/multi-select";
+import type { BatchCreateEmployeesState } from "/home/user/studio/src/lib/firebase/admin-actions.ts";
 
 
 export interface EmployeeFile {
@@ -167,16 +168,11 @@ const initialActivateState: ActivateEmployeeState = {
 };
 
 
-const initialBatchCreateState: {
-    message: string | null;
-    errors: Record<string, any>;
-    success: boolean;
-} = {
-    message: null,
-    errors: {},
-    success: false,
+const initialBatchCreateState: BatchCreateEmployeesState = {
+  success: false,
+  message: null,
+  errors: {},
 };
-
 
 const PAGE_SIZE = 15;
 
@@ -793,8 +789,10 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
 // New component for batch import
 function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
   const { toast } = useToast();
-  const [batchState, batchAction, isBatchPending] = useActionState(batchCreateEmployeesAction, initialBatchCreateState);
-  const [_isPending, startTransition] = useTransition();
+  const [batchState, batchAction, isBatchPending] =useActionState<BatchCreateEmployeesState, FormData>(
+    batchCreateEmployeesAction,
+    initialBatchCreateState
+  );  const [_isPending, startTransition] = useTransition();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
@@ -833,8 +831,13 @@ function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange
         const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(worksheet);
-
+        const json = XLSX.utils.sheet_to_json(worksheet, {
+          defval: null,
+          raw: false,
+          blankrows: false,
+          rawNumbers: false,
+        });
+        
         const formData = new FormData();
         formData.append('recordsJson', JSON.stringify(json));
         
@@ -1388,10 +1391,9 @@ function EmployeeManagementContent() {
             'Gender': emp.gender,
             'National ID': emp.nationalId,
             'Religion': emp.religion,
-            'Hourly Rate': emp.hourlyRate,
             'Status': emp.status || "Active",
-            'Report Line 1': emp.reportLine1,
-            'Report Line 2': emp.reportLine2,
+            'Report Line1': emp.reportLine1,
+            'Report Line2': emp.reportLine2,
             'Reason For Leaving': emp.status === 'deactivated' ? emp.reasonForLeaving : '-',
             'Emergency Contact Name': emp.emergencyContact?.name,
             'Emergency Contact Relationship': emp.emergencyContact?.relationship,
