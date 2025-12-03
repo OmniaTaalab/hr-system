@@ -548,13 +548,12 @@ export async function correctAttendanceNamesAction(
         const BATCH_SIZE = 450;
         let logsUpdated = 0;
         
-        // 1. Get all employees and create a map from employeeId -> name
         const employeesSnapshot = await getDocs(collection(db, "employee"));
         const employeeIdToNameMap = new Map<string, string>();
         employeesSnapshot.forEach(doc => {
             const data = doc.data();
             if (data.employeeId && data.name) {
-                employeeIdToNameMap.set(String(data.employeeId), data.name);
+                employeeIdToNameMap.set(String(data.employeeId).trim(), data.name);
             }
         });
         
@@ -562,51 +561,59 @@ export async function correctAttendanceNamesAction(
             return { success: false, message: "No employees found to map IDs to names." };
         }
 
-        // 2. Query for a limited batch of recent attendance logs to process.
-        const logsQuery = query(
-            collection(db, "attendance_log"), 
-            orderBy("date", "desc"),
-            limit(5000) // Process up to 5000 recent logs per run
-        );
-        const logsSnapshot = await getDocs(logsQuery);
+        let lastVisibleDoc = null;
+        let hasMore = true;
+
+        while(hasMore) {
+            let logsQuery;
+            if (lastVisibleDoc) {
+                logsQuery = query(
+                    collection(db, "attendance_log"), 
+                    orderBy("date", "desc"),
+                    startAfter(lastVisibleDoc),
+                    limit(BATCH_SIZE)
+                );
+            } else {
+                 logsQuery = query(
+                    collection(db, "attendance_log"), 
+                    orderBy("date", "desc"),
+                    limit(BATCH_SIZE)
+                );
+            }
         
-        if (logsSnapshot.empty) {
-             return { success: true, message: "No attendance logs found to process." };
-        }
+            const logsSnapshot = await getDocs(logsQuery);
+        
+            if (logsSnapshot.empty) {
+                hasMore = false;
+                continue;
+            }
+            lastVisibleDoc = logsSnapshot.docs[logsSnapshot.docs.length - 1];
 
-        let batch = writeBatch(db);
-        let batchWrites = 0;
-
-        for (const logDoc of logsSnapshot.docs) {
-            const logData = logDoc.data();
-            const currentName = logData.employeeName;
+            let batch = writeBatch(db);
+            let batchWrites = 0;
             
-            // In the log, `userId` stores the company employee ID.
-            const employeeIdFromLog = String(logData.userId);
+            for (const logDoc of logsSnapshot.docs) {
+                const logData = logDoc.data();
+                const currentName = logData.employeeName;
+                const employeeIdFromLog = String(logData.userId).trim();
 
-            if (currentName && !isNaN(Number(currentName)) && employeeIdToNameMap.has(employeeIdFromLog)) {
-                const correctName = employeeIdToNameMap.get(employeeIdFromLog);
-                
-                if (correctName && correctName !== currentName) {
-                    batch.update(logDoc.ref, { employeeName: correctName });
-                    logsUpdated++;
-                    batchWrites++;
-                    
-                    if (batchWrites >= BATCH_SIZE) {
-                        await batch.commit();
-                        batch = writeBatch(db);
-                        batchWrites = 0;
+                if (currentName && !isNaN(Number(currentName)) && employeeIdToNameMap.has(employeeIdFromLog)) {
+                    const correctName = employeeIdToNameMap.get(employeeIdFromLog);
+                    if (correctName && correctName !== currentName) {
+                        batch.update(logDoc.ref, { employeeName: correctName });
+                        logsUpdated++;
+                        batchWrites++;
                     }
                 }
             }
+            
+            if (batchWrites > 0) {
+                await batch.commit();
+            }
         }
         
-        if (batchWrites > 0) {
-            await batch.commit();
-        }
-
         if (logsUpdated === 0) {
-            return { success: true, message: "No attendance log names needed correction in the recent logs processed." };
+            return { success: true, message: "No attendance log names needed correction." };
         }
         
         await logSystemEvent("Correct Attendance Names", { actorId, actorEmail, actorRole, logsUpdated });

@@ -846,37 +846,37 @@ export type BatchCreateEmployeesState = {
     message?: string | null;
     success?: boolean;
 };
-
 const BatchEmployeeSchema = z.object({
   employeeId: z.any().optional().nullable(),
   name: z.string().optional().nullable(),
   nameAr: z.string().optional().nullable(),
   childrenAtNIS: z.enum(["Yes", "No"]).optional().nullable(),
+
   nisEmail: z.preprocess(
     (val) => {
-      if (!val) return null;              // null or empty → null
+      if (!val) return null;
+
       const str = String(val).trim();
-  
-      if (str === "") return null;        // Empty string → null
-      if (!str.includes("@")) return null; // Not an email → ignore it completely
-  
-      return str; // Return only if valid-like email
+      if (str === "") return null;
+      if (!str.includes("@") || !str.includes(".")) return null; // email must be "like" an email
+
+      return str;
     },
-    z.string().email().nullable().optional()
-  ),
-  personalEmail: z.preprocess(
-    (val) => {
-      if (!val) return null;              // null or empty → null
-      const str = String(val).trim();
-  
-      if (str === "") return null;        // Empty string → null
-      if (!str.includes("@")) return null; // Not an email → ignore it completely
-  
-      return str; // Return only if valid-like email
-    },
-    z.string().email().nullable().optional()
+    z.union([z.string(), z.null()]).optional()
   ),
 
+  personalEmail: z.preprocess(
+    (val) => {
+      if (!val) return null;
+
+      const str = String(val).trim();
+      if (str === "") return null;
+      if (!str.includes("@") || !str.includes(".")) return null;
+
+      return str;
+    },
+    z.union([z.string(), z.null()]).optional()
+  ),
   phone: z.any().optional().nullable(),
   department: z.string().optional().nullable(),
   role: z.string().optional().nullable(),
@@ -897,6 +897,7 @@ const BatchEmployeeSchema = z.object({
   reportLine2: z.any().optional().nullable(),
   reasonForLeaving: z.any().optional().nullable(),
 });
+
 const keyMap: Record<string, string> = {
   "employee id": "employeeId",
   "name": "name",

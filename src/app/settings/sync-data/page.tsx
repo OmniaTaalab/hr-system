@@ -238,7 +238,7 @@ export default function SyncDataPage() {
           
           <CorrectionButton
             label="Correct Attendance Log Names"
-            description="Scans recent attendance logs and corrects entries where the employee name was recorded as a numeric ID instead of their actual name. This is useful for cleaning up data from certain attendance machines."
+            description="Scans attendance logs and corrects entries where the employee name was recorded as a numeric ID instead of their actual name. This is useful for cleaning up data from certain attendance machines."
             action={correctionAction}
             isPending={isCorrectionPending}
             state={correctionState}
