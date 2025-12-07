@@ -11,6 +11,12 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },
+"overrides": {
+  "next": "15.5.7"
+},
+"resolutions": {
+  "next": "15.5.7"
+},
   "dependencies": {
     "@genkit-ai/googleai": "^1.8.0",
     "@genkit-ai/next": "^1.8.0",
@@ -50,7 +56,7 @@
     "jspdf-autotable": "^3.8.2",
     "lucide-react": "^0.475.0",
     "nanoid": "^5.0.7",
-    "next": "15.3.3",
+    "next": "15.5.7",
     "patch-package": "^8.0.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
