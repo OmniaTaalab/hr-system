@@ -123,6 +123,7 @@ const CreateEmployeeFormSchema = z.object({
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
   reasonForLeaving:z.string().optional(),
+  apiToken: z.string().optional(),
 });
 
 
@@ -156,6 +157,7 @@ export type CreateEmployeeState = {
     reasonForLeaving?:string[];
     subject?: string[];
     hourlyRate?: string[];
+    apiToken?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -218,7 +220,44 @@ export async function createEmployeeAction(
     actorId,
     actorEmail,
     actorRole,
+    apiToken,
   } = validatedFields.data;
+
+  // --- External API Call via internal route ---
+  if (apiToken) {
+    try {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const apiResponse = await fetch(`${appUrl}/api/employees`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          apiToken, // Pass token to our route
+          firstname: firstName,
+          lastname: lastName,
+          email: nisEmail,
+          role_name: role,
+          domain: null,
+          gender: gender,
+        }),
+      });
+
+      if (!apiResponse.ok) {
+        const errorBody = await apiResponse.json();
+        return {
+          success: false,
+          errors: { form: [errorBody.message || `API call failed with status ${apiResponse.status}`] },
+        };
+      }
+    } catch (apiError: any) {
+      return {
+        success: false,
+        errors: { form: [`Failed to call internal API route: ${apiError.message}`] },
+      };
+    }
+  }
+  // --- End External API Call ---
 
 
   try {
@@ -1327,5 +1366,7 @@ export async function correctAttendanceNamesAction(
         };
     }
 }
+
+    
 
     

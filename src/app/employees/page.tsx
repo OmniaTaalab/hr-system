@@ -313,6 +313,11 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
              <div className="space-y-2"><Label>Do they have children enrolled at NIS?</Label><RadioGroup name="childrenAtNIS" value={childrenAtNIS} onValueChange={(val) => setChildrenAtNIS(val as 'Yes' | 'No')} className="flex items-center space-x-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="add-children-yes" /><Label htmlFor="add-children-yes">Yes</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="add-children-no" /><Label htmlFor="add-children-no">No</Label></div></RadioGroup></div>
             <Separator />
             <h3 className="text-lg font-semibold flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
+            <div className="space-y-2">
+                <Label htmlFor="add-apiToken">API Token</Label>
+                <Input id="add-apiToken" name="apiToken" placeholder="Enter API Token for external system" />
+                {addState?.errors?.apiToken && <p className="text-sm text-destructive">{addState.errors.apiToken.join(', ')}</p>}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="add-employeeId">Employee ID </Label>
@@ -2057,3 +2062,5 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
+
+    
