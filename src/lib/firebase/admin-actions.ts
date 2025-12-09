@@ -50,114 +50,28 @@ export async function getAllAuthUsers() {
 
 // Schema for validating form data for creating an employee
 const CreateEmployeeFormSchema = z.object({
-  // Personal Info
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  nameAr: z.string().optional(),
-  childrenAtNIS: z.enum(['Yes', 'No']).optional(),
-  personalEmail: z.preprocess(
-    (val) => (val === "" || val === null ? undefined : val),
-    z.string().email({ message: "Invalid email format." }).optional()
-  ),
-  personalPhone: z.string().optional(),
-  emergencyContactName: z.string().optional(),
-  emergencyContactRelationship: z.string().optional(),
-  emergencyContactNumber: z.string().optional(),
-  gender: z.string().optional(),
-  nationalId: z.string().optional(),
-  religion: z.string().optional(),
-  
-  // Work Info
+  apiToken: z.string().min(1, "API Token is required."),
+  firstName: z.string().min(1, "First name is required."),
+  lastName: z.string().min(1, "Last name is required."),
+  nisEmail: z.string().email({ message: "A valid NIS email is required." }),
   employeeId: z.string().min(1, "Employee ID is required."),
-  nisEmail: z.preprocess(
-    (val) => (val === "" || val === null ? undefined : val),
-    z.string().email({ message: "Invalid email format." }).optional()
-  ),
-  dateOfBirth: z.preprocess(
-    (val: unknown) => {
-      if (typeof val === "string" && val.trim() !== "") {
-        const d = new Date(val);
-        return isNaN(d.getTime()) ? undefined : d;
-      }
-      if (val instanceof Date) return val;
-      return undefined;
-    },
-    z.date().optional()
-  ),
-  
-  joiningDate: z.preprocess(
-    (val: unknown) => {
-      if (typeof val === "string" && val.trim() !== "") {
-        const d = new Date(val);
-        return isNaN(d.getTime()) ? undefined : d;
-      }
-      if (val instanceof Date) return val;
-      return undefined;
-    },
-    z.date().optional()
-  ),
-  title: z.string().optional(),
-  department: z.string().optional(),
-  role: z.string().optional(),
-  stage: z.string().optional(),
-  system: z.string().optional(),
-  campus: z.string().optional(),
-  reportLine1: z.preprocess(
-    (val) => (val === "" || val === null ? undefined : val),
-    z.string().email({ message: "Invalid email format." }).optional()
-  ),
-  reportLine2: z.preprocess(
-    (val) => (val === "" || val === null ? undefined : val),
-    z.string().email({ message: "Invalid email format." }).optional()
-  ),
-  subject: z.string().optional(),
-  hourlyRate: z.preprocess(
-    (val) => {
-      if (val === '' || val === null || val === undefined) return undefined;
-      const parsed = parseFloat(z.string().parse(val));
-      return isNaN(parsed) ? undefined : parsed;
-    },
-    z.number().nonnegative({ message: "Hourly rate must be a non-negative number." }).optional()
-  ),
+  gender: z.enum(["Male", "Female", "Other"], { required_error: "Gender is required." }),
+  role: z.string().min(1, "Role is required."),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
-  reasonForLeaving:z.string().optional(),
-  apiToken: z.string().optional(),
 });
 
 
 export type CreateEmployeeState = {
   errors?: {
+    apiToken?: string[];
     firstName?: string[];
     lastName?: string[];
-    nameAr?: string[];
-    childrenAtNIS?: string[];
-    personalEmail?: string[];
-    personalPhone?: string[];
-    emergencyContactName?: string[];
-    emergencyContactRelationship?: string[];
-    emergencyContactNumber?: string[];
-    dateOfBirth?: string[];
-    gender?: string[];
-    nationalId?: string[];
-    religion?: string[];
-    email?: string[];
-    employeeId?: string[];
     nisEmail?: string[];
-    joiningDate?: string[];
-    title?: string[];
-    department?: string[];
+    employeeId?: string[];
+    gender?: string[];
     role?: string[];
-    stage?: string[];
-    system?: string[];
-    campus?: string[];
-    reportLine1?: string[];
-    reportLine2?: string[];
-    reasonForLeaving?:string[];
-    subject?: string[];
-    hourlyRate?: string[];
-    apiToken?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -191,71 +105,47 @@ export async function createEmployeeAction(
   }
 
   const {
+    apiToken,
     firstName,
     lastName,
-    nameAr,
-    childrenAtNIS,
-    personalEmail,
-    personalPhone,
-    emergencyContactName,
-    emergencyContactRelationship,
-    emergencyContactNumber,
-    dateOfBirth,
-    gender,
-    nationalId,
-    religion,
-    employeeId,
     nisEmail,
-    joiningDate,
-    title,
-    department,
+    employeeId,
+    gender,
     role,
-    stage,
-    system,
-    campus,
-    reportLine1,
-    reportLine2,
-    reasonForLeaving,
-    subject,
     actorId,
     actorEmail,
     actorRole,
-    apiToken,
   } = validatedFields.data;
 
   // --- External API Call via internal route ---
-  if (apiToken) {
-    try {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      const apiResponse = await fetch(`${appUrl}/api/employees`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          apiToken, // Pass token to our route
-          firstname: firstName,
-          lastname: lastName,
-          email: nisEmail,
-          role_name: role,
-          domain: null,
-          gender: gender,
-        }),
-      });
+  try {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const apiResponse = await fetch(`${appUrl}/api/employees`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiToken: apiToken,
+        firstname: firstName,
+        lastname: lastName,
+        email: nisEmail,
+        role_name: role,
+        gender: gender,
+        domain: null,
+      }),
+    });
 
-      if (!apiResponse.ok) {
-        const errorBody = await apiResponse.json();
-        return {
-          success: false,
-          errors: { form: [errorBody.message || `API call failed with status ${apiResponse.status}`] },
-        };
-      }
-    } catch (apiError: any) {
+    if (!apiResponse.ok) {
+      const errorBody = await apiResponse.json();
       return {
         success: false,
-        errors: { form: [`Failed to call internal API route: ${apiError.message}`] },
+        errors: { form: [errorBody.message || `API call failed with status ${apiResponse.status}`] },
       };
     }
+  } catch (apiError: any) {
+    return {
+      success: false,
+      errors: { form: [`Failed to call internal API route: ${apiError.message}`] },
+    };
   }
   // --- End External API Call ---
 
@@ -264,70 +154,38 @@ export async function createEmployeeAction(
     const employeeCollection = collection(db, "employee");
 
     // Check if email is already in use
-    if (nisEmail) {
-      const q = query(employeeCollection, where("nisEmail", "==", nisEmail));
-      const existing = await getDocs(q);
-      if (!existing.empty) {
-        return {
-          success: false,
-          errors: { nisEmail: ["This NIS email address is already in use."] },
-        };
-      }
+    const qEmail = query(employeeCollection, where("nisEmail", "==", nisEmail));
+    const existingEmail = await getDocs(qEmail);
+    if (!existingEmail.empty) {
+      return {
+        success: false,
+        errors: { nisEmail: ["This NIS email address is already in use."] },
+      };
     }
     
-    let finalEmployeeId = employeeId;
-    if (finalEmployeeId) {
-      const q = query(employeeCollection, where("employeeId", "==", finalEmployeeId));
-      const existing = await getDocs(q);
-      if (!existing.empty) {
-        return {
-          success: false,
-          errors: { employeeId: ["This Employee ID is already in use."] },
-        };
-      }
-    } else {
-        const employeeCountSnapshot = await getCountFromServer(employeeCollection);
-        finalEmployeeId = (1001 + employeeCountSnapshot.data().count).toString();
+    // Check if employeeId is already in use
+    const qId = query(employeeCollection, where("employeeId", "==", employeeId));
+    const existingId = await getDocs(qId);
+    if (!existingId.empty) {
+      return {
+        success: false,
+        errors: { employeeId: ["This Employee ID is already in use."] },
+      };
     }
 
-
-    const emergencyContact = {
-      name: emergencyContactName || null,
-      relationship: emergencyContactRelationship || null,
-      number: emergencyContactNumber || null,
-    };
-
-    const fullName = `${firstName || ''} ${lastName || ''}`.trim();
+    const fullName = `${firstName} ${lastName}`.trim();
 
     const newEmployeeDoc = {
-      employeeId: finalEmployeeId,
+      employeeId,
       name: fullName,
-      firstName: firstName || null,
-      lastName: lastName || null,
-      nameAr: nameAr || null,
-      childrenAtNIS: childrenAtNIS || 'No',
-      nisEmail: nisEmail || null,
-      personalEmail: personalEmail || null,
-      phone: personalPhone || null,
-      title: title || null,
-      department: department || null,
-      role: role || null,
-      stage: stage || null,
-      system: system || 'Unassigned',
-      campus: campus || null,
-      subject: subject || null,
-      gender: gender || null,
-      nationalId: nationalId || null,
-      religion: religion || null,
-      emergencyContact,
-      reportLine1: reportLine1 || null,
-      reportLine2: reportLine2 || null,
-      reasonForLeaving:reasonForLeaving ||null,
+      firstName,
+      lastName,
+      nisEmail,
+      gender,
+      role,
       status: "Active",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      dateOfBirth: dateOfBirth ? Timestamp.fromDate(dateOfBirth) : null,
-      joiningDate: joiningDate ? Timestamp.fromDate(joiningDate) : null,
     };
 
     const docRef = await addDoc(employeeCollection, newEmployeeDoc);
@@ -1366,7 +1224,3 @@ export async function correctAttendanceNamesAction(
         };
     }
 }
-
-    
-
-    

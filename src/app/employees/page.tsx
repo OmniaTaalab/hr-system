@@ -205,17 +205,9 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const { profile } = useUserProfile();
   const [addState, addAction, isAddPending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
-  const { roles, stage: stages, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
-  
-  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
-  const [joiningDate, setJoiningDate] = useState<Date | undefined>();
-  const [role, setRole] = useState("");
-  const [campus, setCampus] = useState("");
-  const [system, setSystem] = useState("");
+  const { roles, isLoading: isLoadingLists } = useOrganizationLists();
   const [gender, setGender] = useState("");
-  const [stage, setStage] = useState("");
-  const [childrenAtNIS, setChildrenAtNIS] = useState<'Yes' | 'No'>('No');
-
+  const [role, setRole] = useState("");
   const addFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -237,7 +229,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       <DialogHeader>
         <DialogTitle>Add New Employee</DialogTitle>
         <DialogDescription>
-          Enter the new employee's details. An employee ID will be generated automatically if left blank.
+          Enter the new employee's details. All fields are required.
         </DialogDescription>
       </DialogHeader>
        <form
@@ -248,118 +240,61 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         <input type="hidden" name="actorId" value={profile?.id} />
         <input type="hidden" name="actorEmail" value={profile?.email} />
         <input type="hidden" name="actorRole" value={profile?.role} />
-        {/* Hidden inputs for controlled Selects */}
+        <input type="hidden" name="gender" value={gender} />
         <input type="hidden" name="role" value={role} />
-        <input type="hidden" name="campus" value={campus} />
-        <input type="hidden" name="system" value={system} />
-        <input type="hidden" name="gender" value={gender || ''} />
-        <input type="hidden" name="stage" value={stage || ''} />
-        <input type="hidden" name="childrenAtNIS" value={childrenAtNIS} />
-        <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
-        <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
 
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
-            <h3 className="text-lg font-semibold flex items-center"><UserCircle2 className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+                <Label htmlFor="add-apiToken">API Token *</Label>
+                <Input id="add-apiToken" name="apiToken" placeholder="Enter API Token for external system" required />
+                {addState?.errors?.apiToken && <p className="text-sm text-destructive">{addState.errors.apiToken.join(', ')}</p>}
+            </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                   <Label htmlFor="add-firstName">First Name *</Label>
                   <Input id="add-firstName" name="firstName" required />
                   {addState?.errors?.firstName && <p className="text-sm text-destructive">{addState.errors.firstName.join(', ')}</p>}
               </div>
               <div className="space-y-2">
-                  <Label htmlFor="add-lastName">Last Name</Label>
-                  <Input id="add-lastName" name="lastName" />
+                  <Label htmlFor="add-lastName">Last Name *</Label>
+                  <Input id="add-lastName" name="lastName" required/>
                   {addState?.errors?.lastName && <p className="text-sm text-destructive">{addState.errors.lastName.join(', ')}</p>}
               </div>
             </div>
-            <div className="space-y-2">
-                <Label htmlFor="add-name-ar">Full Name (Arabic)</Label>
-                <Input id="add-name-ar" name="nameAr" dir="rtl" />
-            </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div className="space-y-2">
-                  <Label htmlFor="add-personalEmail">Personal Email</Label>
-                  <Input id="add-personalEmail" name="personalEmail" type="email" />
-                  {addState?.errors?.personalEmail && <p className="text-sm text-destructive">{addState.errors.personalEmail.join(', ')}</p>}
-                </div>
-                 <div className="space-y-2">
-                  <Label htmlFor="add-phone">Personal Phone</Label>
-                  <Input id="add-phone" name="personalPhone" placeholder="Numbers only" />
-                </div>
-            </div>
-            <div className="space-y-2">
-                <h4 className="font-medium flex items-center text-sm"><PhoneCall className="mr-2 h-4 w-4"/>Emergency Contact</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-md">
-                     <div className="space-y-2"><Label htmlFor="add-emergencyContactName">Name</Label><Input id="add-emergencyContactName" name="emergencyContactName" /></div>
-                     <div className="space-y-2"><Label htmlFor="add-emergencyContactRelationship">Relationship</Label><Input id="add-emergencyContactRelationship" name="emergencyContactRelationship" /></div>
-                     <div className="space-y-2"><Label htmlFor="add-emergencyContactNumber">Number</Label><Input id="add-emergencyContactNumber" name="emergencyContactNumber" /></div>
-                </div>
-            </div>
-             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="add-dateOfBirth">Date of Birth</Label>
-                    <Popover><PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={2025} initialFocus /></PopoverContent></Popover>
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="add-gender">Gender</Label>
-                    <Select value={gender} onValueChange={setGender}><SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger><SelectContent><SelectItem value="Male">Male</SelectItem><SelectItem value="Female">Female</SelectItem><SelectItem value="Other">Other</SelectItem></SelectContent></Select>
-                </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-                 <div className="space-y-2"><Label htmlFor="add-nationalId">National ID</Label><Input id="add-nationalId" name="nationalId" /></div>
-                <div className="space-y-2"><Label htmlFor="add-religion">Religion</Label><Input id="add-religion" name="religion" /></div>
-            </div>
-             <div className="space-y-2"><Label>Do they have children enrolled at NIS?</Label><RadioGroup name="childrenAtNIS" value={childrenAtNIS} onValueChange={(val) => setChildrenAtNIS(val as 'Yes' | 'No')} className="flex items-center space-x-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="add-children-yes" /><Label htmlFor="add-children-yes">Yes</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="add-children-no" /><Label htmlFor="add-children-no">No</Label></div></RadioGroup></div>
-            <Separator />
-            <h3 className="text-lg font-semibold flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
-            <div className="space-y-2">
-                <Label htmlFor="add-apiToken">API Token</Label>
-                <Input id="add-apiToken" name="apiToken" placeholder="Enter API Token for external system" />
-                {addState?.errors?.apiToken && <p className="text-sm text-destructive">{addState.errors.apiToken.join(', ')}</p>}
-            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="add-employeeId">Employee ID </Label>
-                    <Input id="add-employeeId" name="employeeId" />
+                    <Label htmlFor="add-employeeId">Employee ID *</Label>
+                    <Input id="add-employeeId" name="employeeId" required />
                     {addState?.errors?.employeeId && <p className="text-sm text-destructive">{addState.errors.employeeId.join(', ')}</p>}
                 </div>
-                <div className="space-y-2"><Label htmlFor="add-nisEmail">NIS Email</Label><Input id="add-nisEmail" name="nisEmail" type="email" /><p className="text-xs text-destructive">{addState?.errors?.email && addState.errors.email.join(', ')}</p></div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2"><Label htmlFor="add-title">Title</Label><Input id="add-title" name="title" /></div>
-               <div className="space-y-2"><Label htmlFor="add-department">Department</Label><Input id="add-department" name="department" /></div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Role</Label><Select value={role} onValueChange={setRole} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger><SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-2"><Label>Stage</Label><Select value={stage} onValueChange={setStage} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger><SelectContent>{stages.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent></Select></div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="add-subject">Subject</Label>
-                <Input id="add-subject" name="subject" />
-              </div>
-               <div className="space-y-2">
-                <Label>System</Label>
-                <Select value={system} onValueChange={setSystem} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger><SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select>
-              </div>
+                <div className="space-y-2">
+                    <Label htmlFor="add-nisEmail">NIS Email *</Label>
+                    <Input id="add-nisEmail" name="nisEmail" type="email" required/>
+                    {addState?.errors?.nisEmail && <p className="text-sm text-destructive">{addState.errors.nisEmail.join(', ')}</p>}
+                </div>
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Campus</Label>
-                <Select value={campus} onValueChange={setCampus} disabled={isLoadingLists}><SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger><SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent></Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2"><Label htmlFor="add-reportLine1">Report Line 1 (Manager's Email)</Label><Input id="add-reportLine1" name="reportLine1" type="email" /></div>
-                <div className="space-y-2"><Label htmlFor="add-reportLine2">Report Line 2 (Manager's Email)</Label><Input id="add-reportLine2" name="reportLine2" type="email" /></div>
-            </div>
-             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="add-hourlyRate">Hourly Rate (Optional)</Label>
-                    <Input id="add-hourlyRate" name="hourlyRate" type="number" step="0.01" placeholder="e.g., 25.50" />
+                    <Label>Gender *</Label>
+                    <Select value={gender} onValueChange={setGender} required>
+                        <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Male">Male</SelectItem>
+                            <SelectItem value="Female">Female</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                    </Select>
+                     {addState?.errors?.gender && <p className="text-sm text-destructive">{addState.errors.gender.join(', ')}</p>}
                 </div>
-                <div className="space-y-2"><Label htmlFor="add-joiningDate">Joining Date</Label><Popover><PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !joiningDate && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{joiningDate ? format(joiningDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} captionLayout="dropdown-buttons" fromYear={new Date().getFullYear() - 20} toYear={2025} initialFocus /></PopoverContent></Popover></div>
+                 <div className="space-y-2">
+                    <Label>Role *</Label>
+                    <Select value={role} onValueChange={setRole} required disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
+                        <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                     {addState?.errors?.role && <p className="text-sm text-destructive">{addState.errors.role.join(', ')}</p>}
+                </div>
             </div>
              {(addState?.errors?.form) && (
               <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
@@ -2062,5 +1997,3 @@ export default function EmployeeManagementPage() {
     </AppLayout>
   );
 }
-
-    

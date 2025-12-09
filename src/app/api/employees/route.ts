@@ -20,13 +20,16 @@ export async function POST(request: Request) {
 
     const responseBody = await apiResponse.text();
 
-    if (!apiResponse.ok) {
-      // Forward the error from the external API
-      return NextResponse.json({ message: `API call failed: ${responseBody}` }, { status: apiResponse.status });
+    try {
+        const jsonResponse = JSON.parse(responseBody);
+        return NextResponse.json(jsonResponse, { status: apiResponse.status });
+    } catch (e) {
+        // If parsing fails, it's likely not JSON (e.g., HTML error page)
+        if (!apiResponse.ok) {
+            return NextResponse.json({ message: `API call failed: ${responseBody}` }, { status: apiResponse.status });
+        }
+        return new NextResponse(responseBody, { status: apiResponse.status });
     }
-
-    // Forward the successful response
-    return NextResponse.json(JSON.parse(responseBody || '{}'), { status: apiResponse.status });
 
   } catch (error: any) {
     console.error("Error in /api/employees route:", error);
