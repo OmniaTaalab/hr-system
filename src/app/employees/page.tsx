@@ -205,9 +205,14 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const { profile } = useUserProfile();
   const [addState, addAction, isAddPending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
-  const { roles, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, stage: stages, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
   const [gender, setGender] = useState("");
   const [role, setRole] = useState("");
+  const [system, setSystem] = useState("");
+  const [campus, setCampus] = useState("");
+  const [stage, setStage] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
+  const [joiningDate, setJoiningDate] = useState<Date | undefined>();
   const addFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -240,6 +245,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         <input type="hidden" name="actorId" value={profile?.id} />
         <input type="hidden" name="actorEmail" value={profile?.email} />
         <input type="hidden" name="actorRole" value={profile?.role} />
+        <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
+        <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
         
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
@@ -260,6 +267,10 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                   {addState?.errors?.lastName && <p className="text-sm text-destructive">{addState.errors.lastName.join(', ')}</p>}
               </div>
             </div>
+             <div className="space-y-2">
+                <Label htmlFor="add-nameAr">Full Name (Arabic)</Label>
+                <Input id="add-nameAr" name="nameAr" dir="rtl" />
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="add-employeeId">Employee ID</Label>
@@ -272,6 +283,11 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                     {addState?.errors?.nisEmail && <p className="text-sm text-destructive">{addState.errors.nisEmail.join(', ')}</p>}
                 </div>
             </div>
+            <div className="space-y-2">
+                <Label htmlFor="add-personalEmail">Personal Email</Label>
+                <Input id="add-personalEmail" name="personalEmail" type="email" />
+            </div>
+
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label>Gender *</Label>
@@ -293,6 +309,111 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                      {addState?.errors?.role && <p className="text-sm text-destructive">{addState.errors.role.join(', ')}</p>}
                 </div>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>Campus</Label>
+                    <Select name="campus" value={campus} onValueChange={setCampus} disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder="Select Campus" /></SelectTrigger>
+                        <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                </div>
+                 <div className="space-y-2">
+                    <Label>Stage</Label>
+                    <Select name="stage" value={stage} onValueChange={setStage} disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder="Select Stage" /></SelectTrigger>
+                        <SelectContent>{stages.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>System</Label>
+                    <Select name="system" value={system} onValueChange={setSystem} disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder="Select System" /></SelectTrigger>
+                        <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="add-department">Department</Label>
+                    <Input id="add-department" name="department" />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="add-subject">Subject</Label>
+                    <Input id="add-subject" name="subject" />
+                </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="add-title">Title</Label>
+                    <Input id="add-title" name="title" />
+                </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>Date of Birth</Label>
+                    <Popover>
+                        <PopoverTrigger asChild><Button variant={"outline"} className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger>
+                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={getYear(new Date()) - 18} /></PopoverContent>
+                    </Popover>
+                </div>
+                <div className="space-y-2">
+                    <Label>Joining Date</Label>
+                    <Popover>
+                        <PopoverTrigger asChild><Button variant={"outline"} className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{joiningDate ? format(joiningDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger>
+                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} /></PopoverContent>
+                    </Popover>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="add-phone">Phone Number</Label>
+                    <Input id="add-phone" name="phone" />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="add-nationalId">National ID</Label>
+                    <Input id="add-nationalId" name="nationalId" />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="add-religion">Religion</Label>
+                    <Input id="add-religion" name="religion" />
+                </div>
+                 <div className="space-y-2">
+                    <Label>Has Children at NIS?</Label>
+                     <RadioGroup name="childrenAtNIS" className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="add-children-yes" /><Label htmlFor="add-children-yes">Yes</Label></div>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="add-children-no" defaultChecked /><Label htmlFor="add-children-no">No</Label></div>
+                    </RadioGroup>
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                <Label>Emergency Contact</Label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-md">
+                     <Input name="emergencyContactName" placeholder="Name" />
+                     <Input name="emergencyContactRelationship" placeholder="Relationship" />
+                     <Input name="emergencyContactNumber" placeholder="Number" />
+                </div>
+            </div>
+             <div className="space-y-2">
+                <Label>Reporting Lines</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <Input name="reportLine1" placeholder="Report Line 1 Email" />
+                     <Input name="reportLine2" placeholder="Report Line 2 Email" />
+                </div>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="add-hourlyRate">Hourly Rate</Label>
+                <Input id="add-hourlyRate" name="hourlyRate" type="number" step="0.01" />
+            </div>
+
              {(addState?.errors?.form) && (
               <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
                 <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
@@ -564,6 +685,11 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                         <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
                     </Select>
                     {serverState?.errors?.system && <p className="text-sm text-destructive">{serverState.errors.system.join(', ')}</p>}
+                </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="edit-title">Title</Label>
+                    <Input id="edit-title" name="title" defaultValue={employee.title || ''} />
+                    {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
                 </div>
             </div>
             

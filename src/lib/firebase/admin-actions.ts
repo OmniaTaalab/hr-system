@@ -61,6 +61,26 @@ const CreateEmployeeFormSchema = z.object({
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
+  nameAr: z.string().optional(),
+  childrenAtNIS: z.enum(['Yes', 'No']).optional(),
+  personalEmail: z.string().email().optional().or(z.literal('')),
+  emergencyContactName: z.string().optional(),
+  emergencyContactRelationship: z.string().optional(),
+  emergencyContactNumber: z.string().optional(),
+  reportLine1: z.string().optional(),
+  reportLine2: z.string().optional(),
+  department: z.string().optional(),
+  stage: z.string().optional(),
+  system: z.string().optional(),
+  campus: z.string().optional(),
+  phone: z.string().optional(),
+  hourlyRate: z.preprocess((val) => val === "" ? undefined : parseFloat(z.string().parse(val)), z.number().nonnegative().optional()),
+  dateOfBirth: z.preprocess((arg) => (arg === "" ? undefined : new Date(z.string().parse(arg))), z.date().optional()),
+  joiningDate: z.preprocess((arg) => (arg === "" ? undefined : new Date(z.string().parse(arg))), z.date().optional()),
+  nationalId: z.string().optional(),
+  religion: z.string().optional(),
+  subject: z.string().optional(),
+  title: z.string().optional(),
 });
 
 
@@ -76,6 +96,26 @@ export type CreateEmployeeState = {
     role?: string[];
     role_name?: string[];
     form?: string[];
+    nameAr?: string[];
+    childrenAtNIS?: string[];
+    personalEmail?: string[];
+    emergencyContactName?: string[];
+    emergencyContactRelationship?: string[];
+    emergencyContactNumber?: string[];
+    reportLine1?: string[];
+    reportLine2?: string[];
+    department?: string[];
+    stage?: string[];
+    system?: string[];
+    campus?: string[];
+    phone?: string[];
+    hourlyRate?: string[];
+    dateOfBirth?: string[];
+    joiningDate?: string[];
+    nationalId?: string[];
+    religion?: string[];
+    subject?: string[];
+    title?: string[];
   };
   message?: string | null;
   success?: boolean;
@@ -118,6 +158,7 @@ export async function createEmployeeAction(
     actorId,
     actorEmail,
     actorRole,
+    ...otherData
   } = validatedFields.data;
 
   // --- External API Call via internal route ---
@@ -192,6 +233,28 @@ export async function createEmployeeAction(
       status: "Active",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
+      nameAr: otherData.nameAr || null,
+      childrenAtNIS: otherData.childrenAtNIS || null,
+      personalEmail: otherData.personalEmail || null,
+      emergencyContact: {
+          name: otherData.emergencyContactName || null,
+          relationship: otherData.emergencyContactRelationship || null,
+          number: otherData.emergencyContactNumber || null,
+      },
+      reportLine1: otherData.reportLine1 || null,
+      reportLine2: otherData.reportLine2 || null,
+      department: otherData.department || null,
+      stage: otherData.stage || null,
+      system: otherData.system || null,
+      campus: otherData.campus || null,
+      phone: otherData.phone || null,
+      hourlyRate: otherData.hourlyRate || null,
+      dateOfBirth: otherData.dateOfBirth ? Timestamp.fromDate(otherData.dateOfBirth) : null,
+      joiningDate: otherData.joiningDate ? Timestamp.fromDate(otherData.joiningDate) : null,
+      nationalId: otherData.nationalId || null,
+      religion: otherData.religion || null,
+      subject: otherData.subject || null,
+      title: otherData.title || null,
     };
 
     const docRef = await addDoc(employeeCollection, newEmployeeDoc);
