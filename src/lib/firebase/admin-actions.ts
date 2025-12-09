@@ -1,4 +1,5 @@
 
+
 'use server';
 import { z } from 'zod';
 import * as XLSX from "xlsx";
@@ -53,10 +54,10 @@ const CreateEmployeeFormSchema = z.object({
   apiToken: z.string().min(1, "API Token is required."),
   firstName: z.string().min(1, "First name is required."),
   lastName: z.string().min(1, "Last name is required."),
-  nisEmail: z.string().email({ message: "A valid NIS email is required." }),
-  employeeId: z.string().min(1, "Employee ID is required."),
+  email: z.string().email({ message: "A valid NIS email is required." }),
+  employeeId: z.string().optional(),
   gender: z.enum(["Male", "Female", "Other"], { required_error: "Gender is required." }),
-  role: z.string().min(1, "Role is required."),
+  role_name: z.string().min(1, "Role is required."),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
@@ -69,9 +70,11 @@ export type CreateEmployeeState = {
     firstName?: string[];
     lastName?: string[];
     nisEmail?: string[];
+    email?: string[];
     employeeId?: string[];
     gender?: string[];
     role?: string[];
+    role_name?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -108,10 +111,10 @@ export async function createEmployeeAction(
     apiToken,
     firstName,
     lastName,
-    nisEmail,
+    email,
     employeeId,
     gender,
-    role,
+    role_name,
     actorId,
     actorEmail,
     actorRole,
@@ -127,8 +130,8 @@ export async function createEmployeeAction(
         apiToken: apiToken,
         firstname: firstName,
         lastname: lastName,
-        email: nisEmail,
-        role_name: role,
+        email: email,
+        role_name: role_name,
         gender: gender,
         domain: null,
       }),
@@ -154,35 +157,38 @@ export async function createEmployeeAction(
     const employeeCollection = collection(db, "employee");
 
     // Check if email is already in use
-    const qEmail = query(employeeCollection, where("nisEmail", "==", nisEmail));
+    const qEmail = query(employeeCollection, where("email", "==", email));
     const existingEmail = await getDocs(qEmail);
     if (!existingEmail.empty) {
       return {
         success: false,
-        errors: { nisEmail: ["This NIS email address is already in use."] },
+        errors: { email: ["This NIS email address is already in use."] },
       };
     }
     
     // Check if employeeId is already in use
-    const qId = query(employeeCollection, where("employeeId", "==", employeeId));
-    const existingId = await getDocs(qId);
-    if (!existingId.empty) {
-      return {
-        success: false,
-        errors: { employeeId: ["This Employee ID is already in use."] },
-      };
+    if (employeeId) {
+        const qId = query(employeeCollection, where("employeeId", "==", employeeId));
+        const existingId = await getDocs(qId);
+        if (!existingId.empty) {
+        return {
+            success: false,
+            errors: { employeeId: ["This Employee ID is already in use."] },
+        };
+        }
     }
+
 
     const fullName = `${firstName} ${lastName}`.trim();
 
     const newEmployeeDoc = {
-      employeeId,
+      employeeId: employeeId || null,
       name: fullName,
       firstName,
       lastName,
-      nisEmail,
+      email,
       gender,
-      role,
+      role: role_name,
       status: "Active",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),

@@ -229,7 +229,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       <DialogHeader>
         <DialogTitle>Add New Employee</DialogTitle>
         <DialogDescription>
-          Enter the new employee's details. All fields are required.
+          Enter the new employee's details. Fields marked with an asterisk (*) are required.
         </DialogDescription>
       </DialogHeader>
        <form
@@ -240,9 +240,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         <input type="hidden" name="actorId" value={profile?.id} />
         <input type="hidden" name="actorEmail" value={profile?.email} />
         <input type="hidden" name="actorRole" value={profile?.role} />
-        <input type="hidden" name="gender" value={gender} />
-        <input type="hidden" name="role" value={role} />
-
+        
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
             <div className="space-y-2">
@@ -264,32 +262,31 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="add-employeeId">Employee ID *</Label>
-                    <Input id="add-employeeId" name="employeeId" required />
+                    <Label htmlFor="add-employeeId">Employee ID</Label>
+                    <Input id="add-employeeId" name="employeeId" />
                     {addState?.errors?.employeeId && <p className="text-sm text-destructive">{addState.errors.employeeId.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="add-nisEmail">NIS Email *</Label>
-                    <Input id="add-nisEmail" name="nisEmail" type="email" required/>
+                    <Input id="add-nisEmail" name="email" type="email" required/>
                     {addState?.errors?.nisEmail && <p className="text-sm text-destructive">{addState.errors.nisEmail.join(', ')}</p>}
                 </div>
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label>Gender *</Label>
-                    <Select value={gender} onValueChange={setGender} required>
+                    <Select name="gender" value={gender} onValueChange={setGender} required>
                         <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="Male">Male</SelectItem>
                             <SelectItem value="Female">Female</SelectItem>
-                            <SelectItem value="Other">Other</SelectItem>
                         </SelectContent>
                     </Select>
                      {addState?.errors?.gender && <p className="text-sm text-destructive">{addState.errors.gender.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
                     <Label>Role *</Label>
-                    <Select value={role} onValueChange={setRole} required disabled={isLoadingLists}>
+                    <Select name="role_name" value={role} onValueChange={setRole} required disabled={isLoadingLists}>
                         <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
                         <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
                     </Select>
