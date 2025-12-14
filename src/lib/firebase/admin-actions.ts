@@ -34,7 +34,7 @@ export async function getAllAuthUsers() {
     // Map the complex UserRecord objects to plain, serializable objects
     return users.map(user => ({
       uid: user.uid,
-      nisEmail: user.nisEmail,
+      email: user.email,
       displayName: user.displayName,
       disabled: user.disabled,
       metadata: {
@@ -89,7 +89,6 @@ export type CreateEmployeeState = {
     apiToken?: string[];
     firstName?: string[];
     lastName?: string[];
-    nisEmail?: string[];
     email?: string[];
     employeeId?: string[];
     gender?: string[];
@@ -301,7 +300,7 @@ export type CreateProfileState = {
 
 const CreateProfileSchema = z.object({
   userId: z.string().min(1, 'User ID is required.'),
-  nisEmail: z.string().email('A valid email is required.'),
+  email: z.string().email('A valid email is required.'),
   firstName: z.string().min(1, 'First name is required.'),
   lastName: z.string().min(1, 'Last name is required.'),
   department: z.string().min(1, 'Department is required.'),
@@ -338,7 +337,7 @@ export async function createEmployeeProfileAction(
     };
   }
   
-  const { userId, nisEmail, firstName, lastName, ...profileData } = validatedFields.data;
+  const { userId, email, firstName, lastName, ...profileData } = validatedFields.data;
 
   try {
     // Check if an employee with this userId or email already exists
@@ -352,7 +351,7 @@ export async function createEmployeeProfileAction(
     }
     const qEmail = query(
       collection(db, "employee"),
-      where("nisEmail", "==", nisEmail)
+      where("email", "==", email)
     );
     const existingEmail = await getDocs(qEmail);
     if (!existingEmail.empty) {
@@ -364,7 +363,7 @@ export async function createEmployeeProfileAction(
 
     await addDoc(collection(db, "employee"), {
       userId,
-      nisEmail,
+      email,
       name: `${firstName} ${lastName}`.trim(),
       firstName,
       lastName,
@@ -578,12 +577,6 @@ export async function updateEmployeeAction(
     if (Object.keys(dataToUpdate).length === 0) {
       return { success: true, message: "No changes were submitted." };
     }
-    if (!dataToUpdate.email && dataToUpdate.nisEmail) {
-  dataToUpdate.email = dataToUpdate.nisEmail;
-}
-delete dataToUpdate.nisEmail;
-
-await updateDoc(employeeRef, dataToUpdate);
     
     await updateDoc(employeeRef, dataToUpdate);
 
@@ -646,7 +639,7 @@ export async function deleteEmployeeAction(
     const docRef = doc(db, "employee", employeeDocId);
     await deleteDoc(docRef);
 
-    await logSystemEvent("Delete Employee", { actorId, actorEmail, actorRole });
+    await logSystemEvent("Delete Employee", { actorId, actorEmail, actorRole, employeeDocId });
     
     return { success: true, message: `Employee deleted successfully.` };
   } catch (error: any) {
@@ -830,18 +823,7 @@ const BatchEmployeeSchema = z.object({
     },
     z.string().email().nullable().optional()
   ),
-  personalEmail: z.preprocess(
-    (val) => {
-      if (!val) return null;              // null or empty → null
-      const str = String(val).trim();
-  
-      if (str === "") return null;        // Empty string → null
-      if (!str.includes("@")) return null; // Not an email → ignore it completely
-  
-      return str; // Return only if valid-like email
-    },
-    z.string().email().nullable().optional()
-  ),
+  personalEmail: z.any().optional().nullable(),
 
   phone: z.any().optional().nullable(),
   department: z.string().optional().nullable(),
@@ -931,7 +913,15 @@ function cleanValue(value: any, key: string): any {
 
   return value;
 }
-
+function stripEmpty(obj: Record<string, any>) {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([_, v]) =>
+      v !== null &&
+      v !== undefined &&
+      !(typeof v === "string" && v.trim() === "")
+    )
+  );
+}
 
 export async function batchCreateEmployeesAction(prevState: any, formData: FormData) {
   const recordsJson = formData.get("recordsJson");
@@ -1043,8 +1033,7 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
           joiningDate: toTimestamp(record.joiningDate),
              reportLine1: record.reportLine1 || null,
           reportLine2: record.reportLine2 || null,
-          documents: [],
-          photoURL: null,
+
         };
 
         if (record.status === 'deactivated') {
@@ -1059,13 +1048,14 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
           const existingData = existingSnap?.data() || {};
         
           // حافظ على employeeId مهما حصل
+          const safeNewData = stripEmpty(newEmployeeData);
+
           const finalData = {
-            ...existingData,      // البيانات القديمة
-            ...newEmployeeData,   // البيانات الجديدة من الشيت
-            employeeId: recordEmployeeId, // دايمًا نحافظ عليه
-            updatedAt: serverTimestamp()
+            ...existingData,
+            ...safeNewData, // ✅ بس القيم اللي موجودة
+            employeeId: recordEmployeeId,
+            updatedAt: serverTimestamp(),
           };
-        
           const docRef = doc(employeeCollectionRef, existingDocId);
           batch.set(docRef, finalData, { merge: true });
         
@@ -1107,101 +1097,80 @@ export async function deduplicateEmployeesAction(
   formData: FormData
 ): Promise<DeduplicationState> {
   try {
-    const employeeCollectionRef = collection(db, "employee");
-    const snapshot = await getDocs(employeeCollectionRef);
+    const snap = await getDocs(collection(db, "employee"));
 
-    // Maps to track unique names + emails
-    const seenNames = new Map<string, { docId: string; timestamp: Timestamp }>();
-    const seenEmails = new Map<string, { docId: string; timestamp: Timestamp }>();
+    const seenEmployeeIds = new Map<string, string>();
+    const seenEmails = new Map<string, string>();
 
-    const docsToDelete = new Set<string>();
+    const batch = writeBatch(db);
+    let duplicatesFound = 0;
 
-    for (const docSnap of snapshot.docs) {
+    for (const docSnap of snap.docs) {
       const data = docSnap.data();
       const docId = docSnap.id;
 
-      const name = (data.name || "").trim().toLowerCase();
-      const nisEmail = (data.nisEmail || "").trim().toLowerCase();
-      const createdAt = data.createdAt || Timestamp.now();
+      const employeeId = data.employeeId?.toString().trim();
+      const email = data.nisEmail?.toLowerCase().trim();
 
-      // Delete if name missing
-      if (!name) {
-        docsToDelete.add(docId);
-        continue;
+      // ✅ 1) Deduplicate by employeeId
+      if (employeeId) {
+        if (seenEmployeeIds.has(employeeId)) {
+          batch.update(docSnap.ref, {
+            isDuplicate: true,
+            duplicateOf: seenEmployeeIds.get(employeeId),
+            duplicateReason: "sameEmployeeId",
+            updatedAt: serverTimestamp(),
+          });
+          duplicatesFound++;
+          continue;
+        }
+        seenEmployeeIds.set(employeeId, docId);
       }
 
-      // -------- 1) DEDUPE BY NAME --------
-      if (seenNames.has(name)) {
-        const existing = seenNames.get(name)!;
-
-        if (createdAt.toMillis() > existing.timestamp.toMillis()) {
-          // current newer → delete old
-          docsToDelete.add(existing.docId);
-          seenNames.set(name, { docId, timestamp: createdAt });
-        } else {
-          // current older → delete current
-          docsToDelete.add(docId);
+      // ✅ 2) Deduplicate by email
+      if (email) {
+        if (seenEmails.has(email)) {
+          batch.update(docSnap.ref, {
+            isDuplicate: true,
+            duplicateOf: seenEmails.get(email),
+            duplicateReason: "sameEmail",
+            updatedAt: serverTimestamp(),
+          });
+          duplicatesFound++;
+          continue;
         }
-      } else {
-        seenNames.set(name, { docId, timestamp: createdAt });
-      }
-
-      // -------- 2) DEDUPE BY EMAIL --------
-      // Only if email exists
-      if (nisEmail) {
-        if (seenEmails.has(nisEmail)) {
-          const existing = seenEmails.get(nisEmail)!;
-
-          if (createdAt.toMillis() > existing.timestamp.toMillis()) {
-            // current newer → delete old
-            docsToDelete.add(existing.docId);
-            seenEmails.set(nisEmail, { docId, timestamp: createdAt });
-          } else {
-            // current older → delete current
-            docsToDelete.add(docId);
-          }
-        } else {
-          seenEmails.set(nisEmail, { docId, timestamp: createdAt });
-        }
+        seenEmails.set(email, docId);
       }
     }
 
-    // Nothing to delete
-    if (docsToDelete.size === 0) {
-      return { success: true, message: "No duplicate employees found." };
+    if (duplicatesFound === 0) {
+      return { success: true, message: "No duplicates found." };
     }
 
-    // Batch delete
-    const batch = writeBatch(db);
-    docsToDelete.forEach(docId => {
-      batch.delete(doc(employeeCollectionRef, docId));
-    });
     await batch.commit();
 
-    await logSystemEvent("Deduplicate Employees", {
-      actorId: formData.get("actorId") as string,
-      actorEmail: formData.get("actorEmail") as string,
-      actorRole: formData.get("actorRole") as string,
-      duplicatesRemoved: docsToDelete.size
+    await logSystemEvent("Safe Deduplicate Employees", {
+      actorId: formData.get("actorId")?.toString(),
+      actorEmail: formData.get("actorEmail")?.toString(),
+      actorRole: formData.get("actorRole")?.toString(),
+      duplicatesFlagged: duplicatesFound,
     });
 
     revalidatePath("/employees");
 
     return {
       success: true,
-      message: `Successfully removed ${docsToDelete.size} duplicate employees (by name or nisEmail).`
+      message: `${duplicatesFound} employees marked as duplicates (no data deleted).`,
     };
 
-  } catch (error: any) {
-    console.error("Error deduplicating employees:", error);
-
+  } catch (error) {
+    console.error(error);
     return {
       success: false,
-      errors: { form: ["Unexpected error during deduplication."] },
+      errors: { form: ["Failed to deduplicate safely."] },
     };
   }
 }
-
 
 export type CorrectionState = {
     message?: string | null;

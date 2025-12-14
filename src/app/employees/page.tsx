@@ -39,7 +39,6 @@ import {
   deactivateEmployeeAction, type DeactivateEmployeeState,
   activateEmployeeAction, type ActivateEmployeeState,
   batchCreateEmployeesAction,
-  deduplicateEmployeesAction, type DeduplicationState
 } from "@/lib/firebase/admin-actions";
 import { 
   createAuthUserForEmployeeAction, type CreateAuthUserState,
@@ -67,7 +66,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import * as XLSX from 'xlsx';
 import { MultiSelectFilter, type OptionType } from "@/components/multi-select";
-import type { BatchCreateEmployeesState } from "/home/user/studio/src/lib/firebase/admin-actions.ts";
+import type { BatchCreateEmployeesState } from "@/lib/firebase/admin-actions";
 
 
 export interface EmployeeFile {
@@ -117,6 +116,7 @@ export interface Employee {
   title?: string;
   status?: "Active" | "deactivated";
   reasonForLeaving?: string;
+  deactivatedBy?: string;
 }
 
 
@@ -280,7 +280,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 <div className="space-y-2">
                     <Label htmlFor="add-nisEmail">NIS Email *</Label>
                     <Input id="add-nisEmail" name="email" type="email" required/>
-                    {addState?.errors?.nisEmail && <p className="text-sm text-destructive">{addState.errors.nisEmail.join(', ')}</p>}
+                    {addState?.errors?.email && <p className="text-sm text-destructive">{addState.errors.email.join(', ')}</p>}
                 </div>
             </div>
             <div className="space-y-2">
@@ -306,7 +306,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                         <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
                         <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
                     </Select>
-                     {addState?.errors?.role && <p className="text-sm text-destructive">{addState.errors.role.join(', ')}</p>}
+                     {addState?.errors?.role_name && <p className="text-sm text-destructive">{addState.errors.role_name.join(', ')}</p>}
                 </div>
             </div>
 
@@ -632,8 +632,8 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-email">NIS Email</Label>
-                  <Input id="edit-email" name="nisEmail" type="email" defaultValue={employee.email}  />
-                  {serverState?.errors?.nisEmail && <p className="text-sm text-destructive">{serverState.errors.nisEmail.join(', ')}</p>}
+                  <Input id="edit-email" name="email" type="email" defaultValue={employee.email}  />
+                  {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
                 </div>
             </div>
 
@@ -1455,8 +1455,8 @@ function EmployeeManagementContent() {
             'National ID': emp.nationalId,
             'Religion': emp.religion,
             'Status': emp.status || "Active",
-            'Report Line1': emp.reportLine1,
-            'Report Line2': emp.reportLine2,
+            'Report Line 1': emp.reportLine1,
+            'Report Line 2': emp.reportLine2,
             'Reason For Leaving': emp.status === 'deactivated' ? emp.reasonForLeaving : '-',
             'Emergency Contact Name': emp.emergencyContact?.name,
             'Emergency Contact Relationship': emp.emergencyContact?.relationship,

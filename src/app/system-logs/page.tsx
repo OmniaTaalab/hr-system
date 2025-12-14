@@ -23,6 +23,7 @@ interface SystemLog {
   id: string;
   action: string;
   actorEmail?: string;
+  actorName?: string; // New field
   actorId?: string;
   actorRole?: string;
   timestamp: Timestamp;
@@ -30,7 +31,7 @@ interface SystemLog {
 
 const PAGE_SIZE = 50;
 const LOG_ACTIONS = [
-    "Create Employee", "Update Employee", "Deactivate Employee", "Delete Employee",
+    "Create Employee", "Update Employee", "Deactivate Employee", "Activate Employee", "Delete Employee",
     "Create Auth User", "Delete Auth User", "Update Auth Password",
     "Submit Leave Request", "Update Leave Request Status", "Edit Leave Request", "Delete Leave Request",
     "Create Job", "Delete Job", "Apply for Job",
@@ -83,7 +84,7 @@ function SystemLogContent() {
       }
       
       if (isActionFiltered) {
-        // We will filter client-side for actions to avoid composite index
+        q = query(q, where("action", "==", actionFilter));
       }
 
       const shouldPaginate = !isDateFiltered && !isActionFiltered && !searchTerm;
@@ -100,10 +101,6 @@ function SystemLogContent() {
 
       const documentSnapshots = await getDocs(q);
       let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemLog));
-      
-      if(isActionFiltered){
-        logsData = logsData.filter(log => log.action === actionFilter);
-      }
       
       setLogs(logsData);
 
@@ -157,6 +154,7 @@ function SystemLogContent() {
     return logs.filter(log =>
       log.action.toLowerCase().includes(lowercasedFilter) ||
       log.actorEmail?.toLowerCase().includes(lowercasedFilter) ||
+      log.actorName?.toLowerCase().includes(lowercasedFilter) ||
       log.actorRole?.toLowerCase().includes(lowercasedFilter)
     );
   }, [logs, searchTerm]);
@@ -198,7 +196,7 @@ function SystemLogContent() {
                       <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                           type="search"
-                          placeholder="Search by action, email, role..."
+                          placeholder="Search by action, name, email, role..."
                           className="w-full pl-8"
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
@@ -259,7 +257,7 @@ function SystemLogContent() {
                               >
                                   <TableCell>{format(log.timestamp.toDate(), 'PPP p')}</TableCell>
                                   <TableCell className="font-medium">{log.action}</TableCell>
-                                  <TableCell>{log.actorEmail || 'System'}</TableCell>
+                                  <TableCell>{log.actorName || log.actorEmail || 'System'}</TableCell>
                                   <TableCell>{log.actorRole || '-'}</TableCell>
                               </TableRow>
                           ))}

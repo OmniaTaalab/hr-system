@@ -1,24 +1,29 @@
 
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import { AppLayout, useUserProfile } from '@/components/layout/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { db } from '@/lib/firebase/config';
-import { doc, getDoc, Timestamp } from 'firebase/firestore';
-import { Loader2, ArrowLeft, AlertTriangle, History, User, Clock, Info, GitCommitVertical } from 'lucide-react';
+import { doc, getDoc, Timestamp, updateDoc } from 'firebase/firestore';
+import { Loader2, ArrowLeft, AlertTriangle, History, User, Clock, Info, GitCommitVertical, UserRoundCheck } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { logSystemEvent } from '@/lib/system-log';
 
 interface SystemLog {
   id: string;
   action: string;
+  actorName?: string;
   actorEmail?: string;
   actorRole?: string;
   timestamp: Timestamp;
+  targetEmployeeId?: string;
+  targetEmployeeName?: string;
   changes?: {
     oldData?: { [key: string]: any };
     newData?: { [key: string]: any };
@@ -81,6 +86,7 @@ function ChangesTable({ oldData, newData }: { oldData: any, newData: any }) {
 function SystemLogDetailContent() {
   const [log, setLog] = useState<SystemLog | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRestoring, setIsRestoring] = useState(false);
   const { toast } = useToast();
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
@@ -117,7 +123,39 @@ function SystemLogDetailContent() {
     
     fetchLog();
   }, [logId, toast, canViewPage, isLoadingProfile, router]);
+  
+  const handleRestoreEmployee = async () => {
+    if (!log || !log.targetEmployeeId || !profile) return;
+    setIsRestoring(true);
+    try {
+        const employeeRef = doc(db, "employee", log.targetEmployeeId);
+        await updateDoc(employeeRef, {
+            status: 'Active',
+            leavingDate: null,
+            reasonForLeaving: null,
+            deactivatedBy: null,
+        });
 
+        await logSystemEvent("Activate Employee", { 
+            actorId: profile.id, 
+            actorEmail: profile.email, 
+            actorName: profile.name,
+            actorRole: profile.role, 
+            targetEmployeeId: log.targetEmployeeId, 
+            targetEmployeeName: log.targetEmployeeName,
+            restoredFromLog: logId,
+        });
+
+        toast({ title: "Success", description: `${log.targetEmployeeName} has been restored.` });
+        router.push('/employees');
+
+    } catch (error: any) {
+        console.error("Error restoring employee:", error);
+        toast({ variant: 'destructive', title: 'Restore Failed', description: error.message });
+    } finally {
+        setIsRestoring(false);
+    }
+  };
 
   if (isLoading || isLoadingProfile) {
     return (
@@ -161,10 +199,29 @@ function SystemLogDetailContent() {
                     <DetailItem label="Log ID" value={log.id} />
                     <DetailItem label="Action" value={log.action} />
                     <DetailItem label="Timestamp" value={format(log.timestamp.toDate(), 'PPP p')} />
+                    <DetailItem label="Actor Name" value={log.actorName} />
                     <DetailItem label="Actor Email" value={log.actorEmail} />
                     <DetailItem label="Actor Role" value={log.actorRole} />
                 </CardContent>
             </Card>
+            
+            {log.targetEmployeeName && (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2"><User className="h-5 w-5 text-primary" />Affected Employee</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <DetailItem label="Employee Name" value={log.targetEmployeeName} />
+                        <DetailItem label="Employee ID" value={log.targetEmployeeId} />
+                         {log.action === "Deactivate Employee" && (
+                            <Button onClick={handleRestoreEmployee} disabled={isRestoring} className="mt-4">
+                                {isRestoring ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UserRoundCheck className="mr-2 h-4 w-4" />}
+                                Restore This Employee
+                            </Button>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
 
             <Card className="shadow-lg">
                 <CardHeader>
