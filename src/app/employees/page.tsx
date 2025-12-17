@@ -117,6 +117,7 @@ export interface Employee {
   status?: "Active" | "deactivated";
   reasonForLeaving?: string;
   deactivatedBy?: string;
+  isDuplicate?: boolean;
 }
 
 
@@ -1319,7 +1320,16 @@ function EmployeeManagementContent() {
       });
     }
 
-    return listToFilter.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    return listToFilter.sort((a, b) => {
+        // Sort by isDuplicate flag first (true comes first)
+        const aIsDuplicate = a.isDuplicate ?? false;
+        const bIsDuplicate = b.isDuplicate ?? false;
+        if (aIsDuplicate !== bIsDuplicate) {
+            return aIsDuplicate ? -1 : 1;
+        }
+        // Then sort by name
+        return (a.name || "").localeCompare(b.name || "");
+    });
 
   }, [allEmployees, searchTerm, campusFilters, stageFilters, subjectFilters, genderFilters, religionFilters, titleFilters, statusFilters, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilters]);
   
@@ -1702,7 +1712,10 @@ function EmployeeManagementContent() {
             <TableBody>
               {paginatedEmployees.length > 0 ? (
                 paginatedEmployees.map((employee) => (
-                  <TableRow key={employee.id} className={cn(employee.status === 'deactivated' && 'bg-destructive/20 hover:bg-destructive/30')}>
+                  <TableRow key={employee.id} className={cn(
+                    employee.status === 'deactivated' && 'bg-destructive/20 hover:bg-destructive/30',
+                    employee.isDuplicate && 'bg-yellow-100 dark:bg-yellow-900/30'
+                    )}>
                     <TableCell className="font-medium">
                       <Link href={`/employees/${employee.id}`} className="flex items-center gap-3 hover:underline">
                         <Avatar>
@@ -1720,9 +1733,12 @@ function EmployeeManagementContent() {
                     <TableCell>
                        <Badge
                         variant={employee.status === 'deactivated' ? 'destructive' : 'secondary'}
-                        className={cn(employee.status !== 'deactivated' && 'bg-green-100 text-green-800')}
+                        className={cn(
+                          employee.status !== 'deactivated' && 'bg-green-100 text-green-800',
+                          employee.isDuplicate && 'bg-yellow-500 text-white'
+                          )}
                       >
-                        {employee.status || "Active"}
+                        {employee.isDuplicate ? 'Duplicate' : (employee.status || "Active")}
                       </Badge>
                     </TableCell>
                       <TableCell className="text-right">
