@@ -1319,7 +1319,7 @@ function EmployeeManagementContent() {
       });
     }
 
-    return listToFilter.sort((a, b) => a.name.localeCompare(b.name));
+    return listToFilter.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   }, [allEmployees, searchTerm, campusFilters, stageFilters, subjectFilters, genderFilters, religionFilters, titleFilters, statusFilters, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilters]);
   
