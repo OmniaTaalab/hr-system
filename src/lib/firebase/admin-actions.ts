@@ -664,7 +664,7 @@ export type DeactivateEmployeeState = {
 const DeactivationSchema = z.object({
     employeeDocId: z.string().min(1, "Employee document ID is required."),
     leavingDate: z.coerce.date({ required_error: "A valid leaving date is required." }),
-    reasonForLeaving: z.string().min(5, "Reason must be at least 5 characters long.").max(500, "Reason must not exceed 500 characters."),
+    reasonForLeaving: z.string().optional(),
     actorId: z.string().optional(),
     actorEmail: z.string().optional(),
     actorRole: z.string().optional(),

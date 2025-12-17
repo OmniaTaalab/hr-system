@@ -1738,7 +1738,7 @@ function EmployeeManagementContent() {
                           employee.isDuplicate && 'bg-yellow-500 text-white'
                           )}
                       >
-                        {employee.isDuplicate ? 'Duplicate' : (employee.status || "Active")}
+                        {employee.isDuplicate ? 'Duplicate' : (employee.status === 'deactivated' ? 'Deactivated' : 'Active')}
                       </Badge>
                     </TableCell>
                       <TableCell className="text-right">
