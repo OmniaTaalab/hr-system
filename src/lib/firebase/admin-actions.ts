@@ -935,11 +935,24 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
     return { errors: { file: ["Failed to parse file data."] }, success: false };
   }
 
-  if (!parsedRecords.length) {
+  if (!Array.isArray(parsedRecords)) {
+    return { errors: { file: ["Invalid data format."] }, success: false };
+  }
+  
+  const filteredJson = parsedRecords.filter(row => {
+    // Check if a row is considered "empty"
+    // An empty row might be an object with all empty string or null values.
+    // We check for at least one meaningful field, like 'name'.
+    const nameKey = Object.keys(row).find(k => k.trim().toLowerCase() === 'name');
+    return nameKey && row[nameKey] && String(row[nameKey]).trim() !== '';
+  });
+
+
+  if (filteredJson.length === 0) {
     return { errors: { file: ["No data found in Excel file."] }, success: false };
   }
 
-  const mappedData = parsedRecords.map((row: Record<string, any>) => {
+  const mappedData = filteredJson.map((row: Record<string, any>) => {
     const cleanedRow: Record<string, any> = {};
     Object.keys(row).forEach((key) => {
       const cleanKey = normalizeHeader(key);
