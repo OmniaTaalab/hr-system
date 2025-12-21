@@ -1,135 +1,60 @@
-
 "use client";
 
-import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { collection, query, where, onSnapshot, DocumentData, limit } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase/config';
-import { Loader2 } from 'lucide-react';
-import { Icons } from '../icons';
-import { requestNotificationPermission } from '@/lib/firebase/messaging';
+import { useEffect, useState, createContext, useContext } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "@/lib/firebase/config";
+import { collection, query, where, getDocs, limit } from "firebase/firestore";
 
-// Define the shape of the employee profile
-export interface EmployeeProfile extends DocumentData {
-  id: string;
-  name: string;
-  role: string;
-  photoURL?: string | null;
-}
+const AppContext = createContext<any>(null);
 
-// Define the context value shape
-interface AppContextType {
-  user: FirebaseUser | null;
-  profile: EmployeeProfile | null;
-  loading: boolean;
-}
-
-// Create the context
-const AppContext = createContext<AppContextType | undefined>(undefined);
-
-// Create the custom hook
-export function useApp() {
-  const context = useContext(AppContext);
-  if (context === undefined) {
-    throw new Error('useApp must be used within an AppProvider');
-  }
-  return context;
-}
-
-interface AppProviderProps {
-  children: ReactNode;
-}
-
-const publicPaths = ['/login', '/jobs'];
-
-export function AppProvider({ children }: AppProviderProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [profile, setProfile] = useState<EmployeeProfile | null>(null);
+export function AppProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        // If user is authenticated, listen for their profile using their auth UID
-        const q = query(
-          collection(db, "employee"),
-          where("userId", "==", currentUser.uid),
-          limit(1)
-        );
-        const unsubscribeFirestore = onSnapshot(q, (querySnapshot) => {
-          if (!querySnapshot.empty) {
-            const employeeDoc = querySnapshot.docs[0];
-            const userProfile = { id: employeeDoc.id, ...employeeDoc.data() } as EmployeeProfile;
-            setProfile(userProfile);
-            // After getting profile, request notification permission
-            if(userProfile.id && userProfile.role){
-               requestNotificationPermission(userProfile.id, userProfile.role);
-            }
-          } else {
-            // User is authenticated but has no linked employee profile.
-            setProfile(null);
-          }
-          setLoading(false);
-        }, (error) => {
-          console.error("Error fetching user profile:", error);
-          setProfile(null);
-          setLoading(false);
-        });
-        // This will be called when auth state changes, cleaning up the listener
-        return () => unsubscribeFirestore();
-      } else {
-        // No user, not loading anymore
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        setUser(null);
         setProfile(null);
         setLoading(false);
+        return;
       }
+
+      setUser(firebaseUser);
+
+      const q = query(
+        collection(db, "employee"),
+        where("userId", "==", firebaseUser.uid),
+        limit(1)
+      );
+
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        const docSnap = snap.docs[0];
+        setProfile({
+          id: docSnap.id,
+          ...docSnap.data(),
+          email: docSnap.data().nisEmail,
+        });
+      } else {
+        setProfile(null);
+      }
+
+      setLoading(false);
     });
 
-    // Cleanup auth listener on component unmount
-    return () => unsubscribeAuth();
+    return () => unsub();
   }, []);
 
-  useEffect(() => {
-    const isPublicPath = publicPaths.includes(pathname) || pathname.startsWith('/jobs/');
-    // Redirect logic
-    if (!loading && !user && !isPublicPath) {
-      router.push('/login');
-    }
-  }, [user, loading, pathname, router]);
-
-  const contextValue = { user, profile, loading };
-  
-  const isPublicPath = publicPaths.includes(pathname) || pathname.startsWith('/jobs/');
-
-
-  if (loading && !isPublicPath) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Icons.NisLogo className="h-20 w-20" />
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </div>
-    );
-  }
-  
-  if (!user && !isPublicPath) {
-     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Icons.NisLogo className="h-20 w-20" />
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <AppContext.Provider value={contextValue}>
+    <AppContext.Provider value={{ user, profile, loading }}>
       {children}
     </AppContext.Provider>
   );
+}
+
+export function useApp() {
+  return useContext(AppContext);
 }

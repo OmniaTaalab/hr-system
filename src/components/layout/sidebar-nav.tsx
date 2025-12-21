@@ -31,11 +31,15 @@ export function SidebarNav() {
   const pathname = usePathname();
   const { profile, loading } = useUserProfile();
   const [isManager, setIsManager] = useState(false);
+console.log("loading:", loading, "profile:", profile); // 👈 هنا بالظبط
+
   useEffect(() => {
     console.log("🧾 Full profile object:", profile);
-  console.log("📧 profile.email:", profile?.email);
+  console.log("📧 profile.email:", profile?.nisEmail);
     const checkIfManager = async () => {
-      if (!profile?.email) {
+      const email = profile?.nisEmail?.trim().toLowerCase();
+console.log('sssssssssssssssss',email);
+      if (!email) {
         setIsManager(false);
         console.log("❌ No profile email → Not Manager");
         return;
@@ -47,8 +51,8 @@ export function SidebarNav() {
         const managerQuery = query(
           empCol,
           or(
-            where("reportLine1", "==", profile.email),
-            where("reportLine2", "==", profile.email)
+            where("reportLine1", "==", email),
+            where("reportLine2", "==", email)
           ),
           limit(1)
         );
@@ -58,7 +62,7 @@ export function SidebarNav() {
         const isMgr = !managerSnapshot.empty;
         setIsManager(isMgr);
   
-        console.log("👤 User Email:", profile.email);
+        console.log("👤 User Email:", profile?.nisEmail);
         console.log("📊 Manager Query Result:", managerSnapshot.size);
         console.log("🧑‍💼 Is Manager?", isMgr);
   
@@ -68,7 +72,7 @@ export function SidebarNav() {
       }
     };
   
-    if (!loading && profile) {
+    if (!loading) {
       checkIfManager();
     }
   }, [profile, loading]);
