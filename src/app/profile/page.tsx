@@ -562,7 +562,7 @@ export function AttendanceChartCard({ employeeDocId, employeeId, onScoreCalculat
                         });
                         if (leaveForDay) {
                             onTime++;
-                        } else if (attendanceForDay) {
+                        } else if (attendanceForDay && (attendanceForDay as any).check_in) {
                             const [hRaw, mRaw] = (attendanceForDay as any).check_in.split(":");
                             let hours = parseInt(hRaw);
                             if ((attendanceForDay as any).check_in.toLowerCase().includes("pm") && hours < 12) hours += 12;
@@ -1417,3 +1417,4 @@ export default function ProfilePage() {
     </AppLayout>
   );
 }
+
