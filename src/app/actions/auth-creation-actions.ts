@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -45,16 +46,6 @@ export async function createAuthUserForEmployeeAction(
       success: false,
     };
   }
-  console.log("🔥 formData values:", {
-    employeeDocId: formData.get('employeeDocId'),
-    emailType: formData.get('emailType'),
-    name: formData.get('name'),
-    password: formData.get('password'),
-    confirmPassword: formData.get('confirmPassword'),
-    actorId: formData.get('actorId'),
-    actorEmail: formData.get('actorEmail'),
-    actorRole: formData.get('actorRole'),
-  });
   
   const validatedFields = CreateAuthUserSchema.safeParse({
     employeeDocId: formData.get('employeeDocId'),
@@ -102,27 +93,43 @@ export async function createAuthUserForEmployeeAction(
     if (!emailToUse) {
       return { errors: { email: [`The selected ${emailType} email is not available for this employee.`] }, success: false };
     }
+    
+    let userRecord;
+    let newUserId;
 
-    // ✅ إنشاء مستخدم جديد في Firebase Auth
-    const userRecord = await adminAuth.createUser({
-      email: emailToUse,
-      emailVerified: true,
-      password: password,
-      displayName: name,
-      disabled: false,
-    });
+    // Check if user already exists in Firebase Auth
+    try {
+      userRecord = await adminAuth.getUserByEmail(emailToUse);
+      newUserId = userRecord.uid;
+      // If user exists, we will just link them. No need to create.
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found') {
+        // User does not exist, so create them.
+        if (!password) {
+            return {
+                errors: { password: ['A password is required to create a new user.'] },
+                message: 'Password is required.',
+                success: false,
+            };
+        }
+        userRecord = await adminAuth.createUser({
+          email: emailToUse,
+          emailVerified: true,
+          password: password,
+          displayName: name,
+          disabled: false,
+        });
+        newUserId = userRecord.uid;
+      } else {
+        // Another error occurred while fetching user
+        throw error;
+      }
+    }
 
-    const newUserId = userRecord.uid;
 
-    // ✅ تحديث الداتا بنفس القيم اللي موجودة في Firestore (مش داتا ثابتة)
     const employeeDocRef = doc(db, "employee", employeeDocId);
     await updateDoc(employeeDocRef, {
-      ...employeeData, // خُد كل القيم الحالية
       userId: newUserId,
-      nisEmail: emailToUse,
-      name: employeeData.name || name,
-      updatedAt: new Date(),
-      status: employeeData.status || "Active",
     });
 
     // 🧾 سجل العملية في الـ system log
@@ -136,11 +143,11 @@ export async function createAuthUserForEmployeeAction(
 
     return {
       success: true,
-      message: `Successfully created login for ${name}.`,
+      message: `Successfully created and/or linked login for ${name}.`,
     };
 
   } catch (error: any) {
-    console.error('Error creating Firebase Auth user:', error);
+    console.error('Error in create/link Firebase Auth user:', error);
     let errorMessage = 'An unexpected error occurred.';
     if (error.code === 'auth/email-already-exists') {
       errorMessage = `The email address "${emailToUse}" is already in use by another account.`;
