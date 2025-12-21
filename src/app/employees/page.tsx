@@ -1309,6 +1309,7 @@ function EmployeeManagementContent() {
               employee.stage,
               employee.campus,
               employee.email,
+              employee.nisEmail,
               employee.personalEmail,
               employee.subject,
               employee.title,
@@ -1735,7 +1736,7 @@ function EmployeeManagementContent() {
                        <Badge
                         variant={employee.status === 'deactivated' ? 'destructive' : 'secondary'}
                         className={cn(
-                          employee.status !== 'deactivated' && 'bg-green-100 text-green-800',
+                          employee.status !== 'deactivated' ? 'bg-green-100 text-green-800' : '',
                           employee.isDuplicate && 'bg-yellow-500 text-white'
                           )}
                       >
