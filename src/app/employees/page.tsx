@@ -99,6 +99,7 @@ export interface Employee {
   system: string;
   campus: string;
   email: string; // This is NIS Email
+  nisEmail: string; // This is also NIS Email, added for consistency
   phone: string; // This is Personal Phone
   hourlyRate?: number;
   userId?: string | null;
@@ -633,8 +634,8 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-email">NIS Email</Label>
-                  <Input id="edit-email" name="email" type="email" defaultValue={employee.email}  />
-                  {serverState?.errors?.email && <p className="text-sm text-destructive">{serverState.errors.email.join(', ')}</p>}
+                  <Input id="edit-email" name="nisEmail" type="email" defaultValue={employee.nisEmail}  />
+                  {serverState?.errors?.nisEmail && <p className="text-sm text-destructive">{serverState.errors.nisEmail.join(', ')}</p>}
                 </div>
             </div>
 
@@ -1738,7 +1739,7 @@ function EmployeeManagementContent() {
                           employee.isDuplicate && 'bg-yellow-500 text-white'
                           )}
                       >
-                        {employee.isDuplicate ? 'Duplicate' : (employee.status === 'deactivated' ? 'Deactivated' : 'Active')}
+                        {employee.isDuplicate ? 'Duplicate' : (employee.status || "Active")}
                       </Badge>
                     </TableCell>
                       <TableCell className="text-right">
