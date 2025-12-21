@@ -1351,6 +1351,13 @@ function EmployeeManagementContent() {
     setCurrentPage(1);
   }, [searchTerm, campusFilters, stageFilters, subjectFilters, genderFilters, religionFilters, titleFilters, statusFilters, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilters]);
 
+  const goToNextPage = useCallback(() => {
+    setCurrentPage((page) => Math.min(page + 1, totalPages));
+  }, [totalPages]);
+
+  const goToPrevPage = useCallback(() => {
+    setCurrentPage((page) => Math.max(page - 1, 1));
+  }, []);
 
   const canManageEmployee = useCallback((employee: Employee) => {
     if (!profile) return false;

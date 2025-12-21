@@ -31,40 +31,48 @@ export function SidebarNav() {
   const pathname = usePathname();
   const { profile, loading } = useUserProfile();
   const [isManager, setIsManager] = useState(false);
-
   useEffect(() => {
+    console.log("🧾 Full profile object:", profile);
+  console.log("📧 profile.email:", profile?.email);
     const checkIfManager = async () => {
       if (!profile?.email) {
         setIsManager(false);
+        console.log("❌ No profile email → Not Manager");
         return;
       }
-
+  
       try {
         const empCol = collection(db, "employee");
-        
+  
         const managerQuery = query(
           empCol,
           or(
             where("reportLine1", "==", profile.email),
             where("reportLine2", "==", profile.email)
           ),
-          limit(1) // We only need to know if at least one employee reports to them
+          limit(1)
         );
-
+  
         const managerSnapshot = await getDocs(managerQuery);
-
-        setIsManager(!managerSnapshot.empty);
+  
+        const isMgr = !managerSnapshot.empty;
+        setIsManager(isMgr);
+  
+        console.log("👤 User Email:", profile.email);
+        console.log("📊 Manager Query Result:", managerSnapshot.size);
+        console.log("🧑‍💼 Is Manager?", isMgr);
+  
       } catch (err) {
-        console.error("Error checking manager role:", err);
+        console.error("🔥 Error checking manager role:", err);
         setIsManager(false);
       }
     };
-
+  
     if (!loading && profile) {
       checkIfManager();
     }
   }, [profile, loading]);
-
+  
   const navItems = useMemo(() => {
     if (!profile) {
       // Show a minimal set for non-logged-in users or while loading
@@ -77,7 +85,7 @@ export function SidebarNav() {
     }
 
     const userRole = profile.role?.toLowerCase();
-    const isPrivilegedUser = userRole === "admin" || userRole === "hr";
+    const isPrivilegedUser = userRole === "admin" || userRole === "hr"||isManager;
 
 
     return siteConfig.navItems.filter((item) => {
