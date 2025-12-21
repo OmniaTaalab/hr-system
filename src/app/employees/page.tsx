@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -488,9 +487,9 @@ function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; 
         className="flex flex-col overflow-hidden"
       >
         <input type="hidden" name="employeeDocId" defaultValue={employee.id} />
-        <input type="hidden" name="actorId" value={profile?.id} />
-        <input type="hidden" name="actorEmail" value={profile?.email} />
-        <input type="hidden" name="actorRole" value={profile?.role} />
+        <input type="hidden" name="actorId" value={profile?.id ?? ''} />
+        <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
+        <input type="hidden" name="actorRole" value={profile?.role ?? ''} />
         {/* Hidden inputs for controlled Selects */}
         <input type="hidden" name="role" value={role} />
         <input type="hidden" name="system" value={system || ''} />
@@ -1353,16 +1352,6 @@ function EmployeeManagementContent() {
   }, [searchTerm, campusFilters, stageFilters, subjectFilters, genderFilters, religionFilters, titleFilters, statusFilters, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilters]);
 
 
-  const goToNextPage = () => {
-    if (isLastPage) return;
-    setCurrentPage(prev => prev + 1);
-  };
-
-  const goToPrevPage = () => {
-    if (currentPage === 1) return;
-    setCurrentPage(prev => prev - 1);
-  };
-  
   const canManageEmployee = useCallback((employee: Employee) => {
     if (!profile) return false;
     const userRole = profile.role?.toLowerCase();

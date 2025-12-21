@@ -16,7 +16,7 @@ import { iconMap } from "@/components/icon-map";
 import { useUserProfile } from "./app-layout";
 import { Skeleton } from "../ui/skeleton";
 import { db } from "@/lib/firebase/config";
-import { collection, query, where, getDocs, or } from "firebase/firestore";
+import { collection, query, where, getDocs, or, limit } from "firebase/firestore";
 
 function formatI18nKey(key: string): string {
   if (!key) return "";
@@ -47,7 +47,8 @@ export function SidebarNav() {
           or(
             where("reportLine1", "==", profile.email),
             where("reportLine2", "==", profile.email)
-          )
+          ),
+          limit(1) // We only need to know if at least one employee reports to them
         );
 
         const managerSnapshot = await getDocs(managerQuery);
