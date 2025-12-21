@@ -76,7 +76,7 @@ export function SidebarNav() {
     }
 
     const userRole = profile.role?.toLowerCase();
-    const isPrivilegedUser = userRole === "admin" || userRole === "hr" || isManager;
+    const isPrivilegedUser = userRole === "admin" || userRole === "hr";
 
 
     return siteConfig.navItems.filter((item) => {
