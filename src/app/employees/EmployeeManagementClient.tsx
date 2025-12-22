@@ -29,7 +29,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Label } from "@/components/ui/label";
 import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall, UserRoundCheck, X } from "lucide-react";
-import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback, useTransition } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback, useTransition, Suspense } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
   createEmployeeAction, type CreateEmployeeState,
@@ -243,15 +243,19 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         action={addAction}
         className="flex flex-col overflow-hidden"
       >
-        <input type="hidden" name="actorId" value={profile?.id} />
-        <input type="hidden" name="actorEmail" value={profile?.email} />
-        <input type="hidden" name="actorRole" value={profile?.role} />
+        <input type="hidden" name="actorId" value={profile?.id ?? ''} />
+        <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
+        <input type="hidden" name="actorRole" value={profile?.role ?? ''} />
         <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
         <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
         
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            <Separator />
+            <h3 className="text-lg font-semibold flex items-center"><UserCircle2 className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                   <Label htmlFor="add-firstName">First Name *</Label>
                   <Input id="add-firstName" name="firstName" required />
@@ -267,23 +271,10 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 <Label htmlFor="add-nameAr">Full Name (Arabic)</Label>
                 <Input id="add-nameAr" name="nameAr" dir="rtl" />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="add-employeeId">Employee ID</Label>
-                    <Input id="add-employeeId" name="employeeId" />
-                    {addState?.errors?.employeeId && <p className="text-sm text-destructive">{addState.errors.employeeId.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="add-nisEmail">NIS Email *</Label>
-                    <Input id="add-nisEmail" name="email" type="email" required/>
-                    {addState?.errors?.email && <p className="text-sm text-destructive">{addState.errors.email.join(', ')}</p>}
-                </div>
-            </div>
             <div className="space-y-2">
                 <Label htmlFor="add-personalEmail">Personal Email</Label>
                 <Input id="add-personalEmail" name="personalEmail" type="email" />
             </div>
-
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label>Gender *</Label>
@@ -297,48 +288,41 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                      {addState?.errors?.gender && <p className="text-sm text-destructive">{addState.errors.gender.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
-                    <Label>Role *</Label>
-                    <Select name="role_name" value={role} onValueChange={setRole} required disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
-                        <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                     {addState?.errors?.role_name && <p className="text-sm text-destructive">{addState.errors.role_name.join(', ')}</p>}
+                    <Label>Date of Birth</Label>
+                    <Popover>
+                        <PopoverTrigger asChild><Button variant={"outline"} className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger>
+                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={getYear(new Date()) - 18} initialFocus /></PopoverContent>
+                    </Popover>
+                </div>
+            </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="add-nationalId">National ID</Label>
+                    <Input id="add-nationalId" name="nationalId" />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="add-religion">Religion</Label>
+                    <Input id="add-religion" name="religion" />
                 </div>
             </div>
 
+            <Separator />
+            <h3 className="text-lg font-semibold flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label>Campus</Label>
-                    <Select name="campus" value={campus} onValueChange={setCampus} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder="Select Campus" /></SelectTrigger>
-                        <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
-                    </Select>
+                    <Label htmlFor="add-employeeId">Employee ID</Label>
+                    <Input id="add-employeeId" name="employeeId" />
+                    {addState?.errors?.employeeId && <p className="text-sm text-destructive">{addState.errors.employeeId.join(', ')}</p>}
                 </div>
+                <div className="space-y-2">
+                    <Label htmlFor="add-nisEmail">NIS Email *</Label>
+                    <Input id="add-nisEmail" name="email" type="email" required/>
+                    {addState?.errors?.email && <p className="text-sm text-destructive">{addState.errors.email.join(', ')}</p>}
+                </div>
+            </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="space-y-2">
-                    <Label>Stage</Label>
-                    <Select name="stage" value={stage} onValueChange={setStage} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder="Select Stage" /></SelectTrigger>
-                        <SelectContent>{stages.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label>System</Label>
-                    <Select name="system" value={system} onValueChange={setSystem} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder="Select System" /></SelectTrigger>
-                        <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="add-department">Department</Label>
-                    <Input id="add-department" name="department" />
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
                     <Label htmlFor="add-subject">Subject</Label>
                     <Input id="add-subject" name="subject" />
                 </div>
@@ -347,16 +331,32 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                     <Input id="add-title" name="title" />
                 </div>
             </div>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label>Date of Birth</Label>
-                    <Popover>
-                        <PopoverTrigger asChild><Button variant={"outline"} className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger>
-                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={getYear(new Date()) - 18} initialFocus /></PopoverContent>
-                    </Popover>
+                 <div className="space-y-2">
+                    <Label>Role *</Label>
+                    <Select name="role_name" value={role} onValueChange={setRole} required disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
+                        <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                     {addState?.errors?.role_name && <p className="text-sm text-destructive">{addState.errors.role_name.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
+                    <Label>Campus</Label>
+                    <Select name="campus" value={campus} onValueChange={setCampus} disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder="Select Campus" /></SelectTrigger>
+                        <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <Label>Stage</Label>
+                    <Select name="stage" value={stage} onValueChange={setStage} disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder="Select Stage" /></SelectTrigger>
+                        <SelectContent>{stages.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                </div>
+                 <div className="space-y-2">
                     <Label>Joining Date</Label>
                     <Popover>
                         <PopoverTrigger asChild><Button variant={"outline"} className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{joiningDate ? format(joiningDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger>
@@ -364,50 +364,28 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                     </Popover>
                 </div>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="add-phone">Phone Number</Label>
-                    <Input id="add-phone" name="phone" />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="add-nationalId">National ID</Label>
-                    <Input id="add-nationalId" name="nationalId" />
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="add-religion">Religion</Label>
-                    <Input id="add-religion" name="religion" />
-                </div>
-                 <div className="space-y-2">
-                    <Label>Has Children at NIS?</Label>
-                     <RadioGroup name="childrenAtNIS" className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="add-children-yes" /><Label htmlFor="add-children-yes">Yes</Label></div>
-                        <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="add-children-no" defaultChecked /><Label htmlFor="add-children-no">No</Label></div>
-                    </RadioGroup>
-                </div>
-            </div>
-
             <div className="space-y-2">
-                <Label>Emergency Contact</Label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-md">
-                     <Input name="emergencyContactName" placeholder="Name" />
-                     <Input name="emergencyContactRelationship" placeholder="Relationship" />
-                     <Input name="emergencyContactNumber" placeholder="Number" />
-                </div>
+                <Label>Has Children at NIS?</Label>
+                 <RadioGroup name="childrenAtNIS" className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="add-children-yes" /><Label htmlFor="add-children-yes">Yes</Label></div>
+                    <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="add-children-no" defaultChecked /><Label htmlFor="add-children-no">No</Label></div>
+                </RadioGroup>
             </div>
-             <div className="space-y-2">
-                <Label>Reporting Lines</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <Input name="reportLine1" placeholder="Report Line 1 Email" />
-                     <Input name="reportLine2" placeholder="Report Line 2 Email" />
-                </div>
+
+            <Separator />
+            <h3 className="text-lg font-semibold flex items-center"><PhoneCall className="mr-2 h-5 w-5 text-primary" />Emergency Contact</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <Input name="emergencyContactName" placeholder="Name" />
+                 <Input name="emergencyContactRelationship" placeholder="Relationship" />
+                 <Input name="emergencyContactNumber" placeholder="Number" />
             </div>
-            <div className="space-y-2">
-                <Label htmlFor="add-hourlyRate">Hourly Rate</Label>
-                <Input id="add-hourlyRate" name="hourlyRate" type="number" step="0.01" />
+
+            <Separator />
+            <h3 className="text-lg font-semibold flex items-center"><Users className="mr-2 h-5 w-5 text-primary" />Reporting Lines</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <Input name="reportLine1" placeholder="Report Line 1 Email" />
+                 <Input name="reportLine2" placeholder="Report Line 2 Email" />
             </div>
 
              {(addState?.errors?.form) && (
@@ -799,9 +777,9 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
             <DialogContent>
                 <form action={deactivateAction}>
                     <input type="hidden" name="employeeDocId" value={employee.id} />
-                    <input type="hidden" name="actorId" value={profile?.id} />
-                    <input type="hidden" name="actorEmail" value={profile?.email} />
-                    <input type="hidden" name="actorRole" value={profile?.role} />
+                    <input type="hidden" name="actorId" value={profile?.id ?? ''} />
+                    <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
+                    <input type="hidden" name="actorRole" value={profile?.role ?? ''} />
                     <DialogHeader>
                         <DialogTitle>Deactivate Employee: {employee.name}</DialogTitle>
                         <DialogDescription>
@@ -1865,9 +1843,9 @@ export default function EmployeeManagementContent() {
           <AlertDialogContent>
             <form action={deleteAction}>
                 <input type="hidden" name="employeeDocId" value={employeeToDelete.id} />
-                 <input type="hidden" name="actorId" value={profile?.id} />
-                <input type="hidden" name="actorEmail" value={profile?.email} />
-                <input type="hidden" name="actorRole" value={profile?.role} />
+                 <input type="hidden" name="actorId" value={profile?.id ?? ''} />
+                <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
+                <input type="hidden" name="actorRole" value={profile?.role ?? ''} />
                 <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
@@ -1906,9 +1884,9 @@ export default function EmployeeManagementContent() {
               
               <input type="hidden" name="employeeDocId" value={employeeToCreateLogin.id} />
               <input type="hidden" name="name" value={employeeToCreateLogin.name} />
-              <input type="hidden" name="actorId" value={profile?.id} />
-              <input type="hidden" name="actorEmail" value={profile?.email} />
-              <input type="hidden" name="actorRole" value={profile?.role} />
+              <input type="hidden" name="actorId" value={profile?.id ?? ''} />
+              <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
+              <input type="hidden" name="actorRole" value={profile?.role ?? ''} />
               
               <div className="grid gap-4 py-4">
                 <div className="space-y-3">
@@ -2009,9 +1987,9 @@ export default function EmployeeManagementContent() {
                     <input type="hidden" name="employeeDocId" value={employeeToDeleteLogin.id} />
                     <input type="hidden" name="userId" value={employeeToDeleteLogin.userId ?? ''} />
                     <input type="hidden" name="employeeName" value={employeeToDeleteLogin.name} />
-                    <input type="hidden" name="actorId" value={profile?.id} />
-                    <input type="hidden" name="actorEmail" value={profile?.email} />
-                    <input type="hidden" name="actorRole" value={profile?.role} />
+                    <input type="hidden" name="actorId" value={profile?.id ?? ''} />
+                    <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
+                    <input type="hidden" name="actorRole" value={profile?.role ?? ''} />
                     <AlertDialogHeader>
                         <AlertDialogTitle>Delete Login Account?</AlertDialogTitle>
                         <AlertDialogDescription>
@@ -2045,9 +2023,9 @@ export default function EmployeeManagementContent() {
               
               <input type="hidden" name="userId" value={employeeToChangePassword.userId ?? ''} />
               <input type="hidden" name="employeeName" value={employeeToChangePassword.name} />
-              <input type="hidden" name="actorId" value={profile?.id} />
-              <input type="hidden" name="actorEmail" value={profile?.email} />
-              <input type="hidden" name="actorRole" value={profile?.role} />
+              <input type="hidden" name="actorId" value={profile?.id ?? ''} />
+              <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
+              <input type="hidden" name="actorRole" value={profile?.role ?? ''} />
               
               <div className="grid gap-4 py-4">
                 <div className="space-y-2">
@@ -2123,3 +2101,15 @@ export default function EmployeeManagementContent() {
 }
 
 
+
+function EmployeeManagementPage() {
+  return (
+    <AppLayout>
+      <Suspense fallback={<div>Loading...</div>}>
+        <EmployeeManagementContent />
+      </Suspense>
+    </AppLayout>
+  );
+}
+
+export default EmployeeManagementPage;
