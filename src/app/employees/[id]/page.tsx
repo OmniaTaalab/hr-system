@@ -679,7 +679,7 @@ const getAttendancePointValue = (entry: any): number => {
                    <DetailItem icon={Users} label="Report Line 2" value={employee.reportLine2 || "-"} />
                    <DetailItem icon={Activity} label="Status">
                      <Badge variant={employee.status === "deactivated" ? "destructive" : "secondary"} className={employee.status !== 'deactivated' ? 'bg-green-100 text-green-800' : ''}>
-                       {employee.status || "Active"}
+                       {employee.status === 'deactivated' ? 'Deactivated' : 'Active'}
                      </Badge>
                    </DetailItem>
                 </div>
@@ -920,6 +920,7 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
 
 
 
