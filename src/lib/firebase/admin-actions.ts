@@ -57,7 +57,7 @@ const CreateEmployeeFormSchema = z.object({
   email: z.string().email({ message: "A valid NIS email is required." }).optional().or(z.literal('')).transform((val) => val ? val.replace(/\s/g, '') : val),
   employeeId: z.string().optional(),
   gender: z.enum(["Male", "Female", "Other"]).optional(),
-  role_name: z.string().optional(),
+  role: z.string().optional(),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
@@ -97,7 +97,6 @@ export type CreateEmployeeState = {
     employeeId?: string[];
     gender?: string[];
     role?: string[];
-    role_name?: string[];
     form?: string[];
     nameAr?: string[];
     childrenAtNIS?: string[];
@@ -157,7 +156,7 @@ export async function createEmployeeAction(
     email,
     employeeId,
     gender,
-    role_name,
+    role,
     actorId,
     actorEmail,
     actorRole,
@@ -236,7 +235,7 @@ export async function createEmployeeAction(
       lastName,
       email,
       gender: gender || null,
-      role: role_name || null,
+      role: role || null,
       status: "Active",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
