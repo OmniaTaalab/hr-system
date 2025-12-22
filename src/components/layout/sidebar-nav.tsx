@@ -31,17 +31,12 @@ export function SidebarNav() {
   const pathname = usePathname();
   const { profile, loading } = useUserProfile();
   const [isManager, setIsManager] = useState(false);
-console.log("loading:", loading, "profile:", profile); // 👈 هنا بالظبط
 
   useEffect(() => {
-    console.log("🧾 Full profile object:", profile);
-  console.log("📧 profile.email:", profile?.nisEmail);
     const checkIfManager = async () => {
       const email = profile?.nisEmail?.trim().toLowerCase();
-console.log('sssssssssssssssss',email);
       if (!email) {
         setIsManager(false);
-        console.log("❌ No profile email → Not Manager");
         return;
       }
   
@@ -62,9 +57,6 @@ console.log('sssssssssssssssss',email);
         const isMgr = !managerSnapshot.empty;
         setIsManager(isMgr);
   
-        console.log("👤 User Email:", profile?.nisEmail);
-        console.log("📊 Manager Query Result:", managerSnapshot.size);
-        console.log("🧑‍💼 Is Manager?", isMgr);
   
       } catch (err) {
         console.error("🔥 Error checking manager role:", err);
