@@ -74,7 +74,11 @@ const CreateEmployeeFormSchema = z.object({
   system: z.string().optional(),
   campus: z.string().optional(),
   phone: z.string().optional(),
-  hourlyRate: z.preprocess((val) => val === "" ? undefined : parseFloat(z.string().parse(val)), z.number().nonnegative().optional()),
+  hourlyRate: z.preprocess((val) => {
+    if (val === "" || val === null || val === undefined) return undefined;
+    const parsed = parseFloat(String(val));
+    return isNaN(parsed) ? undefined : parsed;
+  }, z.number().nonnegative().optional()),
   dateOfBirth: z.preprocess((arg) => (arg === "" ? undefined : new Date(z.string().parse(arg))), z.date().optional()),
   joiningDate: z.preprocess((arg) => (arg === "" ? undefined : new Date(z.string().parse(arg))), z.date().optional()),
   nationalId: z.string().optional(),
