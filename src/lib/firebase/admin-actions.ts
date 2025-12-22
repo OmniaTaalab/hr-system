@@ -1116,6 +1116,90 @@ export type DeduplicationState = {
   message?: string | null;
   success?: boolean;
 };
+
+export async function findAndMarkDuplicatesAction(
+  prevState: DeduplicationState,
+  formData: FormData
+): Promise<DeduplicationState> {
+  try {
+    const snap = await getDocs(query(collection(db, "employee"), where("isDuplicate", "==", false)));
+
+    const employeeIdMap = new Map<string, string>();
+    const emailMap = new Map<string, string>();
+    const nameMap = new Map<string, string>();
+
+    const batch = writeBatch(db);
+    let duplicatesFound = 0;
+
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data();
+      const docId = docSnap.id;
+
+      const employeeId = data.employeeId?.toString().trim();
+      const email = data.nisEmail?.toLowerCase().trim();
+      const name = data.name?.toLowerCase().trim();
+
+      // Check by Employee ID
+      if (employeeId) {
+        if (seenEmployeeIds.has(employeeId)) {
+          batch.update(docSnap.ref, { isDuplicate: true, duplicateOf: seenEmployeeIds.get(employeeId), duplicateReason: "sameEmployeeId", updatedAt: serverTimestamp() });
+          duplicatesFound++;
+          continue;
+        }
+        seenEmployeeIds.set(employeeId, docId);
+      }
+
+      // Check by Email
+      if (email) {
+        if (seenEmails.has(email)) {
+          batch.update(docSnap.ref, { isDuplicate: true, duplicateOf: seenEmails.get(email), duplicateReason: "sameEmail", updatedAt: serverTimestamp() });
+          duplicatesFound++;
+          continue;
+        }
+        seenEmails.set(email, docId);
+      }
+       
+      // Check by Name
+      if (name) {
+        if (nameMap.has(name)) {
+          batch.update(docSnap.ref, { isDuplicate: true, duplicateOf: nameMap.get(name), duplicateReason: "sameName", updatedAt: serverTimestamp() });
+          duplicatesFound++;
+          continue;
+        }
+        nameMap.set(name, docId);
+      }
+    }
+    
+    if (duplicatesFound === 0) {
+      return { success: true, message: "Scan complete. No new duplicates found." };
+    }
+
+    await batch.commit();
+
+    await logSystemEvent("Find and Mark Duplicates", {
+      actorId: formData.get("actorId")?.toString(),
+      actorEmail: formData.get("actorEmail")?.toString(),
+      actorRole: formData.get("actorRole")?.toString(),
+      duplicatesFlagged: duplicatesFound,
+    });
+
+    revalidatePath("/settings/duplicates");
+
+    return {
+      success: true,
+      message: `${duplicatesFound} new employees were flagged as duplicates.`,
+    };
+
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false,
+      errors: { form: ["Failed to run deduplication scan."] },
+    };
+  }
+}
+
+
 export async function deduplicateEmployeesAction(
   prevState: DeduplicationState,
   formData: FormData
