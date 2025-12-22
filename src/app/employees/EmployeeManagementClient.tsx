@@ -1435,7 +1435,7 @@ export default function EmployeeManagementContent() {
             'Gender': emp.gender,
             'National ID': emp.nationalId,
             'Religion': emp.religion,
-            'Status': emp.status || "Active",
+            'Status': emp.status === 'deactivated' ? 'Deactivated' : 'Active',
             'Report Line 1': emp.reportLine1,
             'Report Line 2': emp.reportLine2,
             'Reason For Leaving': emp.status === 'deactivated' ? emp.reasonForLeaving : '-',
@@ -2100,16 +2100,4 @@ export default function EmployeeManagementContent() {
   );
 }
 
-
-
-function EmployeeManagementPage() {
-  return (
-    <AppLayout>
-      <Suspense fallback={<div>Loading...</div>}>
-        <EmployeeManagementContent />
-      </Suspense>
-    </AppLayout>
-  );
-}
-
-export default EmployeeManagementPage;
+    
