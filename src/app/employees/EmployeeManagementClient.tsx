@@ -251,11 +251,6 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
-            <div className="space-y-2">
-                <Label htmlFor="add-apiToken">API Token *</Label>
-                <Input id="add-apiToken" name="apiToken" placeholder="Enter API Token for external system" required />
-                {addState?.errors?.apiToken && <p className="text-sm text-destructive">{addState.errors.apiToken.join(', ')}</p>}
-            </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                   <Label htmlFor="add-firstName">First Name *</Label>
@@ -358,7 +353,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                     <Label>Date of Birth</Label>
                     <Popover>
                         <PopoverTrigger asChild><Button variant={"outline"} className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger>
-                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={getYear(new Date()) - 18} /></PopoverContent>
+                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={getYear(new Date()) - 18} initialFocus /></PopoverContent>
                     </Popover>
                 </div>
                 <div className="space-y-2">
@@ -2126,4 +2121,5 @@ export default function EmployeeManagementContent() {
     </div>
   );
 }
+
 
