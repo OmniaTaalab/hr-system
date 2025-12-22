@@ -235,7 +235,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       <DialogHeader>
         <DialogTitle>Add New Employee</DialogTitle>
         <DialogDescription>
-          Enter the new employee's details. Fields marked with an asterisk (*) are required.
+          Enter the new employee's details. All fields are optional.
         </DialogDescription>
       </DialogHeader>
        <form
@@ -257,13 +257,13 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                  <Label htmlFor="add-firstName">First Name *</Label>
-                  <Input id="add-firstName" name="firstName" required />
+                  <Label htmlFor="add-firstName">First Name</Label>
+                  <Input id="add-firstName" name="firstName" />
                   {addState?.errors?.firstName && <p className="text-sm text-destructive">{addState.errors.firstName.join(', ')}</p>}
               </div>
               <div className="space-y-2">
-                  <Label htmlFor="add-lastName">Last Name *</Label>
-                  <Input id="add-lastName" name="lastName" required/>
+                  <Label htmlFor="add-lastName">Last Name</Label>
+                  <Input id="add-lastName" name="lastName" />
                   {addState?.errors?.lastName && <p className="text-sm text-destructive">{addState.errors.lastName.join(', ')}</p>}
               </div>
             </div>
@@ -277,8 +277,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label>Gender *</Label>
-                    <Select name="gender" value={gender} onValueChange={setGender} required>
+                    <Label>Gender</Label>
+                    <Select name="gender" value={gender} onValueChange={setGender}>
                         <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="Male">Male</SelectItem>
@@ -316,8 +316,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                     {addState?.errors?.employeeId && <p className="text-sm text-destructive">{addState.errors.employeeId.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="add-nisEmail">NIS Email *</Label>
-                    <Input id="add-nisEmail" name="email" type="email" required/>
+                    <Label htmlFor="add-nisEmail">NIS Email</Label>
+                    <Input id="add-nisEmail" name="email" type="email" />
                     {addState?.errors?.email && <p className="text-sm text-destructive">{addState.errors.email.join(', ')}</p>}
                 </div>
             </div>
@@ -333,8 +333,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="space-y-2">
-                    <Label>Role *</Label>
-                    <Select name="role_name" value={role} onValueChange={setRole} required disabled={isLoadingLists}>
+                    <Label>Role</Label>
+                    <Select name="role_name" value={role} onValueChange={setRole} disabled={isLoadingLists}>
                         <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
                         <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
                     </Select>
@@ -2099,5 +2099,3 @@ export default function EmployeeManagementContent() {
     </div>
   );
 }
-
-    

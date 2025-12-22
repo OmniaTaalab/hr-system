@@ -52,12 +52,12 @@ export async function getAllAuthUsers() {
 // Schema for validating form data for creating an employee
 const CreateEmployeeFormSchema = z.object({
   apiToken: z.string().optional(),
-  firstName: z.string().min(1, "First name is required."),
-  lastName: z.string().min(1, "Last name is required."),
-  email: z.string().email({ message: "A valid NIS email is required." }).transform((val) => val.replace(/\s/g, '')),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  email: z.string().email({ message: "A valid NIS email is required." }).optional().or(z.literal('')).transform((val) => val ? val.replace(/\s/g, '') : val),
   employeeId: z.string().optional(),
-  gender: z.enum(["Male", "Female", "Other"], { required_error: "Gender is required." }),
-  role_name: z.string().min(1, "Role is required."),
+  gender: z.enum(["Male", "Female", "Other"]).optional(),
+  role_name: z.string().optional(),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
@@ -199,13 +199,15 @@ export async function createEmployeeAction(
     const employeeCollection = collection(db, "employee");
 
     // Check if email is already in use
-    const qEmail = query(employeeCollection, where("email", "==", email));
-    const existingEmail = await getDocs(qEmail);
-    if (!existingEmail.empty) {
-      return {
-        success: false,
-        errors: { email: ["This NIS email address is already in use."] },
-      };
+    if (email) {
+      const qEmail = query(employeeCollection, where("email", "==", email));
+      const existingEmail = await getDocs(qEmail);
+      if (!existingEmail.empty) {
+        return {
+          success: false,
+          errors: { email: ["This NIS email address is already in use."] },
+        };
+      }
     }
     
     // Check if employeeId is already in use
@@ -221,7 +223,7 @@ export async function createEmployeeAction(
     }
 
 
-    const fullName = `${firstName} ${lastName}`.trim();
+    const fullName = `${firstName || ''} ${lastName || ''}`.trim();
 
     const newEmployeeDoc = {
       employeeId: employeeId || null,
@@ -229,8 +231,8 @@ export async function createEmployeeAction(
       firstName,
       lastName,
       email,
-      gender,
-      role: role_name,
+      gender: gender || null,
+      role: role_name || null,
       status: "Active",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
