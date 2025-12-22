@@ -2,7 +2,7 @@
 
 'use server';
 import { z } from 'zod';
-import * as XLSX from "xlsx";
+import * * as XLSX from "xlsx";
 import { revalidatePath } from "next/cache";
 import { db } from '@/lib/firebase/config';
 import { adminAuth, adminStorage } from '@/lib/firebase/admin-config';
@@ -161,37 +161,37 @@ export async function createEmployeeAction(
   } = validatedFields.data;
 
   // --- External API Call via internal route ---
-  if (apiToken) {
-      try {
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-        const apiResponse = await fetch(`${appUrl}/api/employees`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            apiToken: apiToken,
-            firstname: firstName,
-            lastname: lastName,
-            email: email,
-            role_name: role_name,
-            gender: gender,
-            domain: null,
-          }),
-        });
+  // if (apiToken) {
+  //     try {
+  //       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  //       const apiResponse = await fetch(`${appUrl}/api/employees`, {
+  //         method: 'POST',
+  //         headers: { 'Content-Type': 'application/json' },
+  //         body: JSON.stringify({
+  //           apiToken: apiToken,
+  //           firstname: firstName,
+  //           lastname: lastName,
+  //           email: email,
+  //           role_name: role_name,
+  //           gender: gender,
+  //           domain: null,
+  //         }),
+  //       });
 
-        if (!apiResponse.ok) {
-          const errorBody = await apiResponse.json();
-          return {
-            success: false,
-            errors: { form: [errorBody.message || `API call failed with status ${apiResponse.status}`] },
-          };
-        }
-      } catch (apiError: any) {
-        return {
-          success: false,
-          errors: { form: [`Failed to call internal API route: ${apiError.message}`] },
-        };
-      }
-  }
+  //       if (!apiResponse.ok) {
+  //         const errorBody = await apiResponse.json();
+  //         return {
+  //           success: false,
+  //           errors: { form: [errorBody.message || `API call failed with status ${apiResponse.status}`] },
+  //         };
+  //       }
+  //     } catch (apiError: any) {
+  //       return {
+  //         success: false,
+  //         errors: { form: [`Failed to call internal API route: ${apiError.message}`] },
+  //       };
+  //     }
+  // }
   // --- End External API Call ---
 
 
@@ -868,7 +868,7 @@ const keyMap: Record<string, string> = {
   "national id": "nationalId",
   "religion": "religion",
   "report line1": "reportLine1",
-  "report line2": "reportLine2",
+  "report line 2": "reportLine2",
   "reason for leaving": "reasonForLeaving",
   "emergency contact name": "emergencyContactName",
   "emergency contact relationship": "emergencyContactRelationship",
