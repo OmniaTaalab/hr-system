@@ -2,7 +2,7 @@
 
 'use server';
 import { z } from 'zod';
-import * * as XLSX from "xlsx";
+import * as XLSX from "xlsx";
 import { revalidatePath } from "next/cache";
 import { db } from '@/lib/firebase/config';
 import { adminAuth, adminStorage } from '@/lib/firebase/admin-config';
