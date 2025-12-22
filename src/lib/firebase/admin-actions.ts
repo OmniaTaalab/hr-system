@@ -51,7 +51,7 @@ export async function getAllAuthUsers() {
 
 // Schema for validating form data for creating an employee
 const CreateEmployeeFormSchema = z.object({
-  apiToken: z.string().min(1, "API Token is required."),
+  apiToken: z.string().optional(),
   firstName: z.string().min(1, "First name is required."),
   lastName: z.string().min(1, "Last name is required."),
   email: z.string().email({ message: "A valid NIS email is required." }).transform((val) => val.replace(/\s/g, '')),
@@ -161,34 +161,36 @@ export async function createEmployeeAction(
   } = validatedFields.data;
 
   // --- External API Call via internal route ---
-  try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const apiResponse = await fetch(`${appUrl}/api/employees`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        apiToken: apiToken,
-        firstname: firstName,
-        lastname: lastName,
-        email: email,
-        role_name: role_name,
-        gender: gender,
-        domain: null,
-      }),
-    });
+  if (apiToken) {
+      try {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        const apiResponse = await fetch(`${appUrl}/api/employees`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apiToken: apiToken,
+            firstname: firstName,
+            lastname: lastName,
+            email: email,
+            role_name: role_name,
+            gender: gender,
+            domain: null,
+          }),
+        });
 
-    if (!apiResponse.ok) {
-      const errorBody = await apiResponse.json();
-      return {
-        success: false,
-        errors: { form: [errorBody.message || `API call failed with status ${apiResponse.status}`] },
-      };
-    }
-  } catch (apiError: any) {
-    return {
-      success: false,
-      errors: { form: [`Failed to call internal API route: ${apiError.message}`] },
-    };
+        if (!apiResponse.ok) {
+          const errorBody = await apiResponse.json();
+          return {
+            success: false,
+            errors: { form: [errorBody.message || `API call failed with status ${apiResponse.status}`] },
+          };
+        }
+      } catch (apiError: any) {
+        return {
+          success: false,
+          errors: { form: [`Failed to call internal API route: ${apiError.message}`] },
+        };
+      }
   }
   // --- End External API Call ---
 
