@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -210,8 +211,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [gender, setGender] = useState("");
   const [role, setRole] = useState("");
   const [system, setSystem] = useState("");
-  const [campus, setCampus] = useState("");
-  const [stage, setStage] = useState("");
+  const [campus, setCampus] = useState<string | undefined>(undefined);
+  const [stage, setStage] = useState<string | undefined>(undefined);
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
   const [joiningDate, setJoiningDate] = useState<Date | undefined>();
   const addFormRef = useRef<HTMLFormElement>(null);
@@ -235,7 +236,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       <DialogHeader>
         <DialogTitle>Add New Employee</DialogTitle>
         <DialogDescription>
-          Enter the new employee's details. All fields are optional.
+          Fill in the employee's details below.
         </DialogDescription>
       </DialogHeader>
        <form
@@ -318,7 +319,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 <div className="space-y-2">
                     <Label htmlFor="add-nisEmail">NIS Email</Label>
                     <Input id="add-nisEmail" name="nisEmail" type="email" />
-                    {addState?.errors?.nisEmail && <p className="text-sm text-destructive">{addState.errors.email.join(', ')}</p>}
+                    {addState?.errors?.nisEmail && <p className="text-sm text-destructive">{addState.errors.nisEmail.join(', ')}</p>}
                 </div>
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -338,7 +339,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                         <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
                         <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
                     </Select>
-                     {addState?.errors?.role && <p className="text-sm text-destructive">{addState.errors.role_name.join(', ')}</p>}
+                     {addState?.errors?.role && <p className="text-sm text-destructive">{addState.errors.role.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                     <Label>Campus</Label>
@@ -368,7 +369,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 <Label>Has Children at NIS?</Label>
                  <RadioGroup name="childrenAtNIS" className="flex items-center space-x-4">
                     <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="add-children-yes" /><Label htmlFor="add-children-yes">Yes</Label></div>
-                    <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="add-children-no" defaultChecked /><Label htmlFor="add-children-no">No</Label></div>
+                    <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="add-children-no" /><Label htmlFor="add-children-no">No</Label></div>
                 </RadioGroup>
             </div>
 

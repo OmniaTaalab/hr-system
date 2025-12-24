@@ -1145,22 +1145,22 @@ export async function findAndMarkDuplicatesAction(
 
       // Check by Employee ID
       if (employeeId) {
-        if (seenEmployeeIds.has(employeeId)) {
-          batch.update(docSnap.ref, { isDuplicate: true, duplicateOf: seenEmployeeIds.get(employeeId), duplicateReason: "sameEmployeeId", updatedAt: serverTimestamp() });
+        if (employeeIdMap.has(employeeId)) {
+          batch.update(docSnap.ref, { isDuplicate: true, duplicateOf: employeeIdMap.get(employeeId), duplicateReason: "sameEmployeeId", updatedAt: serverTimestamp() });
           duplicatesFound++;
           continue;
         }
-        seenEmployeeIds.set(employeeId, docId);
+        employeeIdMap.set(employeeId, docId);
       }
 
       // Check by Email
       if (nisEmail) {
-        if (seenEmails.has(nisEmail)) {
-          batch.update(docSnap.ref, { isDuplicate: true, duplicateOf: seenEmails.get(email), duplicateReason: "sameEmail", updatedAt: serverTimestamp() });
+        if (emailMap.has(nisEmail)) {
+          batch.update(docSnap.ref, { isDuplicate: true, duplicateOf: emailMap.get(nisEmail), duplicateReason: "sameEmail", updatedAt: serverTimestamp() });
           duplicatesFound++;
           continue;
         }
-        seenEmails.set(nisEmail, docId);
+        emailMap.set(nisEmail, docId);
       }
        
       // Check by Name
