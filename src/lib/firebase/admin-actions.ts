@@ -54,7 +54,7 @@ const CreateEmployeeFormSchema = z.object({
   apiToken: z.string().optional(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
-  email: z.string().email({ message: "A valid NIS email is required." }).optional().or(z.literal('')).transform((val) => val ? val.replace(/\s/g, '') : val),
+  nisEmail: z.string().email({ message: "A valid NIS email is required." }).optional().or(z.literal('')).transform((val) => val ? val.replace(/\s/g, '') : val),
   employeeId: z.string().optional(),
   gender: z.enum(["Male", "Female", "Other"]).optional(),
   role: z.string().optional(),
@@ -93,7 +93,7 @@ export type CreateEmployeeState = {
     apiToken?: string[];
     firstName?: string[];
     lastName?: string[];
-    email?: string[];
+    nisEmail?: string[];
     employeeId?: string[];
     gender?: string[];
     role?: string[];
@@ -153,7 +153,7 @@ export async function createEmployeeAction(
     apiToken,
     firstName,
     lastName,
-    email,
+    nisEmail,
     employeeId,
     gender,
     role,
@@ -202,13 +202,13 @@ export async function createEmployeeAction(
     const employeeCollection = collection(db, "employee");
 
     // Check if email is already in use
-    if (email) {
-      const qEmail = query(employeeCollection, where("email", "==", email));
+    if (nisEmail) {
+      const qEmail = query(employeeCollection, where("nisEmail", "==", nisEmail));
       const existingEmail = await getDocs(qEmail);
       if (!existingEmail.empty) {
         return {
           success: false,
-          errors: { email: ["This NIS email address is already in use."] },
+          errors: { nisEmail: ["This NIS email address is already in use."] },
         };
       }
     }
@@ -227,13 +227,17 @@ export async function createEmployeeAction(
 
 
     const fullName = `${firstName || ''} ${lastName || ''}`.trim();
-
+    const dateOfBirth =
+    otherData.dateOfBirth ? new Date(otherData.dateOfBirth) : null;
+  
+  const joiningDate =
+    otherData.joiningDate ? new Date(otherData.joiningDate) : null;
     const newEmployeeDoc = {
       employeeId: employeeId || null,
       name: fullName,
       firstName,
       lastName,
-      email,
+      nisEmail,
       gender: gender || null,
       role: role || null,
       status: "Active",
@@ -255,8 +259,8 @@ export async function createEmployeeAction(
       campus: otherData.campus || null,
       phone: otherData.phone || null,
       hourlyRate: otherData.hourlyRate || null,
-      dateOfBirth: otherData.dateOfBirth ? Timestamp.fromDate(otherData.dateOfBirth) : null,
-      joiningDate: otherData.joiningDate ? Timestamp.fromDate(otherData.joiningDate) : null,
+      dateOfBirth: dateOfBirth ? Timestamp.fromDate(dateOfBirth) : null,
+      joiningDate: joiningDate ? Timestamp.fromDate(joiningDate) : null,
       nationalId: otherData.nationalId || null,
       religion: otherData.religion || null,
       subject: otherData.subject || null,
@@ -307,7 +311,7 @@ export type CreateProfileState = {
 
 const CreateProfileSchema = z.object({
   userId: z.string().min(1, 'User ID is required.'),
-  email: z.string().email('A valid email is required.'),
+  nisEmail: z.string().email('A valid email is required.'),
   firstName: z.string().min(1, 'First name is required.'),
   lastName: z.string().min(1, 'Last name is required.'),
   department: z.string().min(1, 'Department is required.'),
@@ -326,7 +330,7 @@ export async function createEmployeeProfileAction(
 ): Promise<CreateProfileState> {
   const validatedFields = CreateProfileSchema.safeParse({
     userId: formData.get('userId'),
-    email: formData.get('email'),
+    nisEmail: formData.get('nisEmail'),
     firstName: formData.get('firstName'),
     lastName: formData.get('lastName'),
     department: formData.get('department'),
@@ -344,7 +348,7 @@ export async function createEmployeeProfileAction(
     };
   }
   
-  const { userId, email, firstName, lastName, ...profileData } = validatedFields.data;
+  const { userId, nisEmail, firstName, lastName, ...profileData } = validatedFields.data;
 
   try {
     // Check if an employee with this userId or email already exists
@@ -358,7 +362,7 @@ export async function createEmployeeProfileAction(
     }
     const qEmail = query(
       collection(db, "employee"),
-      where("email", "==", email)
+      where("nisEmail", "==", nisEmail)
     );
     const existingEmail = await getDocs(qEmail);
     if (!existingEmail.empty) {
@@ -370,7 +374,7 @@ export async function createEmployeeProfileAction(
 
     await addDoc(collection(db, "employee"), {
       userId,
-      email,
+      nisEmail,
       name: `${firstName} ${lastName}`.trim(),
       firstName,
       lastName,
@@ -1136,7 +1140,7 @@ export async function findAndMarkDuplicatesAction(
       const docId = docSnap.id;
 
       const employeeId = data.employeeId?.toString().trim();
-      const email = data.nisEmail?.toLowerCase().trim();
+      const nisEmail  = data.nisEmail?.toLowerCase().trim();
       const name = data.name?.toLowerCase().trim();
 
       // Check by Employee ID
@@ -1150,13 +1154,13 @@ export async function findAndMarkDuplicatesAction(
       }
 
       // Check by Email
-      if (email) {
-        if (seenEmails.has(email)) {
+      if (nisEmail) {
+        if (seenEmails.has(nisEmail)) {
           batch.update(docSnap.ref, { isDuplicate: true, duplicateOf: seenEmails.get(email), duplicateReason: "sameEmail", updatedAt: serverTimestamp() });
           duplicatesFound++;
           continue;
         }
-        seenEmails.set(email, docId);
+        seenEmails.set(nisEmail, docId);
       }
        
       // Check by Name

@@ -317,8 +317,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="add-nisEmail">NIS Email</Label>
-                    <Input id="add-nisEmail" name="email" type="email" />
-                    {addState?.errors?.email && <p className="text-sm text-destructive">{addState.errors.email.join(', ')}</p>}
+                    <Input id="add-nisEmail" name="nisEmail" type="email" />
+                    {addState?.errors?.nisEmail && <p className="text-sm text-destructive">{addState.errors.email.join(', ')}</p>}
                 </div>
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -334,11 +334,11 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="space-y-2">
                     <Label>Role</Label>
-                    <Select name="role_name" value={role} onValueChange={setRole} disabled={isLoadingLists}>
+                    <Select name="role" value={role} onValueChange={setRole} disabled={isLoadingLists}>
                         <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
                         <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
                     </Select>
-                     {addState?.errors?.role_name && <p className="text-sm text-destructive">{addState.errors.role_name.join(', ')}</p>}
+                     {addState?.errors?.role && <p className="text-sm text-destructive">{addState.errors.role_name.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
                     <Label>Campus</Label>
