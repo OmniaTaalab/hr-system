@@ -21,7 +21,8 @@ import autoTable from 'jspdf-autotable';
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { CertificateUploader } from "@/components/certificate-uploader";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, AlertDialog } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -935,6 +936,7 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
 
 
 
