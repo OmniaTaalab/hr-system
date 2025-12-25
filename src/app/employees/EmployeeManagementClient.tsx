@@ -410,7 +410,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 
 
 // Internal component for Edit Employee Form content
-function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; onSuccess: () => void }) {
+export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; onSuccess: () => void }) {
   const { toast } = useToast();
   const { profile } = useUserProfile();
   const [serverState, formAction, isPending] = useActionState(updateEmployeeAction, initialEditEmployeeState);

@@ -9,7 +9,7 @@ import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit, or, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle, Trophy, Plus, UserX, Trash2 } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle, Trophy, Plus, UserX, Trash2, Edit3 } from 'lucide-react';
 import { format, getYear, getMonth, getDate, intervalToDuration, formatDistanceToNow, eachDayOfInterval, startOfDay } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -21,7 +21,7 @@ import autoTable from 'jspdf-autotable';
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { CertificateUploader } from "@/components/certificate-uploader";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, AlertDialog } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -29,6 +29,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { deleteAttendancePointsAction, type DeletePointsState } from "@/app/actions/attendance-actions";
 import { DialogTrigger } from "@/components/ui/dialog";
 import { DateRange } from "react-day-picker";
+import { EditEmployeeFormContent, type Employee as EmployeeType } from "../EmployeeManagementClient";
 
 interface EmergencyContact {
   name: string;
@@ -171,6 +172,7 @@ function EmployeeProfileContent() {
   const [totHistory, setTotHistory] = useState<KpiEntry[]>([]);
   const [loadingKpis, setLoadingKpis] = useState(false);
   
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
 
   const getInitials = (name?: string | null) => {
@@ -255,7 +257,7 @@ function EmployeeProfileContent() {
           (doc) => ({ id: doc.id, ...doc.data() } as AttendanceLog)
         );
     
-        const groupedLogs: { [key: string]: { check_ins: string[]; check_outs: string[]; date: string } } = {};
+        const groupedLogs: { [key: string]: { check_ins: string[], check_outs: string[], date: string } } = {};
         attendanceLogs.forEach((log) => {
           if (!groupedLogs[log.date]) {
             groupedLogs[log.date] = { check_ins: [], check_outs: [], date: log.date };
@@ -719,6 +721,10 @@ const getAttendancePointValue = (entry: any): number => {
                     <CardTitle>Actions</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-wrap gap-4">
+                    <Button onClick={() => setIsEditDialogOpen(true)}>
+                        <Edit3 className="mr-2 h-4 w-4" />
+                        Edit Profile
+                    </Button>
                     <Button onClick={handleExportPDF}>
                         <FileText className="mr-2 h-4 w-4" />
                         Export Profile to PDF
@@ -909,6 +915,15 @@ const getAttendancePointValue = (entry: any): number => {
             </Card>
           </>
         )}
+        
+        {employee && (
+            <AlertDialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                <AlertDialogContent className="max-w-2xl">
+                    <EditEmployeeFormContent employee={employee as EmployeeType} onSuccess={() => setIsEditDialogOpen(false)} />
+                </AlertDialogContent>
+            </AlertDialog>
+        )}
+
       </div>
   );
 }
@@ -920,6 +935,7 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
 
 
 
