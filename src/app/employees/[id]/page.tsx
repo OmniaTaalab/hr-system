@@ -637,7 +637,7 @@ const getAttendancePointValue = (entry: any): number => {
                       <AvatarImage src={employee.photoURL || undefined} alt={employee.name} />
                       <AvatarFallback className="text-3xl">{getInitials(employee.name)}</AvatarFallback>
                   </Avatar>
-                  <div className="text-center md:text-left">
+                  <div className="text-center md:text-left flex-grow">
                       <CardTitle className="font-headline text-3xl">{employee.name}</CardTitle>
                       <CardDescription className="text-lg text-primary">{employee.role}</CardDescription>
                        {employee.status && (
@@ -651,7 +651,11 @@ const getAttendancePointValue = (entry: any): number => {
                         </div>
                       )}
                   </div>
-                   <div className="ml-auto flex flex-col items-center gap-2">
+                   <div className="flex flex-col items-center gap-2">
+                      <Button onClick={() => setIsEditDialogOpen(true)} size="sm">
+                          <Edit3 className="mr-2 h-4 w-4" />
+                          Edit Profile
+                      </Button>
                       {employee.isExemptFromAttendance && (
                             <Badge variant="warning" className="flex items-center gap-2">
                                 <UserX className="h-4 w-4" /> Attendance Exempt
@@ -725,10 +729,6 @@ const getAttendancePointValue = (entry: any): number => {
                     <CardTitle>Actions</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-wrap gap-4">
-                    <Button onClick={() => setIsEditDialogOpen(true)}>
-                        <Edit3 className="mr-2 h-4 w-4" />
-                        Edit Profile
-                    </Button>
                     <Button onClick={handleExportPDF}>
                         <FileText className="mr-2 h-4 w-4" />
                         Export Profile to PDF
@@ -945,10 +945,3 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
-
-
-
-
-
-
-
