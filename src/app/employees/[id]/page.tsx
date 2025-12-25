@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useActionState } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useCallback } from "react";
 import { useParams, useRouter } from 'next/navigation';
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
@@ -182,62 +182,62 @@ function EmployeeProfileContent() {
   };
 
    
+  const fetchEmployeeData = useCallback(async () => {
+    if (!identifier) return;
+    setLoading(true);
+    setError(null);
+    try {
+      let employeeData: Employee | null = null;
+      const docRef = doc(db, 'employee', identifier);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+         employeeData = { id: docSnap.id, ...docSnap.data() } as Employee;
+      } else {
+          const employeeRef = collection(db, 'employee');
+          const q = query(
+            employeeRef,
+            or(
+              where('employeeId', '==', identifier),
+              where('nisEmail', '==', identifier.toLowerCase()),
+              where('personalEmail', '==', identifier.toLowerCase())
+            ),
+            limit(1)
+          );
+          const employeeDocSnapshot = await getDocs(q);
+          if (!employeeDocSnapshot.empty) {
+               const employeeDoc = employeeDocSnapshot.docs[0];
+               employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
+          }
+      }
+
+      if (employeeData) {
+          const exemptionDoc = await getDoc(doc(db, 'attendanceExemptions', employeeData.id));
+          employeeData.isExemptFromAttendance = exemptionDoc.exists();
+
+          setEmployee(employeeData);
+          // These can be moved to a separate function if they need to be re-fetched independently
+      } else {
+        setError('Employee not found.');
+      }
+    } catch (e: any) {
+      console.error("Error fetching employee details:", e);
+      if (e.code === 'failed-precondition') {
+        setError('A necessary database index is missing. Please check Firestore console for index creation links in the error logs.');
+      } else {
+        setError('Failed to load employee details.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [identifier]);
 
   useEffect(() => {
-    if (!identifier) return;
-  
-    const fetchEmployeeData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        let employeeData: Employee | null = null;
-        // Main query attempts to find by document ID first, then by employeeId, then emails.
-        const docRef = doc(db, 'employee', identifier);
-        const docSnap = await getDoc(docRef);
+    fetchEmployeeData();
+  }, [fetchEmployeeData]);
 
-        if (docSnap.exists()) {
-           employeeData = { id: docSnap.id, ...docSnap.data() } as Employee;
-        } else {
-            const employeeRef = collection(db, 'employee');
-            const q = query(
-              employeeRef,
-              or(
-                where('employeeId', '==', identifier),
-                where('nisEmail', '==', identifier.toLowerCase()),
-                where('personalEmail', '==', identifier.toLowerCase())
-              ),
-              limit(1)
-            );
-            const employeeDocSnapshot = await getDocs(q);
-            if (!employeeDocSnapshot.empty) {
-                 const employeeDoc = employeeDocSnapshot.docs[0];
-                 employeeData = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
-            }
-        }
-  
-        if (employeeData) {
-            // Check for exemption status
-            const exemptionDoc = await getDoc(doc(db, 'attendanceExemptions', employeeData.id));
-            employeeData.isExemptFromAttendance = exemptionDoc.exists();
-
-            setEmployee(employeeData);
-            fetchHistory(employeeData);
-            fetchLeaveRequests(employeeData.id);
-            fetchKpiData(employeeData.id);
-        } else {
-          setError('Employee not found.');
-        }
-      } catch (e: any) {
-        console.error("Error fetching employee details:", e);
-        if (e.code === 'failed-precondition') {
-          setError('A necessary database index is missing. Please check Firestore console for index creation links in the error logs.');
-        } else {
-          setError('Failed to load employee details.');
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
+  useEffect(() => {
+    if (!employee) return;
   
     const fetchHistory = async (emp: Employee) => {
       const identifierToUse = emp.employeeId || emp.badgeNumber;
@@ -388,8 +388,11 @@ function EmployeeProfileContent() {
         };
     };
 
-    fetchEmployeeData();
-  }, [identifier, toast]);
+    fetchHistory(employee);
+    fetchLeaveRequests(employee.id);
+    fetchKpiData(employee.id);
+
+  }, [employee, toast]);
   
   const canView = useMemo(() => {
     if (profileLoading || !currentUserProfile || !employee) return false;
@@ -397,7 +400,7 @@ function EmployeeProfileContent() {
     const userRole = currentUserProfile.role?.toLowerCase();
     const userEmail = currentUserProfile.email;
   
-    if (userRole === "admin" || userRole === "hr" || userRole ==="HR"|| currentUserProfile.id === employee.id) {
+    if (userRole === "admin" || userRole === "hr" || currentUserProfile.id === employee.id) {
       return true;
     }
   
@@ -920,7 +923,13 @@ const getAttendancePointValue = (entry: any): number => {
         {employee && (
             <AlertDialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <AlertDialogContent className="max-w-2xl">
-                    <EditEmployeeFormContent employee={employee as EmployeeType} onSuccess={() => setIsEditDialogOpen(false)} />
+                    <EditEmployeeFormContent 
+                      employee={employee as EmployeeType} 
+                      onSuccess={() => {
+                        setIsEditDialogOpen(false);
+                        fetchEmployeeData(); // Re-fetch data on success
+                      }} 
+                    />
                 </AlertDialogContent>
             </AlertDialog>
         )}
@@ -936,6 +945,7 @@ export default function EmployeeProfilePage() {
         </AppLayout>
     );
 }
+
 
 
 
