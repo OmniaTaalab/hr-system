@@ -11,12 +11,22 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Calendar as CalendarIcon, ArrowRight, ArrowLeft, PlusCircle, Trash2, UploadCloud } from "lucide-react";
-import { useState } from "react";
+import { useState, useActionState, useEffect, useTransition } from "react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
+import { useRouter } from "next/navigation";
+import { applyForJobAction, type ApplyForJobState, type JobApplicationPayload } from "@/app/actions/job-actions";
+import { useToast } from "@/hooks/use-toast";
+import { nanoid } from 'nanoid';
+
+const initialState: ApplyForJobState = {
+  message: null,
+  errors: {},
+  success: false,
+};
 
 function PersonalInfoSection() {
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
@@ -57,6 +67,7 @@ function PersonalInfoSection() {
                     <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
                 </PopoverContent>
             </Popover>
+            <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString()} />
         </div>
         <div className="space-y-2">
             <Label htmlFor="nationalities">Nationality(ies)</Label>
@@ -200,6 +211,7 @@ function JobRequirementsSection() {
                     <Calendar mode="single" selected={availableStartDate} onSelect={setAvailableStartDate} initialFocus />
                 </PopoverContent>
             </Popover>
+            <input type="hidden" name="availableStartDate" value={availableStartDate?.toISOString()} />
         </div>
         <div className="space-y-2">
             <Label>Do you need school transportation “School Bus”?</Label>
@@ -221,7 +233,7 @@ function JobRequirementsSection() {
 }
 
 function EducationalHistorySection() {
-     const [schoolStartDate, setSchoolStartDate] = useState<Date | undefined>();
+    const [schoolStartDate, setSchoolStartDate] = useState<Date | undefined>();
     const [schoolEndDate, setSchoolEndDate] = useState<Date | undefined>();
     const [universityStartDate, setUniversityStartDate] = useState<Date | undefined>();
     const [universityEndDate, setUniversityEndDate] = useState<Date | undefined>();
@@ -239,7 +251,9 @@ function EducationalHistorySection() {
                 <Input name="school_cityCountry" placeholder="City, Country" />
                 <Input name="school_overall" placeholder="Overall" />
                 <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolStartDate ? format(schoolStartDate, "PPP") : <span>From</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolStartDate} onSelect={setSchoolStartDate} /></PopoverContent></Popover>
+                <input type="hidden" name="school_startDate" value={schoolStartDate?.toISOString()} />
                 <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolEndDate ? format(schoolEndDate, "PPP") : <span>To</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolEndDate} onSelect={setSchoolEndDate} /></PopoverContent></Popover>
+                <input type="hidden" name="school_endDate" value={schoolEndDate?.toISOString()} />
                 <div className="col-span-2"><RadioGroup name="school_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="school-completed-yes" /><Label htmlFor="school-completed-yes">Completed</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="school-completed-no" /><Label htmlFor="school-completed-no">Not Completed</Label></div></RadioGroup></div>
             </div>
         </div>
@@ -253,7 +267,9 @@ function EducationalHistorySection() {
                 <Input name="university_cityCountry" placeholder="City, Country" />
                 <Input name="university_overall" placeholder="Overall" />
                 <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityStartDate ? format(universityStartDate, "PPP") : <span>From</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityStartDate} onSelect={setUniversityStartDate} /></PopoverContent></Popover>
+                <input type="hidden" name="university_startDate" value={universityStartDate?.toISOString()} />
                 <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityEndDate ? format(universityEndDate, "PPP") : <span>To</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityEndDate} onSelect={setUniversityEndDate} /></PopoverContent></Popover>
+                <input type="hidden" name="university_endDate" value={universityEndDate?.toISOString()} />
                 <div className="col-span-2"><RadioGroup name="university_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="uni-completed-yes" /><Label htmlFor="uni-completed-yes">Completed</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="uni-completed-no" /><Label htmlFor="uni-completed-no">Not Completed</Label></div></RadioGroup></div>
             </div>
         </div>
@@ -435,9 +451,32 @@ function WorkExperienceSection() {
 
 export default function CreateApplicationPage() {
   const [step, setStep] = useState(1);
+  const router = useRouter();
+  const [state, formAction] = useActionState(applyForJobAction, initialState);
+  const { toast } = useToast();
+  const [isSubmitting, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (state.success && state.message) {
+      toast({ title: "Success", description: state.message });
+      router.push('/nis');
+    } else if (!state.success && state.message) {
+      toast({ title: "Error", description: state.message, variant: "destructive" });
+    }
+  }, [state, toast, router]);
 
   const nextStep = () => setStep(s => s + 1);
   const prevStep = () => setStep(s => s - 1);
+  
+  const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const payload = Object.fromEntries(formData.entries()) as any;
+    
+    startTransition(() => {
+      formAction(payload);
+    })
+  };
 
   const renderStep = () => {
     switch (step) {
@@ -467,7 +506,7 @@ export default function CreateApplicationPage() {
                 <CardDescription>All fields marked with * are required.</CardDescription>
             </CardHeader>
             <CardContent>
-                <form>
+                <form onSubmit={handleFormSubmit}>
                     {renderStep()}
                     <div className="flex justify-between mt-8">
                         {step > 1 && (
@@ -482,7 +521,8 @@ export default function CreateApplicationPage() {
                                 <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
                         ) : (
-                            <Button type="submit">
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Submit Application
                             </Button>
                         )}

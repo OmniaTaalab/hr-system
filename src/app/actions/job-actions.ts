@@ -449,5 +449,3 @@ export async function manageApplicationTemplateAction(
     };
   }
 }
-
-    
