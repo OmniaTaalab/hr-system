@@ -38,6 +38,7 @@ import { collection, onSnapshot, query, orderBy, Timestamp } from "firebase/fire
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Application = {
   id: string;
