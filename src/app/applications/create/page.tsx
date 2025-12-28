@@ -168,10 +168,10 @@ function JobRequirementsSection() {
                 <div className="flex items-center space-x-2"><RadioGroupItem value="International" id="school-international" /><Label htmlFor="school-international">International</Label></div>
             </RadioGroup>
         </div>
-        {schoolType === 'National' && (
+        {(schoolType === 'National' || schoolType === 'International') && (
         <div className="space-y-2">
-            <Label htmlFor="nationalCampus">National Campus</Label>
-            <Select name="nationalCampus" disabled={isLoadingCampuses}>
+            <Label htmlFor="campus">Campus</Label>
+            <Select name="campus" disabled={isLoadingCampuses}>
                 <SelectTrigger>
                     <SelectValue placeholder={isLoadingCampuses ? "Loading campuses..." : "Select a campus"} />
                 </SelectTrigger>
