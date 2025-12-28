@@ -128,7 +128,7 @@ export type ApplyForJobState = {
   success?: boolean;
   applicationId?: string; // Add this to return the new ID
 };
-export const JobApplicationSchema = z.object({
+const JobApplicationSchema = z.object({
   /** Job Meta */
   jobId: z.string(),
   jobTitle: z.string(),
@@ -208,7 +208,7 @@ export const JobApplicationSchema = z.object({
   diploma2_institution: optionalString,
   diploma2_completed: optionalString,
 
-  /** Languages (dynamic but ثابتة عندك) */
+  /** Languages (dynamic but sabitah 3ndak) */
   lang_english_speak: optionalString,
   lang_english_understand: optionalString,
   lang_english_read: optionalString,
@@ -247,7 +247,7 @@ export const JobApplicationSchema = z.object({
   /** Work Experience */
   workExperience: z.array(WorkExperienceSchema).optional().nullable(),
 
-}).passthrough(); // 👈 يسمح بأي field إضافي
+}).passthrough(); // Allow any additional fields
 
 export async function applyForJobAction(
   payload: JobApplicationPayload,
