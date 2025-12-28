@@ -235,7 +235,7 @@ const JobApplicationSchema = z.object({
 export type JobApplicationPayload = z.infer<typeof JobApplicationSchema>;
 
 export type ApplyForJobState = {
-  errors?: z.ZodError<JobApplicationPayload>['formErrors']['fieldErrors'];
+  errors?: z.ZodError<JobApplicationPayload>['formErrors']['fieldErrors'] & { form?: string[] };
   message?: string | null;
   success?: boolean;
   applicationId?: string; // Add this to return the new ID
@@ -247,6 +247,7 @@ export async function applyForJobAction(
   const validatedFields = JobApplicationSchema.safeParse(payload);
   
   if (!validatedFields.success) {
+    console.error("Validation Errors:", validatedFields.error.flatten().fieldErrors);
     return {
       errors: validatedFields.error.flatten().fieldErrors,
       message: 'Validation failed. Please check your input.',

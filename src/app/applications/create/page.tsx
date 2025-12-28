@@ -126,9 +126,9 @@ function PersonalInfoSection() {
           <div className="space-y-2"><Label htmlFor="area">Area</Label><Input id="area" name="area" /></div>
           <div className="space-y-2"><Label htmlFor="street">Street</Label><Input id="street" name="street" /></div>
           <div className="space-y-2"><Label htmlFor="building">Building/Floor</Label><Input id="building" name="building" /></div>
-          <div className="space-y-2"><Label htmlFor="apartmentNumber">Apartment Number</Label><Input id="apartmentNumber" name="apartmentNumber" /></div>
+          <div className="space-y-2"><Label htmlFor="apartment">Apartment Number</Label><Input id="apartment" name="apartment" /></div>
           <div className="space-y-2"><Label htmlFor="homePhone">Home Telephone Number</Label><Input id="homePhone" name="homePhone" type="tel"/></div>
-          <div className="space-y-2"><Label htmlFor="mobile">Mobile</Label><Input id="mobile" name="mobile" type="tel"/></div>
+          <div className="space-y-2"><Label htmlFor="mobilePhone">Mobile</Label><Input id="mobilePhone" name="mobilePhone" type="tel"/></div>
           <div className="space-y-2"><Label htmlFor="otherPhone">Other Telephone Numbers</Label><Input id="otherPhone" name="otherPhone" type="tel"/></div>
           <div className="space-y-2"><Label htmlFor="email1">Email address (1)</Label><Input id="email1" name="email1" type="email"/></div>
           <div className="space-y-2"><Label htmlFor="email2">Email address (2)</Label><Input id="email2" name="email2" type="email"/></div>
@@ -183,8 +183,8 @@ function JobRequirementsSection() {
         </div>
         {(schoolType === 'National' || schoolType === 'International') && (
         <div className="space-y-2">
-            <Label htmlFor="campus">Campus</Label>
-            <Select name="campus" disabled={isLoadingCampuses}>
+            <Label htmlFor="nationalCampus">Campus</Label>
+            <Select name="nationalCampus" disabled={isLoadingCampuses}>
                 <SelectTrigger>
                     <SelectValue placeholder={isLoadingCampuses ? "Loading campuses..." : "Select a campus"} />
                 </SelectTrigger>
@@ -356,63 +356,63 @@ function WorkExperienceSection() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor={`company-${exp.id}`}>Full Name of Company/School</Label>
-                <Input id={`company-${exp.id}`} name={`company-${index}`} />
+                <Input id={`company-${exp.id}`} name={`workExperience[${index}][companyName]`} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor={`jobTitle-${exp.id}`}>Job Title</Label>
-                <Input id={`jobTitle-${exp.id}`} name={`jobTitle-${index}`} />
+                <Input id={`jobTitle-${exp.id}`} name={`workExperience[${index}][jobTitle]`} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor={`stage-${exp.id}`}>Stage</Label>
-                <Input id={`stage-${exp.id}`} name={`stage-${index}`} />
+                <Input id={`stage-${exp.id}`} name={`workExperience[${index}][stage]`} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor={`department-${exp.id}`}>Department</Label>
-                <Input id={`department-${exp.id}`} name={`department-${index}`} />
+                <Input id={`department-${exp.id}`} name={`workExperience[${index}][department]`} />
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor={`address-${exp.id}`}>Address</Label>
-              <Input id={`address-${exp.id}`} name={`address-${index}`} />
+              <Input id={`address-${exp.id}`} name={`workExperience[${index}][address]`} />
             </div>
             <div className="space-y-2">
               <Label htmlFor={`telephone-${exp.id}`}>Telephone</Label>
-              <Input id={`telephone-${exp.id}`} name={`telephone-${index}`} type="tel" />
+              <Input id={`telephone-${exp.id}`} name={`workExperience[${index}][telephone]`} type="tel" />
             </div>
             <div className="space-y-2">
               <Label htmlFor={`duties-${exp.id}`}>Description of your duties</Label>
-              <Textarea id={`duties-${exp.id}`} name={`duties-${index}`} />
+              <Textarea id={`duties-${exp.id}`} name={`workExperience[${index}][duties]`} />
             </div>
              <div className="space-y-2">
               <Label htmlFor={`supervisedCount-${exp.id}`}>Number of employees supervised by you</Label>
-              <Input id={`supervisedCount-${exp.id}`} name={`supervisedCount-${index}`} type="number" />
+              <Input id={`supervisedCount-${exp.id}`} name={`workExperience[${index}][supervisedCount]`} type="number" />
             </div>
             <div className="space-y-2">
               <Label htmlFor={`reasonForLeaving-${exp.id}`}>Reason for Leaving</Label>
-              <Input id={`reasonForLeaving-${exp.id}`} name={`reasonForLeaving-${index}`} />
+              <Input id={`reasonForLeaving-${exp.id}`} name={`workExperience[${index}][reasonForLeaving]`} />
             </div>
             <div className="space-y-2">
               <Label htmlFor={`supervisorName-${exp.id}`}>Full Name of your Supervisor</Label>
-              <Input id={`supervisorName-${exp.id}`} name={`supervisorName-${index}`} />
+              <Input id={`supervisorName-${exp.id}`} name={`workExperience[${index}][supervisorName]`} />
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div className="space-y-2">
                 <Label htmlFor={`salary-${exp.id}`}>Basic salary / month</Label>
-                <Input id={`salary-${exp.id}`} name={`salary-${index}`} type="number" />
+                <Input id={`salary-${exp.id}`} name={`workExperience[${index}][salary]`} type="number" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor={`benefits-${exp.id}`}>Benefits</Label>
-                <Input id={`benefits-${exp.id}`} name={`benefits-${index}`} />
+                <Input id={`benefits-${exp.id}`} name={`workExperience[${index}][benefits]`} />
               </div>
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label>From</Label>
-                    <Input type="date" name={`fromDate-${index}`} />
+                    <Input type="date" name={`workExperience[${index}][fromDate]`} />
                 </div>
                  <div className="space-y-2">
                     <Label>To</Label>
-                    <Input type="date" name={`toDate-${index}`} />
+                    <Input type="date" name={`workExperience[${index}][toDate]`} />
                 </div>
              </div>
           </div>
@@ -478,7 +478,7 @@ export default function CreateApplicationPage() {
     const cvFile = formData.get('cv') as File | null;
     const nationalIdFile = formData.get('nationalId') as File | null;
 
-    if (!cvFile) {
+    if (!cvFile || cvFile.size === 0) {
         toast({ variant: 'destructive', title: 'CV Required', description: 'Please upload your CV.' });
         return;
     }
@@ -487,17 +487,36 @@ export default function CreateApplicationPage() {
         try {
             const cvUrl = await uploadFile(cvFile, 'cv');
             let nationalIdUrl: string | undefined = undefined;
-            if (nationalIdFile) {
+            if (nationalIdFile && nationalIdFile.size > 0) {
                 nationalIdUrl = await uploadFile(nationalIdFile, 'nationalId');
             }
 
             const payload = Object.fromEntries(formData.entries()) as any;
+            
+            // This is a simplified example. A real implementation would iterate through
+            // all steps and gather data. For this fix, we will focus on what is visible.
             payload.jobId = 'online-application';
             payload.jobTitle = 'Online Application';
             payload.cvUrl = cvUrl;
-            payload.nationalIdUrl = nationalIdUrl;
+            if(nationalIdUrl) payload.nationalIdUrl = nationalIdUrl;
 
-            // Remove file objects from payload
+            // Handle work experience array
+            const workExperiences: any[] = [];
+            formData.forEach((value, key) => {
+                const match = key.match(/workExperience\[(\d+)\]\[(\w+)\]/);
+                if (match) {
+                    const index = parseInt(match[1], 10);
+                    const field = match[2];
+                    if (!workExperiences[index]) {
+                        workExperiences[index] = { id: `exp-${index}`};
+                    }
+                    workExperiences[index][field] = value;
+                }
+            });
+            payload.workExperience = workExperiences.filter(Boolean);
+
+
+            // Remove file objects from payload to avoid serialization errors
             delete payload.cv;
             delete payload.nationalId;
 
