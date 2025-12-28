@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useOrganizationLists } from "@/hooks/use-organization-lists";
 
 function PersonalInfoSection() {
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
@@ -125,6 +126,9 @@ function PersonalInfoSection() {
 
 function JobRequirementsSection() {
     const [availableStartDate, setAvailableStartDate] = useState<Date | undefined>();
+    const [schoolType, setSchoolType] = useState<string>('');
+    const { campuses, isLoading: isLoadingCampuses } = useOrganizationLists();
+
     return (
     <div className="space-y-6">
         <h3 className="text-xl font-semibold border-b pb-2">Job Requirements</h3>
@@ -159,15 +163,26 @@ function JobRequirementsSection() {
         </div>
         <div className="space-y-2">
             <Label>School Type Experience</Label>
-            <RadioGroup name="schoolType" className="flex gap-4">
+            <RadioGroup name="schoolType" onValueChange={setSchoolType} className="flex gap-4">
                 <div className="flex items-center space-x-2"><RadioGroupItem value="National" id="school-national" /><Label htmlFor="school-national">National</Label></div>
                 <div className="flex items-center space-x-2"><RadioGroupItem value="International" id="school-international" /><Label htmlFor="school-international">International</Label></div>
             </RadioGroup>
         </div>
+        {schoolType === 'National' && (
         <div className="space-y-2">
             <Label htmlFor="nationalCampus">National Campus</Label>
-            <Input id="nationalCampus" name="nationalCampus" />
+            <Select name="nationalCampus" disabled={isLoadingCampuses}>
+                <SelectTrigger>
+                    <SelectValue placeholder={isLoadingCampuses ? "Loading campuses..." : "Select a campus"} />
+                </SelectTrigger>
+                <SelectContent>
+                    {campuses.map(campus => (
+                        <SelectItem key={campus.id} value={campus.name}>{campus.name}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
         </div>
+        )}
         <div className="space-y-2">
             <Label htmlFor="noticePeriod">Minimum notice period in days to leave your current job</Label>
             <Input id="noticePeriod" name="noticePeriod" type="number" min="0" />
