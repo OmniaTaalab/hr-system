@@ -70,6 +70,11 @@ export const navItems: NavItem[] = [
     external: true,
   },
   {
+    i18nKey: 'sidebar.nis',
+    href: '/nis',
+    iconName: 'FileText',
+  },
+  {
     i18nKey: 'sidebar.system_log',
     href: '/system-logs',
     iconName: 'Eye',
