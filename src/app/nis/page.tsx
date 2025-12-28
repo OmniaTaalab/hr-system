@@ -92,9 +92,9 @@ export default function ApplicationViewPage() {
                         
                         <h3 className="font-semibold text-lg flex items-center"><User className="mr-2" /> Personal Information</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <DetailItem label="Full Name (English)" value={`${application.firstNameEn} ${application.middleNameEn || ''} ${application.lastNameEn}`} icon={User} />
-                           <DetailItem label="Full Name (Arabic)" value={`${application.firstNameAr} ${application.fatherNameAr || ''} ${application.familyNameAr}`} icon={User} />
-                           <DetailItem label="Date of Birth" value={application.dateOfBirth ? format(new Date(application.dateOfBirth.seconds * 1000), 'PPP') : '-'} icon={CalendarIcon} />
+                           <DetailItem label="Full Name (English)" value={`${application.firstNameEn || ''} ${application.middleNameEn || ''} ${application.lastNameEn || ''}`.trim()} icon={User} />
+                           <DetailItem label="Full Name (Arabic)" value={`${application.firstNameAr || ''} ${application.fatherNameAr || ''} ${application.familyNameAr || ''}`.trim()} icon={User} />
+                           <DetailItem label="Date of Birth" value={application.dateOfBirth ? format(new Date(application.dateOfBirth), 'PPP') : '-'} icon={CalendarIcon} />
                            <DetailItem label="Contact Email" value={application.email1} icon={Mail} />
                            <DetailItem label="Contact Phone" value={application.mobilePhone} icon={Phone} />
                         </div>
