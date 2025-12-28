@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Calendar as CalendarIcon, ArrowRight, ArrowLeft, PlusCircle, Trash2, UploadCloud, Loader2 } from "lucide-react";
-import { useState, useActionState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useRef } from "react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,6 +21,8 @@ import { useRouter } from "next/navigation";
 import { applyForJobAction, type ApplyForJobState, type JobApplicationPayload } from "@/app/actions/job-actions";
 import { useToast } from "@/hooks/use-toast";
 import { nanoid } from 'nanoid';
+import { storage } from "@/lib/firebase/config";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const initialState: ApplyForJobState = {
   message: null,
@@ -452,9 +454,11 @@ function WorkExperienceSection() {
 export default function CreateApplicationPage() {
   const [step, setStep] = useState(1);
   const router = useRouter();
-  const [state, formAction] = useActionState(applyForJobAction, initialState);
+  const [state, setState] = useState(initialState);
   const { toast } = useToast();
   const [isSubmitting, startTransition] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
+
 
   useEffect(() => {
     if (state.success && state.message) {
@@ -468,19 +472,52 @@ export default function CreateApplicationPage() {
   const nextStep = () => setStep(s => s + 1);
   const prevStep = () => setStep(s => s - 1);
   
-  const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const payload = Object.fromEntries(formData.entries()) as any;
-    
-    // Add a dummy jobId and jobTitle as they are required by the schema
-    payload.jobId = 'online-application';
-    payload.jobTitle = 'Online Application';
+    const cvFile = formData.get('cv') as File | null;
+    const nationalIdFile = formData.get('nationalId') as File | null;
 
-    startTransition(() => {
-      formAction(payload);
-    })
+    if (!cvFile) {
+        toast({ variant: 'destructive', title: 'CV Required', description: 'Please upload your CV.' });
+        return;
+    }
+
+    startTransition(async () => {
+        try {
+            const cvUrl = await uploadFile(cvFile, 'cv');
+            let nationalIdUrl: string | undefined = undefined;
+            if (nationalIdFile) {
+                nationalIdUrl = await uploadFile(nationalIdFile, 'nationalId');
+            }
+
+            const payload = Object.fromEntries(formData.entries()) as any;
+            payload.jobId = 'online-application';
+            payload.jobTitle = 'Online Application';
+            payload.cvUrl = cvUrl;
+            payload.nationalIdUrl = nationalIdUrl;
+
+            // Remove file objects from payload
+            delete payload.cv;
+            delete payload.nationalId;
+
+            const result = await applyForJobAction(payload);
+            setState(result);
+
+        } catch (error) {
+            console.error("Submission error:", error);
+            setState({ success: false, message: "An error occurred during file upload." });
+        }
+    });
   };
+
+  const uploadFile = async (file: File, type: string): Promise<string> => {
+    const filePath = `online-applications/${nanoid()}-${type}-${file.name}`;
+    const fileRef = ref(storage, filePath);
+    const snapshot = await uploadBytes(fileRef, file);
+    return getDownloadURL(snapshot.ref);
+  };
+
 
   const renderStep = () => {
     switch (step) {
@@ -510,7 +547,7 @@ export default function CreateApplicationPage() {
                 <CardDescription>All fields marked with * are required.</CardDescription>
             </CardHeader>
             <CardContent>
-                <form onSubmit={handleFormSubmit}>
+                <form ref={formRef} onSubmit={handleFormSubmit}>
                     {renderStep()}
                     <div className="flex justify-between mt-8">
                         {step > 1 && (

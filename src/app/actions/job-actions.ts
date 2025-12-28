@@ -242,34 +242,30 @@ export type ApplyForJobState = {
 };
 
 export async function applyForJobAction(
-  prevState: ApplyForJobState,
   payload: JobApplicationPayload
 ): Promise<ApplyForJobState> {
-
-  // As fields are dynamic, we only validate that required fields for any application are present.
-  // The client-side logic will ensure that fields selected for the job are actually submitted.
-   if (!payload.jobId || !payload.jobTitle) {
+  const validatedFields = JobApplicationSchema.safeParse(payload);
+  
+  if (!validatedFields.success) {
     return {
-      // @ts-ignore
-      errors: { form: ["Core information (Job ID, Title) is missing."] },
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Validation failed. Please check your input.',
       success: false,
     };
   }
   
-  const { jobId, jobTitle, cvUrl, ...applicationData } = payload;
+  const { jobId, jobTitle, ...applicationData } = validatedFields.data;
 
   try {
-    // Change collection from "jobApplications" to "nis"
     const newApplicationRef = await addDoc(collection(db, "nis"), {
       jobId,
       jobTitle,
-      cvUrl: cvUrl ?? null,
       ...applicationData,
       submittedAt: serverTimestamp(),
     });
 
     await logSystemEvent("Apply for Job", {
-        actorEmail: (applicationData as any).email1, // Applicant is the actor
+        actorEmail: applicationData.email1,
         applicationId: newApplicationRef.id,
         jobTitle,
     });
@@ -277,12 +273,11 @@ export async function applyForJobAction(
     return { 
         success: true, 
         message: "Your application has been submitted successfully! We will get back to you soon.",
-        applicationId: newApplicationRef.id // Return the new document ID
+        applicationId: newApplicationRef.id
     };
   } catch (error: any) {
     console.error("Error submitting application to Firestore:", error);
     return {
-      // @ts-ignore
       errors: { form: ["Failed to save application to our database. An unexpected error occurred."] },
       message: `Error: ${error.message}`,
       success: false,
