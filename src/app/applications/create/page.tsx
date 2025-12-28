@@ -567,7 +567,25 @@ export default function CreateApplicationPage() {
             </CardHeader>
             <CardContent>
                 <form ref={formRef} onSubmit={handleFormSubmit}>
-                    {renderStep()}
+                 <div className={step === 1 ? "block" : "hidden"}>
+  <PersonalInfoSection />
+</div>
+
+<div className={step === 2 ? "block" : "hidden"}>
+  <JobRequirementsSection />
+</div>
+
+<div className={step === 3 ? "block" : "hidden"}>
+  <EducationalHistorySection />
+</div>
+
+<div className={step === 4 ? "block" : "hidden"}>
+  <LanguageAndSkillsSection />
+</div>
+
+<div className={step === 5 ? "block" : "hidden"}>
+  <WorkExperienceSection />
+</div>
                     <div className="flex justify-between mt-8">
                         {step > 1 && (
                             <Button type="button" variant="outline" onClick={prevStep}>

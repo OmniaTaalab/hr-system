@@ -181,6 +181,7 @@ const JobApplicationSchema = z.object({
   availableStartDate: optionalString,
   needsBus: optionalString,
   insideContact: optionalString,
+  contactedByHR: z.string().optional().nullable(),
 
   /** Education */
   school_name: optionalString,
@@ -255,6 +256,7 @@ export async function applyForJobAction(
   const validatedFields = JobApplicationSchema.safeParse(payload);
 
   if (!validatedFields.success) {
+      
     console.error("Validation Error:", validatedFields.error.flatten());
     return {
       success: false,
