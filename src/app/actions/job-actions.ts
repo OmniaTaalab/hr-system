@@ -163,8 +163,18 @@ const JobApplicationSchema = z.object({
   mobilePhone: optionalString,
   otherPhone: optionalString,
 
-  email1: z.string().email().optional().nullable(),
-  email2: z.string().email().optional().nullable(),
+  email1:  z
+  .string()
+  .email()
+  .optional()
+  .nullable()
+  .or(z.literal("")),
+  email2:  z
+  .string()
+  .email()
+  .optional()
+  .nullable()
+  .or(z.literal("")),
 
   /** Job Requirements */
   howDidYouHear: optionalString,
