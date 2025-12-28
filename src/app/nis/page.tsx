@@ -7,9 +7,11 @@ import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import { AppLayout } from '@/components/layout/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, User, Briefcase, GraduationCap, Building, Languages, Phone, Mail, FileText, CheckCircle } from 'lucide-react';
+import { Loader2, User, Briefcase, GraduationCap, Building, Languages, Phone, Mail, FileText, CheckCircle, Calendar as CalendarIcon, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+
 
 function DetailItem({ label, value, icon: Icon }: { label: string; value?: string | number | null; icon: React.ElementType }) {
     if (!value) return null;
@@ -41,7 +43,8 @@ export default function ApplicationViewPage() {
         const fetchApplication = async () => {
             setIsLoading(true);
             try {
-                const docRef = doc(db, 'jobApplications', applicationId);
+                // Fetch from 'nis' collection instead of 'jobApplications'
+                const docRef = doc(db, 'nis', applicationId);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     setApplication({ id: docSnap.id, ...docSnap.data() });

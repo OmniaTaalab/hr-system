@@ -238,6 +238,7 @@ export type ApplyForJobState = {
   errors?: z.ZodError<JobApplicationPayload>['formErrors']['fieldErrors'];
   message?: string | null;
   success?: boolean;
+  applicationId?: string; // Add this to return the new ID
 };
 
 export async function applyForJobAction(
@@ -258,7 +259,8 @@ export async function applyForJobAction(
   const { jobId, jobTitle, cvUrl, ...applicationData } = payload;
 
   try {
-    const newApplicationRef = await addDoc(collection(db, "jobApplications"), {
+    // Change collection from "jobApplications" to "nis"
+    const newApplicationRef = await addDoc(collection(db, "nis"), {
       jobId,
       jobTitle,
       cvUrl: cvUrl ?? null,
@@ -272,7 +274,11 @@ export async function applyForJobAction(
         jobTitle,
     });
 
-    return { success: true, message: "Your application has been submitted successfully! We will get back to you soon." };
+    return { 
+        success: true, 
+        message: "Your application has been submitted successfully! We will get back to you soon.",
+        applicationId: newApplicationRef.id // Return the new document ID
+    };
   } catch (error: any) {
     console.error("Error submitting application to Firestore:", error);
     return {

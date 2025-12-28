@@ -459,7 +459,7 @@ export default function CreateApplicationPage() {
   useEffect(() => {
     if (state.success && state.message) {
       toast({ title: "Success", description: state.message });
-      router.push('/nis');
+      router.push(`/nis?id=${state.applicationId}`); // Redirect with the new ID
     } else if (!state.success && state.message) {
       toast({ title: "Error", description: state.message, variant: "destructive" });
     }
@@ -473,6 +473,10 @@ export default function CreateApplicationPage() {
     const formData = new FormData(event.currentTarget);
     const payload = Object.fromEntries(formData.entries()) as any;
     
+    // Add a dummy jobId and jobTitle as they are required by the schema
+    payload.jobId = 'online-application';
+    payload.jobTitle = 'Online Application';
+
     startTransition(() => {
       formAction(payload);
     })
