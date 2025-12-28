@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon, ArrowRight, ArrowLeft, PlusCircle, Trash2 } from "lucide-react";
+import { Calendar as CalendarIcon, ArrowRight, ArrowLeft, PlusCircle, Trash2, UploadCloud } from "lucide-react";
 import { useState } from "react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -319,31 +319,118 @@ function LanguageAndSkillsSection() {
 }
 
 function WorkExperienceSection() {
-     const [workExperiences, setWorkExperiences] = useState<{id: string}[]>([]);
-     const handleAddWorkExperience = () => setWorkExperiences(prev => [...prev, { id: `exp-${Date.now()}` }]);
-     const handleRemoveWorkExperience = (id: string) => setWorkExperiences(prev => prev.filter(exp => exp.id !== id));
+  const [workExperiences, setWorkExperiences] = useState<{ id: string }[]>([]);
+  const handleAddWorkExperience = () => setWorkExperiences(prev => [...prev, { id: `exp-${Date.now()}` }]);
+  const handleRemoveWorkExperience = (id: string) => setWorkExperiences(prev => prev.filter(exp => exp.id !== id));
 
-    return (
-        <div className="space-y-6">
-            <h3 className="text-xl font-semibold border-b pb-2">Work Experience</h3>
-             <div className="space-y-4">
-              {workExperiences.map((exp, index) => (
-                  <div key={exp.id} className="p-4 border rounded-lg space-y-4 relative">
-                      <div className="grid grid-cols-2 gap-4">
-                          <Input placeholder="Company/School Name" />
-                          <Input placeholder="Job Title" />
-                      </div>
-                      <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={() => handleRemoveWorkExperience(exp.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                  </div>
-              ))}
-              <Button type="button" variant="outline" onClick={handleAddWorkExperience}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add Work Experience
+  return (
+    <div className="space-y-6">
+      <h3 className="text-xl font-semibold border-b pb-2">Work Experience</h3>
+      <p className="text-sm text-muted-foreground">Starting with the present post, but in reverse the order of every employment you have had. Use a separate block for each post.</p>
+      
+      <div className="space-y-4">
+        {workExperiences.map((exp, index) => (
+          <div key={exp.id} className="p-4 border rounded-lg space-y-4 relative">
+             <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={() => handleRemoveWorkExperience(exp.id)}>
+                <Trash2 className="h-4 w-4" />
+                <span className="sr-only">Remove Work Experience</span>
               </Button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor={`company-${exp.id}`}>Full Name of Company/School</Label>
+                <Input id={`company-${exp.id}`} name={`company-${index}`} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`jobTitle-${exp.id}`}>Job Title</Label>
+                <Input id={`jobTitle-${exp.id}`} name={`jobTitle-${index}`} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`stage-${exp.id}`}>Stage</Label>
+                <Input id={`stage-${exp.id}`} name={`stage-${index}`} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`department-${exp.id}`}>Department</Label>
+                <Input id={`department-${exp.id}`} name={`department-${index}`} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`address-${exp.id}`}>Address</Label>
+              <Input id={`address-${exp.id}`} name={`address-${index}`} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`telephone-${exp.id}`}>Telephone</Label>
+              <Input id={`telephone-${exp.id}`} name={`telephone-${index}`} type="tel" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`duties-${exp.id}`}>Description of your duties</Label>
+              <Textarea id={`duties-${exp.id}`} name={`duties-${index}`} />
+            </div>
+             <div className="space-y-2">
+              <Label htmlFor={`supervisedCount-${exp.id}`}>Number of employees supervised by you</Label>
+              <Input id={`supervisedCount-${exp.id}`} name={`supervisedCount-${index}`} type="number" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`reasonForLeaving-${exp.id}`}>Reason for Leaving</Label>
+              <Input id={`reasonForLeaving-${exp.id}`} name={`reasonForLeaving-${index}`} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`supervisorName-${exp.id}`}>Full Name of your Supervisor</Label>
+              <Input id={`supervisorName-${exp.id}`} name={`supervisorName-${index}`} />
+            </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="space-y-2">
+                <Label htmlFor={`salary-${exp.id}`}>Basic salary / month</Label>
+                <Input id={`salary-${exp.id}`} name={`salary-${index}`} type="number" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`benefits-${exp.id}`}>Benefits</Label>
+                <Input id={`benefits-${exp.id}`} name={`benefits-${index}`} />
+              </div>
+            </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>From</Label>
+                    <Input type="date" name={`fromDate-${index}`} />
+                </div>
+                 <div className="space-y-2">
+                    <Label>To</Label>
+                    <Input type="date" name={`toDate-${index}`} />
+                </div>
+             </div>
+          </div>
+        ))}
+
+        <Button type="button" variant="outline" onClick={handleAddWorkExperience}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Add Work Experience
+        </Button>
+      </div>
+
+      <Separator className="my-8" />
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-2">
+                <Label htmlFor="cv">CV *</Label>
+                <div className="flex items-center gap-2">
+                    <Input id="cv" name="cv" type="file" required className="flex-1" />
+                </div>
+            </div>
+             <div className="space-y-2">
+                <Label htmlFor="nationalId">National ID / Passport</Label>
+                 <div className="flex items-center gap-2">
+                    <Input id="nationalId" name="nationalId" type="file" className="flex-1" />
+                </div>
             </div>
         </div>
-    )
+        
+        <div className="space-y-2 pt-6">
+            <Label>Were you contacted by the school's HR? *</Label>
+            <RadioGroup name="contactedByHR" required className="flex gap-4">
+                <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="hr-yes" /><Label htmlFor="hr-yes">Yes</Label></div>
+                <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="hr-no" /><Label htmlFor="hr-no">No</Label></div>
+            </RadioGroup>
+        </div>
+    </div>
+  );
 }
 
 export default function CreateApplicationPage() {
