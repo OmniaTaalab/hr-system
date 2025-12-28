@@ -461,7 +461,7 @@ export default function CreateApplicationPage() {
 
 
   useEffect(() => {
-    if (state.success && state.message) {
+    if (state.success && state.applicationId) {
       toast({ title: "Success", description: state.message });
       router.push(`/nis?id=${state.applicationId}`); // Redirect with the new ID
     } else if (!state.success && state.message) {
@@ -474,7 +474,7 @@ export default function CreateApplicationPage() {
   
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(formRef.current!);
     const cvFile = formData.get('cv') as File | null;
     const nationalIdFile = formData.get('nationalId') as File | null;
 
@@ -491,16 +491,8 @@ export default function CreateApplicationPage() {
                 nationalIdUrl = await uploadFile(nationalIdFile, 'nationalId');
             }
 
-            const payload = Object.fromEntries(formData.entries()) as any;
-            
-            // This is a simplified example. A real implementation would iterate through
-            // all steps and gather data. For this fix, we will focus on what is visible.
-            payload.jobId = 'online-application';
-            payload.jobTitle = 'Online Application';
-            payload.cvUrl = cvUrl;
-            if(nationalIdUrl) payload.nationalIdUrl = nationalIdUrl;
+            const rawPayload = Object.fromEntries(formData.entries());
 
-            // Handle work experience array
             const workExperiences: any[] = [];
             formData.forEach((value, key) => {
                 const match = key.match(/workExperience\[(\d+)\]\[(\w+)\]/);
@@ -513,12 +505,20 @@ export default function CreateApplicationPage() {
                     workExperiences[index][field] = value;
                 }
             });
-            payload.workExperience = workExperiences.filter(Boolean);
+
+            const payload = {
+              ...rawPayload,
+              jobId: 'online-application',
+              jobTitle: 'Online Application',
+              cvUrl,
+              nationalIdUrl,
+              workExperience: workExperiences.filter(Boolean),
+            } as JobApplicationPayload;
 
 
             // Remove file objects from payload to avoid serialization errors
-            delete payload.cv;
-            delete payload.nationalId;
+            delete (payload as any).cv;
+            delete (payload as any).nationalId;
 
             const result = await applyForJobAction(payload);
             setState(result);

@@ -92,145 +92,33 @@ export async function createJobAction(
   }
 }
 
+const optionalString = z.string().optional().nullable();
+const optionalNumber = z
+  .union([z.string(), z.number()])
+  .optional()
+  .nullable();
+
+/**
+ * Work Experience Schema
+ */
 const WorkExperienceSchema = z.object({
-  id: z.string(),
-  companyName: z.string().optional(),
-  jobTitle: z.string().optional(),
-  stage: z.string().optional(),
-  department: z.string().optional(),
-  address: z.string().optional(),
-  telephone: z.string().optional(),
-  duties: z.string().optional(),
-  supervisedCount: z.coerce.number().optional(),
-  reasonForLeaving: z.string().optional(),
-  supervisorName: z.string().optional(),
-  salary: z.coerce.number().optional(),
-  benefits: z.string().optional(),
-  fromDate: z.coerce.date().optional(),
-  toDate: z.coerce.date().optional(),
+  companyName: optionalString,
+  jobTitle: optionalString,
+  stage: optionalString,
+  department: optionalString,
+  address: optionalString,
+  telephone: optionalString,
+  duties: optionalString,
+  supervisedCount: optionalNumber,
+  reasonForLeaving: optionalString,
+  supervisorName: optionalString,
+  salary: optionalNumber,
+  benefits: optionalString,
+  fromDate: optionalString,
+  toDate: optionalString,
 });
 
-const JobApplicationSchema = z.object({
-    jobId: z.string().min(1, "Job ID is required."),
-    jobTitle: z.string().min(1, "Job Title is required."),
-    cvUrl: z.string().url("A valid CV URL is required.").optional(),
-    nationalIdUrl: z.string().url("A valid National ID URL is required.").optional(),
 
-
-    // Personal Info
-    firstNameEn: z.string().optional(),
-    middleNameEn: z.string().optional(),
-    lastNameEn: z.string().optional(),
-    firstNameAr: z.string().optional(),
-    fatherNameAr: z.string().optional(),
-    familyNameAr: z.string().optional(),
-    dateOfBirth: z.coerce.date().optional(),
-    placeOfBirth: z.string().optional(),
-    nationalities: z.string().optional(),
-    socialTitle: z.enum(["Mr", "Miss", "Mrs"]).optional(),
-    isParentAtNIS: z.enum(["Yes", "No"]).optional(),
-    maritalStatus: z.enum(["Single", "Engaged", "Married", "Divorced", "Separated", "Widowed"]).optional(),
-    numberOfChildren: z.coerce.number().int().nonnegative().optional(),
-    
-    // Address
-    country: z.string().optional(),
-    city: z.string().optional(),
-    area: z.string().optional(),
-    street: z.string().optional(),
-    building: z.string().optional(),
-    apartment: z.string().optional(),
-
-    // Contact
-    homePhone: z.string().optional(),
-    mobilePhone: z.string().optional(),
-    otherPhone: z.string().optional(),
-    email1: z.string().email("A valid email is required.").optional().or(z.literal('')),
-    email2: z.string().email("A valid secondary email is required.").optional().or(z.literal('')),
-
-    // Job Requirements
-    howDidYouHear: z.string().optional(),
-    previouslyWorkedAtNIS: z.enum(["Yes", "No"]).optional(),
-    positionJobTitle: z.string().optional(),
-    positionSubject: z.string().optional(),
-    yearsOfExperience: z.coerce.number().nonnegative().optional(),
-    expectedSalary: z.coerce.number().nonnegative().optional(),
-    schoolType: z.enum(["National", "International"]).optional(),
-    nationalCampus: z.string().optional(),
-    noticePeriod: z.coerce.number().int().nonnegative().optional(),
-    availableStartDate: z.coerce.date().optional(),
-    needsBus: z.enum(["Yes", "No", "Flexible"]).optional(),
-    insideContact: z.enum(["Yes", "No"]).optional(),
-
-    // References
-    reference1_name: z.string().optional(),
-    reference1_jobTitle: z.string().optional(),
-    reference1_company: z.string().optional(),
-    reference1_phone: z.string().optional(),
-    reference2_name: z.string().optional(),
-    reference2_jobTitle: z.string().optional(),
-    reference2_company: z.string().optional(),
-    reference2_phone: z.string().optional(),
-    reference3_name: z.string().optional(),
-    reference3_jobTitle: z.string().optional(),
-    reference3_company: z.string().optional(),
-    reference3_phone: z.string().optional(),
-
-    // Educational History
-    school_name: z.string().optional(),
-    school_major: z.string().optional(),
-    school_cityCountry: z.string().optional(),
-    school_startDate: z.coerce.date().optional(),
-    school_endDate: z.coerce.date().optional(),
-    school_overall: z.string().optional(),
-    school_completed: z.enum(["Yes", "No"]).optional(),
-
-    university_name: z.string().optional(),
-    university_faculty: z.string().optional(),
-    university_major: z.string().optional(),
-    university_cityCountry: z.string().optional(),
-    university_overall: z.string().optional(),
-    university_startDate: z.coerce.date().optional(),
-    university_endDate: z.coerce.date().optional(),
-    university_completed: z.enum(["Yes", "No"]).optional(),
-
-    diploma1_name: z.string().optional(),
-    diploma1_institution: z.string().optional(),
-    diploma1_completed: z.enum(["Yes", "No"]).optional(),
-    diploma2_name: z.string().optional(),
-    diploma2_institution: z.string().optional(),
-    diploma2_completed: z.enum(["Yes", "No"]).optional(),
-
-    // Language & Computer Skills
-    lang_english_speak: z.string().optional(),
-    lang_english_understand: z.string().optional(),
-    lang_english_read: z.string().optional(),
-    lang_english_write: z.string().optional(),
-    lang_english_typing: z.coerce.number().nonnegative().optional(),
-    lang_french_speak: z.string().optional(),
-    lang_french_understand: z.string().optional(),
-    lang_french_read: z.string().optional(),
-    lang_french_write: z.string().optional(),
-    lang_french_typing: z.coerce.number().nonnegative().optional(),
-    lang_arabic_speak: z.string().optional(),
-    lang_arabic_understand: z.string().optional(),
-    lang_arabic_read: z.string().optional(),
-    lang_arabic_write: z.string().optional(),
-    lang_arabic_typing: z.coerce.number().nonnegative().optional(),
-    lang_german_speak: z.string().optional(),
-    lang_german_understand: z.string().optional(),
-    lang_german_read: z.string().optional(),
-    lang_german_write: z.string().optional(),
-    lang_german_typing: z.coerce.number().nonnegative().optional(),
-
-    skill_ms_office: z.string().optional(),
-    skill_smart_board: z.string().optional(),
-    skill_e_learning: z.string().optional(),
-    skill_gclass_zoom: z.string().optional(),
-    skill_oracle_db: z.string().optional(),
-    
-    // Work Experience
-    workExperience: z.array(WorkExperienceSchema).optional(),
-});
 
 export type JobApplicationPayload = z.infer<typeof JobApplicationSchema>;
 
@@ -240,48 +128,160 @@ export type ApplyForJobState = {
   success?: boolean;
   applicationId?: string; // Add this to return the new ID
 };
+export const JobApplicationSchema = z.object({
+  /** Job Meta */
+  jobId: z.string(),
+  jobTitle: z.string(),
+
+  /** Personal Info */
+  firstNameEn: optionalString,
+  middleNameEn: optionalString,
+  lastNameEn: optionalString,
+
+  firstNameAr: optionalString,
+  fatherNameAr: optionalString,
+  familyNameAr: optionalString,
+
+  dateOfBirth: optionalString,
+  nationalities: optionalString,
+  placeOfBirth: optionalString,
+
+  socialTitle: optionalString,
+  maritalStatus: optionalString,
+  isParentAtNIS: optionalString,
+  numberOfChildren: optionalNumber,
+
+  /** Contact */
+  country: optionalString,
+  city: optionalString,
+  area: optionalString,
+  street: optionalString,
+  building: optionalString,
+  apartment: optionalString,
+
+  homePhone: optionalString,
+  mobilePhone: optionalString,
+  otherPhone: optionalString,
+
+  email1: z.string().email().optional().nullable(),
+  email2: z.string().email().optional().nullable(),
+
+  /** Job Requirements */
+  howDidYouHear: optionalString,
+  previouslyWorkedAtNIS: optionalString,
+  positionJobTitle: optionalString,
+  positionSubject: optionalString,
+  yearsOfExperience: optionalNumber,
+  expectedSalary: optionalNumber,
+
+  schoolType: optionalString,
+  nationalCampus: optionalString,
+
+  noticePeriod: optionalNumber,
+  availableStartDate: optionalString,
+  needsBus: optionalString,
+  insideContact: optionalString,
+
+  /** Education */
+  school_name: optionalString,
+  school_major: optionalString,
+  school_cityCountry: optionalString,
+  school_overall: optionalString,
+  school_startDate: optionalString,
+  school_endDate: optionalString,
+  school_completed: optionalString,
+
+  university_name: optionalString,
+  university_faculty: optionalString,
+  university_major: optionalString,
+  university_cityCountry: optionalString,
+  university_overall: optionalString,
+  university_startDate: optionalString,
+  university_endDate: optionalString,
+  university_completed: optionalString,
+
+  diploma1_name: optionalString,
+  diploma1_institution: optionalString,
+  diploma1_completed: optionalString,
+
+  diploma2_name: optionalString,
+  diploma2_institution: optionalString,
+  diploma2_completed: optionalString,
+
+  /** Languages (dynamic but ثابتة عندك) */
+  lang_english_speak: optionalString,
+  lang_english_understand: optionalString,
+  lang_english_read: optionalString,
+  lang_english_write: optionalString,
+  lang_english_typing: optionalNumber,
+
+  lang_french_speak: optionalString,
+  lang_french_understand: optionalString,
+  lang_french_read: optionalString,
+  lang_french_write: optionalString,
+  lang_french_typing: optionalNumber,
+
+  lang_arabic_speak: optionalString,
+  lang_arabic_understand: optionalString,
+  lang_arabic_read: optionalString,
+  lang_arabic_write: optionalString,
+  lang_arabic_typing: optionalNumber,
+
+  lang_german_speak: optionalString,
+  lang_german_understand: optionalString,
+  lang_german_read: optionalString,
+  lang_german_write: optionalString,
+  lang_german_typing: optionalNumber,
+
+  /** Computer Skills */
+  skill_ms_office: optionalString,
+  skill_smart_board: optionalString,
+  skill_e_learning: optionalString,
+  skill_gclass_zoom: optionalString,
+  skill_oracle_db: optionalString,
+
+  /** Files */
+  cvUrl: z.string().url(),
+  nationalIdUrl: z.string().url().optional().nullable(),
+
+  /** Work Experience */
+  workExperience: z.array(WorkExperienceSchema).optional().nullable(),
+
+}).passthrough(); // 👈 يسمح بأي field إضافي
 
 export async function applyForJobAction(
-  payload: JobApplicationPayload
+  payload: JobApplicationPayload,
 ): Promise<ApplyForJobState> {
   const validatedFields = JobApplicationSchema.safeParse(payload);
-  
+
   if (!validatedFields.success) {
-    console.error("Validation Errors:", validatedFields.error.flatten().fieldErrors);
+    console.error("Validation Error:", validatedFields.error.flatten());
     return {
-      errors: validatedFields.error.flatten().fieldErrors,
-      message: 'Validation failed. Please check your input.',
       success: false,
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "Validation failed. Please check the required fields.",
     };
   }
-  
-  const { jobId, jobTitle, ...applicationData } = validatedFields.data;
 
   try {
-    const newApplicationRef = await addDoc(collection(db, "nis"), {
-      jobId,
-      jobTitle,
+    const { ...applicationData } = validatedFields.data;
+
+    const docRef = await addDoc(collection(db, 'nis'), {
       ...applicationData,
       submittedAt: serverTimestamp(),
     });
-
-    await logSystemEvent("Apply for Job", {
-        actorEmail: applicationData.email1,
-        applicationId: newApplicationRef.id,
-        jobTitle,
-    });
-
-    return { 
-        success: true, 
-        message: "Your application has been submitted successfully! We will get back to you soon.",
-        applicationId: newApplicationRef.id
+    
+    return {
+      success: true,
+      message: 'Your application has been submitted successfully!',
+      applicationId: docRef.id,
     };
   } catch (error: any) {
-    console.error("Error submitting application to Firestore:", error);
+    console.error('Error submitting application:', error);
     return {
-      errors: { form: ["Failed to save application to our database. An unexpected error occurred."] },
-      message: `Error: ${error.message}`,
       success: false,
+      message: `An unexpected error occurred: ${error.message}`,
+      errors: { form: ['Database submission failed.'] }
     };
   }
 }
