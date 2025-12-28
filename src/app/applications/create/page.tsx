@@ -10,10 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon, ArrowRight } from "lucide-react";
+import { Calendar as CalendarIcon, ArrowRight, ArrowLeft, PlusCircle, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 function PersonalInfoSection() {
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
@@ -103,30 +105,249 @@ function PersonalInfoSection() {
       <Separator />
 
       <h3 className="text-xl font-semibold border-b pb-2">Contact & Address</h3>
-      <div className="space-y-2">
-        <Label htmlFor="currentAddress">Current Address (Fill only if Available)</Label>
-        <Input id="currentAddress" name="currentAddress" />
-      </div>
-
+      
        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2"><Label htmlFor="country">Country</Label><Input id="country" name="country" /></div>
-          <div className="space-y-2"><Label htmlFor="homePhone">Home Telephone Number</Label><Input id="homePhone" name="homePhone" type="tel"/></div>
-          <div className="space-y-2"><Label htmlFor="area">Area</Label><Input id="area" name="area" /></div>
-          <div className="space-y-2"><Label htmlFor="mobile">Mobile</Label><Input id="mobile" name="mobile" type="tel"/></div>
           <div className="space-y-2"><Label htmlFor="city">City</Label><Input id="city" name="city" /></div>
-          <div className="space-y-2"><Label htmlFor="otherPhone">Other Telephone Numbers</Label><Input id="otherPhone" name="otherPhone" type="tel"/></div>
+          <div className="space-y-2"><Label htmlFor="area">Area</Label><Input id="area" name="area" /></div>
           <div className="space-y-2"><Label htmlFor="street">Street</Label><Input id="street" name="street" /></div>
-          <div className="space-y-2"><Label htmlFor="email1">Email address (1)</Label><Input id="email1" name="email1" type="email"/></div>
-          <div className="space-y-2"><Label htmlFor="buildingFloor">Building/Floor</Label><Input id="buildingFloor" name="buildingFloor" /></div>
-          <div className="space-y-2"><Label htmlFor="email2">Email address (2)</Label><Input id="email2" name="email2" type="email"/></div>
+          <div className="space-y-2"><Label htmlFor="building">Building/Floor</Label><Input id="building" name="building" /></div>
           <div className="space-y-2"><Label htmlFor="apartmentNumber">Apartment Number</Label><Input id="apartmentNumber" name="apartmentNumber" /></div>
+          <div className="space-y-2"><Label htmlFor="homePhone">Home Telephone Number</Label><Input id="homePhone" name="homePhone" type="tel"/></div>
+          <div className="space-y-2"><Label htmlFor="mobile">Mobile</Label><Input id="mobile" name="mobile" type="tel"/></div>
+          <div className="space-y-2"><Label htmlFor="otherPhone">Other Telephone Numbers</Label><Input id="otherPhone" name="otherPhone" type="tel"/></div>
+          <div className="space-y-2"><Label htmlFor="email1">Email address (1)</Label><Input id="email1" name="email1" type="email"/></div>
+          <div className="space-y-2"><Label htmlFor="email2">Email address (2)</Label><Input id="email2" name="email2" type="email"/></div>
        </div>
     </div>
   );
 }
 
+function JobRequirementsSection() {
+    const [availableStartDate, setAvailableStartDate] = useState<Date | undefined>();
+    return (
+    <div className="space-y-6">
+        <h3 className="text-xl font-semibold border-b pb-2">Job Requirements</h3>
+        <div className="space-y-2">
+            <Label htmlFor="howDidYouHear">How did you learn about N.I.S.?</Label>
+            <Input id="howDidYouHear" name="howDidYouHear" />
+        </div>
+        <div className="space-y-2">
+            <Label>Did you previously work at NIS?</Label>
+            <RadioGroup name="previouslyWorkedAtNIS" defaultValue="No" className="flex gap-4">
+                <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="prev-yes" /><Label htmlFor="prev-yes">Yes</Label></div>
+                <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="prev-no" /><Label htmlFor="prev-no">No</Label></div>
+            </RadioGroup>
+        </div>
+         <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+                <Label htmlFor="positionJobTitle">Job Title</Label>
+                <Input id="positionJobTitle" name="positionJobTitle" />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="positionSubject">Subject</Label>
+                <Input id="positionSubject" name="positionSubject" />
+            </div>
+        </div>
+        <div className="space-y-2">
+            <Label htmlFor="yearsOfExperience">Years of Experience in that position</Label>
+            <Input id="yearsOfExperience" name="yearsOfExperience" type="number" min="0" />
+        </div>
+        <div className="space-y-2">
+            <Label htmlFor="expectedSalary">Expected monthly salary</Label>
+            <Input id="expectedSalary" name="expectedSalary" type="number" min="0" />
+        </div>
+        <div className="space-y-2">
+            <Label>School Type Experience</Label>
+            <RadioGroup name="schoolType" className="flex gap-4">
+                <div className="flex items-center space-x-2"><RadioGroupItem value="National" id="school-national" /><Label htmlFor="school-national">National</Label></div>
+                <div className="flex items-center space-x-2"><RadioGroupItem value="International" id="school-international" /><Label htmlFor="school-international">International</Label></div>
+            </RadioGroup>
+        </div>
+        <div className="space-y-2">
+            <Label htmlFor="nationalCampus">National Campus</Label>
+            <Input id="nationalCampus" name="nationalCampus" />
+        </div>
+        <div className="space-y-2">
+            <Label htmlFor="noticePeriod">Minimum notice period in days to leave your current job</Label>
+            <Input id="noticePeriod" name="noticePeriod" type="number" min="0" />
+        </div>
+        <div className="space-y-2">
+            <Label>Available to start work on</Label>
+            <Popover>
+                <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !availableStartDate && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {availableStartDate ? format(availableStartDate, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                    <Calendar mode="single" selected={availableStartDate} onSelect={setAvailableStartDate} initialFocus />
+                </PopoverContent>
+            </Popover>
+        </div>
+        <div className="space-y-2">
+            <Label>Do you need school transportation “School Bus”?</Label>
+            <RadioGroup name="needsBus" className="flex gap-4">
+                <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="bus-yes" /><Label htmlFor="bus-yes">Yes</Label></div>
+                <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="bus-no" /><Label htmlFor="bus-no">No</Label></div>
+                <div className="flex items-center space-x-2"><RadioGroupItem value="Flexible" id="bus-flexible" /><Label htmlFor="bus-flexible">Flexible</Label></div>
+            </RadioGroup>
+        </div>
+        <div className="space-y-2">
+            <Label>Do you have any contacts [relatives, friends] in our School?</Label>
+            <RadioGroup name="insideContact" defaultValue="No" className="flex gap-4">
+                <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="contact-yes" /><Label htmlFor="contact-yes">Yes</Label></div>
+                <div className="flex items-center space-x-2"><RadioGroupItem value="No" id="contact-no" /><Label htmlFor="contact-no">No</Label></div>
+            </RadioGroup>
+        </div>
+    </div>
+    )
+}
+
+function EducationalHistorySection() {
+     const [schoolStartDate, setSchoolStartDate] = useState<Date | undefined>();
+    const [schoolEndDate, setSchoolEndDate] = useState<Date | undefined>();
+    const [universityStartDate, setUniversityStartDate] = useState<Date | undefined>();
+    const [universityEndDate, setUniversityEndDate] = useState<Date | undefined>();
+
+    return (
+    <div className="space-y-6">
+        <h3 className="text-xl font-semibold border-b pb-2">Educational History</h3>
+         <p className="text-sm text-muted-foreground">Please give exact titles in their original language.</p>
+        
+        <div className="p-4 border rounded-lg space-y-4">
+            <Label className="font-medium">School (highest degree)</Label>
+            <div className="grid grid-cols-2 gap-4">
+                <Input name="school_name" placeholder="School Name" />
+                <Input name="school_major" placeholder="Major" />
+                <Input name="school_cityCountry" placeholder="City, Country" />
+                <Input name="school_overall" placeholder="Overall" />
+                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolStartDate ? format(schoolStartDate, "PPP") : <span>From</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolStartDate} onSelect={setSchoolStartDate} /></PopoverContent></Popover>
+                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolEndDate ? format(schoolEndDate, "PPP") : <span>To</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolEndDate} onSelect={setSchoolEndDate} /></PopoverContent></Popover>
+                <div className="col-span-2"><RadioGroup name="school_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="school-completed-yes" /><Label htmlFor="school-completed-yes">Completed</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="school-completed-no" /><Label htmlFor="school-completed-no">Not Completed</Label></div></RadioGroup></div>
+            </div>
+        </div>
+
+        <div className="p-4 border rounded-lg space-y-4">
+            <Label className="font-medium">University</Label>
+            <div className="grid grid-cols-2 gap-4">
+                <Input name="university_name" placeholder="University Name" />
+                <Input name="university_faculty" placeholder="Faculty" />
+                <Input name="university_major" placeholder="Major" />
+                <Input name="university_cityCountry" placeholder="City, Country" />
+                <Input name="university_overall" placeholder="Overall" />
+                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityStartDate ? format(universityStartDate, "PPP") : <span>From</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityStartDate} onSelect={setUniversityStartDate} /></PopoverContent></Popover>
+                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityEndDate ? format(universityEndDate, "PPP") : <span>To</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityEndDate} onSelect={setUniversityEndDate} /></PopoverContent></Popover>
+                <div className="col-span-2"><RadioGroup name="university_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="uni-completed-yes" /><Label htmlFor="uni-completed-yes">Completed</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="uni-completed-no" /><Label htmlFor="uni-completed-no">Not Completed</Label></div></RadioGroup></div>
+            </div>
+        </div>
+
+         <div className="p-4 border rounded-lg space-y-4">
+            <Label className="font-medium">Diplomas & Courses</Label>
+             <div className="grid grid-cols-3 items-center gap-4">
+                 <Input name="diploma1_name" placeholder="Course Name" />
+                 <Input name="diploma1_institution" placeholder="Institution Name" />
+                 <RadioGroup name="diploma1_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="d1-completed-yes" /><Label htmlFor="d1-completed-yes">Yes</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="d1-completed-no" /><Label htmlFor="d1-completed-no">No</Label></div></RadioGroup>
+             </div>
+             <div className="grid grid-cols-3 items-center gap-4">
+                 <Input name="diploma2_name" placeholder="Course Name" />
+                 <Input name="diploma2_institution" placeholder="Institution Name" />
+                 <RadioGroup name="diploma2_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="d2-completed-yes" /><Label htmlFor="d2-completed-yes">Yes</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="d2-completed-no" /><Label htmlFor="d2-completed-no">No</Label></div></RadioGroup>
+             </div>
+        </div>
+    </div>
+    )
+}
+
+function LanguageAndSkillsSection() {
+     const ProficiencySelect = () => (
+        <SelectContent>
+            <SelectItem value="Poor">Poor</SelectItem><SelectItem value="Fair">Fair</SelectItem><SelectItem value="Very good">Very good</SelectItem><SelectItem value="Excellent">Excellent</SelectItem>
+        </SelectContent>
+    );
+     const SkillSelect = () => (
+        <SelectContent>
+            <SelectItem value="None">None</SelectItem><SelectItem value="Beginner">Beginner</SelectItem><SelectItem value="Intermediate">Intermediate</SelectItem><SelectItem value="Advanced">Advanced</SelectItem>
+        </SelectContent>
+    );
+    return (
+    <div className="space-y-6">
+        <h3 className="text-xl font-semibold border-b pb-2">Language & Computer Skills</h3>
+        <div className="p-4 border rounded-lg space-y-4">
+            <Label className="font-medium">Language Skills</Label>
+            {['english', 'french', 'arabic', 'german'].map(lang => (
+                <div key={lang} className="space-y-2">
+                    <Label className="capitalize">{lang}</Label>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                        <Select name={`lang_${lang}_speak`}><SelectTrigger><SelectValue placeholder="Speak" /></SelectTrigger><ProficiencySelect/></Select>
+                        <Select name={`lang_${lang}_understand`}><SelectTrigger><SelectValue placeholder="Understand" /></SelectTrigger><ProficiencySelect/></Select>
+                        <Select name={`lang_${lang}_read`}><SelectTrigger><SelectValue placeholder="Read" /></SelectTrigger><ProficiencySelect/></Select>
+                        <Select name={`lang_${lang}_write`}><SelectTrigger><SelectValue placeholder="Write" /></SelectTrigger><ProficiencySelect/></Select>
+                        <Input name={`lang_${lang}_typing`} type="number" placeholder="w/m" />
+                    </div>
+                </div>
+            ))}
+        </div>
+        <div className="p-4 border rounded-lg space-y-4">
+            <Label className="font-medium">Computer Skills</Label>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>Microsoft Office</Label><Select name="skill_ms_office"><SelectTrigger><SelectValue placeholder="Select level..." /></SelectTrigger><SkillSelect/></Select></div>
+                <div className="space-y-2"><Label>Smart Board</Label><Select name="skill_smart_board"><SelectTrigger><SelectValue placeholder="Select level..." /></SelectTrigger><SkillSelect/></Select></div>
+                <div className="space-y-2"><Label>E-Learning Platforms</Label><Select name="skill_e_learning"><SelectTrigger><SelectValue placeholder="Select level..." /></SelectTrigger><SkillSelect/></Select></div>
+                <div className="space-y-2"><Label>Google Classroom/Zoom</Label><Select name="skill_gclass_zoom"><SelectTrigger><SelectValue placeholder="Select level..." /></SelectTrigger><SkillSelect/></Select></div>
+                 <div className="space-y-2 col-span-2"><Label>Oracle Database</Label><Select name="skill_oracle_db"><SelectTrigger><SelectValue placeholder="Select level..." /></SelectTrigger><SkillSelect/></Select></div>
+            </div>
+        </div>
+    </div>
+    )
+}
+
+function WorkExperienceSection() {
+     const [workExperiences, setWorkExperiences] = useState<{id: string}[]>([]);
+     const handleAddWorkExperience = () => setWorkExperiences(prev => [...prev, { id: `exp-${Date.now()}` }]);
+     const handleRemoveWorkExperience = (id: string) => setWorkExperiences(prev => prev.filter(exp => exp.id !== id));
+
+    return (
+        <div className="space-y-6">
+            <h3 className="text-xl font-semibold border-b pb-2">Work Experience</h3>
+             <div className="space-y-4">
+              {workExperiences.map((exp, index) => (
+                  <div key={exp.id} className="p-4 border rounded-lg space-y-4 relative">
+                      <div className="grid grid-cols-2 gap-4">
+                          <Input placeholder="Company/School Name" />
+                          <Input placeholder="Job Title" />
+                      </div>
+                      <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={() => handleRemoveWorkExperience(exp.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                  </div>
+              ))}
+              <Button type="button" variant="outline" onClick={handleAddWorkExperience}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Work Experience
+              </Button>
+            </div>
+        </div>
+    )
+}
 
 export default function CreateApplicationPage() {
+  const [step, setStep] = useState(1);
+
+  const nextStep = () => setStep(s => s + 1);
+  const prevStep = () => setStep(s => s - 1);
+
+  const renderStep = () => {
+    switch (step) {
+      case 1: return <PersonalInfoSection />;
+      case 2: return <JobRequirementsSection />;
+      case 3: return <EducationalHistorySection />;
+      case 4: return <LanguageAndSkillsSection />;
+      case 5: return <WorkExperienceSection />;
+      default: return <PersonalInfoSection />;
+    }
+  }
+
   return (
     <AppLayout>
       <div className="space-y-8 max-w-4xl mx-auto">
@@ -140,17 +361,29 @@ export default function CreateApplicationPage() {
         </header>
         <Card className="shadow-lg">
             <CardHeader>
-                <CardTitle>Application Form</CardTitle>
+                <CardTitle>Application Form - Step {step} of 5</CardTitle>
                 <CardDescription>All fields marked with * are required.</CardDescription>
             </CardHeader>
             <CardContent>
                 <form>
-                    <PersonalInfoSection />
-                    <div className="flex justify-end mt-8">
-                        <Button type="submit">
-                            Next
-                            <ArrowRight className="ml-2 h-4 w-4" />
-                        </Button>
+                    {renderStep()}
+                    <div className="flex justify-between mt-8">
+                        {step > 1 && (
+                            <Button type="button" variant="outline" onClick={prevStep}>
+                                <ArrowLeft className="mr-2 h-4 w-4" />
+                                Previous
+                            </Button>
+                        )}
+                        {step < 5 ? (
+                             <Button type="button" onClick={nextStep} className={cn(step === 1 && 'ml-auto')}>
+                                Next
+                                <ArrowRight className="ml-2 h-4 w-4" />
+                            </Button>
+                        ) : (
+                            <Button type="submit">
+                                Submit Application
+                            </Button>
+                        )}
                     </div>
                 </form>
             </CardContent>
