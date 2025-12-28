@@ -4,6 +4,7 @@ export interface NavItem {
   href: string;
   iconName: string; 
   disabled?: boolean;
+  external?: boolean; // Add this property
 }
 
 export const navItems: NavItem[] = [
@@ -62,7 +63,12 @@ export const navItems: NavItem[] = [
     href: '/jobs/applications',
     iconName: 'FileText',
   },
-  
+  {
+    i18nKey: 'sidebar.create_application',
+    href: '/applications/create',
+    iconName: 'UserPlus',
+    external: true,
+  },
   {
     i18nKey: 'sidebar.system_log',
     href: '/system-logs',

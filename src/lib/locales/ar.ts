@@ -16,6 +16,7 @@ export default {
     attendance_logs: 'سجلات أومنيا',
     job_board: 'لوحة الوظائف',
     job_applications: 'طلبات التوظيف',
+    create_application: 'إنشاء طلب توظيف',
     system_log: 'سجل النظام',
     settings: 'الإعدادات',
   },

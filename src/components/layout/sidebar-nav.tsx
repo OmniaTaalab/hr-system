@@ -109,7 +109,8 @@ export function SidebarNav() {
          item.href?.startsWith("/payroll") ||
          item.href?.startsWith("/jobs/applications") ||
          item.href?.startsWith("/tpi") ||
-         item.href?.startsWith("/system-logs");
+         item.href?.startsWith("/system-logs") ||
+         item.href?.startsWith("/applications/create");
 
       return !protectedForRegularUsers;
     });
@@ -134,7 +135,7 @@ export function SidebarNav() {
           return (
             item.href && (
               <SidebarMenuItem key={index}>
-                <Link href={item.disabled ? "/" : item.href}>
+                <Link href={item.disabled ? "/" : item.href} target={item.external ? "_blank" : undefined} rel={item.external ? "noopener noreferrer" : undefined}>
                   <SidebarMenuButton
                     variant="default"
                     size="default"

@@ -13,6 +13,7 @@ export default {
     kpis: "KPI's",
     job_board: 'Job Board',
     job_applications: 'Job Applications',
+    create_application: 'Create Application',
     system_log: 'System Log',
     settings: 'Settings',
   },
