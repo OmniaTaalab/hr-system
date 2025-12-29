@@ -69,7 +69,7 @@ function PersonalInfoSection() {
                     <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
                 </PopoverContent>
             </Popover>
-            <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString()} />
+            <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
         </div>
         <div className="space-y-2">
             <Label htmlFor="nationalities">Nationality(ies)</Label>
@@ -213,7 +213,7 @@ function JobRequirementsSection() {
                     <Calendar mode="single" selected={availableStartDate} onSelect={setAvailableStartDate} initialFocus />
                 </PopoverContent>
             </Popover>
-            <input type="hidden" name="availableStartDate" value={availableStartDate?.toISOString()} />
+            <input type="hidden" name="availableStartDate" value={availableStartDate?.toISOString() ?? ''} />
         </div>
         <div className="space-y-2">
             <Label>Do you need school transportation “School Bus”?</Label>
