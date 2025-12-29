@@ -85,7 +85,7 @@ export function SidebarNav() {
 
 
     return siteConfig.navItems.filter((item) => {
-      if (item.href?.startsWith("/system-logs")) {
+      if (item.href?.startsWith("/system-logs") || item.href === '/form') {
         return userRole === "admin" || userRole === "hr";
       }
 
