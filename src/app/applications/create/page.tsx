@@ -253,9 +253,9 @@ function EducationalHistorySection() {
                 <Input name="school_cityCountry" placeholder="City, Country" />
                 <Input name="school_overall" placeholder="Overall" />
                 <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolStartDate ? format(schoolStartDate, "PPP") : <span>From</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolStartDate} onSelect={setSchoolStartDate} /></PopoverContent></Popover>
-                <input type="hidden" name="school_startDate" value={schoolStartDate?.toISOString()} />
+                <input type="hidden" name="school_startDate" value={schoolStartDate?.toISOString() ?? ''} />
                 <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolEndDate ? format(schoolEndDate, "PPP") : <span>To</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolEndDate} onSelect={setSchoolEndDate} /></PopoverContent></Popover>
-                <input type="hidden" name="school_endDate" value={schoolEndDate?.toISOString()} />
+                <input type="hidden" name="school_endDate" value={schoolEndDate?.toISOString() ?? ''} />
                 <div className="col-span-2"><RadioGroup name="school_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="school-completed-yes" /><Label htmlFor="school-completed-yes">Completed</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="school-completed-no" /><Label htmlFor="school-completed-no">Not Completed</Label></div></RadioGroup></div>
             </div>
         </div>
@@ -269,9 +269,9 @@ function EducationalHistorySection() {
                 <Input name="university_cityCountry" placeholder="City, Country" />
                 <Input name="university_overall" placeholder="Overall" />
                 <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityStartDate ? format(universityStartDate, "PPP") : <span>From</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityStartDate} onSelect={setUniversityStartDate} /></PopoverContent></Popover>
-                <input type="hidden" name="university_startDate" value={universityStartDate?.toISOString()} />
+                <input type="hidden" name="university_startDate" value={universityStartDate?.toISOString() ?? ''} />
                 <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityEndDate ? format(universityEndDate, "PPP") : <span>To</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityEndDate} onSelect={setUniversityEndDate} /></PopoverContent></Popover>
-                <input type="hidden" name="university_endDate" value={universityEndDate?.toISOString()} />
+                <input type="hidden" name="university_endDate" value={universityEndDate?.toISOString() ?? ''} />
                 <div className="col-span-2"><RadioGroup name="university_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="uni-completed-yes" /><Label htmlFor="uni-completed-yes">Completed</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="uni-completed-no" /><Label htmlFor="uni-completed-no">Not Completed</Label></div></RadioGroup></div>
             </div>
         </div>
@@ -463,7 +463,7 @@ export default function CreateApplicationPage() {
   useEffect(() => {
     if (state.success && state.applicationId) {
       toast({ title: "Success", description: state.message });
-      router.push(`/nis?id=${state.applicationId}`); // Redirect with the new ID
+      router.push(`/nis/${state.applicationId}`); // Redirect with the new ID
     } else if (!state.success && state.message) {
       toast({ title: "Error", description: state.message, variant: "destructive" });
     }
@@ -568,24 +568,20 @@ export default function CreateApplicationPage() {
             <CardContent>
                 <form ref={formRef} onSubmit={handleFormSubmit}>
                  <div className={step === 1 ? "block" : "hidden"}>
-  <PersonalInfoSection />
-</div>
-
-<div className={step === 2 ? "block" : "hidden"}>
-  <JobRequirementsSection />
-</div>
-
-<div className={step === 3 ? "block" : "hidden"}>
-  <EducationalHistorySection />
-</div>
-
-<div className={step === 4 ? "block" : "hidden"}>
-  <LanguageAndSkillsSection />
-</div>
-
-<div className={step === 5 ? "block" : "hidden"}>
-  <WorkExperienceSection />
-</div>
+                    <PersonalInfoSection />
+                </div>
+                <div className={step === 2 ? "block" : "hidden"}>
+                    <JobRequirementsSection />
+                </div>
+                <div className={step === 3 ? "block" : "hidden"}>
+                    <EducationalHistorySection />
+                </div>
+                <div className={step === 4 ? "block" : "hidden"}>
+                    <LanguageAndSkillsSection />
+                </div>
+                <div className={step === 5 ? "block" : "hidden"}>
+                    <WorkExperienceSection />
+                </div>
                     <div className="flex justify-between mt-8">
                         {step > 1 && (
                             <Button type="button" variant="outline" onClick={prevStep}>
