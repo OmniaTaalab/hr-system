@@ -15,18 +15,8 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
-import {
   ArrowUpDown,
   ChevronDown,
-  MoreHorizontal,
-  Search,
   Eye,
   Trash2,
   Loader2,
@@ -44,14 +34,7 @@ import { useOrganizationLists } from "@/hooks/use-organization-lists";
 
 type Application = {
   id: string;
-  firstNameEn?: string;
-  lastNameEn?: string;
-  positionJobTitle?: string;
-  positionSubject?: string;
-  expectedSalary?: number;
-  schoolType?: string;
-  nationalCampus?: string;
-  submittedAt?: Timestamp;
+  [key: string]: any; // Allow any field for searching
 };
 
 type SortKey = keyof Application | 'name';
@@ -118,12 +101,10 @@ function ApplicationsTable() {
     if (searchTerm) {
         const lowercasedTerm = searchTerm.toLowerCase();
         filtered = filtered.filter(app => {
-            const name = `${app.firstNameEn || ''} ${app.lastNameEn || ''}`.toLowerCase();
-            return name.includes(lowercasedTerm) ||
-                   app.positionJobTitle?.toLowerCase().includes(lowercasedTerm) ||
-                   app.positionSubject?.toLowerCase().includes(lowercasedTerm) ||
-                   app.schoolType?.toLowerCase().includes(lowercasedTerm) ||
-                   app.nationalCampus?.toLowerCase().includes(lowercasedTerm);
+            // Search through all string values of the application object
+            return Object.values(app).some(value =>
+                typeof value === 'string' && value.toLowerCase().includes(lowercasedTerm)
+            );
         });
     }
 
@@ -194,7 +175,7 @@ function ApplicationsTable() {
         <CardDescription>A list of all submitted job applications.</CardDescription>
         <div className="flex flex-wrap items-center gap-4 pt-4">
           <Input
-            placeholder="Search applications..."
+            placeholder="Search all application fields..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="max-w-sm"
