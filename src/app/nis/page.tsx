@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { AppLayout } from "@/components/layout/app-layout";
+import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -32,6 +32,7 @@ import {
   Loader2,
   ArrowLeft,
   ArrowRight,
+  AlertTriangle,
 } from "lucide-react";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, orderBy, Timestamp } from "firebase/firestore";
@@ -60,6 +61,7 @@ function ApplicationsTable() {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { campuses, isLoading: isLoadingLists } = useOrganizationLists();
+  const { profile, loading: isLoadingProfile } = useUserProfile();
 
 
   // State for Table Features
@@ -72,8 +74,16 @@ function ApplicationsTable() {
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  
+  const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
 
   useEffect(() => {
+    if (isLoadingProfile) return;
+    if (!canViewPage) {
+        setIsLoading(false);
+        return;
+    };
+    
     setIsLoading(true);
     const q = query(collection(db, "nis"), orderBy("submittedAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -88,7 +98,7 @@ function ApplicationsTable() {
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [isLoadingProfile, canViewPage]);
 
   const handleSort = (columnId: SortKey) => {
     const isAsc = sorting.id === columnId && !sorting.desc;
@@ -155,6 +165,27 @@ function ApplicationsTable() {
       </Button>
     );
   };
+  
+    if (isLoadingProfile) {
+    return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-12 w-12 animate-spin" /></div>;
+  }
+
+  if (!canViewPage) {
+    return (
+      <Card className="text-center">
+        <CardHeader>
+          <AlertTriangle className="mx-auto h-12 w-12 text-destructive" />
+          <CardTitle className="mt-4 text-2xl">Access Denied</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">You do not have permission to view this page.</p>
+          <Button asChild className="mt-4">
+            <a href="/">Go to Dashboard</a>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
   
   return (
     <Card>
