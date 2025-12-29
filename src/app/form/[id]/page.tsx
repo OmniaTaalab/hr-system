@@ -3,8 +3,6 @@
 
 import React, { useState, useEffect, useMemo, Suspense } from "react";
 import { PublicLayout } from "@/components/layout/public-layout";
-import { AppLayout } from "@/components/layout/app-layout";
-import { useApp } from "@/components/layout/app-provider";
 import {
   Card,
   CardContent,
@@ -37,6 +35,7 @@ import {
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/firebase/config";
 import { doc, getDoc, Timestamp } from "firebase/firestore";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 
@@ -155,6 +154,15 @@ function ApplicationDetailContent() {
       .join(" ");
   }, [application]);
 
+  const getInitials = (name?: string) =>
+    name
+      ? name
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .toUpperCase()
+      : "?";
+
   if (loading) {
     return (
         <div className="flex justify-center items-center h-64">
@@ -218,10 +226,10 @@ function ApplicationDetailContent() {
                   <DetailItem label="Place of Birth" value={application.placeOfBirth} icon={MapPin}/>
                   <DetailItem label="Nationality" value={application.nationalities} icon={User}/>
                   <DetailItem label="Social Title" value={application.socialTitle} icon={User}/>
-                  <DetailItem label="Marital Status" value={application.maritalStatus} icon={Users}/>
+                  <DetailItem label="Marital Status" value={application.maritalStatus} icon={User}/>
                   <DetailItem label="Parent at NIS" icon={User}><YesNoIcon value={application.isParentAtNIS} /></DetailItem>
                   <DetailItem label="Number of Children" value={application.numberOfChildren} icon={Users}/>
-                  <DetailItem label="Address" value={`${application.apartment || ''}, ${application.street || ''} St, ${application.area || ''}, ${application.city || ''}, ${application.country || ''}`} icon={MapPin} />
+                  <DetailItem label="Address" value={`${application.apartment}, ${application.street} St, ${application.area}, ${application.city}, ${application.country}`} icon={MapPin} />
                 </div>
               </section>
               
@@ -280,8 +288,8 @@ function ApplicationDetailContent() {
                    {(application.diploma1_name || application.diploma2_name) && (
                     <div className="p-4 border rounded-md">
                         <p className="font-bold">Diplomas/Courses</p>
-                        {application.diploma1_name && <p className="text-sm mt-2">{application.diploma1_name} at {application.diploma1_institution} (Completed: <YesNoIcon value={application.diploma1_completed} />)</p>}
-                        {application.diploma2_name && <p className="text-sm mt-2">{application.diploma2_name} at {application.diploma2_institution} (Completed: <YesNoIcon value={application.diploma2_completed} />)</p>}
+                        {application.diploma1_name && <p className="text-sm mt-2">{application.diploma1_name} at {application.diploma1_institution} (<YesNoIcon value={application.diploma1_completed} />)</p>}
+                        {application.diploma2_name && <p className="text-sm mt-2">{application.diploma2_name} at {application.diploma2_institution} (<YesNoIcon value={application.diploma2_completed} />)</p>}
                     </div>
                    )}
                 </div>
@@ -362,24 +370,11 @@ function ApplicationDetailContent() {
 }
 
 export default function ApplicationDetailPage() {
-    const { user, loading } = useApp();
-
-    if (loading) {
-        return (
-            <div className="flex h-screen w-screen items-center justify-center">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            </div>
-        );
-    }
-    
-    const Layout = user ? AppLayout : PublicLayout;
-
     return (
-        <Layout>
+        <PublicLayout>
             <Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
                 <ApplicationDetailContent />
             </Suspense>
-        </Layout>
+        </PublicLayout>
     );
 }
-

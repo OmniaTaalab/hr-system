@@ -16,7 +16,7 @@ export default {
     create_application: 'Create Application',
     system_log: 'System Log',
     settings: 'Settings',
-    nis: 'NIS Application',
+    form: 'NIS Application',
   },
   header: {
     my_account: 'My Account',

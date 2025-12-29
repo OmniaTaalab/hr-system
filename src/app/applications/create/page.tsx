@@ -463,7 +463,7 @@ export default function CreateApplicationPage() {
   useEffect(() => {
     if (state.success && state.applicationId) {
       toast({ title: "Success", description: state.message });
-      router.push(`/nis/${state.applicationId}`); // Redirect with the new ID
+      router.push(`/form/${state.applicationId}`); // Redirect with the new ID
     } else if (!state.success && state.message) {
       toast({ title: "Error", description: state.message, variant: "destructive" });
     }

@@ -19,7 +19,7 @@ export default {
     create_application: 'إنشاء طلب توظيف',
     system_log: 'سجل النظام',
     settings: 'الإعدادات',
-    nis: 'طلب التوظيف',
+    form: 'طلب التوظيف',
   },
   header: {
     my_account: 'حسابي',

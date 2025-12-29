@@ -70,8 +70,8 @@ export const navItems: NavItem[] = [
     external: true,
   },
   {
-    i18nKey: 'sidebar.nis',
-    href: '/nis',
+    i18nKey: 'sidebar.form',
+    href: '/form',
     iconName: 'FileText',
   },
   {

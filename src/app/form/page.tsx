@@ -276,7 +276,7 @@ function ApplicationsTable() {
                     <TableCell>{app.schoolType || 'N/A'}</TableCell>
                     <TableCell>{app.nationalCampus || 'N/A'}</TableCell>
                     <TableCell className="text-right">
-                       <Button variant="ghost" size="icon" onClick={() => router.push(`/nis/${app.id}`)}>
+                       <Button variant="ghost" size="icon" onClick={() => router.push(`/form/${app.id}`)}>
                          <Eye className="h-4 w-4" />
                        </Button>
                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
