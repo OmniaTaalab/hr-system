@@ -205,7 +205,7 @@ function ApplicationsTable() {
                     checked={Object.keys(rowSelection).length === paginatedApplications.length && paginatedApplications.length > 0}
                     onCheckedChange={(value) => {
                         if(value) {
-                            const newSelection = {};
+                            const newSelection: Record<string, boolean> = {};
                             paginatedApplications.forEach(app => newSelection[app.id] = true);
                             setRowSelection(newSelection);
                         } else {
@@ -235,7 +235,7 @@ function ApplicationsTable() {
                 paginatedApplications.map((app, index) => (
                   <TableRow key={app.id} data-state={rowSelection[app.id] && "selected"}>
                     <TableCell>
-                      <Checkbox checked={rowSelection[app.id]} onCheckedChange={(value) => setRowSelection(prev => ({...prev, [app.id]: value}))} />
+                      <Checkbox checked={!!rowSelection[app.id]} onCheckedChange={(value) => setRowSelection(prev => ({...prev, [app.id]: !!value}))} />
                     </TableCell>
                     <TableCell>{(currentPage - 1) * rowsPerPage + index + 1}</TableCell>
                     <TableCell className="font-medium">{`${app.firstNameEn || ''} ${app.lastNameEn || ''}`.trim()}</TableCell>
