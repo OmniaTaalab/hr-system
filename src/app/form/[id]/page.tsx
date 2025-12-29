@@ -3,6 +3,8 @@
 
 import React, { useState, useEffect, useMemo, Suspense } from "react";
 import { PublicLayout } from "@/components/layout/public-layout";
+import { AppLayout } from "@/components/layout/app-layout";
+import { useApp } from "@/components/layout/app-provider";
 import {
   Card,
   CardContent,
@@ -35,7 +37,6 @@ import {
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/firebase/config";
 import { doc, getDoc, Timestamp } from "firebase/firestore";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 
@@ -112,6 +113,7 @@ function ApplicationDetailContent() {
       const fetchApplication = async () => {
         setLoading(true);
         try {
+          // This should fetch from 'nis' collection based on previous context.
           const docRef = doc(db, "nis", id);
           const docSnap = await getDoc(docRef);
 
@@ -288,8 +290,8 @@ function ApplicationDetailContent() {
                    {(application.diploma1_name || application.diploma2_name) && (
                     <div className="p-4 border rounded-md">
                         <p className="font-bold">Diplomas/Courses</p>
-                        {application.diploma1_name && <p className="text-sm mt-2">{application.diploma1_name} at {application.diploma1_institution} (<YesNoIcon value={application.diploma1_completed} />)</p>}
-                        {application.diploma2_name && <p className="text-sm mt-2">{application.diploma2_name} at {application.diploma2_institution} (<YesNoIcon value={application.diploma2_completed} />)</p>}
+                        {application.diploma1_name && <p className="text-sm mt-2">{application.diploma1_name} at {application.diploma1_institution} (Completed: <YesNoIcon value={application.diploma1_completed} />)</p>}
+                        {application.diploma2_name && <p className="text-sm mt-2">{application.diploma2_name} at {application.diploma2_institution} (Completed: <YesNoIcon value={application.diploma2_completed} />)</p>}
                     </div>
                    )}
                 </div>
@@ -370,11 +372,24 @@ function ApplicationDetailContent() {
 }
 
 export default function ApplicationDetailPage() {
+    const { profile, loading } = useApp();
+    const canViewWithSidebar = !loading && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
+
+    if (loading) {
+        return (
+            <div className="flex h-screen w-screen items-center justify-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        );
+    }
+    
+    const Layout = canViewWithSidebar ? AppLayout : PublicLayout;
+
     return (
-        <PublicLayout>
+        <Layout>
             <Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
                 <ApplicationDetailContent />
             </Suspense>
-        </PublicLayout>
+        </Layout>
     );
 }
