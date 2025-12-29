@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, Suspense } from "react";
 import { PublicLayout } from "@/components/layout/public-layout";
 import {
   Card,
@@ -98,7 +98,7 @@ const LanguageGrid = ({ application, lang, label }: { application: any, lang: st
     </div>
 );
 
-export default function ApplicationDetailPage() {
+function ApplicationDetailContent() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -165,17 +165,14 @@ export default function ApplicationDetailPage() {
 
   if (loading) {
     return (
-      <PublicLayout>
         <div className="flex justify-center items-center h-64">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
         </div>
-      </PublicLayout>
     );
   }
 
   if (error) {
     return (
-      <PublicLayout>
         <Card className="max-w-2xl mx-auto text-center">
             <CardHeader>
                 <div className="mx-auto bg-destructive/10 p-3 rounded-full">
@@ -190,47 +187,26 @@ export default function ApplicationDetailPage() {
                 </Button>
             </CardContent>
         </Card>
-      </PublicLayout>
     );
   }
 
   return (
-    <PublicLayout>
       <div className="max-w-4xl mx-auto space-y-6">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => router.push("/nis")}
-          className="mb-4"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to All Applications
-        </Button>
-
         {application && (
           <Card className="shadow-lg">
-            <CardHeader className="bg-muted/30">
-              <div className="flex flex-col md:flex-row items-center gap-6">
-                <Avatar className="h-24 w-24 border-4 border-background shadow-md">
-                  <AvatarFallback className="text-3xl">
-                    {getInitials(fullNameEn)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-grow text-center md:text-left">
-                  <CardTitle className="font-headline text-3xl">
-                    {fullNameEn}
-                  </CardTitle>
-                  <CardDescription className="text-lg text-primary" dir="rtl">
-                    {fullNameAr}
-                  </CardDescription>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Applied for: {application.positionJobTitle || application.jobTitle}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Submitted on: {formatDateSafe(application.submittedAt)}
-                  </p>
+            <CardHeader className="bg-muted/30 text-center p-6">
+                 <div className="w-24 h-24 bg-primary/10 mx-auto rounded-full flex items-center justify-center">
+                    <Check className="h-12 w-12 text-primary" />
                 </div>
-              </div>
+                <CardTitle className="font-headline text-3xl mt-4">
+                    Application Submitted!
+                </CardTitle>
+                <CardDescription className="text-md">
+                    Thank you, {fullNameEn}. Your application has been received.
+                </CardDescription>
+                <p className="text-sm text-muted-foreground pt-4">
+                    A copy of your submitted details is shown below for your reference.
+                </p>
             </CardHeader>
             <CardContent className="p-6 space-y-8">
               {/* Personal Information */}
@@ -239,6 +215,8 @@ export default function ApplicationDetailPage() {
                   <User className="mr-2 h-5 w-5 text-primary" /> Personal Information
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                  <DetailItem label="Full Name (English)" value={fullNameEn} icon={User}/>
+                  <DetailItem label="Full Name (Arabic)" value={fullNameAr} icon={User} />
                   <DetailItem label="Email (1)" value={application.email1} icon={Mail} />
                   <DetailItem label="Email (2)" value={application.email2} icon={Mail} />
                   <DetailItem label="Mobile" value={application.mobilePhone} icon={Phone} />
@@ -258,10 +236,10 @@ export default function ApplicationDetailPage() {
                {/* Job Requirements */}
               <section>
                 <h3 className="font-semibold text-lg border-b pb-2 mb-4 flex items-center">
-                  <Briefcase className="mr-2 h-5 w-5 text-primary" /> Job Requirements
+                  <Briefcase className="mr-2 h-5 w-5 text-primary" /> Position Applied For
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                  <DetailItem label="Position" value={application.positionJobTitle} icon={Briefcase} />
+                  <DetailItem label="Position" value={application.positionJobTitle || application.jobTitle} icon={Briefcase} />
                   <DetailItem label="Subject" value={application.positionSubject} icon={BookOpen} />
                   <DetailItem label="Years of Experience" value={application.yearsOfExperience} icon={Briefcase} />
                   <DetailItem label="Expected Salary" value={application.expectedSalary} icon={DollarSign} />
@@ -374,12 +352,12 @@ export default function ApplicationDetailPage() {
                 <div className="flex gap-4">
                   {application.cvUrl && (
                     <Button asChild variant="outline">
-                      <a href={application.cvUrl} target="_blank" rel="noopener noreferrer"> Download CV </a>
+                      <a href={application.cvUrl} target="_blank" rel="noopener noreferrer"> View CV </a>
                     </Button>
                   )}
                   {application.nationalIdUrl && (
                     <Button asChild variant="outline">
-                      <a href={application.nationalIdUrl} target="_blank" rel="noopener noreferrer"> Download National ID </a>
+                      <a href={application.nationalIdUrl} target="_blank" rel="noopener noreferrer"> View National ID </a>
                     </Button>
                   )}
                 </div>
@@ -388,6 +366,15 @@ export default function ApplicationDetailPage() {
           </Card>
         )}
       </div>
-    </PublicLayout>
   );
+}
+
+export default function ApplicationDetailPage() {
+    return (
+        <PublicLayout>
+            <Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
+                <ApplicationDetailContent />
+            </Suspense>
+        </PublicLayout>
+    );
 }
