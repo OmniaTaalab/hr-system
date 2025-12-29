@@ -23,6 +23,7 @@ import {
   ArrowLeft,
   ArrowRight,
   AlertTriangle,
+  Columns,
 } from "lucide-react";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, orderBy, Timestamp } from "firebase/firestore";
@@ -31,6 +32,7 @@ import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 type Application = {
   id: string;
@@ -46,6 +48,22 @@ function ApplicationsTable() {
   const { campuses, isLoading: isLoadingLists } = useOrganizationLists();
   const { profile, loading: isLoadingProfile } = useUserProfile();
 
+  const allColumns = useMemo(() => [
+    { id: 'name', label: 'Name', visible: true },
+    { id: 'positionJobTitle', label: 'Position Title', visible: true },
+    { id: 'positionSubject', label: 'Subject', visible: true },
+    { id: 'expectedSalary', label: 'Expected Salary', visible: true },
+    { id: 'schoolType', label: 'School Type', visible: true },
+    { id: 'nationalCampus', label: 'Campus', visible: true },
+    { id: 'submittedAt', label: 'Submitted At', visible: false },
+    { id: 'yearsOfExperience', label: 'Years of Exp.', visible: false },
+    { id: 'email1', label: 'Email', visible: false },
+    { id: 'mobilePhone', label: 'Mobile', visible: false },
+  ], []);
+
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => 
+    allColumns.reduce((acc, col) => ({ ...acc, [col.id]: col.visible }), {})
+  );
 
   // State for Table Features
   const [sorting, setSorting] = useState<{ id: SortKey; desc: boolean }>({ id: 'submittedAt', desc: true });
@@ -120,6 +138,10 @@ function ApplicationsTable() {
             valB = b[id as keyof Application];
         }
 
+        if (valA instanceof Timestamp && valB instanceof Timestamp) {
+            return desc ? valB.toMillis() - valA.toMillis() : valA.toMillis() - valB.toMillis();
+        }
+        
         if (valA === undefined || valA === null) return 1;
         if (valB === undefined || valB === null) return -1;
         
@@ -204,6 +226,29 @@ function ApplicationsTable() {
                 <SelectItem value="International">International</SelectItem>
               </SelectContent>
             </Select>
+             <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Columns className="mr-2 h-4 w-4" /> Columns
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {allColumns.map((column) => (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    className="capitalize"
+                    checked={columnVisibility[column.id]}
+                    onCheckedChange={(value) =>
+                      setColumnVisibility((prev) => ({ ...prev, [column.id]: !!value }))
+                    }
+                  >
+                    {column.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </CardHeader>
@@ -227,19 +272,16 @@ function ApplicationsTable() {
                   />
                 </TableHead>
                 <TableHead>#</TableHead>
-                <TableHead>{renderHeader('name', 'Name')}</TableHead>
-                <TableHead>{renderHeader('positionJobTitle', 'Position Title')}</TableHead>
-                <TableHead>{renderHeader('positionSubject', 'Subject')}</TableHead>
-                <TableHead>{renderHeader('expectedSalary', 'Expected Salary')}</TableHead>
-                <TableHead>{renderHeader('schoolType', 'School Type')}</TableHead>
-                <TableHead>{renderHeader('nationalCampus', 'Campus')}</TableHead>
+                {allColumns.filter(c => columnVisibility[c.id]).map(c => (
+                  <TableHead key={c.id}>{renderHeader(c.id as SortKey, c.label)}</TableHead>
+                ))}
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-24 text-center">
+                  <TableCell colSpan={allColumns.filter(c => columnVisibility[c.id]).length + 3} className="h-24 text-center">
                     <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
                   </TableCell>
                 </TableRow>
@@ -250,12 +292,16 @@ function ApplicationsTable() {
                       <Checkbox checked={!!rowSelection[app.id]} onCheckedChange={(value) => setRowSelection(prev => ({...prev, [app.id]: !!value}))} />
                     </TableCell>
                     <TableCell>{(currentPage - 1) * rowsPerPage + index + 1}</TableCell>
-                    <TableCell className="font-medium">{`${app.firstNameEn || ''} ${app.lastNameEn || ''}`.trim()}</TableCell>
-                    <TableCell>{app.positionJobTitle || 'N/A'}</TableCell>
-                    <TableCell>{app.positionSubject || 'N/A'}</TableCell>
-                    <TableCell>{app.expectedSalary ? `$${app.expectedSalary.toLocaleString()}` : 'N/A'}</TableCell>
-                    <TableCell>{app.schoolType || 'N/A'}</TableCell>
-                    <TableCell>{app.nationalCampus || 'N/A'}</TableCell>
+                    {columnVisibility.name && <TableCell className="font-medium">{`${app.firstNameEn || ''} ${app.lastNameEn || ''}`.trim()}</TableCell>}
+                    {columnVisibility.positionJobTitle && <TableCell>{app.positionJobTitle || 'N/A'}</TableCell>}
+                    {columnVisibility.positionSubject && <TableCell>{app.positionSubject || 'N/A'}</TableCell>}
+                    {columnVisibility.expectedSalary && <TableCell>{app.expectedSalary ? `$${app.expectedSalary.toLocaleString()}` : 'N/A'}</TableCell>}
+                    {columnVisibility.schoolType && <TableCell>{app.schoolType || 'N/A'}</TableCell>}
+                    {columnVisibility.nationalCampus && <TableCell>{app.nationalCampus || 'N/A'}</TableCell>}
+                    {columnVisibility.submittedAt && <TableCell>{app.submittedAt instanceof Timestamp ? format(app.submittedAt.toDate(), "dd MMM yyyy") : 'N/A'}</TableCell>}
+                    {columnVisibility.yearsOfExperience && <TableCell>{app.yearsOfExperience ?? 'N/A'}</TableCell>}
+                    {columnVisibility.email1 && <TableCell>{app.email1 || 'N/A'}</TableCell>}
+                    {columnVisibility.mobilePhone && <TableCell>{app.mobilePhone || 'N/A'}</TableCell>}
                     <TableCell className="text-right">
                        <Button variant="ghost" size="icon" onClick={() => router.push(`/form/${app.id}`)}>
                          <Eye className="h-4 w-4" />
@@ -268,7 +314,7 @@ function ApplicationsTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-24 text-center">
+                  <TableCell colSpan={allColumns.filter(c => columnVisibility[c.id]).length + 3} className="h-24 text-center">
                     No results found.
                   </TableCell>
                 </TableRow>
