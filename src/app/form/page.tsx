@@ -41,6 +41,24 @@ type Application = {
 
 type SortKey = keyof Application | 'name';
 
+// Helper to safely format dates that might be Timestamps or strings
+const formatDateSafe = (date: any) => {
+    if (!date) return "-";
+    let d;
+    if (date instanceof Timestamp) {
+      d = date.toDate();
+    } else if (typeof date === 'string') {
+      d = new Date(date);
+    } else if (date.seconds) { // Handle Firestore-like timestamp objects
+      d = new Date(date.seconds * 1000);
+    } else {
+      return "-";
+    }
+  
+    if (isNaN(d.getTime())) return "-";
+    return format(d, "PPP");
+  };
+
 function ApplicationsTable() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,17 +67,29 @@ function ApplicationsTable() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
 
   const allColumns = useMemo(() => [
-    { id: 'name', label: 'Name', visible: true },
+    { id: 'name', label: 'Name', visible: true, required: true },
+    { id: 'nameAr', label: 'Name (Arabic)', visible: false },
     { id: 'positionJobTitle', label: 'Position Title', visible: true },
     { id: 'positionSubject', label: 'Subject', visible: true },
-    { id: 'expectedSalary', label: 'Expected Salary', visible: true },
+    { id: 'expectedSalary', label: 'Expected Salary', visible: false },
     { id: 'schoolType', label: 'School Type', visible: true },
     { id: 'nationalCampus', label: 'Campus', visible: true },
-    { id: 'submittedAt', label: 'Submitted At', visible: false },
+    { id: 'submittedAt', label: 'Submitted At', visible: true },
     { id: 'yearsOfExperience', label: 'Years of Exp.', visible: false },
     { id: 'email1', label: 'Email', visible: false },
     { id: 'mobilePhone', label: 'Mobile', visible: false },
-  ], []);
+    { id: 'dateOfBirth', label: 'Date of Birth', visible: false },
+    { id: 'isParentAtNIS', label: 'Parent at NIS?', visible: false },
+    { id: 'numberOfChildren', label: 'No. of Children', visible: false },
+    { id: 'address', label: 'Address', visible: false },
+    { id: 'noticePeriod', label: 'Notice Period', visible: false },
+    { id: 'availableStartDate', label: 'Start Date', visible: false },
+    { id: 'needsBus', label: 'Needs Bus?', visible: false },
+    { id: 'insideContact', label: 'Inside Contact?', visible: false },
+    { id: 'previouslyWorkedAtNIS', label: 'Previously Worked?', visible: false },
+    { id: 'university', label: 'University', visible: false },
+    { id: 'major', label: 'Major', visible: false },
+], []);
 
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => 
     allColumns.reduce((acc, col) => ({ ...acc, [col.id]: col.visible }), {})
@@ -119,7 +149,6 @@ function ApplicationsTable() {
     if (searchTerm) {
         const lowercasedTerm = searchTerm.toLowerCase();
         filtered = filtered.filter(app => {
-            // Search through all string values of the application object
             return Object.values(app).some(value =>
                 typeof value === 'string' && value.toLowerCase().includes(lowercasedTerm)
             );
@@ -133,7 +162,11 @@ function ApplicationsTable() {
         if (id === 'name') {
             valA = `${a.firstNameEn || ''} ${a.lastNameEn || ''}`.trim();
             valB = `${b.firstNameEn || ''} ${b.lastNameEn || ''}`.trim();
-        } else {
+        } else if (id === 'nameAr') {
+            valA = `${a.firstNameAr || ''} ${a.fatherNameAr || ''} ${a.familyNameAr || ''}`.trim();
+            valB = `${b.firstNameAr || ''} ${b.fatherNameAr || ''} ${b.familyNameAr || ''}`.trim();
+        }
+        else {
             valA = a[id as keyof Application];
             valB = b[id as keyof Application];
         }
@@ -232,7 +265,7 @@ function ApplicationsTable() {
                   <Columns className="mr-2 h-4 w-4" /> Columns
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
                 <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {allColumns.map((column) => (
@@ -240,6 +273,7 @@ function ApplicationsTable() {
                     key={column.id}
                     className="capitalize"
                     checked={columnVisibility[column.id]}
+                    disabled={column.required}
                     onCheckedChange={(value) =>
                       setColumnVisibility((prev) => ({ ...prev, [column.id]: !!value }))
                     }
@@ -293,6 +327,7 @@ function ApplicationsTable() {
                     </TableCell>
                     <TableCell>{(currentPage - 1) * rowsPerPage + index + 1}</TableCell>
                     {columnVisibility.name && <TableCell className="font-medium">{`${app.firstNameEn || ''} ${app.lastNameEn || ''}`.trim()}</TableCell>}
+                    {columnVisibility.nameAr && <TableCell dir="rtl" className="font-medium">{`${app.firstNameAr || ''} ${app.fatherNameAr || ''} ${app.familyNameAr || ''}`.trim()}</TableCell>}
                     {columnVisibility.positionJobTitle && <TableCell>{app.positionJobTitle || 'N/A'}</TableCell>}
                     {columnVisibility.positionSubject && <TableCell>{app.positionSubject || 'N/A'}</TableCell>}
                     {columnVisibility.expectedSalary && <TableCell>{app.expectedSalary ? `$${app.expectedSalary.toLocaleString()}` : 'N/A'}</TableCell>}
@@ -302,6 +337,18 @@ function ApplicationsTable() {
                     {columnVisibility.yearsOfExperience && <TableCell>{app.yearsOfExperience ?? 'N/A'}</TableCell>}
                     {columnVisibility.email1 && <TableCell>{app.email1 || 'N/A'}</TableCell>}
                     {columnVisibility.mobilePhone && <TableCell>{app.mobilePhone || 'N/A'}</TableCell>}
+                    {columnVisibility.dateOfBirth && <TableCell>{formatDateSafe(app.dateOfBirth)}</TableCell>}
+                    {columnVisibility.isParentAtNIS && <TableCell>{app.isParentAtNIS || 'N/A'}</TableCell>}
+                    {columnVisibility.numberOfChildren && <TableCell>{app.numberOfChildren ?? 'N/A'}</TableCell>}
+                    {columnVisibility.address && <TableCell>{[app.street, app.area, app.city, app.country].filter(Boolean).join(', ') || 'N/A'}</TableCell>}
+                    {columnVisibility.noticePeriod && <TableCell>{app.noticePeriod ? `${app.noticePeriod} days` : 'N/A'}</TableCell>}
+                    {columnVisibility.availableStartDate && <TableCell>{formatDateSafe(app.availableStartDate)}</TableCell>}
+                    {columnVisibility.needsBus && <TableCell>{app.needsBus || 'N/A'}</TableCell>}
+                    {columnVisibility.insideContact && <TableCell>{app.insideContact || 'N/A'}</TableCell>}
+                    {columnVisibility.previouslyWorkedAtNIS && <TableCell>{app.previouslyWorkedAtNIS || 'N/A'}</TableCell>}
+                    {columnVisibility.university && <TableCell>{app.university_name || 'N/A'}</TableCell>}
+                    {columnVisibility.major && <TableCell>{app.university_major || 'N/A'}</TableCell>}
+
                     <TableCell className="text-right">
                        <Button variant="ghost" size="icon" onClick={() => router.push(`/form/${app.id}`)}>
                          <Eye className="h-4 w-4" />
