@@ -39,6 +39,7 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useOrganizationLists } from "@/hooks/use-organization-lists";
 
 type Application = {
   id: string;
@@ -58,11 +59,15 @@ function ApplicationsTable() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const { campuses, isLoading: isLoadingLists } = useOrganizationLists();
+
 
   // State for Table Features
   const [sorting, setSorting] = useState<{ id: SortKey; desc: boolean }>({ id: 'submittedAt', desc: true });
   const [searchTerm, setSearchTerm] = useState("");
   const [rowSelection, setRowSelection] = useState({});
+  const [campusFilter, setCampusFilter] = useState("All");
+  const [schoolTypeFilter, setSchoolTypeFilter] = useState("All");
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -92,6 +97,13 @@ function ApplicationsTable() {
   
   const filteredAndSortedApplications = useMemo(() => {
     let filtered = applications;
+
+    if (campusFilter !== "All") {
+        filtered = filtered.filter(app => app.nationalCampus === campusFilter);
+    }
+    if (schoolTypeFilter !== "All") {
+        filtered = filtered.filter(app => app.schoolType === schoolTypeFilter);
+    }
 
     if (searchTerm) {
         const lowercasedTerm = searchTerm.toLowerCase();
@@ -125,7 +137,7 @@ function ApplicationsTable() {
         
         return 0;
     });
-  }, [applications, searchTerm, sorting]);
+  }, [applications, searchTerm, sorting, campusFilter, schoolTypeFilter]);
   
   const paginatedApplications = useMemo(() => {
     const startIndex = (currentPage - 1) * rowsPerPage;
@@ -149,13 +161,38 @@ function ApplicationsTable() {
       <CardHeader>
         <CardTitle>Job Applications</CardTitle>
         <CardDescription>A list of all submitted job applications.</CardDescription>
-        <div className="flex items-center py-4">
+        <div className="flex flex-wrap items-center gap-4 pt-4">
           <Input
             placeholder="Search applications..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="max-w-sm"
           />
+          <div className="flex flex-wrap gap-2">
+            <Select value={campusFilter} onValueChange={setCampusFilter} disabled={isLoadingLists}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by campus..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Campuses</SelectItem>
+                {campuses.map((campus) => (
+                  <SelectItem key={campus.id} value={campus.name}>
+                    {campus.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={schoolTypeFilter} onValueChange={setSchoolTypeFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by school type..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All School Types</SelectItem>
+                <SelectItem value="National">National</SelectItem>
+                <SelectItem value="International">International</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -163,7 +200,7 @@ function ApplicationsTable() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead padding="checkbox">
+                <TableHead>
                   <Checkbox
                     checked={Object.keys(rowSelection).length === paginatedApplications.length && paginatedApplications.length > 0}
                     onCheckedChange={(value) => {
@@ -197,7 +234,7 @@ function ApplicationsTable() {
               ) : paginatedApplications.length > 0 ? (
                 paginatedApplications.map((app, index) => (
                   <TableRow key={app.id} data-state={rowSelection[app.id] && "selected"}>
-                    <TableCell padding="checkbox">
+                    <TableCell>
                       <Checkbox checked={rowSelection[app.id]} onCheckedChange={(value) => setRowSelection(prev => ({...prev, [app.id]: value}))} />
                     </TableCell>
                     <TableCell>{(currentPage - 1) * rowsPerPage + index + 1}</TableCell>
