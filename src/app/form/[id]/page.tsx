@@ -103,10 +103,13 @@ function ApplicationDetailContent() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
+  const { profile, loading: userLoading } = useApp();
 
   const [application, setApplication] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const isPrivilegedUser = !userLoading && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
 
   useEffect(() => {
     if (id) {
@@ -196,6 +199,7 @@ function ApplicationDetailContent() {
       <div className="max-w-4xl mx-auto space-y-6">
         {application && (
           <Card className="shadow-lg">
+            {!isPrivilegedUser && (
             <CardHeader className="bg-muted/30 text-center p-6">
                  <div className="w-24 h-24 bg-primary/10 mx-auto rounded-full flex items-center justify-center">
                     <Check className="h-12 w-12 text-primary" />
@@ -210,6 +214,7 @@ function ApplicationDetailContent() {
                     A copy of your submitted details is shown below for your reference.
                 </p>
             </CardHeader>
+            )}
             <CardContent className="p-6 space-y-8">
               {/* Personal Information */}
               <section>
