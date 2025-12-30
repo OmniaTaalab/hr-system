@@ -45,7 +45,7 @@ import {
     deleteAuthUserAction, type DeleteAuthUserState,
   updateAuthUserPasswordAction, type UpdateAuthPasswordState
 } from "@/app/actions/auth-creation-actions";
-import { db, storage } from '@/lib/firebase/config';
+import { db, storage } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayUnion, arrayRemove, getDocs, orderBy, limit, startAfter, endBefore, limitToLast, DocumentData, DocumentSnapshot, QueryConstraint, or } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -275,6 +275,11 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             <div className="space-y-2">
                 <Label htmlFor="add-personalEmail">Personal Email</Label>
                 <Input id="add-personalEmail" name="personalEmail" type="email" />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="add-phone">Personal Phone</Label>
+                <Input id="add-phone" name="phone" />
+                {addState?.errors?.phone && <p className="text-sm text-destructive">{addState.errors.phone.join(', ')}</p>}
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
