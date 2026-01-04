@@ -1225,8 +1225,13 @@ export default function EmployeeManagementContent() {
   
   const filteredEmployees = useMemo(() => {
     let listToFilter = [...allEmployees];
+    
+    // Convert campusFilters to lowercase for case-insensitive comparison
+    const lowercasedCampusFilters = campusFilters.map(c => c.toLowerCase());
 
-    if (campusFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.campus && campusFilters.includes(emp.campus));
+    if (lowercasedCampusFilters.length > 0) {
+        listToFilter = listToFilter.filter(emp => emp.campus && lowercasedCampusFilters.includes(emp.campus.toLowerCase()));
+    }
     if (stageFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.stage && stageFilters.includes(emp.stage));
     if (subjectFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.subject && subjectFilters.includes(emp.subject));
     if (genderFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.gender && genderFilters.includes(emp.gender));

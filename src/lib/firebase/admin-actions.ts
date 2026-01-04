@@ -877,7 +877,7 @@ const keyMap: Record<string, string> = {
   "national id": "nationalId",
   "religion": "religion",
   "report line1": "reportLine1",
-  "report line 2": "reportLine2",
+  "report line2": "reportLine2",
   "reason for leaving": "reasonForLeaving",
   "emergency contact name": "emergencyContactName",
   "emergency contact relationship": "emergencyContactRelationship",
