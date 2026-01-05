@@ -1308,13 +1308,21 @@ export default function EmployeeManagementContent() {
     }
 
     return listToFilter.sort((a, b) => {
-        // Sort by isDuplicate flag first (true comes first)
+        // 1. Sort by isDuplicate flag (true comes first)
         const aIsDuplicate = a.isDuplicate ?? false;
         const bIsDuplicate = b.isDuplicate ?? false;
         if (aIsDuplicate !== bIsDuplicate) {
             return aIsDuplicate ? -1 : 1;
         }
-        // Then sort by name
+
+        // 2. Sort by status (Active before deactivated)
+        const aStatus = a.status ?? 'Active';
+        const bStatus = b.status ?? 'Active';
+        if (aStatus !== bStatus) {
+            return aStatus === 'Active' ? -1 : 1;
+        }
+
+        // 3. Then sort by name
         return (a.name || "").localeCompare(b.name || "");
     });
 
@@ -1449,8 +1457,8 @@ export default function EmployeeManagementContent() {
             'National ID': emp.nationalId,
             'Religion': emp.religion,
             'Status': emp.status === 'deactivated' ? 'Deactivated' : 'Active',
-            'Report Line 1': emp.reportLine1,
-            'Report Line 2': emp.reportLine2,
+            'Report Line1': emp.reportLine1,
+            'Report Line2': emp.reportLine2,
             'Reason For Leaving': emp.status === 'deactivated' ? emp.reasonForLeaving : '-',
             'Emergency Contact Name': emp.emergencyContact?.name,
             'Emergency Contact Relationship': emp.emergencyContact?.relationship,

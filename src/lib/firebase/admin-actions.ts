@@ -558,7 +558,7 @@ export async function updateEmployeeAction(
                 emergencyContact = { ...(currentEmployeeData.emergencyContact || {}) };
             }
             const fieldName = key.replace('emergencyContact', '').charAt(0).toLowerCase() + key.slice('emergencyContact'.length + 1);
-            emergencyContact[fieldName] = value;
+            emergencyContact![fieldName] = value;
           } else {
               dataToUpdate[key] = value;
           }
@@ -1015,15 +1015,13 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
 
       if (recordEmployeeId && employeeIdMap.has(recordEmployeeId)) {
         existingDocId = employeeIdMap.get(recordEmployeeId)!;
-      } else if (recordEmail && emailMap.has(recordEmail)) {
-        existingDocId = emailMap.get(recordEmail)!;
+    
       }
-
       const nameParts = record.name?.trim().split(/\s+/) ?? [];
       const firstName = nameParts[0] || "";
       const lastName = nameParts.slice(1).join(" ");
 
-      const newEmployeeData = stripEmpty({
+      const newEmployeeData = {
         name: record.name,
         firstName,
         lastName,
@@ -1054,7 +1052,7 @@ export async function batchCreateEmployeesAction(prevState: any, formData: FormD
         joiningDate: record.joiningDate ? Timestamp.fromDate(new Date(record.joiningDate)) : null,
         reportLine1: record.reportLine1,
         reportLine2: record.reportLine2,
-      });
+      };
 
       // 🔁 UPDATE
       if (existingDocId) {
