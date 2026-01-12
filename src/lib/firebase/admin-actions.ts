@@ -270,11 +270,14 @@ export async function createEmployeeAction(
     const docRef = await addDoc(employeeCollection, newEmployeeDoc);
 
     await logSystemEvent("Create Employee", {
-      actorId,
-      actorEmail,
-      actorRole,
-      newEmployeeId: docRef.id,
-      newEmployeeName: newEmployeeDoc.name,
+        actorId,
+        actorEmail,
+        actorRole,
+        targetEmployeeId: docRef.id,
+        targetEmployeeName: newEmployeeDoc.name,
+        changes: {
+            newData: JSON.parse(JSON.stringify(newEmployeeDoc)),
+        },
     });
 
     revalidatePath("/employees");
@@ -569,7 +572,7 @@ export async function updateEmployeeAction(
       dataToUpdate.emergencyContact = emergencyContact;
     }
 
-    if (dataToUpdate.firstName || dataToUpdate.lastName) {
+    if (dataToUpdate.firstName || dataToData.lastName) {
       const newFirstName = dataToUpdate.firstName ?? currentEmployeeData.firstName ?? '';
       const newLastName = dataToUpdate.lastName ?? currentEmployeeData.lastName ?? '';
       dataToUpdate.name = `${newFirstName} ${newLastName}`.trim();
@@ -1388,5 +1391,7 @@ export async function correctAttendanceNamesAction(
         };
     }
 }
+
+    
 
     
