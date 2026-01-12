@@ -27,6 +27,7 @@ interface SystemLog {
     oldData?: { [key: string]: any };
     newData?: { [key: string]: any };
   };
+  deletedData?: { [key: string]: any };
   [key: string]: any; // Allow other properties
 }
 
@@ -40,25 +41,24 @@ function DetailItem({ label, value }: { label: string; value: string | undefined
   );
 }
 
+const formatValue = (value: any) => {
+    if (value === null || value === undefined) return <span className="text-muted-foreground">Not set</span>;
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    if (value && typeof value === 'object' && (value.seconds || value._seconds)) {
+      const seconds = value.seconds || value._seconds;
+      return format(new Date(seconds * 1000), 'PPP');
+    }
+    if (typeof value === 'object') return <pre className="text-xs bg-muted p-1 rounded-sm whitespace-pre-wrap">{JSON.stringify(value, null, 2)}</pre>;
+    return value.toString();
+};
+
 function ChangesTable({ oldData, newData }: { oldData: any, newData: any }) {
-  // Combine all keys from both objects
   const allKeys = new Set([...Object.keys(oldData), ...Object.keys(newData)]);
   const changes = Array.from(allKeys).filter(key => JSON.stringify(oldData[key]) !== JSON.stringify(newData[key]));
 
   if (changes.length === 0) {
     return <p className="text-sm text-muted-foreground">No data changes were recorded for this event.</p>;
   }
-
-  const formatValue = (value: any) => {
-    if (value === null || value === undefined) return <span className="text-muted-foreground">Not set</span>;
-    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-    if (value && typeof value === 'object' && value._seconds) {
-      // It's a Firestore-like timestamp object from JSON
-      return format(new Date(value._seconds * 1000), 'PPP');
-    }
-    if (typeof value === 'object') return <pre className="text-xs bg-muted p-1 rounded-sm whitespace-pre-wrap">{JSON.stringify(value, null, 2)}</pre>;
-    return value.toString();
-  };
 
   return (
     <Table>
@@ -81,6 +81,33 @@ function ChangesTable({ oldData, newData }: { oldData: any, newData: any }) {
     </Table>
   );
 }
+
+function DeletedDataTable({ data }: { data: any }) {
+  const keys = Object.keys(data);
+  if (keys.length === 0) {
+    return <p className="text-sm text-muted-foreground">No data was recorded for this deletion event.</p>;
+  }
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Field</TableHead>
+          <TableHead>Deleted Value</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {keys.map(key => (
+          <TableRow key={key}>
+            <TableCell className="font-medium capitalize">{key.replace(/([A-Z])/g, ' $1')}</TableCell>
+            <TableCell>{formatValue(data[key])}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
 
 function SystemLogDetailContent() {
   const [log, setLog] = useState<SystemLog | null>(null);
@@ -228,7 +255,9 @@ function SystemLogDetailContent() {
                     <CardDescription>Comparison of data before and after the action was performed.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {log.changes ? (
+                    {log.action === "Delete Employee" && log.deletedData ? (
+                        <DeletedDataTable data={log.deletedData || {}} />
+                    ) : log.changes ? (
                         <ChangesTable oldData={log.changes.oldData || {}} newData={log.changes.newData || {}} />
                     ) : (
                         <p className="text-muted-foreground text-center py-4">No detailed data changes were recorded for this log entry.</p>
