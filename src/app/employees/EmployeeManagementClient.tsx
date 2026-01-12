@@ -829,102 +829,6 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
     );
 }
 
-// New component for batch import
-function BatchImportDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
-  const { toast } = useToast();
-  const [batchState, batchAction, isBatchPending] =useActionState<BatchCreateEmployeesState, FormData>(
-    batchCreateEmployeesAction,
-    initialBatchCreateState
-  );  const [_isPending, startTransition] = useTransition();
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
-  useEffect(() => {
-    if (batchState.message) {
-      toast({
-        title: batchState.success ? "Batch Import Complete" : "Batch Import Failed",
-        description: batchState.message,
-        variant: batchState.success ? "default" : "destructive",
-        duration: 10000,
-      });
-      if (batchState.success) {
-        onOpenChange(false);
-        setSelectedFile(null);
-      }
-    }
-  }, [batchState, toast, onOpenChange]);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedFile(e.target.files?.[0] || null);
-  };
-
-  const handleImport = async () => {
-    if (!selectedFile) {
-      toast({ variant: "destructive", title: "No File Selected", description: "Please select an Excel file to import." });
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const data = event.target?.result;
-      if (!data) {
-        toast({ variant: "destructive", title: "Error Reading File", description: "Could not read the selected file." });
-        return;
-      }
-      try {
-        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(worksheet, {
-          defval: null,
-          raw: false,
-          blankrows: false,
-          rawNumbers: false,
-        });
-        
-        const formData = new FormData();
-        formData.append('recordsJson', JSON.stringify(json));
-        
-        startTransition(() => {
-          (batchAction as any)(formData);
-        });
-      } catch (error) {
-        console.error("Error parsing Excel file:", error);
-        toast({ variant: "destructive", title: "Parsing Error", description: "Failed to parse the Excel file. Please ensure it's a valid .xlsx file." });
-      }
-    };
-    reader.readAsArrayBuffer(selectedFile);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Import Employees from Excel</DialogTitle>
-          <DialogDescription>
-            Upload an .xlsx file with employee data. The system will attempt to map columns automatically.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="excel-file">Excel File (.xlsx)</Label>
-            <Input id="excel-file" type="file" accept=".xlsx" onChange={handleFileChange} />
-             {batchState?.errors?.file && <p className="text-sm text-destructive mt-1">{batchState.errors.file.join(', ')}</p>}
-          </div>
-        </div>
-         {batchState?.errors?.form && <p className="text-sm text-destructive text-center mb-2">{batchState.errors.form.join(', ')}</p>}
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="button" onClick={handleImport} disabled={isBatchPending || !selectedFile}>
-            {isBatchPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UploadCloud className="mr-2 h-4 w-4" />}
-            Import Data
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-
 export default function EmployeeManagementContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
@@ -1036,8 +940,6 @@ export default function EmployeeManagementContent() {
   
   const [activateState, activateAction, isActivatePending] = useActionState(activateEmployeeAction, initialActivateState);
   const [isActivateTransitionPending, startActivateTransition] = useTransition();
-
-  const [isBatchImportOpen, setIsBatchImportOpen] = useState(false);
 
   useEffect(() => {
     if (isLoadingProfile) return;
@@ -1556,10 +1458,6 @@ export default function EmployeeManagementContent() {
                            <Download className="mr-2 h-4 w-4" />
                            Download Template
                         </Button>
-                        <Button className="w-full" onClick={() => setIsBatchImportOpen(true)}>
-                           <UploadCloud className="mr-2 h-4 w-4" />
-                           Import Excel
-                        </Button>
                         <Button className="w-full" onClick={handleExportExcel} variant="outline">
                            <FileDown className="mr-2 h-4 w-4" />
                            Export to Excel
@@ -1857,8 +1755,6 @@ export default function EmployeeManagementContent() {
         onOpenChange={setIsDeactivateDialogOpen}
       />
       
-      <BatchImportDialog open={isBatchImportOpen} onOpenChange={setIsBatchImportOpen} />
-
       {isDeleteDialogOpen && employeeToDelete && (
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => { if(!open) closeDeleteConfirmDialog(); else setIsDeleteDialogOpen(true); }}>
           <AlertDialogContent>
