@@ -648,9 +648,25 @@ export async function deleteEmployeeAction(
 
   try {
     const docRef = doc(db, "employee", employeeDocId);
-    await deleteDoc(docRef);
+    const docSnap = await getDoc(docRef);
 
-    await logSystemEvent("Delete Employee", { actorId, actorEmail, actorRole, employeeDocId });
+    if (!docSnap.exists()) {
+      return { success: false, errors: { form: ["Employee not found."] } };
+    }
+    
+    const employeeData = docSnap.data();
+
+    // Log the deleted data
+    await logSystemEvent("Delete Employee", { 
+      actorId, 
+      actorEmail, 
+      actorRole, 
+      employeeDocId,
+      deletedData: JSON.parse(JSON.stringify(employeeData)), // Save a copy of the data
+    });
+
+    // Now delete the document
+    await deleteDoc(docRef);
     
     return { success: true, message: `Employee deleted successfully.` };
   } catch (error: any) {
@@ -1372,3 +1388,5 @@ export async function correctAttendanceNamesAction(
         };
     }
 }
+
+    
