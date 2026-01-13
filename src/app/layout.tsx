@@ -17,7 +17,7 @@ const fontSpaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: 'HR Assistant',
+  title: 'HR Portal',
   description: 'A modern Human Resource Management System',
 };
 

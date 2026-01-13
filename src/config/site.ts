@@ -87,7 +87,7 @@ export const navItems: NavItem[] = [
 ];
 
 export const siteConfig = {
-  name: "HR Assistant",
+  name: "HR Portal",
   description: "A modern Human Resource Management System.",
   navItems,
 };

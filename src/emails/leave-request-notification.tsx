@@ -66,7 +66,7 @@ export const LeaveRequestNotificationEmail = ({
         </Section>
         <Hr style={hr} />
         <Text style={footer}>
-          This email was sent from the HR Assistant system. You can approve or reject this request in the application.
+          This email was sent from the HR Portal system. You can approve or reject this request in the application.
         </Text>
       </Container>
     </Body>

@@ -64,7 +64,7 @@ export const ProfDevelopmentNotificationEmail = ({
         </Section>
         <Hr style={hr} />
         <Text style={footer}>
-          This email was sent from the HR Assistant system. You can view the submission details in the employee's profile.
+          This email was sent from the HR Portal system. You can view the submission details in the employee's profile.
         </Text>
       </Container>
     </Body>

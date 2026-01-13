@@ -22,7 +22,7 @@ function PublicHeader() {
       <div className="container flex h-16 items-center justify-between px-4 sm:px-8">
         <Link href="/" className="flex items-center space-x-2">
            <Icons.NisLogo className="h-8 w-8" />
-           <span className="font-headline text-lg font-bold">HR Assistant</span>
+           <span className="font-headline text-lg font-bold">HR Portal</span>
         </Link>
         <nav>
           {loading ? (
