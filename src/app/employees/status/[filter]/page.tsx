@@ -136,13 +136,22 @@ function EmployeeStatusContent() {
           };
         });
 
+        const activeEmployees = allEmployees.filter(emp => emp.status !== 'deactivated');
+
         if (campusFilters.length > 0) {
           allEmployees = allEmployees.filter(emp => emp.campus && campusFilters.includes(emp.campus));
         }
         
         const empByEmployeeId = new Map(
-          allEmployees.map((e) => [toStr(e.employeeId), e])
+          activeEmployees.map((e) => [toStr(e.employeeId), e])
         );
+
+        const empByBadgeNumber = new Map<string, Employee>();
+        activeEmployees.forEach(e => {
+            if (e.badgeNumber) {
+                empByBadgeNumber.set(toStr(e.badgeNumber), e);
+            }
+        });
 
         const attSnap = await getDocs(
           query(
@@ -159,7 +168,7 @@ function EmployeeStatusContent() {
           const logEmployeeId = toStr(data.badgeNumber || data.userId);
           if (!logEmployeeId) return;
           
-          const emp = empByEmployeeId.get(logEmployeeId);
+          const emp = empByEmployeeId.get(logEmployeeId) || empByBadgeNumber.get(logEmployeeId);
           if (campusFilters.length > 0 && emp?.campus && !campusFilters.includes(emp.campus)) {
             return;
           }
@@ -195,11 +204,9 @@ function EmployeeStatusContent() {
                 }
             });
 
-            const allEmployeeDocIds = new Map(allEmployees.map(e => [e.id, e.employeeId]));
-
-            const absentEmployees = allEmployees.filter(emp => 
-                emp.status !== 'deactivated' &&
+            const absentEmployees = activeEmployees.filter(emp => 
                 !presentEmployeeIds.has(emp.employeeId) && 
+                !presentEmployeeIds.has(emp.badgeNumber || '') &&
                 !onLeaveEmployeeIds.has(emp.id)
             );
 
@@ -224,7 +231,7 @@ function EmployeeStatusContent() {
             });
 
             presentEmployeeIds.forEach((logEmployeeId) => {
-              const empRecord = empByEmployeeId.get(logEmployeeId);
+              const empRecord = empByEmployeeId.get(logEmployeeId) || empByBadgeNumber.get(logEmployeeId);
               const checkIn = firstCheckInMap[logEmployeeId];
 
               let row: Row = {
