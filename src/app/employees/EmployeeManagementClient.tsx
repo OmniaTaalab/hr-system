@@ -215,6 +215,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [stage, setStage] = useState<string | undefined>(undefined);
   const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
   const [joiningDate, setJoiningDate] = useState<Date | undefined>();
+  const [isDobPopoverOpen, setIsDobPopoverOpen] = useState(false);
+  const [isJoiningDatePopoverOpen, setIsJoiningDatePopoverOpen] = useState(false);
   const addFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -295,9 +297,27 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 </div>
                  <div className="space-y-2">
                     <Label>Date of Birth</Label>
-                    <Popover>
-                        <PopoverTrigger asChild><Button variant={"outline"} className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger>
-                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={getYear(new Date()) - 18} initialFocus /></PopoverContent>
+                    <Popover open={isDobPopoverOpen} onOpenChange={setIsDobPopoverOpen}>
+                        <PopoverTrigger asChild>
+                            <Button variant={"outline"} className="w-full justify-start text-left font-normal">
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <Calendar
+                                mode="single"
+                                selected={dateOfBirth}
+                                onSelect={setDateOfBirth}
+                                captionLayout="buttons"
+                                fromYear={1950}
+                                toYear={getYear(new Date()) - 18}
+                                initialFocus
+                            />
+                            <div className="p-1 border-t">
+                                <Button size="sm" className="w-full" onClick={() => setIsDobPopoverOpen(false)}>Done</Button>
+                            </div>
+                        </PopoverContent>
                     </Popover>
                 </div>
             </div>
@@ -364,9 +384,24 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                 </div>
                  <div className="space-y-2">
                     <Label>Joining Date</Label>
-                    <Popover>
-                        <PopoverTrigger asChild><Button variant={"outline"} className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{joiningDate ? format(joiningDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger>
-                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} /></PopoverContent>
+                    <Popover open={isJoiningDatePopoverOpen} onOpenChange={setIsJoiningDatePopoverOpen}>
+                        <PopoverTrigger asChild>
+                            <Button variant={"outline"} className="w-full justify-start text-left font-normal">
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {joiningDate ? format(joiningDate, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <Calendar
+                                mode="single"
+                                selected={joiningDate}
+                                onSelect={setJoiningDate}
+                                captionLayout="buttons"
+                            />
+                            <div className="p-1 border-t">
+                                <Button size="sm" className="w-full" onClick={() => setIsJoiningDatePopoverOpen(false)}>Done</Button>
+                            </div>
+                        </PopoverContent>
                     </Popover>
                 </div>
             </div>

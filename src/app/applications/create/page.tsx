@@ -49,9 +49,11 @@ function PersonalInfoSection() {
       <div className="space-y-2">
         <Label>Name in Arabic (As in I.D.)</Label>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Input name="firstNameAr" placeholder="* الاسم الأول" required dir="rtl" />
+        <Input name="familyNameAr" placeholder="* العائلة" required dir="rtl" />
+
           <Input name="fatherNameAr" placeholder="اسم الأب" dir="rtl" />
-          <Input name="familyNameAr" placeholder="* العائلة" required dir="rtl" />
+          <Input name="firstNameAr" placeholder="* الاسم الأول" required dir="rtl" />
+
         </div>
       </div>
       
@@ -281,12 +283,12 @@ function EducationalHistorySection() {
              <div className="grid grid-cols-3 items-center gap-4">
                  <Input name="diploma1_name" placeholder="Course Name" />
                  <Input name="diploma1_institution" placeholder="Institution Name" />
-                 <RadioGroup name="diploma1_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="d1-completed-yes" /><Label htmlFor="d1-completed-yes">Yes</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="d1-completed-no" /><Label htmlFor="d1-completed-no">No</Label></div></RadioGroup>
+                 <RadioGroup name="diploma1_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="completed" id="d1-completed-yes" /><Label htmlFor="d1-completed-yes">Completed</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="not completed" id="d1-completed-no" /><Label htmlFor="d1-completed-no">Not Completed</Label></div></RadioGroup>
              </div>
              <div className="grid grid-cols-3 items-center gap-4">
                  <Input name="diploma2_name" placeholder="Course Name" />
                  <Input name="diploma2_institution" placeholder="Institution Name" />
-                 <RadioGroup name="diploma2_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="d2-completed-yes" /><Label htmlFor="d2-completed-yes">Yes</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="d2-completed-no" /><Label htmlFor="d2-completed-no">No</Label></div></RadioGroup>
+                 <RadioGroup name="diploma2_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="completed" id="d2-completed-yes" /><Label htmlFor="d2-completed-yes">Completed</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="not completed" id="d2-completed-no" /><Label htmlFor="d2-completed-no">Not Completed</Label></div></RadioGroup>
              </div>
         </div>
     </div>
