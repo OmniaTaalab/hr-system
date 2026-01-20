@@ -68,7 +68,7 @@ function PersonalInfoSection() {
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} initialFocus />
+                    <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1920} toYear={2026} initialFocus />
                 </PopoverContent>
             </Popover>
             <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
@@ -212,7 +212,7 @@ function JobRequirementsSection() {
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={availableStartDate} onSelect={setAvailableStartDate} initialFocus />
+                    <Calendar mode="single" selected={availableStartDate} onSelect={setAvailableStartDate} captionLayout="dropdown-buttons" fromYear={1920} toYear={2026} initialFocus />
                 </PopoverContent>
             </Popover>
             <input type="hidden" name="availableStartDate" value={availableStartDate?.toISOString() ?? ''} />
@@ -254,9 +254,9 @@ function EducationalHistorySection() {
                 <Input name="school_major" placeholder="Major" />
                 <Input name="school_cityCountry" placeholder="City, Country" />
                 <Input name="school_overall" placeholder="Overall" />
-                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolStartDate ? format(schoolStartDate, "PPP") : <span>From</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolStartDate} onSelect={setSchoolStartDate} /></PopoverContent></Popover>
+                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolStartDate ? format(schoolStartDate, "PPP") : <span>From</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolStartDate} onSelect={setSchoolStartDate} captionLayout="dropdown-buttons" fromYear={1920} toYear={2026} /></PopoverContent></Popover>
                 <input type="hidden" name="school_startDate" value={schoolStartDate?.toISOString() ?? ''} />
-                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolEndDate ? format(schoolEndDate, "PPP") : <span>To</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolEndDate} onSelect={setSchoolEndDate} /></PopoverContent></Popover>
+                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolEndDate ? format(schoolEndDate, "PPP") : <span>To</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolEndDate} onSelect={setSchoolEndDate} captionLayout="dropdown-buttons" fromYear={1920} toYear={2026} /></PopoverContent></Popover>
                 <input type="hidden" name="school_endDate" value={schoolEndDate?.toISOString() ?? ''} />
                 <div className="col-span-2"><RadioGroup name="school_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="school-completed-yes" /><Label htmlFor="school-completed-yes">Completed</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="school-completed-no" /><Label htmlFor="school-completed-no">Not Completed</Label></div></RadioGroup></div>
             </div>
@@ -270,9 +270,9 @@ function EducationalHistorySection() {
                 <Input name="university_major" placeholder="Major" />
                 <Input name="university_cityCountry" placeholder="City, Country" />
                 <Input name="university_overall" placeholder="Overall" />
-                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityStartDate ? format(universityStartDate, "PPP") : <span>From</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityStartDate} onSelect={setUniversityStartDate} /></PopoverContent></Popover>
+                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityStartDate ? format(universityStartDate, "PPP") : <span>From</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityStartDate} onSelect={setUniversityStartDate} captionLayout="dropdown-buttons" fromYear={1920} toYear={2026} /></PopoverContent></Popover>
                 <input type="hidden" name="university_startDate" value={universityStartDate?.toISOString() ?? ''} />
-                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityEndDate ? format(universityEndDate, "PPP") : <span>To</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityEndDate} onSelect={setUniversityEndDate} /></PopoverContent></Popover>
+                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityEndDate ? format(universityEndDate, "PPP") : <span>To</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityEndDate} onSelect={setUniversityEndDate} captionLayout="dropdown-buttons" fromYear={1920} toYear={2026} /></PopoverContent></Popover>
                 <input type="hidden" name="university_endDate" value={universityEndDate?.toISOString() ?? ''} />
                 <div className="col-span-2"><RadioGroup name="university_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="uni-completed-yes" /><Label htmlFor="uni-completed-yes">Completed</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="uni-completed-no" /><Label htmlFor="uni-completed-no">Not Completed</Label></div></RadioGroup></div>
             </div>

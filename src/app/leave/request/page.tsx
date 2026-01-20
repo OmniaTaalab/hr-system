@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -242,6 +243,9 @@ function LeaveRequestForm() {
                     setStartDate(d);
                     setIsStartDatePickerOpen(false);
                   }}
+                  captionLayout="dropdown-buttons"
+                  fromYear={1920}
+                  toYear={2026}
                   disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
                 />
               </PopoverContent>
@@ -277,6 +281,9 @@ function LeaveRequestForm() {
                     setEndDate(d);
                     setIsEndDatePickerOpen(false);
                   }}
+                  captionLayout="dropdown-buttons"
+                  fromYear={1920}
+                  toYear={2026}
                   disabled={(d) => d < (startDate || new Date())}
                 />
               </PopoverContent>
