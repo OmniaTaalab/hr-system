@@ -30,9 +30,9 @@ import { collection, onSnapshot, query, orderBy, Timestamp } from "firebase/fire
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { MultiSelectFilter } from "@/components/multi-select";
 
 type Application = {
   id: string;
@@ -99,8 +99,8 @@ function ApplicationsTable() {
   const [sorting, setSorting] = useState<{ id: SortKey; desc: boolean }>({ id: 'submittedAt', desc: true });
   const [searchTerm, setSearchTerm] = useState("");
   const [rowSelection, setRowSelection] = useState({});
-  const [campusFilter, setCampusFilter] = useState("All");
-  const [schoolTypeFilter, setSchoolTypeFilter] = useState("All");
+  const [campusFilter, setCampusFilter] = useState<string[]>([]);
+  const [schoolTypeFilter, setSchoolTypeFilter] = useState<string[]>([]);
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -139,11 +139,11 @@ function ApplicationsTable() {
   const filteredAndSortedApplications = useMemo(() => {
     let filtered = applications;
 
-    if (campusFilter !== "All") {
-        filtered = filtered.filter(app => app.nationalCampus === campusFilter);
+    if (campusFilter.length > 0) {
+        filtered = filtered.filter(app => app.nationalCampus && campusFilter.includes(app.nationalCampus));
     }
-    if (schoolTypeFilter !== "All") {
-        filtered = filtered.filter(app => app.schoolType === schoolTypeFilter);
+    if (schoolTypeFilter.length > 0) {
+        filtered = filtered.filter(app => app.schoolType && schoolTypeFilter.includes(app.schoolType));
     }
 
     if (searchTerm) {
@@ -236,29 +236,20 @@ function ApplicationsTable() {
             className="max-w-sm"
           />
           <div className="flex flex-wrap gap-2">
-            <Select value={campusFilter} onValueChange={setCampusFilter} disabled={isLoadingLists}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by campus..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Campuses</SelectItem>
-                {campuses.map((campus) => (
-                  <SelectItem key={campus.id} value={campus.name}>
-                    {campus.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={schoolTypeFilter} onValueChange={setSchoolTypeFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by school type..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All School Types</SelectItem>
-                <SelectItem value="National">National</SelectItem>
-                <SelectItem value="International">International</SelectItem>
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter
+                placeholder="Filter by campus..."
+                options={campuses.map(c => ({ label: c.name, value: c.name }))}
+                selected={campusFilter}
+                onChange={setCampusFilter}
+                className="w-full sm:w-[180px]"
+            />
+            <MultiSelectFilter
+                placeholder="Filter by school type..."
+                options={[{label: "National", value: "National"}, {label: "International", value: "International"}]}
+                selected={schoolTypeFilter}
+                onChange={setSchoolTypeFilter}
+                className="w-full sm:w-[180px]"
+            />
              <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline">
