@@ -68,7 +68,7 @@ function PersonalInfoSection() {
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1920} toYear={2026} initialFocus />
+                    <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1920} toYear={2026} />
                 </PopoverContent>
             </Popover>
             <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
@@ -212,7 +212,7 @@ function JobRequirementsSection() {
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={availableStartDate} onSelect={setAvailableStartDate} captionLayout="dropdown-buttons" fromYear={1920} toYear={2026} initialFocus />
+                    <Calendar mode="single" selected={availableStartDate} onSelect={setAvailableStartDate} captionLayout="dropdown-buttons" fromYear={1920} toYear={2026} />
                 </PopoverContent>
             </Popover>
             <input type="hidden" name="availableStartDate" value={availableStartDate?.toISOString() ?? ''} />
