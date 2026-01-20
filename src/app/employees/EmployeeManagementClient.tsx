@@ -308,15 +308,12 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                             <Calendar
                                 mode="single"
                                 selected={dateOfBirth}
-                                onSelect={setDateOfBirth}
-                                captionLayout="buttons"
+                                onSelect={(date) => { setDateOfBirth(date); setIsDobPopoverOpen(false); }}
+                                captionLayout="dropdown-buttons"
                                 fromYear={1950}
                                 toYear={getYear(new Date()) - 18}
                                 initialFocus
                             />
-                            <div className="p-1 border-t">
-                                <Button size="sm" className="w-full" onClick={() => setIsDobPopoverOpen(false)}>Done</Button>
-                            </div>
                         </PopoverContent>
                     </Popover>
                 </div>
@@ -395,12 +392,12 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                             <Calendar
                                 mode="single"
                                 selected={joiningDate}
-                                onSelect={setJoiningDate}
-                                captionLayout="buttons"
+                                onSelect={(date) => { setJoiningDate(date); setIsJoiningDatePopoverOpen(false); }}
+                                captionLayout="dropdown-buttons"
+                                fromYear={1970}
+                                toYear={getYear(new Date()) + 5}
+                                initialFocus
                             />
-                            <div className="p-1 border-t">
-                                <Button size="sm" className="w-full" onClick={() => setIsJoiningDatePopoverOpen(false)}>Done</Button>
-                            </div>
                         </PopoverContent>
                     </Popover>
                 </div>
