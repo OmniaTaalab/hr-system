@@ -1,4 +1,3 @@
-
 "use client";
 
 import { AppLayout } from "@/components/layout/app-layout";
@@ -170,20 +169,7 @@ function JobRequirementsSection() {
         </div>
         <div className="space-y-2">
             <Label htmlFor="yearsOfExperience">Years of Experience in that position</Label>
-            <Select name="yearsOfExperience">
-                <SelectTrigger id="yearsOfExperience">
-                    <SelectValue placeholder="Select years of experience" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="0">0</SelectItem>
-                    <SelectItem value="1">1</SelectItem>
-                    <SelectItem value="2">2</SelectItem>
-                    <SelectItem value="3">3</SelectItem>
-                    <SelectItem value="4">4</SelectItem>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="5+">5+</SelectItem>
-                </SelectContent>
-            </Select>
+            <Input id="yearsOfExperience" name="yearsOfExperience" type="text" />
         </div>
         <div className="space-y-2">
             <Label htmlFor="expectedSalary">Expected monthly salary</Label>
