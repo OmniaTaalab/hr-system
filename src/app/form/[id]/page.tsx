@@ -237,6 +237,8 @@ function ApplicationDetailContent() {
                   <DetailItem label="Parent at NIS" icon={User}><YesNoIcon value={application.isParentAtNIS} /></DetailItem>
                   <DetailItem label="Number of Children" value={application.numberOfChildren} icon={Users}/>
                   <DetailItem label="Address" value={`${application.apartment}, ${application.street} St, ${application.area}, ${application.city}, ${application.country}`} icon={MapPin} />
+                  <DetailItem label="Contacted By HR" value={application.contactedByHR} icon={Users}/>
+
                 </div>
               </section>
               
@@ -356,6 +358,7 @@ function ApplicationDetailContent() {
                 </section>
               )}
 
+  
               {/* File Downloads */}
               <section>
                 <h3 className="font-semibold text-lg border-b pb-2 mb-4 flex items-center">
