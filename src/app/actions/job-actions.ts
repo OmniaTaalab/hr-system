@@ -116,7 +116,7 @@ const WorkExperienceSchema = z.object({
   benefits: optionalString,
   fromDate: optionalString,
   toDate: optionalString,
-});
+}).passthrough();
 
 
 
