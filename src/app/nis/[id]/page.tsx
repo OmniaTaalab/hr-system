@@ -239,7 +239,7 @@ function ApplicationDetailContent() {
                   <DetailItem label="National Campus" value={application.nationalCampus} icon={School} />
                   <DetailItem label="Notice Period" value={application.noticePeriod ? `${application.noticePeriod} days` : '-'} icon={Cake}/>
                   <DetailItem label="Available Start Date" value={formatDateSafe(application.availableStartDate)} icon={Cake}/>
-                  <DetailItem label="Needs School Bus" icon={Briefcase}><YesNoIcon value={application.needsBus} /></DetailItem>
+                  <DetailItem label="Needs School Bus" value={application.needsBus} icon={Briefcase}/>
                   <DetailItem label="Inside Contact" icon={Briefcase}><YesNoIcon value={application.insideContact} /></DetailItem>
                   <DetailItem label="How did you hear?" value={application.howDidYouHear} icon={Briefcase} />
                   <DetailItem label="Previously worked at NIS" icon={Briefcase}><YesNoIcon value={application.previouslyWorkedAtNIS} /></DetailItem>
@@ -382,4 +382,3 @@ export default function ApplicationDetailPage() {
         </Layout>
     );
 }
-

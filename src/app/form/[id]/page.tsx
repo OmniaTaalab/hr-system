@@ -254,7 +254,7 @@ function ApplicationDetailContent() {
                   <DetailItem label="National Campus" value={application.nationalCampus} icon={School} />
                   <DetailItem label="Notice Period" value={application.noticePeriod ? `${application.noticePeriod} days` : '-'} icon={Cake}/>
                   <DetailItem label="Available Start Date" value={formatDateSafe(application.availableStartDate)} icon={Cake}/>
-                  <DetailItem label="Needs School Bus" icon={Briefcase}><YesNoIcon value={application.needsBus} /></DetailItem>
+                  <DetailItem label="Needs School Bus" value={application.needsBus} icon={Briefcase}/>
                   <DetailItem label="Inside Contact" icon={Briefcase}><YesNoIcon value={application.insideContact} /></DetailItem>
                   <DetailItem label="How did you hear?" value={application.howDidYouHear} icon={Briefcase} />
                   <DetailItem label="Previously worked at NIS" icon={Briefcase}><YesNoIcon value={application.previouslyWorkedAtNIS} /></DetailItem>
@@ -342,7 +342,7 @@ function ApplicationDetailContent() {
                                     <p><span className="text-muted-foreground">Location: </span>{exp.address}</p>
                                     <p><span className="text-muted-foreground">Department: </span>{exp.department}</p>
                                     <p><span className="text-muted-foreground">Supervisor: </span>{exp.supervisorName}</p>
-                                    <p><span className="text-muted-foreground">Salary: </span>{exp.salary}</p>
+                                    <p><span className="text-muted-foreground">Salary: </span>{exp.Benefits}</p>
                                     <p><span className="text-muted-foreground">Reason for leaving: </span>{exp.reasonForLeaving}</p>
                                 </div>
                             </div>
