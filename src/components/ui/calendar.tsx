@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -18,10 +19,7 @@ function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      pagedNavigation // This is the key change to allow independent month/year navigation
-      captionLayout="dropdown-buttons" // Use dropdowns for navigation
-      fromYear={1970}
-      toYear={2035}
+      captionLayout="dropdown-buttons"
       className={cn("p-3", className)}
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
