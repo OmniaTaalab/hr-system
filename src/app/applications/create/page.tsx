@@ -469,17 +469,81 @@ export default function CreateApplicationPage() {
     }
   }, [state, toast, router]);
 
-  const nextStep = () => setStep(s => s + 1);
+  const nextStep = () => {
+    const form = formRef.current;
+    if (!form) return;
+
+    const currentStepContainer = form.querySelector<HTMLElement>(`[data-step="${step}"]`);
+    if (!currentStepContainer) {
+        setStep(s => s + 1); // Failsafe in case the selector fails
+        return;
+    };
+    
+    // Find all required native inputs
+    const inputs = Array.from(
+      currentStepContainer.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+        'input[required], select[required], textarea[required]'
+      )
+    );
+
+    let firstInvalidInput: HTMLElement | null = null;
+
+    // Check validity for native elements
+    for (const input of inputs) {
+        if (input.offsetParent !== null) { // is visible
+            if (!input.checkValidity()) {
+                if (!firstInvalidInput) {
+                    firstInvalidInput = input;
+                }
+            }
+        }
+    }
+    
+    if (firstInvalidInput) {
+        firstInvalidInput.focus();
+        (firstInvalidInput as HTMLInputElement).reportValidity();
+        toast({
+            title: "Missing Information",
+            description: "Please fill out all required fields marked with an asterisk (*).",
+            variant: "destructive",
+        });
+        return;
+    }
+
+    // If all native inputs are valid, we can add special checks for custom components here if needed in the future
+
+    // If all good, proceed
+    setStep(s => s + 1);
+    window.scrollTo(0, 0);
+  };
   const prevStep = () => setStep(s => s - 1);
   
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(formRef.current!);
+    const form = formRef.current!;
+
+    // Final validation before submitting
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        toast({
+            title: "Missing Information",
+            description: "Please ensure all required fields are filled out before submitting.",
+            variant: "destructive",
+        });
+        return;
+    }
+
+    const formData = new FormData(form);
     const cvFile = formData.get('cv') as File | null;
     const nationalIdFile = formData.get('nationalId') as File | null;
+    const contactedByHR = formData.get('contactedByHR');
 
     if (!cvFile || cvFile.size === 0) {
         toast({ variant: 'destructive', title: 'CV Required', description: 'Please upload your CV.' });
+        return;
+    }
+    if (!contactedByHR) {
+        toast({ variant: 'destructive', title: 'HR Contact confirmation Required', description: 'Please specify if you were contacted by HR.' });
         return;
     }
 
@@ -538,17 +602,6 @@ export default function CreateApplicationPage() {
   };
 
 
-  const renderStep = () => {
-    switch (step) {
-      case 1: return <PersonalInfoSection />;
-      case 2: return <JobRequirementsSection />;
-      case 3: return <EducationalHistorySection />;
-      case 4: return <LanguageAndSkillsSection />;
-      case 5: return <WorkExperienceSection />;
-      default: return <PersonalInfoSection />;
-    }
-  }
-
   return (
     <AppLayout>
       <div className="space-y-8 max-w-4xl mx-auto">
@@ -567,19 +620,19 @@ export default function CreateApplicationPage() {
             </CardHeader>
             <CardContent>
                 <form ref={formRef} onSubmit={handleFormSubmit}>
-                 <div className={step === 1 ? "block" : "hidden"}>
+                 <div data-step="1" className={step === 1 ? "block" : "hidden"}>
                     <PersonalInfoSection />
                 </div>
-                <div className={step === 2 ? "block" : "hidden"}>
+                <div data-step="2" className={step === 2 ? "block" : "hidden"}>
                     <JobRequirementsSection />
                 </div>
-                <div className={step === 3 ? "block" : "hidden"}>
+                <div data-step="3" className={step === 3 ? "block" : "hidden"}>
                     <EducationalHistorySection />
                 </div>
-                <div className={step === 4 ? "block" : "hidden"}>
+                <div data-step="4" className={step === 4 ? "block" : "hidden"}>
                     <LanguageAndSkillsSection />
                 </div>
-                <div className={step === 5 ? "block" : "hidden"}>
+                <div data-step="5" className={step === 5 ? "block" : "hidden"}>
                     <WorkExperienceSection />
                 </div>
                     <div className="flex justify-between mt-8">
