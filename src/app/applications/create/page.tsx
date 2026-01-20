@@ -561,8 +561,8 @@ export default function CreateApplicationPage() {
 
             const workExperiences: any[] = [];
             formData.forEach((value, key) => {
-                const match = key.match(/workExperience\[(\d+)\]\[(\w+)\]/);
-                if (match) {
+              const match = key.match(/workExperience\[(\d+)\]\[([^\]]+)\]/);
+              if (match) {
                     const index = parseInt(match[1], 10);
                     const field = match[2];
                     if (!workExperiences[index]) {

@@ -183,7 +183,7 @@ const JobApplicationSchema = z.object({
   positionSubject: optionalString,
   yearsOfExperience: optionalNumber,
   expectedSalary: optionalNumber,
-
+  
   schoolType: optionalString,
   nationalCampus: optionalString,
 
