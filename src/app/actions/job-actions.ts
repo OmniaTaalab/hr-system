@@ -181,7 +181,8 @@ const JobApplicationSchema = z.object({
   previouslyWorkedAtNIS: optionalString,
   positionJobTitle: optionalString,
   positionSubject: optionalString,
-  yearsOfExperience: optionalNumber,
+  yearsOfExperience: optionalString,
+  
   expectedSalary: optionalNumber,
   
   schoolType: optionalString,
@@ -460,6 +461,57 @@ export async function manageApplicationTemplateAction(
     return {
       success: false,
       errors: { form: ["An unexpected error occurred."] },
+    };
+  }
+}
+
+// --- New Delete Application Action ---
+const DeleteApplicationSchema = z.object({
+  applicationId: z.string().min(1, "Application ID is required."),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
+});
+
+export type DeleteApplicationState = {
+  errors?: { form?: string[] };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function deleteApplicationAction(
+  prevState: DeleteApplicationState,
+  formData: FormData
+): Promise<DeleteApplicationState> {
+  const validatedFields = DeleteApplicationSchema.safeParse({
+    applicationId: formData.get('applicationId'),
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
+  });
+
+  if (!validatedFields.success) {
+    return { errors: { form: ["Invalid Application ID."] }, success: false };
+  }
+
+  const { applicationId, actorId, actorEmail, actorRole } = validatedFields.data;
+
+  try {
+    await deleteDoc(doc(db, "nis", applicationId));
+    
+    await logSystemEvent("Delete Job Application", {
+        actorId,
+        actorEmail,
+        actorRole,
+        applicationId: applicationId,
+    });
+
+    return { success: true, message: "Job application deleted successfully." };
+  } catch (error: any) {
+    return {
+      errors: { form: ["Failed to delete job application."] },
+      message: `Error: ${error.message}`,
+      success: false,
     };
   }
 }

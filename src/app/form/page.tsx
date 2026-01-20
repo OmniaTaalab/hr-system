@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useActionState } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +34,10 @@ import { useOrganizationLists } from "@/hooks/use-organization-lists";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MultiSelectFilter } from "@/components/multi-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { deleteApplicationAction, type DeleteApplicationState } from "@/app/actions/job-actions";
+import { useToast } from "@/hooks/use-toast";
+
 
 type Application = {
   id: string;
@@ -58,6 +63,54 @@ const formatDateSafe = (date: any) => {
     if (isNaN(d.getTime())) return "-";
     return format(d, "PPP");
   };
+
+const initialDeleteState: DeleteApplicationState = { success: false };
+
+function DeleteApplicationDialog({ application, actorProfile }: { application: Application; actorProfile: any }) {
+    const { toast } = useToast();
+    const [deleteState, deleteAction, isDeletePending] = useActionState(deleteApplicationAction, initialDeleteState);
+
+    useEffect(() => {
+        if (deleteState.message) {
+            toast({
+                title: deleteState.success ? "Success" : "Error",
+                description: deleteState.message,
+                variant: deleteState.success ? "default" : "destructive",
+            });
+        }
+    }, [deleteState, toast]);
+
+    return (
+        <AlertDialog>
+            <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <form action={deleteAction} onClick={(e) => e.stopPropagation()}>
+                    <input type="hidden" name="applicationId" value={application.id} />
+                    <input type="hidden" name="actorId" value={actorProfile?.id} />
+                    <input type="hidden" name="actorEmail" value={actorProfile?.email} />
+                    <input type="hidden" name="actorRole" value={actorProfile?.role} />
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete the application from <strong>{`${application.firstNameEn || ''} ${application.lastNameEn || ''}`.trim()}</strong>. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {deleteState?.errors?.form && <p className="text-sm text-destructive mt-2">{deleteState.errors.form.join(', ')}</p>}
+                    <AlertDialogFooter className="mt-4">
+                        <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+                        <AlertDialogAction type="submit" disabled={isDeletePending} className="bg-destructive hover:bg-destructive/90">
+                            {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Delete"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </form>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
 
 function ApplicationsTable() {
   const [applications, setApplications] = useState<Application[]>([]);
@@ -225,58 +278,73 @@ function ApplicationsTable() {
   
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Job Applications</CardTitle>
-        <CardDescription>A list of all submitted job applications.</CardDescription>
-        <div className="flex flex-wrap items-center gap-4 pt-4">
-          <Input
-            placeholder="Search all application fields..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-sm"
-          />
-          <div className="flex flex-wrap gap-2">
-            <MultiSelectFilter
-                placeholder="Filter by campus..."
-                options={campuses.map(c => ({ label: c.name, value: c.name }))}
-                selected={campusFilter}
-                onChange={setCampusFilter}
-                className="w-full sm:w-[180px]"
-            />
-            <MultiSelectFilter
-                placeholder="Filter by school type..."
-                options={[{label: "National", value: "National"}, {label: "International", value: "International"}]}
-                selected={schoolTypeFilter}
-                onChange={setSchoolTypeFilter}
-                className="w-full sm:w-[180px]"
-            />
-             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  <Columns className="mr-2 h-4 w-4" /> Columns
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
-                <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {allColumns.map((column) => (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={columnVisibility[column.id]}
-                    disabled={column.required}
-                    onCheckedChange={(value) =>
-                      setColumnVisibility((prev) => ({ ...prev, [column.id]: !!value }))
-                    }
-                  >
-                    {column.label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </CardHeader>
+    <CardHeader>
+  <CardTitle>Job Applications</CardTitle>
+  <CardDescription>
+    A list of all submitted job applications.
+  </CardDescription>
+
+  <div className="flex flex-col gap-4 pt-4 sm:flex-row sm:items-center">
+    <Input
+      placeholder="Search all application fields..."
+      value={searchTerm}
+      onChange={(e) => setSearchTerm(e.target.value)}
+      className="w-full sm:max-w-sm"
+    />
+
+    <div className="flex flex-wrap gap-2">
+      <MultiSelectFilter
+        placeholder="Filter by campus..."
+        options={campuses.map(c => ({ label: c.name, value: c.name }))}
+        selected={campusFilter}
+        onChange={setCampusFilter}
+        className="w-full sm:w-[180px]"
+      />
+
+      <MultiSelectFilter
+        placeholder="Filter by school type..."
+        options={[
+          { label: "National", value: "National" },
+          { label: "International", value: "International" }
+        ]}
+        selected={schoolTypeFilter}
+        onChange={setSchoolTypeFilter}
+        className="w-full sm:w-[180px]"
+      />
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline">
+            <Columns className="mr-2 h-4 w-4" /> Columns
+          </Button>
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
+          <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {allColumns.map((column) => (
+            <DropdownMenuCheckboxItem
+              key={column.id}
+              className="capitalize"
+              checked={columnVisibility[column.id]}
+              disabled={column.required}
+              onCheckedChange={(value) =>
+                setColumnVisibility((prev) => ({
+                  ...prev,
+                  [column.id]: !!value,
+                }))
+              }
+            >
+              {column.label}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  </div>
+</CardHeader>
+
+
       <CardContent>
         <div className="rounded-md border">
           <Table>
@@ -312,8 +380,8 @@ function ApplicationsTable() {
                 </TableRow>
               ) : paginatedApplications.length > 0 ? (
                 paginatedApplications.map((app, index) => (
-                  <TableRow key={app.id} data-state={rowSelection[app.id] && "selected"}>
-                    <TableCell>
+                  <TableRow key={app.id} data-state={rowSelection[app.id] && "selected"} onClick={() => router.push(`/form/${app.id}`)} className="cursor-pointer">
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={!!rowSelection[app.id]} onCheckedChange={(value) => setRowSelection(prev => ({...prev, [app.id]: !!value}))} />
                     </TableCell>
                     <TableCell>{(currentPage - 1) * rowsPerPage + index + 1}</TableCell>
@@ -340,19 +408,17 @@ function ApplicationsTable() {
                     {columnVisibility.university && <TableCell>{app.university_name || 'N/A'}</TableCell>}
                     {columnVisibility.major && <TableCell>{app.university_major || 'N/A'}</TableCell>}
 
-                    <TableCell className="text-right">
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                        <Button variant="ghost" size="icon" onClick={() => router.push(`/form/${app.id}`)}>
                          <Eye className="h-4 w-4" />
                        </Button>
-                       <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                         <Trash2 className="h-4 w-4" />
-                       </Button>
+                       <DeleteApplicationDialog application={app} actorProfile={profile} />
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={allColumns.filter(c => columnVisibility[c.id]).length + 3} className="h-24 text-center">
+                  <TableCell colSpan={allColumns.filter(c => columnVisibility[c.id]).length + 4} className="h-24 text-center">
                     No results found.
                   </TableCell>
                 </TableRow>
