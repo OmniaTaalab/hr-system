@@ -342,7 +342,12 @@ function ApplicationDetailContent() {
                                     <p><span className="text-muted-foreground">Location: </span>{exp.address}</p>
                                     <p><span className="text-muted-foreground">Department: </span>{exp.department}</p>
                                     <p><span className="text-muted-foreground">Supervisor: </span>{exp.supervisorName}</p>
-                                    <p><span className="text-muted-foreground">Salary: </span>{exp.Benefits}</p>
+                                    <p><span className="text-muted-foreground">Stage: </span>{exp.stage}</p>
+                                    <p><span className="text-muted-foreground">Telephone: </span>{exp.telephone}</p>
+                                    <p><span className="text-muted-foreground">Supervised phone: </span>{exp.supervisedCount}</p>
+                                    <p><span className="text-muted-foreground">Benifets: </span>{exp.benefits}</p>
+
+                                    <p><span className="text-muted-foreground">Salary: </span>{exp.salary}</p>
                                     <p><span className="text-muted-foreground">Reason for leaving: </span>{exp.reasonForLeaving}</p>
                                 </div>
                             </div>

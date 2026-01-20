@@ -437,7 +437,7 @@ function WorkExperienceSection() {
              <div className="space-y-2">
                 <Label htmlFor="nationalId">National ID / Passport</Label>
                  <div className="flex items-center gap-2">
-                    <Input id="nationalId" name="nationalId" type="file" className="flex-1" />
+                    <Input id="nationalId" name="nationalId" type="file" className="flex-1" accept="image/*,.pdf" />
                 </div>
             </div>
         </div>
