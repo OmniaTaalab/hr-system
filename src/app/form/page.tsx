@@ -334,6 +334,7 @@ function ApplicationsTable() {
                   [column.id]: !!value,
                 }))
               }
+              onSelect={(e) => e.preventDefault()}
             >
               {column.label}
             </DropdownMenuCheckboxItem>
