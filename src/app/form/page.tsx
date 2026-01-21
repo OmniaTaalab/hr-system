@@ -29,7 +29,7 @@ import {
   FileDown,
 } from "lucide-react";
 import { db } from "@/lib/firebase/config";
-import { collection, onSnapshot, query, orderBy, Timestamp } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, Timestamp, updateDoc, doc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
@@ -195,6 +195,18 @@ function ApplicationsTable() {
     return () => unsubscribe();
   }, [isLoadingProfile, canViewPage]);
 
+  const handleRowClick = async (app: Application) => {
+    if (canViewPage && !app.read) {
+        const appRef = doc(db, 'nis', app.id);
+        try {
+            await updateDoc(appRef, { read: true });
+        } catch (error) {
+            console.error("Failed to mark as read:", error);
+        }
+    }
+    router.push(`/form/${app.id}`);
+  };
+
   const handleSort = (columnId: SortKey) => {
     const isAsc = sorting.id === columnId && !sorting.desc;
     setSorting({ id: columnId, desc: isAsc });
@@ -354,29 +366,31 @@ function ApplicationsTable() {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
         />
-        <MultiSelectFilter
-          placeholder="Filter by campus..."
-          options={campuses.map(c => ({ label: c.name, value: c.name }))}
-          selected={campusFilter}
-          onChange={setCampusFilter}
-          className="w-[180px]"
-        />
-        <MultiSelectFilter
-          placeholder="Filter by school type..."
-          options={[
-            { label: "National", value: "National" },
-            { label: "International", value: "International" }
-          ]}
-          selected={schoolTypeFilter}
-          onChange={setSchoolTypeFilter}
-          className="w-[180px]"
-        />
+        <div className="w-full sm:w-[180px]">
+          <MultiSelectFilter
+            placeholder="Filter by campus..."
+            options={campuses.map(c => ({ label: c.name, value: c.name }))}
+            selected={campusFilter}
+            onChange={setCampusFilter}
+          />
+        </div>
+        <div className="w-full sm:w-[180px]">
+          <MultiSelectFilter
+            placeholder="Filter by school type..."
+            options={[
+              { label: "National", value: "National" },
+              { label: "International", value: "International" }
+            ]}
+            selected={schoolTypeFilter}
+            onChange={setSchoolTypeFilter}
+          />
+        </div>
         <Popover>
             <PopoverTrigger asChild>
                 <Button
                 variant={"outline"}
                 className={cn(
-                    "w-[240px] justify-start text-left font-normal",
+                    "w-full sm:w-[240px] justify-start text-left font-normal",
                     !dateFilter && "text-muted-foreground"
                 )}
                 >
@@ -396,7 +410,7 @@ function ApplicationsTable() {
         {dateFilter && <Button variant="ghost" size="icon" onClick={() => setDateFilter(null)}><X className="h-4 w-4" /></Button>}
         
         <Select value={readFilter} onValueChange={(value) => setReadFilter(value as any)}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
@@ -480,7 +494,7 @@ function ApplicationsTable() {
                 </TableRow>
               ) : paginatedApplications.length > 0 ? (
                 paginatedApplications.map((app, index) => (
-                  <TableRow key={app.id} data-state={rowSelection[app.id] && "selected"} onClick={() => router.push(`/form/${app.id}`)} className={cn("cursor-pointer", !app.read && "font-bold")}>
+                  <TableRow key={app.id} data-state={rowSelection[app.id] && "selected"} onClick={() => handleRowClick(app)} className={cn("cursor-pointer", !app.read && "font-bold")}>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={!!rowSelection[app.id]} onCheckedChange={(value) => setRowSelection(prev => ({...prev, [app.id]: !!value}))} />
                     </TableCell>
