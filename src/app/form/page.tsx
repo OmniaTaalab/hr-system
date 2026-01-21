@@ -26,6 +26,7 @@ import {
   Columns,
   Calendar as CalendarIcon,
   X,
+  FileDown,
 } from "lucide-react";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, orderBy, Timestamp } from "firebase/firestore";
@@ -42,10 +43,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import * as XLSX from 'xlsx';
 
 
 type Application = {
   id: string;
+  read?: boolean;
   [key: string]: any; // Allow any field for searching
 };
 
@@ -123,6 +126,7 @@ function ApplicationsTable() {
   const router = useRouter();
   const { campuses, isLoading: isLoadingLists } = useOrganizationLists();
   const { profile, loading: isLoadingProfile } = useUserProfile();
+  const { toast } = useToast();
 
   const allColumns = useMemo(() => [
     { id: 'name', label: 'Name', visible: true, required: true },
@@ -160,6 +164,7 @@ function ApplicationsTable() {
   const [campusFilter, setCampusFilter] = useState<string[]>([]);
   const [schoolTypeFilter, setSchoolTypeFilter] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState<Date | null>(null);
+  const [readFilter, setReadFilter] = useState<'all' | 'read' | 'unread'>('all');
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -214,6 +219,14 @@ function ApplicationsTable() {
       });
     }
 
+    if (readFilter !== 'all') {
+      if (readFilter === 'unread') {
+        filtered = filtered.filter(app => !app.read);
+      } else { // 'read'
+        filtered = filtered.filter(app => app.read === true);
+      }
+    }
+
     if (searchTerm) {
         const lowercasedTerm = searchTerm.toLowerCase();
         filtered = filtered.filter(app => {
@@ -251,7 +264,7 @@ function ApplicationsTable() {
         
         return 0;
     });
-  }, [applications, searchTerm, sorting, campusFilter, schoolTypeFilter, dateFilter]);
+  }, [applications, searchTerm, sorting, campusFilter, schoolTypeFilter, dateFilter, readFilter]);
   
   const paginatedApplications = useMemo(() => {
     const startIndex = (currentPage - 1) * rowsPerPage;
@@ -259,6 +272,42 @@ function ApplicationsTable() {
   }, [filteredAndSortedApplications, currentPage, rowsPerPage]);
 
   const totalPages = Math.ceil(filteredAndSortedApplications.length / rowsPerPage);
+
+  const handleExportExcel = () => {
+    if (filteredAndSortedApplications.length === 0) {
+      toast({
+        title: "No Data",
+        description: "There are no applications to export in the current view.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const dataToExport = filteredAndSortedApplications.map(app => {
+        const row: Record<string, any> = {};
+        allColumns.filter(c => columnVisibility[c.id]).forEach(col => {
+            if (col.id === 'name') {
+                row[col.label] = `${app.firstNameEn || ''} ${app.lastNameEn || ''}`.trim();
+            } else if (col.id === 'submittedAt' || col.id === 'dateOfBirth' || col.id === 'availableStartDate') {
+                row[col.label] = formatDateSafe(app[col.id]);
+            } else {
+                 row[col.label] = app[col.id] ?? 'N/A';
+            }
+        });
+        row['Status'] = app.read ? 'Read' : 'Unread';
+        return row;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Job Applications");
+    XLSX.writeFile(workbook, `Job_Applications_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+
+    toast({
+      title: "Export Successful",
+      description: "The application list has been exported to Excel.",
+    });
+  };
 
   const renderHeader = (columnId: SortKey, label: string) => {
     const isSorted = sorting.id === columnId;
@@ -345,7 +394,23 @@ function ApplicationsTable() {
             </PopoverContent>
         </Popover>
         {dateFilter && <Button variant="ghost" size="icon" onClick={() => setDateFilter(null)}><X className="h-4 w-4" /></Button>}
-        <div className="ml-auto">
+        
+        <Select value={readFilter} onValueChange={(value) => setReadFilter(value as any)}>
+            <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="read">Read</SelectItem>
+                <SelectItem value="unread">Unread</SelectItem>
+            </SelectContent>
+        </Select>
+
+        <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" onClick={handleExportExcel}>
+                <FileDown className="mr-2 h-4 w-4" />
+                Export Excel
+            </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -399,6 +464,7 @@ function ApplicationsTable() {
                   />
                 </TableHead>
                 <TableHead>#</TableHead>
+                <TableHead>Status</TableHead>
                 {allColumns.filter(c => columnVisibility[c.id]).map(c => (
                   <TableHead key={c.id}>{renderHeader(c.id as SortKey, c.label)}</TableHead>
                 ))}
@@ -408,17 +474,24 @@ function ApplicationsTable() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={allColumns.filter(c => columnVisibility[c.id]).length + 3} className="h-24 text-center">
+                  <TableCell colSpan={allColumns.filter(c => columnVisibility[c.id]).length + 4} className="h-24 text-center">
                     <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
                   </TableCell>
                 </TableRow>
               ) : paginatedApplications.length > 0 ? (
                 paginatedApplications.map((app, index) => (
-                  <TableRow key={app.id} data-state={rowSelection[app.id] && "selected"} onClick={() => router.push(`/form/${app.id}`)} className="cursor-pointer">
+                  <TableRow key={app.id} data-state={rowSelection[app.id] && "selected"} onClick={() => router.push(`/form/${app.id}`)} className={cn("cursor-pointer", !app.read && "font-bold")}>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={!!rowSelection[app.id]} onCheckedChange={(value) => setRowSelection(prev => ({...prev, [app.id]: !!value}))} />
                     </TableCell>
                     <TableCell>{(currentPage - 1) * rowsPerPage + index + 1}</TableCell>
+                    <TableCell>
+                      {!app.read && (
+                        <div className="flex items-center justify-center">
+                          <div className="h-2.5 w-2.5 rounded-full bg-blue-500" title="Unread" />
+                        </div>
+                      )}
+                    </TableCell>
                     {columnVisibility.name && <TableCell className="font-medium">{`${app.firstNameEn || ''} ${app.lastNameEn || ''}`.trim()}</TableCell>}
                     {columnVisibility.nameAr && <TableCell dir="rtl" className="font-medium">{`${app.firstNameAr || ''} ${app.fatherNameAr || ''} ${app.familyNameAr || ''}`.trim()}</TableCell>}
                     {columnVisibility.positionJobTitle && <TableCell>{app.positionJobTitle || 'N/A'}</TableCell>}

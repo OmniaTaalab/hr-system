@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/firebase/config";
-import { doc, getDoc, Timestamp } from "firebase/firestore";
+import { doc, getDoc, Timestamp, updateDoc } from "firebase/firestore";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 
@@ -121,7 +121,11 @@ function ApplicationDetailContent() {
           const docSnap = await getDoc(docRef);
 
           if (docSnap.exists()) {
-            setApplication({ id: docSnap.id, ...docSnap.data() });
+            const appData = { id: docSnap.id, ...docSnap.data() };
+            setApplication(appData);
+            if (isPrivilegedUser && appData.read === false) {
+              await updateDoc(docRef, { read: true });
+            }
           } else {
             setError("Application not found.");
           }
@@ -135,7 +139,7 @@ function ApplicationDetailContent() {
 
       fetchApplication();
     }
-  }, [id]);
+  }, [id, isPrivilegedUser]);
 
   const fullNameEn = useMemo(() => {
     if (!application) return "";

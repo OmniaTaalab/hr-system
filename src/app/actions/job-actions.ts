@@ -282,6 +282,7 @@ export async function applyForJobAction(
     const docRef = await addDoc(collection(db, 'nis'), {
       ...applicationData,
       submittedAt: serverTimestamp(),
+      read: false,
     });
     
     return {
