@@ -326,7 +326,7 @@ function ApplicationsTable() {
     return (
       <Button variant="ghost" onClick={() => handleSort(columnId)}>
         {label}
-        <ArrowUpDown className={`ml-2 h-4 w-4 ${isSorted ? 'text-primary' : ''}`} />
+        <ArrowUpDown className={cn(`ml-2 h-4 w-4 ${isSorted ? 'text-primary' : ''}`)} />
       </Button>
     );
   };
@@ -359,105 +359,99 @@ function ApplicationsTable() {
         <CardDescription>
           A list of all submitted job applications.
         </CardDescription>
-        <div className="flex flex-col gap-2 pt-4">
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Input
-              placeholder="Search all application fields..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:max-w-xs"
+        <div className="flex flex-wrap items-center gap-2 pt-4">
+          <Input
+            placeholder="Search all application fields..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full sm:w-auto flex-grow sm:flex-grow-0 sm:max-w-xs"
+          />
+          <div className="w-full sm:w-auto">
+            <MultiSelectFilter
+              placeholder="Filter by campus..."
+              options={campuses.map(c => ({ label: c.name, value: c.name }))}
+              selected={campusFilter}
+              onChange={setCampusFilter}
             />
-            <div className="w-full sm:w-[180px]">
-              <MultiSelectFilter
-                placeholder="Filter by campus..."
-                options={campuses.map(c => ({ label: c.name, value: c.name }))}
-                selected={campusFilter}
-                onChange={setCampusFilter}
-              />
-            </div>
-            <div className="w-full sm:w-[180px]">
-              <MultiSelectFilter
-                placeholder="Filter by school type..."
-                options={[
-                  { label: "National", value: "National" },
-                  { label: "International", value: "International" }
-                ]}
-                selected={schoolTypeFilter}
-                onChange={setSchoolTypeFilter}
-              />
-            </div>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 items-center">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={"outline"}
-                  className={cn(
-                    "w-full sm:w-auto justify-start text-left font-normal",
-                    !dateFilter && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateFilter ? format(dateFilter, "PPP") : <span>Filter by date</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={dateFilter}
-                  onSelect={setDateFilter}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-            {dateFilter && <Button variant="ghost" size="icon" onClick={() => setDateFilter(null)}><X className="h-4 w-4" /></Button>}
-            
-            <Select value={readFilter} onValueChange={(value) => setReadFilter(value as any)}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="read">Read</SelectItem>
-                <SelectItem value="unread">Unread</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="w-full sm:w-auto">
+            <MultiSelectFilter
+              placeholder="Filter by school type..."
+              options={[
+                { label: "National", value: "National" },
+                { label: "International", value: "International" }
+              ]}
+              selected={schoolTypeFilter}
+              onChange={setSchoolTypeFilter}
+            />
+          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className={cn(
+                  "w-full sm:w-auto justify-start text-left font-normal",
+                  !dateFilter && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateFilter ? format(dateFilter, "PPP") : <span>Filter by date</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={dateFilter}
+                onSelect={setDateFilter}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          {dateFilter && <Button variant="ghost" size="icon" onClick={() => setDateFilter(null)}><X className="h-4 w-4" /></Button>}
+          
+          <Select value={readFilter} onValueChange={(value) => setReadFilter(value as any)}>
+            <SelectTrigger className="w-full sm:w-auto">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="read">Read</SelectItem>
+              <SelectItem value="unread">Unread</SelectItem>
+            </SelectContent>
+          </Select>
 
-            <div className="flex items-center gap-2 sm:ml-auto">
-                <Button variant="outline" onClick={handleExportExcel}>
-                    <FileDown className="mr-2 h-4 w-4" />
-                    Export Excel
-                </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline">
-                    <Columns className="mr-2 h-4 w-4" /> Columns
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
-                  <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {allColumns.map((column) => (
-                    <DropdownMenuCheckboxItem
-                      key={column.id}
-                      className="capitalize"
-                      checked={columnVisibility[column.id]}
-                      disabled={column.required}
-                      onCheckedChange={(value) =>
-                        setColumnVisibility((prev) => ({
-                          ...prev,
-                          [column.id]: !!value,
-                        }))
-                      }
-                      onSelect={(e) => e.preventDefault()}
-                    >
-                      {column.label}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
+          <Button variant="outline" onClick={handleExportExcel}>
+              <FileDown className="mr-2 h-4 w-4" />
+              Export Excel
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Columns className="mr-2 h-4 w-4" /> Columns
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
+              <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {allColumns.map((column) => (
+                <DropdownMenuCheckboxItem
+                  key={column.id}
+                  className="capitalize"
+                  checked={columnVisibility[column.id]}
+                  disabled={column.required}
+                  onCheckedChange={(value) =>
+                    setColumnVisibility((prev) => ({
+                      ...prev,
+                      [column.id]: !!value,
+                    }))
+                  }
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {column.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardHeader>
 
