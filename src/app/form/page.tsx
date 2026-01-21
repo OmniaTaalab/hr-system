@@ -24,6 +24,8 @@ import {
   ArrowRight,
   AlertTriangle,
   Columns,
+  Calendar as CalendarIcon,
+  X,
 } from "lucide-react";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, orderBy, Timestamp } from "firebase/firestore";
@@ -37,6 +39,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { deleteApplicationAction, type DeleteApplicationState } from "@/app/actions/job-actions";
 import { useToast } from "@/hooks/use-toast";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 
 type Application = {
@@ -154,6 +159,7 @@ function ApplicationsTable() {
   const [rowSelection, setRowSelection] = useState({});
   const [campusFilter, setCampusFilter] = useState<string[]>([]);
   const [schoolTypeFilter, setSchoolTypeFilter] = useState<string[]>([]);
+  const [dateFilter, setDateFilter] = useState<Date | null>(null);
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -199,6 +205,15 @@ function ApplicationsTable() {
         filtered = filtered.filter(app => app.schoolType && schoolTypeFilter.includes(app.schoolType));
     }
 
+    if (dateFilter) {
+      filtered = filtered.filter(app => {
+        if (!app.submittedAt) return false;
+        const submittedDate = app.submittedAt instanceof Timestamp ? app.submittedAt.toDate() : new Date(app.submittedAt);
+        // Compare just the date part, ignoring time
+        return format(submittedDate, 'yyyy-MM-dd') === format(dateFilter, 'yyyy-MM-dd');
+      });
+    }
+
     if (searchTerm) {
         const lowercasedTerm = searchTerm.toLowerCase();
         filtered = filtered.filter(app => {
@@ -236,7 +251,7 @@ function ApplicationsTable() {
         
         return 0;
     });
-  }, [applications, searchTerm, sorting, campusFilter, schoolTypeFilter]);
+  }, [applications, searchTerm, sorting, campusFilter, schoolTypeFilter, dateFilter]);
   
   const paginatedApplications = useMemo(() => {
     const startIndex = (currentPage - 1) * rowsPerPage;
@@ -283,7 +298,7 @@ function ApplicationsTable() {
       <CardDescription>
         A list of all submitted job applications.
       </CardDescription>
-      <div className="flex items-center gap-2 pt-4">
+      <div className="flex flex-wrap items-center gap-2 pt-4">
         <Input
           placeholder="Search all application fields..."
           value={searchTerm}
@@ -307,34 +322,59 @@ function ApplicationsTable() {
           onChange={setSchoolTypeFilter}
           className="w-[180px]"
         />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline">
-              <Columns className="mr-2 h-4 w-4" /> Columns
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
-            <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {allColumns.map((column) => (
-              <DropdownMenuCheckboxItem
-                key={column.id}
-                className="capitalize"
-                checked={columnVisibility[column.id]}
-                disabled={column.required}
-                onCheckedChange={(value) =>
-                  setColumnVisibility((prev) => ({
-                    ...prev,
-                    [column.id]: !!value,
-                  }))
-                }
-                onSelect={(e) => e.preventDefault()}
-              >
-                {column.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button
+                variant={"outline"}
+                className={cn(
+                    "w-[240px] justify-start text-left font-normal",
+                    !dateFilter && "text-muted-foreground"
+                )}
+                >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateFilter ? format(dateFilter, "PPP") : <span>Filter by date</span>}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+                <Calendar
+                mode="single"
+                selected={dateFilter}
+                onSelect={setDateFilter}
+                initialFocus
+                />
+            </PopoverContent>
+        </Popover>
+        {dateFilter && <Button variant="ghost" size="icon" onClick={() => setDateFilter(null)}><X className="h-4 w-4" /></Button>}
+        <div className="ml-auto">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Columns className="mr-2 h-4 w-4" /> Columns
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
+              <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {allColumns.map((column) => (
+                <DropdownMenuCheckboxItem
+                  key={column.id}
+                  className="capitalize"
+                  checked={columnVisibility[column.id]}
+                  disabled={column.required}
+                  onCheckedChange={(value) =>
+                    setColumnVisibility((prev) => ({
+                      ...prev,
+                      [column.id]: !!value,
+                    }))
+                  }
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {column.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </CardHeader>
 
