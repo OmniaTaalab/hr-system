@@ -279,71 +279,64 @@ function ApplicationsTable() {
   return (
     <Card>
     <CardHeader>
-  <CardTitle>Job Applications</CardTitle>
-  <CardDescription>
-    A list of all submitted job applications.
-  </CardDescription>
-
-  <div className="flex flex-col gap-4 pt-4 sm:flex-row sm:items-center">
-    <Input
-      placeholder="Search all application fields..."
-      value={searchTerm}
-      onChange={(e) => setSearchTerm(e.target.value)}
-      className="w-full sm:max-w-sm"
-    />
-
-    <div className="flex flex-wrap gap-2">
-      <MultiSelectFilter
-        placeholder="Filter by campus..."
-        options={campuses.map(c => ({ label: c.name, value: c.name }))}
-        selected={campusFilter}
-        onChange={setCampusFilter}
-        className="w-full sm:w-[180px]"
-      />
-
-      <MultiSelectFilter
-        placeholder="Filter by school type..."
-        options={[
-          { label: "National", value: "National" },
-          { label: "International", value: "International" }
-        ]}
-        selected={schoolTypeFilter}
-        onChange={setSchoolTypeFilter}
-        className="w-full sm:w-[180px]"
-      />
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline">
-            <Columns className="mr-2 h-4 w-4" /> Columns
-          </Button>
-        </DropdownMenuTrigger>
-
-        <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
-          <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {allColumns.map((column) => (
-            <DropdownMenuCheckboxItem
-              key={column.id}
-              className="capitalize"
-              checked={columnVisibility[column.id]}
-              disabled={column.required}
-              onCheckedChange={(value) =>
-                setColumnVisibility((prev) => ({
-                  ...prev,
-                  [column.id]: !!value,
-                }))
-              }
-              onSelect={(e) => e.preventDefault()}
-            >
-              {column.label}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  </div>
-</CardHeader>
+      <CardTitle>Job Applications</CardTitle>
+      <CardDescription>
+        A list of all submitted job applications.
+      </CardDescription>
+      <div className="flex items-center gap-2 pt-4">
+        <Input
+          placeholder="Search all application fields..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-sm"
+        />
+        <MultiSelectFilter
+          placeholder="Filter by campus..."
+          options={campuses.map(c => ({ label: c.name, value: c.name }))}
+          selected={campusFilter}
+          onChange={setCampusFilter}
+          className="w-[180px]"
+        />
+        <MultiSelectFilter
+          placeholder="Filter by school type..."
+          options={[
+            { label: "National", value: "National" },
+            { label: "International", value: "International" }
+          ]}
+          selected={schoolTypeFilter}
+          onChange={setSchoolTypeFilter}
+          className="w-[180px]"
+        />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline">
+              <Columns className="mr-2 h-4 w-4" /> Columns
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
+            <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {allColumns.map((column) => (
+              <DropdownMenuCheckboxItem
+                key={column.id}
+                className="capitalize"
+                checked={columnVisibility[column.id]}
+                disabled={column.required}
+                onCheckedChange={(value) =>
+                  setColumnVisibility((prev) => ({
+                    ...prev,
+                    [column.id]: !!value,
+                  }))
+                }
+                onSelect={(e) => e.preventDefault()}
+              >
+                {column.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </CardHeader>
 
 
       <CardContent>
