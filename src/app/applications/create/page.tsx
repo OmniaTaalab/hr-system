@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout } from "@/components/layout/app-layout";
@@ -476,6 +477,32 @@ export default function CreateApplicationPage() {
     const form = formRef.current;
     if (!form) return;
 
+    if (step === 1) { // When leaving the Personal Info step
+      const email1 = form.elements.namedItem('email1') as HTMLInputElement;
+      const email2 = form.elements.namedItem('email2') as HTMLInputElement;
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      if (email1 && email1.value && !emailPattern.test(email1.value)) {
+        toast({
+            title: "Invalid Email",
+            description: "Please enter a valid format for Email address (1).",
+            variant: "destructive",
+        });
+        email1.focus();
+        return;
+      }
+
+      if (email2 && email2.value && !emailPattern.test(email2.value)) {
+          toast({
+              title: "Invalid Email",
+              description: "Please enter a valid format for Email address (2).",
+              variant: "destructive",
+          });
+          email2.focus();
+          return;
+      }
+    }
+
     const currentStepContainer = form.querySelector<HTMLElement>(`[data-step="${step}"]`);
     if (!currentStepContainer) {
         setStep(s => s + 1); // Failsafe in case the selector fails
@@ -519,8 +546,8 @@ export default function CreateApplicationPage() {
   };
   const prevStep = () => setStep(s => s - 1);
   
-  const handleFormSubmit = async (event?: React.FormEvent<HTMLFormElement>) => {
-    event?.preventDefault();
+  const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     const form = formRef.current!;
 
     // Final validation before submitting
@@ -681,7 +708,7 @@ export default function CreateApplicationPage() {
                         )}
                         <Button
                             type="button"
-                            onClick={step < 5 ? nextStep : () => handleFormSubmit()}
+                            onClick={step < 5 ? nextStep : handleFormSubmit}
                             className={cn(step === 1 && 'ml-auto')}
                             disabled={isSubmitting}
                         >
