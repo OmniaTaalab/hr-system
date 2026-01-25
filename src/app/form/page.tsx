@@ -385,8 +385,7 @@ function ApplicationsTable() {
         <CardDescription>
           A list of all submitted job applications.
         </CardDescription>
-        <div className="flex flex-col gap-2 pt-4">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 pt-4">
             <Input
               placeholder="Search all application fields..."
               value={searchTerm}
@@ -410,8 +409,6 @@ function ApplicationsTable() {
               onChange={setSchoolTypeFilter}
               className="w-full sm:w-auto"
             />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -457,7 +454,7 @@ function ApplicationsTable() {
                   <Columns className="mr-2 h-4 w-4" /> Columns
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
+              <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()} onFocusOutside={(e) => e.preventDefault()}>
                 <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {allColumns.map((column) => (
@@ -481,7 +478,6 @@ function ApplicationsTable() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
         </div>
       </CardHeader>
 
