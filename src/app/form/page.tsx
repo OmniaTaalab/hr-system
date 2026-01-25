@@ -386,20 +386,20 @@ function ApplicationsTable() {
           A list of all submitted job applications.
         </CardDescription>
         <div className="flex flex-col gap-2 pt-4">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-nowrap items-center gap-2">
                 <Input
                   placeholder="Search all application fields..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full sm:w-auto flex-grow"
-                />
+                  className="min-w-[200px]"
+                  />
                 <MultiSelectFilter
                   placeholder="Filter by campus..."
                   options={campuses.map(c => ({ label: c.name, value: c.name }))}
                   selected={campusFilter}
                   onChange={setCampusFilter}
-                  className="w-full sm:w-auto"
-                />
+                  className="min-w-[200px]"
+                  />
                 <MultiSelectFilter
                   placeholder="Filter by school type..."
                   options={[
@@ -408,8 +408,8 @@ function ApplicationsTable() {
                   ]}
                   selected={schoolTypeFilter}
                   onChange={setSchoolTypeFilter}
-                  className="w-full sm:w-auto"
-                />
+                  className="min-w-[200px]"
+                  />
             </div>
             <div className="flex flex-wrap items-center gap-2">
                 <Popover>

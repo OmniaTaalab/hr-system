@@ -433,12 +433,14 @@ function WorkExperienceSection() {
                 <div className="flex items-center gap-2">
                     <Input id="cv" name="cv" type="file" required className="flex-1" accept=".pdf,.doc,.docx" />
                 </div>
+                <p className="text-xs text-muted-foreground">PDF, DOC, or DOCX only (10MB max).</p>
             </div>
              <div className="space-y-2">
                 <Label htmlFor="nationalId">National ID / Passport</Label>
                  <div className="flex items-center gap-2">
                     <Input id="nationalId" name="nationalId" type="file" className="flex-1" accept="image/*,.pdf" />
                 </div>
+                <p className="text-xs text-muted-foreground">PDF, PNG, JPG, or GIF only (10MB max).</p>
             </div>
         </div>
         
@@ -699,5 +701,3 @@ export default function CreateApplicationPage() {
     </AppLayout>
   );
 }
-
-    
