@@ -1,4 +1,3 @@
-
 "use client";
 
 import { AppLayout } from "@/components/layout/app-layout";
@@ -514,16 +513,14 @@ export default function CreateApplicationPage() {
         return;
     }
 
-    // If all native inputs are valid, we can add special checks for custom components here if needed in the future
-
     // If all good, proceed
     setStep(s => s + 1);
     window.scrollTo(0, 0);
   };
   const prevStep = () => setStep(s => s - 1);
   
-  const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleFormSubmit = async (event?: React.FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
     const form = formRef.current!;
 
     // Final validation before submitting
@@ -677,22 +674,27 @@ export default function CreateApplicationPage() {
                 </div>
                     <div className="flex justify-between mt-8">
                         {step > 1 && (
-                            <Button type="button" variant="outline" onClick={prevStep}>
+                            <Button type="button" variant="outline" onClick={prevStep} disabled={isSubmitting}>
                                 <ArrowLeft className="mr-2 h-4 w-4" />
                                 Previous
                             </Button>
                         )}
-                        {step < 5 ? (
-                             <Button type="button" onClick={nextStep} className={cn(step === 1 && 'ml-auto')}>
+                        <Button
+                            type="button"
+                            onClick={step < 5 ? nextStep : () => handleFormSubmit()}
+                            className={cn(step === 1 && 'ml-auto')}
+                            disabled={isSubmitting}
+                        >
+                            {isSubmitting && step === 5 ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : null}
+                            {step < 5 ? (
+                                <>
                                 Next
                                 <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                        ) : (
-                            <Button type="submit" disabled={isSubmitting}>
-                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Submit Application
-                            </Button>
-                        )}
+                                </>
+                            ) : (isSubmitting ? 'Submitting...' : 'Submit Application')}
+                        </Button>
                     </div>
                 </form>
             </CardContent>
