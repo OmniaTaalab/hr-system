@@ -139,18 +139,44 @@ function ApplicationsTable() {
     { id: 'submittedAt', label: 'Submitted At', visible: true },
     { id: 'yearsOfExperience', label: 'Years of Exp.', visible: false },
     { id: 'email1', label: 'Email', visible: false },
+    { id: 'email2', label: 'Email 2', visible: false },
     { id: 'mobilePhone', label: 'Mobile', visible: false },
+    { id: 'homePhone', label: 'Home Phone', visible: false },
+    { id: 'otherPhone', label: 'Other Phone', visible: false },
     { id: 'dateOfBirth', label: 'Date of Birth', visible: false },
+    { id: 'placeOfBirth', label: 'Place of Birth', visible: false },
+    { id: 'nationalities', label: 'Nationalities', visible: false },
     { id: 'isParentAtNIS', label: 'Parent at NIS?', visible: false },
     { id: 'numberOfChildren', label: 'No. of Children', visible: false },
     { id: 'address', label: 'Address', visible: false },
     { id: 'noticePeriod', label: 'Notice Period', visible: false },
-    { id: 'availableStartDate', label: 'Start Date', visible: false },
+    { id: 'availableStartDate', label: 'Available Start Date', visible: false },
     { id: 'needsBus', label: 'Needs Bus?', visible: false },
     { id: 'insideContact', label: 'Inside Contact?', visible: false },
     { id: 'previouslyWorkedAtNIS', label: 'Previously Worked?', visible: false },
-    { id: 'university', label: 'University', visible: false },
-    { id: 'major', label: 'Major', visible: false },
+    { id: 'contactedByHR', label: 'Contacted by HR', visible: false },
+    { id: 'howDidYouHear', label: 'How did you hear?', visible: false },
+    { id: 'school_name', label: 'School Name', visible: false },
+    { id: 'school_major', label: 'School Major', visible: false },
+    { id: 'school_cityCountry', label: 'School Location', visible: false },
+    { id: 'school_overall', label: 'School Grade', visible: false },
+    { id: 'school_startDate', label: 'School Start', visible: false },
+    { id: 'school_endDate', label: 'School End', visible: false },
+    { id: 'university_name', label: 'University Name', visible: false },
+    { id: 'university_faculty', label: 'University Faculty', visible: false },
+    { id: 'university_major', label: 'University Major', visible: false },
+    { id: 'university_cityCountry', label: 'University Location', visible: false },
+    { id: 'university_overall', label: 'University Grade', visible: false },
+    { id: 'university_startDate', label: 'University Start', visible: false },
+    { id: 'university_endDate', label: 'University End', visible: false },
+    { id: 'diploma1_name', label: 'Diploma 1', visible: false },
+    { id: 'diploma2_name', label: 'Diploma 2', visible: false },
+    { id: 'skill_ms_office', label: 'MS Office', visible: false },
+    { id: 'skill_smart_board', label: 'Smart Board', visible: false },
+    { id: 'skill_e_learning', label: 'E-Learning', visible: false },
+    { id: 'skill_gclass_zoom', label: 'Google/Zoom', visible: false },
+    { id: 'skill_oracle_db', label: 'Oracle DB', visible: false },
+    { id: 'workExperience', label: '# Work Exp.', visible: false },
 ], []);
 
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => 
@@ -359,22 +385,21 @@ function ApplicationsTable() {
         <CardDescription>
           A list of all submitted job applications.
         </CardDescription>
-        <div className="flex flex-wrap items-center gap-2 pt-4">
-          <Input
-            placeholder="Search all application fields..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full sm:w-auto flex-grow sm:flex-grow-0 sm:max-w-xs"
-          />
-          <div className="w-full sm:w-auto">
+        <div className="flex flex-col gap-2 pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              placeholder="Search all application fields..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-auto flex-grow sm:flex-grow-0 sm:max-w-xs"
+            />
             <MultiSelectFilter
               placeholder="Filter by campus..."
               options={campuses.map(c => ({ label: c.name, value: c.name }))}
               selected={campusFilter}
               onChange={setCampusFilter}
+              className="w-full sm:w-auto"
             />
-          </div>
-          <div className="w-full sm:w-auto">
             <MultiSelectFilter
               placeholder="Filter by school type..."
               options={[
@@ -383,75 +408,80 @@ function ApplicationsTable() {
               ]}
               selected={schoolTypeFilter}
               onChange={setSchoolTypeFilter}
+              className="w-full sm:w-auto"
             />
           </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant={"outline"}
-                className={cn(
-                  "w-full sm:w-auto justify-start text-left font-normal",
-                  !dateFilter && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateFilter ? format(dateFilter, "PPP") : <span>Filter by date</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={dateFilter}
-                onSelect={setDateFilter}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-          {dateFilter && <Button variant="ghost" size="icon" onClick={() => setDateFilter(null)}><X className="h-4 w-4" /></Button>}
-          
-          <Select value={readFilter} onValueChange={(value) => setReadFilter(value as any)}>
-            <SelectTrigger className="w-full sm:w-auto">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="read">Read</SelectItem>
-              <SelectItem value="unread">Unread</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Button variant="outline" onClick={handleExportExcel}>
-              <FileDown className="mr-2 h-4 w-4" />
-              Export Excel
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <Columns className="mr-2 h-4 w-4" /> Columns
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
-              <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {allColumns.map((column) => (
-                <DropdownMenuCheckboxItem
-                  key={column.id}
-                  className="capitalize"
-                  checked={columnVisibility[column.id]}
-                  disabled={column.required}
-                  onCheckedChange={(value) =>
-                    setColumnVisibility((prev) => ({
-                      ...prev,
-                      [column.id]: !!value,
-                    }))
-                  }
-                  onSelect={(e) => e.preventDefault()}
+          <div className="flex flex-wrap items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "w-full sm:w-auto justify-start text-left font-normal",
+                    !dateFilter && "text-muted-foreground"
+                  )}
                 >
-                  {column.label}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateFilter ? format(dateFilter, "PPP") : <span>Filter by date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={dateFilter}
+                  onSelect={setDateFilter}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+            {dateFilter && <Button variant="ghost" size="icon" onClick={() => setDateFilter(null)}><X className="h-4 w-4" /></Button>}
+            
+            <Select value={readFilter} onValueChange={(value) => setReadFilter(value as any)}>
+              <SelectTrigger className="w-full sm:w-auto">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="read">Read</SelectItem>
+                <SelectItem value="unread">Unread</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button variant="outline" onClick={handleExportExcel}>
+                <FileDown className="mr-2 h-4 w-4" />
+                Export Excel
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Columns className="mr-2 h-4 w-4" /> Columns
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
+                <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {allColumns.map((column) => (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    className="capitalize"
+                    checked={columnVisibility[column.id]}
+                    disabled={column.required}
+                    onCheckedChange={(value) => {
+                        setColumnVisibility((prev) => ({
+                            ...prev,
+                            [column.id]: !!value,
+                        }));
+                    }}
+                    onSelect={(e) => {
+                        e.preventDefault();
+                    }}
+                  >
+                    {column.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </CardHeader>
 
@@ -513,18 +543,45 @@ function ApplicationsTable() {
                     {columnVisibility.submittedAt && <TableCell>{app.submittedAt instanceof Timestamp ? format(app.submittedAt.toDate(), "dd MMM yyyy") : 'N/A'}</TableCell>}
                     {columnVisibility.yearsOfExperience && <TableCell>{app.yearsOfExperience ?? 'N/A'}</TableCell>}
                     {columnVisibility.email1 && <TableCell>{app.email1 || 'N/A'}</TableCell>}
+                    {columnVisibility.email2 && <TableCell>{app.email2 || 'N/A'}</TableCell>}
                     {columnVisibility.mobilePhone && <TableCell>{app.mobilePhone || 'N/A'}</TableCell>}
+                    {columnVisibility.homePhone && <TableCell>{app.homePhone || 'N/A'}</TableCell>}
+                    {columnVisibility.otherPhone && <TableCell>{app.otherPhone || 'N/A'}</TableCell>}
                     {columnVisibility.dateOfBirth && <TableCell>{formatDateSafe(app.dateOfBirth)}</TableCell>}
+                    {columnVisibility.placeOfBirth && <TableCell>{app.placeOfBirth || 'N/A'}</TableCell>}
+                    {columnVisibility.nationalities && <TableCell>{app.nationalities || 'N/A'}</TableCell>}
                     {columnVisibility.isParentAtNIS && <TableCell>{app.isParentAtNIS || 'N/A'}</TableCell>}
                     {columnVisibility.numberOfChildren && <TableCell>{app.numberOfChildren ?? 'N/A'}</TableCell>}
-                    {columnVisibility.address && <TableCell>{[app.street, app.area, app.city, app.country].filter(Boolean).join(', ') || 'N/A'}</TableCell>}
+                    {columnVisibility.address && <TableCell>{[app.apartment, app.building, app.street, app.area, app.city, app.country].filter(Boolean).join(', ') || 'N/A'}</TableCell>}
                     {columnVisibility.noticePeriod && <TableCell>{app.noticePeriod ? `${app.noticePeriod} days` : 'N/A'}</TableCell>}
                     {columnVisibility.availableStartDate && <TableCell>{formatDateSafe(app.availableStartDate)}</TableCell>}
                     {columnVisibility.needsBus && <TableCell>{app.needsBus || 'N/A'}</TableCell>}
                     {columnVisibility.insideContact && <TableCell>{app.insideContact || 'N/A'}</TableCell>}
                     {columnVisibility.previouslyWorkedAtNIS && <TableCell>{app.previouslyWorkedAtNIS || 'N/A'}</TableCell>}
-                    {columnVisibility.university && <TableCell>{app.university_name || 'N/A'}</TableCell>}
-                    {columnVisibility.major && <TableCell>{app.university_major || 'N/A'}</TableCell>}
+                    {columnVisibility.contactedByHR && <TableCell>{app.contactedByHR || 'N/A'}</TableCell>}
+                    {columnVisibility.howDidYouHear && <TableCell>{app.howDidYouHear || 'N/A'}</TableCell>}
+                    {columnVisibility.school_name && <TableCell>{app.school_name || 'N/A'}</TableCell>}
+                    {columnVisibility.school_major && <TableCell>{app.school_major || 'N/A'}</TableCell>}
+                    {columnVisibility.school_cityCountry && <TableCell>{app.school_cityCountry || 'N/A'}</TableCell>}
+                    {columnVisibility.school_overall && <TableCell>{app.school_overall || 'N/A'}</TableCell>}
+                    {columnVisibility.school_startDate && <TableCell>{formatDateSafe(app.school_startDate)}</TableCell>}
+                    {columnVisibility.school_endDate && <TableCell>{formatDateSafe(app.school_endDate)}</TableCell>}
+                    {columnVisibility.university_name && <TableCell>{app.university_name || 'N/A'}</TableCell>}
+                    {columnVisibility.university_faculty && <TableCell>{app.university_faculty || 'N/A'}</TableCell>}
+                    {columnVisibility.university_major && <TableCell>{app.university_major || 'N/A'}</TableCell>}
+                    {columnVisibility.university_cityCountry && <TableCell>{app.university_cityCountry || 'N/A'}</TableCell>}
+                    {columnVisibility.university_overall && <TableCell>{app.university_overall || 'N/A'}</TableCell>}
+                    {columnVisibility.university_startDate && <TableCell>{formatDateSafe(app.university_startDate)}</TableCell>}
+                    {columnVisibility.university_endDate && <TableCell>{formatDateSafe(app.university_endDate)}</TableCell>}
+                    {columnVisibility.diploma1_name && <TableCell>{app.diploma1_name || 'N/A'}</TableCell>}
+                    {columnVisibility.diploma2_name && <TableCell>{app.diploma2_name || 'N/A'}</TableCell>}
+                    {columnVisibility.skill_ms_office && <TableCell>{app.skill_ms_office || 'N/A'}</TableCell>}
+                    {columnVisibility.skill_smart_board && <TableCell>{app.skill_smart_board || 'N/A'}</TableCell>}
+                    {columnVisibility.skill_e_learning && <TableCell>{app.skill_e_learning || 'N/A'}</TableCell>}
+                    {columnVisibility.skill_gclass_zoom && <TableCell>{app.skill_gclass_zoom || 'N/A'}</TableCell>}
+                    {columnVisibility.skill_oracle_db && <TableCell>{app.skill_oracle_db || 'N/A'}</TableCell>}
+                    {columnVisibility.workExperience && <TableCell>{app.workExperience?.length || 0}</TableCell>}
+
 
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                        <Button variant="ghost" size="icon" onClick={() => router.push(`/form/${app.id}`)}>
@@ -623,5 +680,3 @@ export default function NisListPage() {
     </AppLayout>
   );
 }
-
-    
