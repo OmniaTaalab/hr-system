@@ -457,7 +457,7 @@ function ApplicationsTable() {
                     <Columns className="mr-2 h-4 w-4" /> Columns
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()} onFocusOutside={(e) => e.preventDefault()}>
+                <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
                     <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     {allColumns.map((column) => (
@@ -680,5 +680,3 @@ export default function NisListPage() {
     </AppLayout>
   );
 }
-
-    
