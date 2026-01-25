@@ -430,7 +430,7 @@ function WorkExperienceSection() {
             <div className="space-y-2">
                 <Label htmlFor="cv">CV *</Label>
                 <div className="flex items-center gap-2">
-                    <Input id="cv" name="cv" type="file" required className="flex-1" />
+                    <Input id="cv" name="cv" type="file" required className="flex-1" accept=".pdf,.doc,.docx" />
                 </div>
             </div>
              <div className="space-y-2">
@@ -543,18 +543,41 @@ export default function CreateApplicationPage() {
         toast({ variant: 'destructive', title: 'CV Required', description: 'Please upload your CV.' });
         return;
     }
+
+    // CV Validation
+    if (cvFile.size > 10 * 1024 * 1024) { // 10MB
+        toast({ variant: 'destructive', title: 'CV File Too Large', description: 'Your CV file must be under 10MB.' });
+        return;
+    }
+    const allowedCvTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!allowedCvTypes.includes(cvFile.type)) {
+        toast({
+            variant: 'destructive',
+            title: 'Invalid CV File Type',
+            description: 'Please upload your CV as a PDF, DOC, or DOCX file.',
+        });
+        return;
+    }
+
+
     if (!contactedByHR) {
         toast({ variant: 'destructive', title: 'HR Contact confirmation Required', description: 'Please specify if you were contacted by HR.' });
         return;
     }
     
     if (nationalIdFile && nationalIdFile.size > 0) {
-        const allowedTypes = ['image/png', 'image/jpeg', 'image/gif', 'application/pdf'];
-        if (!allowedTypes.includes(nationalIdFile.type)) {
+        // National ID Validation
+        if (nationalIdFile.size > 10 * 1024 * 1024) { // 10MB
+            toast({ variant: 'destructive', title: 'National ID File Too Large', description: 'Your National ID file must be under 10MB.' });
+            return;
+        }
+
+        const allowedIdTypes = ['image/png', 'image/jpeg', 'image/gif', 'application/pdf'];
+        if (!allowedIdTypes.includes(nationalIdFile.type)) {
             toast({
                 variant: 'destructive',
                 title: 'Invalid File Type',
-                description: 'For National ID / Passport, please select a PNG, JPG, or PDF file.',
+                description: 'For National ID / Passport, please select a PNG, JPG, GIF, or PDF file.',
             });
             return;
         }
