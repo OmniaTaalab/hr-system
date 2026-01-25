@@ -347,6 +347,7 @@ function ApplicationDetailContent() {
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 text-xs">
                                     <p><span className="text-muted-foreground">Location: </span>{exp.address}</p>
                                     <p><span className="text-muted-foreground">Department: </span>{exp.department}</p>
+                                    <p><span className="text-muted-foreground">Stage: </span>{exp.stage}</p>
                                     <p><span className="text-muted-foreground">Supervisor: </span>{exp.supervisorName}</p>
                                     <p><span className="text-muted-foreground">Telephone: </span>{exp.telephone}</p>
                                     <p><span className="text-muted-foreground">Number of employees supervised by you: </span>{exp.supervisedCount}</p>
