@@ -3,7 +3,6 @@
 
 import React, { useState, useEffect, useMemo, Suspense } from "react";
 import { PublicLayout } from "@/components/layout/public-layout";
-import { AppLayout } from "@/components/layout/app-layout";
 import { useApp } from "@/components/layout/app-provider";
 import {
   Card,
@@ -388,8 +387,7 @@ function ApplicationDetailContent() {
 }
 
 export default function ApplicationDetailPage() {
-    const { profile, loading } = useApp();
-    const canViewWithSidebar = !loading && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
+    const { user, loading } = useApp();
 
     if (loading) {
         return (
@@ -399,13 +397,13 @@ export default function ApplicationDetailPage() {
         );
     }
     
-    const Layout = canViewWithSidebar ? AppLayout : PublicLayout;
-
     return (
-        <Layout>
+        <PublicLayout>
             <Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
                 <ApplicationDetailContent />
             </Suspense>
-        </Layout>
+        </PublicLayout>
     );
 }
+
+    

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { AppLayout } from "@/components/layout/app-layout";
+import { PublicLayout } from "@/components/layout/public-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon, ArrowRight, ArrowLeft, PlusCircle, Trash2, UploadCloud, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, ArrowRight, ArrowLeft, PlusCircle, Trash2, UploadCloud, Loader2, Send } from "lucide-react";
 import { useState, useEffect, useTransition, useRef } from "react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -433,14 +433,14 @@ function WorkExperienceSection() {
                 <div className="flex items-center gap-2">
                     <Input id="cv" name="cv" type="file" required className="flex-1" accept=".pdf,.doc,.docx" />
                 </div>
-                <p className="text-xs text-muted-foreground">PDF, DOC, or DOCX only (10MB max).</p>
+                <p className="text-xs text-muted-foreground">choose pdf, doc, or docx only. 10mb max</p>
             </div>
              <div className="space-y-2">
                 <Label htmlFor="nationalId">National ID / Passport</Label>
                  <div className="flex items-center gap-2">
-                    <Input id="nationalId" name="nationalId" type="file" className="flex-1" accept="image/*,.pdf" />
+                    <Input id="nationalId" name="nationalId" type="file" className="flex-1" accept="image/png,image/jpeg,image/gif,application/pdf" />
                 </div>
-                <p className="text-xs text-muted-foreground">PDF, PNG, JPG, or GIF only (10MB max).</p>
+                <p className="text-xs text-muted-foreground">choose only pdf, png, jpg, or gif. 10 mb only</p>
             </div>
         </div>
         
@@ -473,7 +473,7 @@ export default function CreateApplicationPage() {
     }
   }, [state, toast, router]);
 
-  const nextStep = () => {
+  const handleNextStep = () => {
     const form = formRef.current;
     if (!form) return;
 
@@ -544,7 +544,7 @@ export default function CreateApplicationPage() {
     setStep(s => s + 1);
     window.scrollTo(0, 0);
   };
-  const prevStep = () => setStep(s => s - 1);
+  const handlePrevStep = () => setStep(s => s - 1);
   
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -665,9 +665,10 @@ export default function CreateApplicationPage() {
     return getDownloadURL(snapshot.ref);
   };
 
+  const mainActionButtonText = step < 5 ? 'Next' : 'Submit Application';
 
   return (
-    <AppLayout>
+    <PublicLayout>
       <div className="space-y-8 max-w-4xl mx-auto">
         <header>
           <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
@@ -699,34 +700,34 @@ export default function CreateApplicationPage() {
                 <div data-step="5" className={step === 5 ? "block" : "hidden"}>
                     <WorkExperienceSection />
                 </div>
-                    <div className="flex justify-between mt-8">
-                        {step > 1 && (
-                            <Button type="button" variant="outline" onClick={prevStep} disabled={isSubmitting}>
-                                <ArrowLeft className="mr-2 h-4 w-4" />
-                                Previous
-                            </Button>
+                <div className="flex justify-between mt-8">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handlePrevStep}
+                        disabled={isSubmitting || step === 1}
+                        className={cn(step === 1 && "invisible")}
+                    >
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Previous
+                    </Button>
+                    <Button
+                        type={step < 5 ? "button" : "submit"}
+                        onClick={step < 5 ? handleNextStep : undefined}
+                        disabled={isSubmitting}
+                    >
+                        {isSubmitting ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                           step < 5 ? <ArrowRight className="mr-2 h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />
                         )}
-                        <Button
-                            type="button"
-                            onClick={step < 5 ? nextStep : handleFormSubmit}
-                            className={cn(step === 1 && 'ml-auto')}
-                            disabled={isSubmitting}
-                        >
-                            {isSubmitting && step === 5 ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : null}
-                            {step < 5 ? (
-                                <>
-                                Next
-                                <ArrowRight className="ml-2 h-4 w-4" />
-                                </>
-                            ) : (isSubmitting ? 'Submitting...' : 'Submit Application')}
-                        </Button>
-                    </div>
+                        {isSubmitting ? 'Submitting...' : mainActionButtonText}
+                    </Button>
+                </div>
                 </form>
             </CardContent>
         </Card>
       </div>
-    </AppLayout>
+    </PublicLayout>
   );
 }
