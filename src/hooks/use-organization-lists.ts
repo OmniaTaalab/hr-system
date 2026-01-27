@@ -60,7 +60,11 @@ export function useOrganizationLists(): OrganizationLists {
       const q = query(collection(db, name), orderBy('name'));
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name } as ListItem));
-        setLists(prev => ({ ...prev, [name]: data }));
+        
+        // Deduplicate based on the 'name' property to prevent repeat entries in dropdowns
+        const uniqueData = Array.from(new Map(data.map(item => [item.name, item])).values());
+        
+        setLists(prev => ({ ...prev, [name]: uniqueData }));
         loadingStates[name] = false;
         checkLoadingDone();
       }, (error) => {
