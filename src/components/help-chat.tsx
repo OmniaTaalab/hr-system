@@ -34,7 +34,7 @@ export function HelpChat() {
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       setMessages([
-        { role: 'assistant', content: "Hello! How can I help you today? I can answer questions about submitting leave or getting the application link." }
+        { role: 'assistant', content: "Hello! How can I help you today?" }
       ]);
     }
   }, [isOpen, messages.length]);
