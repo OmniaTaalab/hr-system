@@ -30,7 +30,7 @@ If you are asked a question you don't know the answer to, just say that you are 
 
 Here is a list of pages in the application and their purpose:
 - Dashboard (/): The main landing page with key statistics.
-- Employee Management (/employees): View, add, and manage employee records.
+- Employee Management (/employees): Create, view, and manage employee records.
 - Organization Chart (/employees-chart): A visual representation of the company's reporting structure.
 - Submit Leave Request (/leave/request): A form to request time off.
 - Work & Leave Summary (/leave/my-requests): An employee's personal summary of their work hours and leave requests.
