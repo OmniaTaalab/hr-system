@@ -61,8 +61,16 @@ export function useOrganizationLists(): OrganizationLists {
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name } as ListItem));
         
-        // Deduplicate based on the 'name' property to prevent repeat entries in dropdowns
-        const uniqueData = Array.from(new Map(data.map(item => [item.name, item])).values());
+        // Deduplicate based on the 'name' property, ignoring leading/trailing whitespace and case
+        const uniqueMap = new Map<string, ListItem>();
+        data.forEach(item => {
+            // Ensure name is a string before trimming
+            const trimmedName = typeof item.name === 'string' ? item.name.trim() : '';
+            if (trimmedName && !uniqueMap.has(trimmedName.toLowerCase())) {
+                uniqueMap.set(trimmedName.toLowerCase(), { ...item, name: trimmedName });
+            }
+        });
+        const uniqueData = Array.from(uniqueMap.values()).sort((a, b) => a.name.localeCompare(b.name));
         
         setLists(prev => ({ ...prev, [name]: uniqueData }));
         loadingStates[name] = false;
