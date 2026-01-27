@@ -5,6 +5,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import { AppProvider } from '@/components/layout/app-provider';
+import { HelpChat } from '@/components/help-chat';
 
 const fontInter = Inter({
   subsets: ['latin'],
@@ -43,6 +44,7 @@ export default function RootLayout({
       >
         <AppProvider>
             {children}
+            <HelpChat />
         </AppProvider>
         <Toaster />
       </body>
