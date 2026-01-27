@@ -261,25 +261,40 @@ function EmployeesChartContent() {
   }, [isLoadingProfile, canViewPage, router]);
 
   const { campusList, titleList, religionList, stageList } = useMemo(() => {
-    const campusSet = new Set<string>();
-    const titleSet = new Set<string>();
-    const religionSet = new Set<string>();
-    const stageSet = new Set<string>();
+    const campusMap = new Map<string, string>();
+    const titleMap = new Map<string, string>();
+    const religionMap = new Map<string, string>();
+    const stageMap = new Map<string, string>();
 
     allEmployees.forEach(e => {
-        if(e.campus) campusSet.add(e.campus);
-        if(e.title) titleSet.add(e.title);
-        if(e.religion) religionSet.add(e.religion);
-        if(e.stage) stageSet.add(e.stage);
+        if (e.campus) {
+            const trimmed = e.campus.trim();
+            if (trimmed) campusMap.set(trimmed.toLowerCase(), trimmed);
+        }
+        if (e.title) {
+            const trimmed = e.title.trim();
+            if (trimmed) titleMap.set(trimmed.toLowerCase(), trimmed);
+        }
+        if (e.religion) {
+            const trimmed = e.religion.trim();
+            if (trimmed) religionMap.set(trimmed.toLowerCase(), trimmed);
+        }
+        if (e.stage) {
+            const trimmed = e.stage.trim();
+            if (trimmed) stageMap.set(trimmed.toLowerCase(), trimmed);
+        }
     });
 
-    const toOptions = (set: Set<string>) => Array.from(set).sort().map(v => ({ label: v, value: v }));
+    const toOptions = (valueMap: Map<string, string>) =>
+      Array.from(valueMap.values())
+        .sort()
+        .map(v => ({ label: v, value: v }));
 
     return {
-        campusList: toOptions(campusSet),
-        titleList: toOptions(titleSet),
-        religionList: toOptions(religionSet),
-        stageList: toOptions(stageSet)
+        campusList: toOptions(campusMap),
+        titleList: toOptions(titleMap),
+        religionList: toOptions(religionMap),
+        stageList: toOptions(stageMap)
     }
   }, [allEmployees]);
   
@@ -498,3 +513,5 @@ export default function EmployeesChartPage() {
     </AppLayout>
   );
 }
+
+    
