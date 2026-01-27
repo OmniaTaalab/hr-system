@@ -30,7 +30,7 @@ const prompt = ai.definePrompt({
   1. How to submit a leave request.
   2. How to get the link for creating an online job application.
 
-  For submitting a leave request, the page is at '/leave/request'.
+  For submitting a leave request, direct the user to the "Submit Leave Request" page, located at '/leave/request'.
   For the online application link, the page is at '/applications/create'.
 
   Keep your answers short, friendly, and to the point. If the user asks about anything else, politely decline and state that you can only help with leave requests and application links.
