@@ -236,10 +236,10 @@ function ApplicationDetailContent() {
                   <DetailItem label="Place of Birth" value={application.placeOfBirth} icon={MapPin}/>
                   <DetailItem label="Nationality" value={application.nationalities} icon={User}/>
                   <DetailItem label="Social Title" value={application.socialTitle} icon={User}/>
-                  <DetailItem label="Marital Status" value={application.maritalStatus} icon={User}/>
+                  <DetailItem label="Marital Status" value={application.maritalStatus} icon={Users}/>
                   <DetailItem label="Parent at NIS" icon={User}><YesNoIcon value={application.isParentAtNIS} /></DetailItem>
                   <DetailItem label="Number of Children" value={application.numberOfChildren} icon={Users}/>
-                  <DetailItem label="Address" value={[application.building, application.apartment, application.street, application.area, application.city, application.country].filter(Boolean).join(', ')} icon={MapPin} />
+                  <DetailItem label="Address" value={[application.apartment, application.building, application.street, application.area, application.city, application.country].filter(Boolean).join(', ')} icon={MapPin} />
                   <DetailItem label="Contacted By HR" value={application.contactedByHR} icon={Users}/>
 
                 </div>
