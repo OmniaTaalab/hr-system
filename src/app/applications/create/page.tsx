@@ -241,6 +241,13 @@ function EducationalHistorySection() {
     const [schoolEndDate, setSchoolEndDate] = useState<Date | undefined>();
     const [universityStartDate, setUniversityStartDate] = useState<Date | undefined>();
     const [universityEndDate, setUniversityEndDate] = useState<Date | undefined>();
+    const [courses, setCourses] = useState<{ id: string }[]>([]);
+
+    const handleAddCourse = () => setCourses(prev => [...prev, { id: nanoid() }]);
+    const handleRemoveCourse = (id: string) => {
+        setCourses(prev => prev.filter(c => c.id !== id));
+    };
+
 
     return (
     <div className="space-y-6">
@@ -278,18 +285,28 @@ function EducationalHistorySection() {
             </div>
         </div>
 
-         <div className="p-4 border rounded-lg space-y-4">
+        <div className="p-4 border rounded-lg space-y-4">
             <Label className="font-medium">Diplomas & Courses</Label>
-             <div className="grid grid-cols-3 items-center gap-4">
-                 <Input name="diploma1_name" placeholder="Course Name" />
-                 <Input name="diploma1_institution" placeholder="Institution Name" />
-                 <RadioGroup name="diploma1_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="d1-completed-yes" /><Label htmlFor="d1-completed-yes">Completed</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="d1-completed-no" /><Label htmlFor="d1-completed-no">Not Completed</Label></div></RadioGroup>
-             </div>
-             <div className="grid grid-cols-3 items-center gap-4">
-                 <Input name="diploma2_name" placeholder="Course Name" />
-                 <Input name="diploma2_institution" placeholder="Institution Name" />
-                 <RadioGroup name="diploma2_completed" className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id="d2-completed-yes" /><Label htmlFor="d2-completed-yes">Completed</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="d2-completed-no" /><Label htmlFor="d2-completed-no">Not Completed</Label></div></RadioGroup>
-             </div>
+            <div className="space-y-4">
+                {courses.map((course, index) => (
+                    <div key={course.id} className="p-4 border rounded-lg space-y-4 relative bg-muted/50">
+                        <Button type="button" variant="ghost" size="icon" className="absolute top-1 right-1 h-6 w-6 text-destructive" onClick={() => handleRemoveCourse(course.id)}>
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Input name={`diplomas[${index}][name]`} placeholder="Course Name" />
+                            <Input name={`diplomas[${index}][institution]`} placeholder="Institution Name" />
+                        </div>
+                        <RadioGroup name={`diplomas[${index}][completed]`} className="flex gap-4">
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="Yes" id={`d${index}-completed-yes`} /><Label htmlFor={`d${index}-completed-yes`}>Completed</Label></div>
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="No" id={`d${index}-completed-no`} /><Label htmlFor={`d${index}-completed-no`}>Not Completed</Label></div>
+                        </RadioGroup>
+                    </div>
+                ))}
+            </div>
+            <Button type="button" variant="outline" onClick={handleAddCourse} className="mt-4">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Course
+            </Button>
         </div>
     </div>
     )
@@ -622,31 +639,46 @@ export default function CreateApplicationPage() {
             const rawPayload = Object.fromEntries(formData.entries());
 
             const workExperiences: any[] = [];
+            const diplomas: any[] = [];
             formData.forEach((value, key) => {
-              const match = key.match(/workExperience\[(\d+)\]\[([^\]]+)\]/);
-              if (match) {
-                    const index = parseInt(match[1], 10);
-                    const field = match[2];
+              const workMatch = key.match(/workExperience\[(\d+)\]\[([^\]]+)\]/);
+              if (workMatch) {
+                    const index = parseInt(workMatch[1], 10);
+                    const field = workMatch[2];
                     if (!workExperiences[index]) {
                         workExperiences[index] = { id: `exp-${index}`};
                     }
                     workExperiences[index][field] = value;
-                }
+              }
+              const diplomaMatch = key.match(/diplomas\[(\d+)\]\[([^\]]+)\]/);
+              if (diplomaMatch) {
+                    const index = parseInt(diplomaMatch[1], 10);
+                    const field = diplomaMatch[2];
+                    if (!diplomas[index]) diplomas[index] = {};
+                    diplomas[index][field] = value;
+              }
             });
 
-            const payload = {
+            const payload: JobApplicationPayload = {
               ...rawPayload,
               jobId: 'online-application',
               jobTitle: 'Online Application',
               cvUrl,
               nationalIdUrl,
               workExperience: workExperiences.filter(Boolean),
-            } as JobApplicationPayload;
+              diplomas: diplomas.filter(Boolean),
+            };
 
 
             // Remove file objects from payload to avoid serialization errors
             delete (payload as any).cv;
             delete (payload as any).nationalId;
+            delete (payload as any).diploma1_name;
+            delete (payload as any).diploma1_institution;
+            delete (payload as any).diploma1_completed;
+            delete (payload as any).diploma2_name;
+            delete (payload as any).diploma2_institution;
+            delete (payload as any).diploma2_completed;
 
             const result = await applyForJobAction(payload);
             setState(result);

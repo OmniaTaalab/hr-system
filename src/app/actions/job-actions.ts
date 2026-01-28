@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { z } from 'zod';
@@ -118,6 +119,11 @@ const WorkExperienceSchema = z.object({
   toDate: optionalString,
 }).passthrough();
 
+const DiplomaSchema = z.object({
+  name: optionalString,
+  institution: optionalString,
+  completed: optionalString,
+}).passthrough();
 
 
 export type JobApplicationPayload = z.infer<typeof JobApplicationSchema>;
@@ -212,13 +218,7 @@ const JobApplicationSchema = z.object({
   university_endDate: optionalString,
   university_completed: optionalString,
 
-  diploma1_name: optionalString,
-  diploma1_institution: optionalString,
-  diploma1_completed: optionalString,
-
-  diploma2_name: optionalString,
-  diploma2_institution: optionalString,
-  diploma2_completed: optionalString,
+  diplomas: z.array(DiplomaSchema).optional().nullable(),
 
   /** Languages (dynamic but sabitah 3ndak) */
   lang_english_speak: optionalString,
