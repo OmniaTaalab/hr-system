@@ -59,7 +59,7 @@ export const navItems: NavItem[] = [
     iconName: 'Briefcase',
   },
    {
-    i18nKey: 'sidebar.job_applications',
+    i18nKey: 'sidebar.form',
     href: '/jobs/applications',
     iconName: 'FileText',
   },
@@ -70,7 +70,7 @@ export const navItems: NavItem[] = [
     external: true,
   },
   {
-    i18nKey: 'sidebar.form',
+    i18nKey: 'sidebar.job_applications',
     href: '/form',
     iconName: 'FileText',
   },
