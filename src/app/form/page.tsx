@@ -39,7 +39,7 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import { MultiSelectFilter } from "@/components/multi-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { deleteApplicationAction, type DeleteApplicationState, bulkDeleteApplicationsAction, type BulkDeleteApplicationState } from "@/app/actions/job-actions";
+import { deleteApplicationAction, type DeleteApplicationState } from "@/app/actions/job-actions";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -74,7 +74,6 @@ const formatDateSafe = (date: any) => {
   };
 
 const initialDeleteState: DeleteApplicationState = { success: false };
-const initialBulkDeleteState: BulkDeleteApplicationState = { success: false };
 
 function DeleteApplicationDialog({ application, actorProfile }: { application: Application; actorProfile: any }) {
     const { toast } = useToast();
@@ -121,72 +120,6 @@ function DeleteApplicationDialog({ application, actorProfile }: { application: A
         </AlertDialog>
     );
 }
-
-function BulkActionsToolbar({ selectedIds, actorProfile, onClearSelection }: { selectedIds: string[]; actorProfile: any; onClearSelection: () => void; }) {
-  const { toast } = useToast();
-  const [deleteState, deleteAction, isDeletePending] = useActionState(bulkDeleteApplicationsAction, initialBulkDeleteState);
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [_isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    if (deleteState.message) {
-      toast({
-        title: deleteState.success ? "Success" : "Error",
-        description: deleteState.message,
-        variant: deleteState.success ? "default" : "destructive",
-      });
-      if (deleteState.success) {
-        onClearSelection();
-        setIsConfirmOpen(false);
-      }
-    }
-  }, [deleteState, toast, onClearSelection]);
-
-  const handleDelete = () => {
-    startTransition(() => {
-      const formData = new FormData();
-      selectedIds.forEach(id => formData.append('applicationIds', id));
-      if (actorProfile?.id) formData.append('actorId', actorProfile.id);
-      if (actorProfile?.email) formData.append('actorEmail', actorProfile.email);
-      if (actorProfile?.role) formData.append('actorRole', actorProfile.role);
-      deleteAction(formData);
-    });
-  };
-  
-  if (selectedIds.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="flex items-center gap-2 mb-4 p-2 bg-muted/50 rounded-md border">
-      <span className="text-sm font-medium flex-1">{selectedIds.length} selected</span>
-      
-      <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
-        <AlertDialogTrigger asChild>
-          <Button variant="destructive" size="sm" disabled={isDeletePending}>
-            {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
-            Delete Selected
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete {selectedIds.length} selected application(s). This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
-                {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Confirm Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
-}
-
 
 function ApplicationsTable() {
   const [applications, setApplications] = useState<Application[]>([]);
@@ -553,11 +486,11 @@ function ApplicationsTable() {
       </CardHeader>
 
       <CardContent>
-        <BulkActionsToolbar 
-          selectedIds={Object.keys(rowSelection)}
-          actorProfile={profile}
-          onClearSelection={() => setRowSelection({})}
-        />
+        {Object.keys(rowSelection).length > 0 && (
+          <div className="flex items-center gap-2 mb-4 p-2 bg-muted/50 rounded-md border">
+            <span className="text-sm font-medium flex-1">{Object.keys(rowSelection).length} selected</span>
+          </div>
+        )}
         <div className="rounded-md border">
           <Table>
             <TableHeader>
