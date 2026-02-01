@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useActionState, useTransition } from "react";
@@ -370,7 +369,6 @@ function ApplicationsTable() {
   };
   
   const unreadCount = useMemo(() => applications.filter(app => !app.read).length, [applications]);
-  const readCount = useMemo(() => applications.filter(app => app.read === true).length, [applications]);
   const totalCount = applications.length;
 
   if (isLoadingProfile) {
@@ -396,7 +394,7 @@ function ApplicationsTable() {
   
   return (
     <>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 mb-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Applications</CardTitle>
@@ -413,15 +411,6 @@ function ApplicationsTable() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : unreadCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Read Applications</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : readCount}</div>
           </CardContent>
         </Card>
       </div>
