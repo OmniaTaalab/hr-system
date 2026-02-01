@@ -39,7 +39,7 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import { MultiSelectFilter } from "@/components/multi-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { deleteApplicationAction, type DeleteApplicationState, bulkDeleteApplicationsAction, bulkUpdateApplicationStatusAction, type BulkDeleteApplicationState, type BulkUpdateStatusState } from "@/app/actions/job-actions";
+import { deleteApplicationAction, type DeleteApplicationState, bulkDeleteApplicationsAction, type BulkDeleteApplicationState } from "@/app/actions/job-actions";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -75,7 +75,6 @@ const formatDateSafe = (date: any) => {
 
 const initialDeleteState: DeleteApplicationState = { success: false };
 const initialBulkDeleteState: BulkDeleteApplicationState = { success: false };
-const initialBulkStatusState: BulkUpdateStatusState = { success: false };
 
 function DeleteApplicationDialog({ application, actorProfile }: { application: Application; actorProfile: any }) {
     const { toast } = useToast();
@@ -126,7 +125,6 @@ function DeleteApplicationDialog({ application, actorProfile }: { application: A
 function BulkActionsToolbar({ selectedIds, actorProfile, onClearSelection }: { selectedIds: string[]; actorProfile: any; onClearSelection: () => void; }) {
   const { toast } = useToast();
   const [deleteState, deleteAction, isDeletePending] = useActionState(bulkDeleteApplicationsAction, initialBulkDeleteState);
-  const [statusState, statusAction, isStatusPending] = useActionState(bulkUpdateApplicationStatusAction, initialBulkStatusState);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [_isPending, startTransition] = useTransition();
 
@@ -144,17 +142,6 @@ function BulkActionsToolbar({ selectedIds, actorProfile, onClearSelection }: { s
     }
   }, [deleteState, toast, onClearSelection]);
 
-  useEffect(() => {
-    if (statusState.message) {
-      toast({
-        title: statusState.success ? "Success" : "Error",
-        description: statusState.message,
-        variant: statusState.success ? "default" : "destructive",
-      });
-      if (statusState.success) onClearSelection();
-    }
-  }, [statusState, toast, onClearSelection]);
-
   const handleDelete = () => {
     startTransition(() => {
       const formData = new FormData();
@@ -166,18 +153,6 @@ function BulkActionsToolbar({ selectedIds, actorProfile, onClearSelection }: { s
     });
   };
   
-  const handleStatusChange = (status: "read" | "unread") => {
-    startTransition(() => {
-      const formData = new FormData();
-      selectedIds.forEach(id => formData.append('applicationIds', id));
-      formData.append('status', status);
-      if (actorProfile?.id) formData.append('actorId', actorProfile.id);
-      if (actorProfile?.email) formData.append('actorEmail', actorProfile.email);
-      if (actorProfile?.role) formData.append('actorRole', actorProfile.role);
-      statusAction(formData);
-    });
-  };
-
   if (selectedIds.length === 0) {
     return null;
   }
@@ -186,19 +161,6 @@ function BulkActionsToolbar({ selectedIds, actorProfile, onClearSelection }: { s
     <div className="flex items-center gap-2 mb-4 p-2 bg-muted/50 rounded-md border">
       <span className="text-sm font-medium flex-1">{selectedIds.length} selected</span>
       
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" disabled={isStatusPending}>
-            {isStatusPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Edit className="mr-2 h-4 w-4" />}
-            Change Status
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuItem onSelect={() => handleStatusChange('read')}>Mark as Read</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => handleStatusChange('unread')}>Mark as Unread</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
       <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
         <AlertDialogTrigger asChild>
           <Button variant="destructive" size="sm" disabled={isDeletePending}>
@@ -795,5 +757,3 @@ export default function NisListPage() {
     </AppLayout>
   );
 }
-
-    
