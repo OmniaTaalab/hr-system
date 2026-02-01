@@ -329,7 +329,48 @@ function ApplicationDetailContent() {
                         </div>
                     </div>
               </section>
+{/* ===== Diplomas & Courses ===== */}
+<Card className="mt-6">
+  <CardHeader>
+    <CardTitle>Diplomas & Courses</CardTitle>
+    <CardDescription>
+      Professional diplomas and completed courses
+    </CardDescription>
+  </CardHeader>
 
+  <CardContent>
+    {Array.isArray(application.diplomasCourses) && application.diplomasCourses.length > 0 ? (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {application.diplomasCourses.map((d: any, index: number) => (
+          <div
+            key={index}
+            className="rounded-lg border bg-muted p-4"
+            dir="rtl"
+          >
+            <div className="font-semibold text-base mb-2">
+              {d.diploma_name || "-"}
+            </div>
+
+            <div className="text-sm text-muted-foreground">
+              الجهة: <span className="font-medium">{d.diploma_institution || "-"}</span>
+            </div>
+
+            <div className="text-sm mt-1">
+              الحالة:{" "}
+              <span className="font-medium">
+                {d.diploma_completed === "Yes" ? "مكتمل" : "غير مكتمل"}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <p className="text-sm text-muted-foreground">
+        No diplomas or courses provided.
+      </p>
+    )}
+  </CardContent>
+</Card>
               {/* Work Experience */}
               {application.workExperience && application.workExperience.length > 0 && (
                 <section>

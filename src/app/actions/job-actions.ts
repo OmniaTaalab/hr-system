@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp, doc, deleteDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, deleteDoc, getDocs, query, where, updateDoc, writeBatch } from 'firebase/firestore';
 import { logSystemEvent } from '@/lib/system-log';
 
 const JobFormSchema = z.object({
@@ -511,6 +511,131 @@ export async function deleteApplicationAction(
   } catch (error: any) {
     return {
       errors: { form: ["Failed to delete job application."] },
+      message: `Error: ${error.message}`,
+      success: false,
+    };
+  }
+}
+
+// --- New Bulk Delete Applications Action ---
+const BulkDeleteApplicationSchema = z.object({
+  applicationIds: z.array(z.string().min(1)),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
+});
+
+export type BulkDeleteApplicationState = {
+  errors?: { form?: string[] };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function bulkDeleteApplicationsAction(
+  prevState: BulkDeleteApplicationState,
+  formData: FormData
+): Promise<BulkDeleteApplicationState> {
+  const applicationIds = formData.getAll('applicationIds') as string[];
+
+  const validatedFields = BulkDeleteApplicationSchema.safeParse({
+    applicationIds,
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
+  });
+
+  if (!validatedFields.success || applicationIds.length === 0) {
+    return { errors: { form: ["Invalid Application IDs."] }, success: false };
+  }
+
+  const { actorId, actorEmail, actorRole } = validatedFields.data;
+  const batch = writeBatch(db);
+  
+  applicationIds.forEach(id => {
+      const docRef = doc(db, "nis", id);
+      batch.delete(docRef);
+  });
+
+  try {
+    await batch.commit();
+    
+    await logSystemEvent("Bulk Delete Job Applications", {
+        actorId,
+        actorEmail,
+        actorRole,
+        deletedCount: applicationIds.length,
+        applicationIds: applicationIds,
+    });
+
+    return { success: true, message: `${applicationIds.length} applications deleted successfully.` };
+  } catch (error: any) {
+    return {
+      errors: { form: ["Failed to delete applications."] },
+      message: `Error: ${error.message}`,
+      success: false,
+    };
+  }
+}
+
+// --- New Bulk Update Application Status Action ---
+const BulkUpdateStatusSchema = z.object({
+  applicationIds: z.array(z.string().min(1)),
+  status: z.enum(["read", "unread"]), // For now, status is just read/unread
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
+});
+
+export type BulkUpdateStatusState = {
+  errors?: { form?: string[] };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function bulkUpdateApplicationStatusAction(
+  prevState: BulkUpdateStatusState,
+  formData: FormData
+): Promise<BulkUpdateStatusState> {
+  const applicationIds = formData.getAll('applicationIds') as string[];
+  const status = formData.get('status') as "read" | "unread";
+
+  const validatedFields = BulkUpdateStatusSchema.safeParse({
+    applicationIds,
+    status,
+    actorId: formData.get('actorId'),
+    actorEmail: formData.get('actorEmail'),
+    actorRole: formData.get('actorRole'),
+  });
+
+  if (!validatedFields.success || applicationIds.length === 0) {
+    return { errors: { form: ["Invalid data provided."] }, success: false };
+  }
+
+  const { actorId, actorEmail, actorRole } = validatedFields.data;
+  const batch = writeBatch(db);
+  const newReadStatus = status === "read";
+
+  applicationIds.forEach(id => {
+      const docRef = doc(db, "nis", id);
+      batch.update(docRef, { read: newReadStatus });
+  });
+
+  try {
+    await batch.commit();
+
+    await logSystemEvent("Bulk Update Application Status", {
+        actorId,
+        actorEmail,
+        actorRole,
+        updatedCount: applicationIds.length,
+        newStatus: status,
+        applicationIds: applicationIds,
+    });
+
+    return { success: true, message: `Status of ${applicationIds.length} applications updated to '${status}'.` };
+  } catch (error: any) {
+    return {
+      errors: { form: ["Failed to update statuses."] },
       message: `Error: ${error.message}`,
       success: false,
     };

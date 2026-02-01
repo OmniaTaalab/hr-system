@@ -27,6 +27,7 @@ import {
   Calendar as CalendarIcon,
   X,
   FileDown,
+  Edit,
 } from "lucide-react";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, orderBy, Timestamp, updateDoc, doc } from "firebase/firestore";
@@ -34,11 +35,11 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { MultiSelectFilter } from "@/components/multi-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { deleteApplicationAction, type DeleteApplicationState } from "@/app/actions/job-actions";
+import { deleteApplicationAction, type DeleteApplicationState, bulkDeleteApplicationsAction, bulkUpdateApplicationStatusAction, type BulkDeleteApplicationState, type BulkUpdateStatusState } from "@/app/actions/job-actions";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -73,6 +74,8 @@ const formatDateSafe = (date: any) => {
   };
 
 const initialDeleteState: DeleteApplicationState = { success: false };
+const initialBulkDeleteState: BulkDeleteApplicationState = { success: false };
+const initialBulkStatusState: BulkUpdateStatusState = { success: false };
 
 function DeleteApplicationDialog({ application, actorProfile }: { application: Application; actorProfile: any }) {
     const { toast } = useToast();
@@ -119,6 +122,104 @@ function DeleteApplicationDialog({ application, actorProfile }: { application: A
         </AlertDialog>
     );
 }
+
+function BulkActionsToolbar({ selectedIds, actorProfile, onClearSelection }: { selectedIds: string[]; actorProfile: any; onClearSelection: () => void; }) {
+  const { toast } = useToast();
+  const [deleteState, deleteAction, isDeletePending] = useActionState(bulkDeleteApplicationsAction, initialBulkDeleteState);
+  const [statusState, statusAction, isStatusPending] = useActionState(bulkUpdateApplicationStatusAction, initialBulkStatusState);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    if (deleteState.message) {
+      toast({
+        title: deleteState.success ? "Success" : "Error",
+        description: deleteState.message,
+        variant: deleteState.success ? "default" : "destructive",
+      });
+      if (deleteState.success) {
+        onClearSelection();
+        setIsConfirmOpen(false);
+      }
+    }
+  }, [deleteState, toast, onClearSelection]);
+
+  useEffect(() => {
+    if (statusState.message) {
+      toast({
+        title: statusState.success ? "Success" : "Error",
+        description: statusState.message,
+        variant: statusState.success ? "default" : "destructive",
+      });
+      if (statusState.success) onClearSelection();
+    }
+  }, [statusState, toast, onClearSelection]);
+
+  const handleDelete = () => {
+    const formData = new FormData();
+    selectedIds.forEach(id => formData.append('applicationIds', id));
+    if (actorProfile?.id) formData.append('actorId', actorProfile.id);
+    if (actorProfile?.email) formData.append('actorEmail', actorProfile.email);
+    if (actorProfile?.role) formData.append('actorRole', actorProfile.role);
+    deleteAction(formData);
+  };
+  
+  const handleStatusChange = (status: "read" | "unread") => {
+    const formData = new FormData();
+    selectedIds.forEach(id => formData.append('applicationIds', id));
+    formData.append('status', status);
+    if (actorProfile?.id) formData.append('actorId', actorProfile.id);
+    if (actorProfile?.email) formData.append('actorEmail', actorProfile.email);
+    if (actorProfile?.role) formData.append('actorRole', actorProfile.role);
+    statusAction(formData);
+  };
+
+  if (selectedIds.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex items-center gap-2 mb-4 p-2 bg-muted/50 rounded-md border">
+      <span className="text-sm font-medium flex-1">{selectedIds.length} selected</span>
+      
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" disabled={isStatusPending}>
+            {isStatusPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Edit className="mr-2 h-4 w-4" />}
+            Change Status
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem onSelect={() => handleStatusChange('read')}>Mark as Read</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => handleStatusChange('unread')}>Mark as Unread</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <AlertDialogTrigger asChild>
+          <Button variant="destructive" size="sm" disabled={isDeletePending}>
+            {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
+            Delete Selected
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedIds.length} selected application(s). This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+                {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Confirm Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 
 function ApplicationsTable() {
   const [applications, setApplications] = useState<Application[]>([]);
@@ -169,14 +270,13 @@ function ApplicationsTable() {
     { id: 'university_overall', label: 'University Grade', visible: false },
     { id: 'university_startDate', label: 'University Start', visible: false },
     { id: 'university_endDate', label: 'University End', visible: false },
-    { id: 'diploma1_name', label: 'Diploma 1', visible: false },
-    { id: 'diploma2_name', label: 'Diploma 2', visible: false },
-    { id: 'skill_ms_office', label: 'MS Office', visible: false },
+   { id: 'skill_ms_office', label: 'MS Office', visible: false },
     { id: 'skill_smart_board', label: 'Smart Board', visible: false },
     { id: 'skill_e_learning', label: 'E-Learning', visible: false },
     { id: 'skill_gclass_zoom', label: 'Google/Zoom', visible: false },
     { id: 'skill_oracle_db', label: 'Oracle DB', visible: false },
     { id: 'workExperience', label: '# Work Exp.', visible: false },
+    { id: 'diplomasCourses', label: 'Diplomas', visible: false },
 ], []);
 
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => 
@@ -186,7 +286,7 @@ function ApplicationsTable() {
   // State for Table Features
   const [sorting, setSorting] = useState<{ id: SortKey; desc: boolean }>({ id: 'submittedAt', desc: true });
   const [searchTerm, setSearchTerm] = useState("");
-  const [rowSelection, setRowSelection] = useState({});
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [campusFilter, setCampusFilter] = useState<string[]>([]);
   const [schoolTypeFilter, setSchoolTypeFilter] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState<Date | null>(null);
@@ -486,21 +586,24 @@ function ApplicationsTable() {
       </CardHeader>
 
       <CardContent>
+        <BulkActionsToolbar 
+          selectedIds={Object.keys(rowSelection)}
+          actorProfile={profile}
+          onClearSelection={() => setRowSelection({})}
+        />
         <div className="rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>
                   <Checkbox
-                    checked={Object.keys(rowSelection).length === paginatedApplications.length && paginatedApplications.length > 0}
+                    checked={paginatedApplications.length > 0 && Object.keys(rowSelection).length === paginatedApplications.length}
                     onCheckedChange={(value) => {
-                        if(value) {
-                            const newSelection: Record<string, boolean> = {};
+                        const newSelection: Record<string, boolean> = {};
+                        if (value) {
                             paginatedApplications.forEach(app => newSelection[app.id] = true);
-                            setRowSelection(newSelection);
-                        } else {
-                            setRowSelection({});
                         }
+                        setRowSelection(newSelection);
                     }}
                   />
                 </TableHead>
@@ -523,7 +626,15 @@ function ApplicationsTable() {
                 paginatedApplications.map((app, index) => (
                   <TableRow key={app.id} data-state={rowSelection[app.id] && "selected"} onClick={() => handleRowClick(app)} className={cn("cursor-pointer", !app.read && "font-bold")}>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Checkbox checked={!!rowSelection[app.id]} onCheckedChange={(value) => setRowSelection(prev => ({...prev, [app.id]: !!value}))} />
+                      <Checkbox checked={!!rowSelection[app.id]} onCheckedChange={(value) => setRowSelection(prev => {
+                          const newSelection = {...prev};
+                          if (value) {
+                              newSelection[app.id] = true;
+                          } else {
+                              delete newSelection[app.id];
+                          }
+                          return newSelection;
+                      })} />
                     </TableCell>
                     <TableCell>{(currentPage - 1) * rowsPerPage + index + 1}</TableCell>
                     <TableCell>
@@ -540,6 +651,7 @@ function ApplicationsTable() {
                     {columnVisibility.expectedSalary && <TableCell>{app.expectedSalary ? `$${app.expectedSalary.toLocaleString()}` : 'N/A'}</TableCell>}
                     {columnVisibility.schoolType && <TableCell>{app.schoolType || 'N/A'}</TableCell>}
                     {columnVisibility.nationalCampus && <TableCell>{app.nationalCampus || 'N/A'}</TableCell>}
+                    {columnVisibility.internationalCampus && <TableCell>{app.internationalCampus || 'N/A'}</TableCell>}
                     {columnVisibility.submittedAt && <TableCell>{app.submittedAt instanceof Timestamp ? format(app.submittedAt.toDate(), "dd MMM yyyy") : 'N/A'}</TableCell>}
                     {columnVisibility.yearsOfExperience && <TableCell>{app.yearsOfExperience ?? 'N/A'}</TableCell>}
                     {columnVisibility.email1 && <TableCell>{app.email1 || 'N/A'}</TableCell>}
@@ -573,15 +685,13 @@ function ApplicationsTable() {
                     {columnVisibility.university_overall && <TableCell>{app.university_overall || 'N/A'}</TableCell>}
                     {columnVisibility.university_startDate && <TableCell>{formatDateSafe(app.university_startDate)}</TableCell>}
                     {columnVisibility.university_endDate && <TableCell>{formatDateSafe(app.university_endDate)}</TableCell>}
-                    {columnVisibility.diploma1_name && <TableCell>{app.diploma1_name || 'N/A'}</TableCell>}
-                    {columnVisibility.diploma2_name && <TableCell>{app.diploma2_name || 'N/A'}</TableCell>}
                     {columnVisibility.skill_ms_office && <TableCell>{app.skill_ms_office || 'N/A'}</TableCell>}
                     {columnVisibility.skill_smart_board && <TableCell>{app.skill_smart_board || 'N/A'}</TableCell>}
                     {columnVisibility.skill_e_learning && <TableCell>{app.skill_e_learning || 'N/A'}</TableCell>}
                     {columnVisibility.skill_gclass_zoom && <TableCell>{app.skill_gclass_zoom || 'N/A'}</TableCell>}
                     {columnVisibility.skill_oracle_db && <TableCell>{app.skill_oracle_db || 'N/A'}</TableCell>}
                     {columnVisibility.workExperience && <TableCell>{app.workExperience?.length || 0}</TableCell>}
-
+                          
 
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                        <Button variant="ghost" size="icon" onClick={() => router.push(`/form/${app.id}`)}>
