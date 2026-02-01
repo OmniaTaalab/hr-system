@@ -369,7 +369,11 @@ function ApplicationsTable() {
     );
   };
   
-    if (isLoadingProfile) {
+  const unreadCount = useMemo(() => applications.filter(app => !app.read).length, [applications]);
+  const readCount = useMemo(() => applications.filter(app => app.read === true).length, [applications]);
+  const totalCount = applications.length;
+
+  if (isLoadingProfile) {
     return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-12 w-12 animate-spin" /></div>;
   }
 
@@ -389,10 +393,6 @@ function ApplicationsTable() {
       </Card>
     );
   }
-
-  const unreadCount = useMemo(() => applications.filter(app => !app.read).length, [applications]);
-  const readCount = useMemo(() => applications.filter(app => app.read === true).length, [applications]);
-  const totalCount = applications.length;
   
   return (
     <>
@@ -528,11 +528,9 @@ function ApplicationsTable() {
         </CardHeader>
 
         <CardContent>
-          {Object.keys(rowSelection).length > 0 && (
-            <div className="flex items-center gap-2 mb-4 p-2 bg-muted/50 rounded-md border">
-              <span className="text-sm font-medium flex-1">{Object.keys(rowSelection).length} selected</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2 mb-4 p-2 bg-muted/50 rounded-md border">
+            <span className="text-sm font-medium flex-1">{Object.keys(rowSelection).length} selected</span>
+          </div>
           <div className="rounded-md border">
             <Table>
               <TableHeader>
