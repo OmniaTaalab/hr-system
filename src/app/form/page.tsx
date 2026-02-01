@@ -28,6 +28,9 @@ import {
   X,
   FileDown,
   Edit,
+  FileText,
+  MailWarning,
+  CheckCircle2,
 } from "lucide-react";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, orderBy, Timestamp, updateDoc, doc } from "firebase/firestore";
@@ -78,6 +81,7 @@ const initialDeleteState: DeleteApplicationState = { success: false };
 function DeleteApplicationDialog({ application, actorProfile }: { application: Application; actorProfile: any }) {
     const { toast } = useToast();
     const [deleteState, deleteAction, isDeletePending] = useActionState(deleteApplicationAction, initialDeleteState);
+    const [isSubmitting, startTransition] = useTransition();
 
     useEffect(() => {
         if (deleteState.message) {
@@ -88,6 +92,14 @@ function DeleteApplicationDialog({ application, actorProfile }: { application: A
             });
         }
     }, [deleteState, toast]);
+    
+    const handleDelete = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        startTransition(() => {
+            deleteAction(formData);
+        });
+    };
 
     return (
         <AlertDialog>
@@ -97,7 +109,7 @@ function DeleteApplicationDialog({ application, actorProfile }: { application: A
                 </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
-                <form action={deleteAction} onClick={(e) => e.stopPropagation()}>
+                <form onSubmit={handleDelete} onClick={(e) => e.stopPropagation()}>
                     <input type="hidden" name="applicationId" value={application.id} />
                     <input type="hidden" name="actorId" value={actorProfile?.id} />
                     <input type="hidden" name="actorEmail" value={actorProfile?.email} />
@@ -111,8 +123,8 @@ function DeleteApplicationDialog({ application, actorProfile }: { application: A
                     {deleteState?.errors?.form && <p className="text-sm text-destructive mt-2">{deleteState.errors.form.join(', ')}</p>}
                     <AlertDialogFooter className="mt-4">
                         <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
-                        <AlertDialogAction type="submit" disabled={isDeletePending} className="bg-destructive hover:bg-destructive/90">
-                            {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Delete"}
+                        <AlertDialogAction type="submit" disabled={isDeletePending || isSubmitting} className="bg-destructive hover:bg-destructive/90">
+                            {(isDeletePending || isSubmitting) ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Delete"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </form>
@@ -377,316 +389,358 @@ function ApplicationsTable() {
       </Card>
     );
   }
+
+  const unreadCount = useMemo(() => applications.filter(app => !app.read).length, [applications]);
+  const readCount = useMemo(() => applications.filter(app => app.read === true).length, [applications]);
+  const totalCount = applications.length;
   
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Job Applications</CardTitle>
-        <CardDescription>
-          A list of all submitted job applications.
-        </CardDescription>
-        <div className="flex flex-col gap-2 pt-4">
-            <div className="flex flex-nowrap items-center gap-2">
-                <Input
-                  placeholder="Search all application fields..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="min-w-[200px]"
-                  />
-                <MultiSelectFilter
-                  placeholder="Filter by campus..."
-                  options={campuses.map(c => ({ label: c.name, value: c.name }))}
-                  selected={campusFilter}
-                  onChange={setCampusFilter}
-                  className="min-w-[200px]"
-                  />
-                <MultiSelectFilter
-                  placeholder="Filter by school type..."
-                  options={[
-                    { label: "National", value: "National" },
-                    { label: "International", value: "International" }
-                  ]}
-                  selected={schoolTypeFilter}
-                  onChange={setSchoolTypeFilter}
-                  className="min-w-[200px]"
-                  />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-                <Popover>
-                <PopoverTrigger asChild>
-                    <Button
-                    variant={"outline"}
-                    className={cn(
-                        "w-full sm:w-auto justify-start text-left font-normal",
-                        !dateFilter && "text-muted-foreground"
-                    )}
-                    >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateFilter ? format(dateFilter, "PPP") : <span>Filter by date</span>}
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                    <Calendar
-                    mode="single"
-                    selected={dateFilter}
-                    onSelect={setDateFilter}
-                    initialFocus
+    <>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 mb-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Applications</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : totalCount}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Unread Applications</CardTitle>
+            <MailWarning className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : unreadCount}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Read Applications</CardTitle>
+            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : readCount}</div>
+          </CardContent>
+        </Card>
+      </div>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-2 pt-4">
+              <div className="flex flex-nowrap items-center gap-2">
+                  <Input
+                    placeholder="Search all application fields..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="min-w-[200px]"
                     />
-                </PopoverContent>
-                </Popover>
-                {dateFilter && <Button variant="ghost" size="icon" onClick={() => setDateFilter(null)}><X className="h-4 w-4" /></Button>}
-                
-                <Select value={readFilter} onValueChange={(value) => setReadFilter(value as any)}>
-                <SelectTrigger className="w-full sm:w-auto">
-                    <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="read">Read</SelectItem>
-                    <SelectItem value="unread">Unread</SelectItem>
-                </SelectContent>
-                </Select>
-
-                <Button variant="outline" onClick={handleExportExcel}>
-                    <FileDown className="mr-2 h-4 w-4" />
-                    Export Excel
-                </Button>
-                <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="outline">
-                    <Columns className="mr-2 h-4 w-4" /> Columns
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
-                    <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {allColumns.map((column) => (
-                    <DropdownMenuCheckboxItem
-                        key={column.id}
-                        className="capitalize"
-                        checked={columnVisibility[column.id]}
-                        disabled={column.required}
-                        onCheckedChange={(value) => {
-                            setColumnVisibility((prev) => ({
-                                ...prev,
-                                [column.id]: !!value,
-                            }));
-                        }}
-                        onSelect={(e) => {
-                            e.preventDefault();
-                        }}
-                    >
-                        {column.label}
-                    </DropdownMenuCheckboxItem>
-                    ))}
-                </DropdownMenuContent>
-                </DropdownMenu>
-            </div>
-        </div>
-      </CardHeader>
-
-      <CardContent>
-        {Object.keys(rowSelection).length > 0 && (
-          <div className="flex items-center gap-2 mb-4 p-2 bg-muted/50 rounded-md border">
-            <span className="text-sm font-medium flex-1">{Object.keys(rowSelection).length} selected</span>
-          </div>
-        )}
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  <Checkbox
-                    checked={paginatedApplications.length > 0 && Object.keys(rowSelection).length === paginatedApplications.length}
-                    onCheckedChange={(value) => {
-                        const newSelection: Record<string, boolean> = {};
-                        if (value) {
-                            paginatedApplications.forEach(app => newSelection[app.id] = true);
-                        }
-                        setRowSelection(newSelection);
-                    }}
-                  />
-                </TableHead>
-                <TableHead>#</TableHead>
-                <TableHead>Status</TableHead>
-                {allColumns.filter(c => columnVisibility[c.id]).map(c => (
-                  <TableHead key={c.id}>{renderHeader(c.id as SortKey, c.label)}</TableHead>
-                ))}
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={allColumns.filter(c => columnVisibility[c.id]).length + 4} className="h-24 text-center">
-                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-                  </TableCell>
-                </TableRow>
-              ) : paginatedApplications.length > 0 ? (
-                paginatedApplications.map((app, index) => (
-                  <TableRow key={app.id} data-state={rowSelection[app.id] && "selected"} onClick={() => handleRowClick(app)} className={cn("cursor-pointer", !app.read && "font-bold")}>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Checkbox checked={!!rowSelection[app.id]} onCheckedChange={(value) => setRowSelection(prev => {
-                          const newSelection = {...prev};
-                          if (value) {
-                              newSelection[app.id] = true;
-                          } else {
-                              delete newSelection[app.id];
-                          }
-                          return newSelection;
-                      })} />
-                    </TableCell>
-                    <TableCell>{(currentPage - 1) * rowsPerPage + index + 1}</TableCell>
-                    <TableCell>
-                      {!app.read && (
-                        <div className="flex items-center justify-center">
-                          <div className="h-2.5 w-2.5 rounded-full bg-blue-500" title="Unread" />
-                        </div>
+                  <MultiSelectFilter
+                    placeholder="Filter by campus..."
+                    options={campuses.map(c => ({ label: c.name, value: c.name }))}
+                    selected={campusFilter}
+                    onChange={setCampusFilter}
+                    className="min-w-[200px]"
+                    />
+                  <MultiSelectFilter
+                    placeholder="Filter by school type..."
+                    options={[
+                      { label: "National", value: "National" },
+                      { label: "International", value: "International" }
+                    ]}
+                    selected={schoolTypeFilter}
+                    onChange={setSchoolTypeFilter}
+                    className="min-w-[200px]"
+                    />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                  <Popover>
+                  <PopoverTrigger asChild>
+                      <Button
+                      variant={"outline"}
+                      className={cn(
+                          "w-full sm:w-auto justify-start text-left font-normal",
+                          !dateFilter && "text-muted-foreground"
                       )}
-                    </TableCell>
-                    {columnVisibility.name && <TableCell className="font-medium">{`${app.firstNameEn || ''} ${app.lastNameEn || ''}`.trim()}</TableCell>}
-                    {columnVisibility.nameAr && <TableCell dir="rtl" className="font-medium">{`${app.firstNameAr || ''} ${app.fatherNameAr || ''} ${app.familyNameAr || ''}`.trim()}</TableCell>}
-                    {columnVisibility.positionJobTitle && <TableCell>{app.positionJobTitle || 'N/A'}</TableCell>}
-                    {columnVisibility.positionSubject && <TableCell>{app.positionSubject || 'N/A'}</TableCell>}
-                    {columnVisibility.expectedSalary && <TableCell>{app.expectedSalary ? `$${app.expectedSalary.toLocaleString()}` : 'N/A'}</TableCell>}
-                    {columnVisibility.schoolType && <TableCell>{app.schoolType || 'N/A'}</TableCell>}
-                    {columnVisibility.nationalCampus && <TableCell>{app.nationalCampus || 'N/A'}</TableCell>}
-                    {columnVisibility.internationalCampus && <TableCell>{app.internationalCampus || 'N/A'}</TableCell>}
-                    {columnVisibility.submittedAt && <TableCell>{app.submittedAt instanceof Timestamp ? format(app.submittedAt.toDate(), "dd MMM yyyy") : 'N/A'}</TableCell>}
-                    {columnVisibility.yearsOfExperience && <TableCell>{app.yearsOfExperience ?? 'N/A'}</TableCell>}
-                    {columnVisibility.email1 && <TableCell>{app.email1 || 'N/A'}</TableCell>}
-                    {columnVisibility.email2 && <TableCell>{app.email2 || 'N/A'}</TableCell>}
-                    {columnVisibility.mobilePhone && <TableCell>{app.mobilePhone || 'N/A'}</TableCell>}
-                    {columnVisibility.homePhone && <TableCell>{app.homePhone || 'N/A'}</TableCell>}
-                    {columnVisibility.otherPhone && <TableCell>{app.otherPhone || 'N/A'}</TableCell>}
-                    {columnVisibility.dateOfBirth && <TableCell>{formatDateSafe(app.dateOfBirth)}</TableCell>}
-                    {columnVisibility.placeOfBirth && <TableCell>{app.placeOfBirth || 'N/A'}</TableCell>}
-                    {columnVisibility.nationalities && <TableCell>{app.nationalities || 'N/A'}</TableCell>}
-                    {columnVisibility.isParentAtNIS && <TableCell>{app.isParentAtNIS || 'N/A'}</TableCell>}
-                    {columnVisibility.numberOfChildren && <TableCell>{app.numberOfChildren ?? 'N/A'}</TableCell>}
-                    {columnVisibility.address && <TableCell>{[app.apartment, app.building, app.street, app.area, app.city, app.country].filter(Boolean).join(', ') || 'N/A'}</TableCell>}
-                    {columnVisibility.noticePeriod && <TableCell>{app.noticePeriod ? `${app.noticePeriod} days` : 'N/A'}</TableCell>}
-                    {columnVisibility.availableStartDate && <TableCell>{formatDateSafe(app.availableStartDate)}</TableCell>}
-                    {columnVisibility.needsBus && <TableCell>{app.needsBus || 'N/A'}</TableCell>}
-                    {columnVisibility.insideContact && <TableCell>{app.insideContact || 'N/A'}</TableCell>}
-                    {columnVisibility.previouslyWorkedAtNIS && <TableCell>{app.previouslyWorkedAtNIS || 'N/A'}</TableCell>}
-                    {columnVisibility.contactedByHR && <TableCell>{app.contactedByHR || 'N/A'}</TableCell>}
-                    {columnVisibility.howDidYouHear && <TableCell>{app.howDidYouHear || 'N/A'}</TableCell>}
-                    {columnVisibility.school_name && <TableCell>{app.school_name || 'N/A'}</TableCell>}
-                    {columnVisibility.school_major && <TableCell>{app.school_major || 'N/A'}</TableCell>}
-                    {columnVisibility.school_cityCountry && <TableCell>{app.school_cityCountry || 'N/A'}</TableCell>}
-                    {columnVisibility.school_overall && <TableCell>{app.school_overall || 'N/A'}</TableCell>}
-                    {columnVisibility.school_startDate && <TableCell>{formatDateSafe(app.school_startDate)}</TableCell>}
-                    {columnVisibility.school_endDate && <TableCell>{formatDateSafe(app.school_endDate)}</TableCell>}
-                    {columnVisibility.university_name && <TableCell>{app.university_name || 'N/A'}</TableCell>}
-                    {columnVisibility.university_faculty && <TableCell>{app.university_faculty || 'N/A'}</TableCell>}
-                    {columnVisibility.university_major && <TableCell>{app.university_major || 'N/A'}</TableCell>}
-                    {columnVisibility.university_cityCountry && <TableCell>{app.university_cityCountry || 'N/A'}</TableCell>}
-                    {columnVisibility.university_overall && <TableCell>{app.university_overall || 'N/A'}</TableCell>}
-                    {columnVisibility.university_startDate && <TableCell>{formatDateSafe(app.university_startDate)}</TableCell>}
-                    {columnVisibility.university_endDate && <TableCell>{formatDateSafe(app.university_endDate)}</TableCell>}
-                    {columnVisibility.skill_ms_office && <TableCell>{app.skill_ms_office || 'N/A'}</TableCell>}
-                    {columnVisibility.skill_smart_board && <TableCell>{app.skill_smart_board || 'N/A'}</TableCell>}
-                    {columnVisibility.skill_e_learning && <TableCell>{app.skill_e_learning || 'N/A'}</TableCell>}
-                    {columnVisibility.skill_gclass_zoom && <TableCell>{app.skill_gclass_zoom || 'N/A'}</TableCell>}
-                    {columnVisibility.skill_oracle_db && <TableCell>{app.skill_oracle_db || 'N/A'}</TableCell>}
-                    {columnVisibility.workExperience && <TableCell>{app.workExperience?.length || 0}</TableCell>}
-                          
+                      >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateFilter ? format(dateFilter, "PPP") : <span>Filter by date</span>}
+                      </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                      <Calendar
+                      mode="single"
+                      selected={dateFilter}
+                      onSelect={setDateFilter}
+                      initialFocus
+                      />
+                  </PopoverContent>
+                  </Popover>
+                  {dateFilter && <Button variant="ghost" size="icon" onClick={() => setDateFilter(null)}><X className="h-4 w-4" /></Button>}
+                  
+                  <Select value={readFilter} onValueChange={(value) => setReadFilter(value as any)}>
+                  <SelectTrigger className="w-full sm:w-auto">
+                      <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="read">Read</SelectItem>
+                      <SelectItem value="unread">Unread</SelectItem>
+                  </SelectContent>
+                  </Select>
 
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                       <Button variant="ghost" size="icon" onClick={() => router.push(`/form/${app.id}`)}>
-                         <Eye className="h-4 w-4" />
-                       </Button>
-                       <DeleteApplicationDialog application={app} actorProfile={profile} />
+                  <Button variant="outline" onClick={handleExportExcel}>
+                      <FileDown className="mr-2 h-4 w-4" />
+                      Export Excel
+                  </Button>
+                  <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                      <Button variant="outline">
+                      <Columns className="mr-2 h-4 w-4" /> Columns
+                      </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
+                      <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {allColumns.map((column) => (
+                      <DropdownMenuCheckboxItem
+                          key={column.id}
+                          className="capitalize"
+                          checked={columnVisibility[column.id]}
+                          disabled={column.required}
+                          onCheckedChange={(value) => {
+                              setColumnVisibility((prev) => ({
+                                  ...prev,
+                                  [column.id]: !!value,
+                              }));
+                          }}
+                          onSelect={(e) => {
+                              e.preventDefault();
+                          }}
+                      >
+                          {column.label}
+                      </DropdownMenuCheckboxItem>
+                      ))}
+                  </DropdownMenuContent>
+                  </DropdownMenu>
+              </div>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          {Object.keys(rowSelection).length > 0 && (
+            <div className="flex items-center gap-2 mb-4 p-2 bg-muted/50 rounded-md border">
+              <span className="text-sm font-medium flex-1">{Object.keys(rowSelection).length} selected</span>
+            </div>
+          )}
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>
+                    <Checkbox
+                      checked={paginatedApplications.length > 0 && Object.keys(rowSelection).length === paginatedApplications.length}
+                      onCheckedChange={(value) => {
+                          const newSelection: Record<string, boolean> = {};
+                          if (value) {
+                              paginatedApplications.forEach(app => newSelection[app.id] = true);
+                          }
+                          setRowSelection(newSelection);
+                      }}
+                    />
+                  </TableHead>
+                  <TableHead>#</TableHead>
+                  <TableHead>Status</TableHead>
+                  {allColumns.filter(c => columnVisibility[c.id]).map(c => (
+                    <TableHead key={c.id}>{renderHeader(c.id as SortKey, c.label)}</TableHead>
+                  ))}
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={allColumns.filter(c => columnVisibility[c.id]).length + 4} className="h-24 text-center">
+                      <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={allColumns.filter(c => columnVisibility[c.id]).length + 4} className="h-24 text-center">
-                    No results found.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="flex items-center justify-between space-x-2 py-4">
-            <div className="flex-1 text-sm text-muted-foreground">
-                {Object.keys(rowSelection).length} of {filteredAndSortedApplications.length} row(s) selected.
-            </div>
-            <div className="flex items-center space-x-2">
-                <p className="text-sm font-medium">Rows per page</p>
-                <Select
-                    value={`${rowsPerPage}`}
-                    onValueChange={(value) => {
-                        setRowsPerPage(Number(value));
-                        setCurrentPage(1);
-                    }}
-                >
-                    <SelectTrigger className="h-8 w-[70px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent side="top">
-                    {[10, 20, 30, 40, 50].map((pageSize) => (
-                        <SelectItem key={pageSize} value={`${pageSize}`}>
-                        {pageSize}
-                        </SelectItem>
-                    ))}
-                    </SelectContent>
-                </Select>
-            </div>
-             <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-                Page {currentPage} of {totalPages}
-            </div>
-            <div className="flex items-center space-x-2">
-                 <Button
-                    variant="outline"
-                    className="h-8 w-8 p-0"
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                >
-                    <span className="sr-only">Go to first page</span>
-                    <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                    variant="outline"
-                    className="h-8 w-8 p-0"
-                    onClick={() => setCurrentPage(prev => prev - 1)}
-                    disabled={currentPage === 1}
-                >
-                    <span className="sr-only">Go to previous page</span>
-                    <ChevronDown className="h-4 w-4 rotate-90" />
-                </Button>
-                 <Button
-                    variant="outline"
-                    className="h-8 w-8 p-0"
-                    onClick={() => setCurrentPage(prev => prev + 1)}
-                    disabled={currentPage === totalPages}
-                >
-                    <span className="sr-only">Go to next page</span>
-                    <ChevronDown className="h-4 w-4 -rotate-90" />
-                </Button>
-                <Button
-                    variant="outline"
-                    className="h-8 w-8 p-0"
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                >
-                    <span className="sr-only">Go to last page</span>
-                    <ArrowRight className="h-4 w-4" />
-                </Button>
-            </div>
-        </div>
-      </CardContent>
-    </Card>
+                ) : paginatedApplications.length > 0 ? (
+                  paginatedApplications.map((app, index) => (
+                    <TableRow key={app.id} data-state={rowSelection[app.id] && "selected"} onClick={() => handleRowClick(app)} className={cn("cursor-pointer", !app.read && "font-bold")}>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox checked={!!rowSelection[app.id]} onCheckedChange={(value) => setRowSelection(prev => {
+                            const newSelection = {...prev};
+                            if (value) {
+                                newSelection[app.id] = true;
+                            } else {
+                                delete newSelection[app.id];
+                            }
+                            return newSelection;
+                        })} />
+                      </TableCell>
+                      <TableCell>{(currentPage - 1) * rowsPerPage + index + 1}</TableCell>
+                      <TableCell>
+                        {!app.read && (
+                          <div className="flex items-center justify-center">
+                            <div className="h-2.5 w-2.5 rounded-full bg-blue-500" title="Unread" />
+                          </div>
+                        )}
+                      </TableCell>
+                      {columnVisibility.name && <TableCell className="font-medium">{`${app.firstNameEn || ''} ${app.lastNameEn || ''}`.trim()}</TableCell>}
+                      {columnVisibility.nameAr && <TableCell dir="rtl" className="font-medium">{`${app.firstNameAr || ''} ${app.fatherNameAr || ''} ${app.familyNameAr || ''}`.trim()}</TableCell>}
+                      {columnVisibility.positionJobTitle && <TableCell>{app.positionJobTitle || 'N/A'}</TableCell>}
+                      {columnVisibility.positionSubject && <TableCell>{app.positionSubject || 'N/A'}</TableCell>}
+                      {columnVisibility.expectedSalary && <TableCell>{app.expectedSalary ? `$${app.expectedSalary.toLocaleString()}` : 'N/A'}</TableCell>}
+                      {columnVisibility.schoolType && <TableCell>{app.schoolType || 'N/A'}</TableCell>}
+                      {columnVisibility.nationalCampus && <TableCell>{app.nationalCampus || 'N/A'}</TableCell>}
+                      {columnVisibility.internationalCampus && <TableCell>{app.internationalCampus || 'N/A'}</TableCell>}
+                      {columnVisibility.submittedAt && <TableCell>{app.submittedAt instanceof Timestamp ? format(app.submittedAt.toDate(), "dd MMM yyyy") : 'N/A'}</TableCell>}
+                      {columnVisibility.yearsOfExperience && <TableCell>{app.yearsOfExperience ?? 'N/A'}</TableCell>}
+                      {columnVisibility.email1 && <TableCell>{app.email1 || 'N/A'}</TableCell>}
+                      {columnVisibility.email2 && <TableCell>{app.email2 || 'N/A'}</TableCell>}
+                      {columnVisibility.mobilePhone && <TableCell>{app.mobilePhone || 'N/A'}</TableCell>}
+                      {columnVisibility.homePhone && <TableCell>{app.homePhone || 'N/A'}</TableCell>}
+                      {columnVisibility.otherPhone && <TableCell>{app.otherPhone || 'N/A'}</TableCell>}
+                      {columnVisibility.dateOfBirth && <TableCell>{formatDateSafe(app.dateOfBirth)}</TableCell>}
+                      {columnVisibility.placeOfBirth && <TableCell>{app.placeOfBirth || 'N/A'}</TableCell>}
+                      {columnVisibility.nationalities && <TableCell>{app.nationalities || 'N/A'}</TableCell>}
+                      {columnVisibility.isParentAtNIS && <TableCell>{app.isParentAtNIS || 'N/A'}</TableCell>}
+                      {columnVisibility.numberOfChildren && <TableCell>{app.numberOfChildren ?? 'N/A'}</TableCell>}
+                      {columnVisibility.address && <TableCell>{[app.apartment, app.building, app.street, app.area, app.city, app.country].filter(Boolean).join(', ') || 'N/A'}</TableCell>}
+                      {columnVisibility.noticePeriod && <TableCell>{app.noticePeriod ? `${app.noticePeriod} days` : 'N/A'}</TableCell>}
+                      {columnVisibility.availableStartDate && <TableCell>{formatDateSafe(app.availableStartDate)}</TableCell>}
+                      {columnVisibility.needsBus && <TableCell>{app.needsBus || 'N/A'}</TableCell>}
+                      {columnVisibility.insideContact && <TableCell>{app.insideContact || 'N/A'}</TableCell>}
+                      {columnVisibility.previouslyWorkedAtNIS && <TableCell>{app.previouslyWorkedAtNIS || 'N/A'}</TableCell>}
+                      {columnVisibility.contactedByHR && <TableCell>{app.contactedByHR || 'N/A'}</TableCell>}
+                      {columnVisibility.howDidYouHear && <TableCell>{app.howDidYouHear || 'N/A'}</TableCell>}
+                      {columnVisibility.school_name && <TableCell>{app.school_name || 'N/A'}</TableCell>}
+                      {columnVisibility.school_major && <TableCell>{app.school_major || 'N/A'}</TableCell>}
+                      {columnVisibility.school_cityCountry && <TableCell>{app.school_cityCountry || 'N/A'}</TableCell>}
+                      {columnVisibility.school_overall && <TableCell>{app.school_overall || 'N/A'}</TableCell>}
+                      {columnVisibility.school_startDate && <TableCell>{formatDateSafe(app.school_startDate)}</TableCell>}
+                      {columnVisibility.school_endDate && <TableCell>{formatDateSafe(app.school_endDate)}</TableCell>}
+                      {columnVisibility.university_name && <TableCell>{app.university_name || 'N/A'}</TableCell>}
+                      {columnVisibility.university_faculty && <TableCell>{app.university_faculty || 'N/A'}</TableCell>}
+                      {columnVisibility.university_major && <TableCell>{app.university_major || 'N/A'}</TableCell>}
+                      {columnVisibility.university_cityCountry && <TableCell>{app.university_cityCountry || 'N/A'}</TableCell>}
+                      {columnVisibility.university_overall && <TableCell>{app.university_overall || 'N/A'}</TableCell>}
+                      {columnVisibility.university_startDate && <TableCell>{formatDateSafe(app.university_startDate)}</TableCell>}
+                      {columnVisibility.university_endDate && <TableCell>{formatDateSafe(app.university_endDate)}</TableCell>}
+                      {columnVisibility.skill_ms_office && <TableCell>{app.skill_ms_office || 'N/A'}</TableCell>}
+                      {columnVisibility.skill_smart_board && <TableCell>{app.skill_smart_board || 'N/A'}</TableCell>}
+                      {columnVisibility.skill_e_learning && <TableCell>{app.skill_e_learning || 'N/A'}</TableCell>}
+                      {columnVisibility.skill_gclass_zoom && <TableCell>{app.skill_gclass_zoom || 'N/A'}</TableCell>}
+                      {columnVisibility.skill_oracle_db && <TableCell>{app.skill_oracle_db || 'N/A'}</TableCell>}
+                      {columnVisibility.workExperience && <TableCell>{app.workExperience?.length || 0}</TableCell>}
+                            
+  
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                         <Button variant="ghost" size="icon" onClick={() => router.push(`/form/${app.id}`)}>
+                           <Eye className="h-4 w-4" />
+                         </Button>
+                         <DeleteApplicationDialog application={app} actorProfile={profile} />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={allColumns.filter(c => columnVisibility[c.id]).length + 4} className="h-24 text-center">
+                      No results found.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex items-center justify-between space-x-2 py-4">
+              <div className="flex-1 text-sm text-muted-foreground">
+                  {Object.keys(rowSelection).length} of {filteredAndSortedApplications.length} row(s) selected.
+              </div>
+              <div className="flex items-center space-x-2">
+                  <p className="text-sm font-medium">Rows per page</p>
+                  <Select
+                      value={`${rowsPerPage}`}
+                      onValueChange={(value) => {
+                          setRowsPerPage(Number(value));
+                          setCurrentPage(1);
+                      }}
+                  >
+                      <SelectTrigger className="h-8 w-[70px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent side="top">
+                      {[10, 20, 30, 40, 50].map((pageSize) => (
+                          <SelectItem key={pageSize} value={`${pageSize}`}>
+                          {pageSize}
+                          </SelectItem>
+                      ))}
+                      </SelectContent>
+                  </Select>
+              </div>
+               <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+                  Page {currentPage} of {totalPages}
+              </div>
+              <div className="flex items-center space-x-2">
+                   <Button
+                      variant="outline"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                  >
+                      <span className="sr-only">Go to first page</span>
+                      <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                      variant="outline"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setCurrentPage(prev => prev - 1)}
+                      disabled={currentPage === 1}
+                  >
+                      <span className="sr-only">Go to previous page</span>
+                      <ChevronDown className="h-4 w-4 rotate-90" />
+                  </Button>
+                   <Button
+                      variant="outline"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setCurrentPage(prev => prev + 1)}
+                      disabled={currentPage === totalPages}
+                  >
+                      <span className="sr-only">Go to next page</span>
+                      <ChevronDown className="h-4 w-4 -rotate-90" />
+                  </Button>
+                  <Button
+                      variant="outline"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                  >
+                      <span className="sr-only">Go to last page</span>
+                      <ArrowRight className="h-4 w-4" />
+                  </Button>
+              </div>
+          </div>
+        </CardContent>
+      </Card>
+    </>
   );
 }
 
 export default function NisListPage() {
   return (
     <AppLayout>
-      <ApplicationsTable />
+      <div className="space-y-8">
+        <header>
+          <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
+            <FileText className="mr-3 h-8 w-8 text-primary" />
+            Job Applications
+          </h1>
+          <p className="text-muted-foreground">
+            A list of all submitted job applications.
+          </p>
+        </header>
+        <ApplicationsTable />
+      </div>
     </AppLayout>
   );
 }
