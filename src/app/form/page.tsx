@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback, useActionState } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useActionState, useTransition } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -128,6 +128,7 @@ function BulkActionsToolbar({ selectedIds, actorProfile, onClearSelection }: { s
   const [deleteState, deleteAction, isDeletePending] = useActionState(bulkDeleteApplicationsAction, initialBulkDeleteState);
   const [statusState, statusAction, isStatusPending] = useActionState(bulkUpdateApplicationStatusAction, initialBulkStatusState);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [_, startTransition] = useTransition();
 
   useEffect(() => {
     if (deleteState.message) {
@@ -155,22 +156,26 @@ function BulkActionsToolbar({ selectedIds, actorProfile, onClearSelection }: { s
   }, [statusState, toast, onClearSelection]);
 
   const handleDelete = () => {
-    const formData = new FormData();
-    selectedIds.forEach(id => formData.append('applicationIds', id));
-    if (actorProfile?.id) formData.append('actorId', actorProfile.id);
-    if (actorProfile?.email) formData.append('actorEmail', actorProfile.email);
-    if (actorProfile?.role) formData.append('actorRole', actorProfile.role);
-    deleteAction(formData);
+    startTransition(() => {
+      const formData = new FormData();
+      selectedIds.forEach(id => formData.append('applicationIds', id));
+      if (actorProfile?.id) formData.append('actorId', actorProfile.id);
+      if (actorProfile?.email) formData.append('actorEmail', actorProfile.email);
+      if (actorProfile?.role) formData.append('actorRole', actorProfile.role);
+      deleteAction(formData);
+    });
   };
   
   const handleStatusChange = (status: "read" | "unread") => {
-    const formData = new FormData();
-    selectedIds.forEach(id => formData.append('applicationIds', id));
-    formData.append('status', status);
-    if (actorProfile?.id) formData.append('actorId', actorProfile.id);
-    if (actorProfile?.email) formData.append('actorEmail', actorProfile.email);
-    if (actorProfile?.role) formData.append('actorRole', actorProfile.role);
-    statusAction(formData);
+    startTransition(() => {
+      const formData = new FormData();
+      selectedIds.forEach(id => formData.append('applicationIds', id));
+      formData.append('status', status);
+      if (actorProfile?.id) formData.append('actorId', actorProfile.id);
+      if (actorProfile?.email) formData.append('actorEmail', actorProfile.email);
+      if (actorProfile?.role) formData.append('actorRole', actorProfile.role);
+      statusAction(formData);
+    });
   };
 
   if (selectedIds.length === 0) {
@@ -391,7 +396,7 @@ function ApplicationsTable() {
         }
 
         if (valA instanceof Timestamp && valB instanceof Timestamp) {
-            return desc ? valB.toMillis() - valA.toMillis() : valA.toMillis() - valB.toMillis();
+            return desc ? valB.toMillis() - valA.toMillis() : valA.toMillis() - b.toMillis();
         }
         
         if (valA === undefined || valA === null) return 1;
