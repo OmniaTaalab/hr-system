@@ -77,7 +77,6 @@ export function HelpChat() {
         <Card className="fixed bottom-24 right-6 w-80 h-96 flex flex-col shadow-2xl z-50">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Help Assistant</CardTitle>
-             <Icons.NisLogo className="h-6 w-6" />
           </CardHeader>
           <CardContent className="flex-grow overflow-hidden p-0">
             <ScrollArea className="h-full p-4" viewportRef={scrollAreaViewportRef}>
