@@ -128,7 +128,7 @@ function BulkActionsToolbar({ selectedIds, actorProfile, onClearSelection }: { s
   const [deleteState, deleteAction, isDeletePending] = useActionState(bulkDeleteApplicationsAction, initialBulkDeleteState);
   const [statusState, statusAction, isStatusPending] = useActionState(bulkUpdateApplicationStatusAction, initialBulkStatusState);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [_, startTransition] = useTransition();
+  const [_isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (deleteState.message) {
@@ -730,7 +730,7 @@ function ApplicationsTable() {
                     }}
                 >
                     <SelectTrigger className="h-8 w-[70px]">
-                    <SelectValue placeholder={rowsPerPage} />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent side="top">
                     {[10, 20, 30, 40, 50].map((pageSize) => (
