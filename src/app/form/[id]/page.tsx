@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, Suspense } from "react";
@@ -244,6 +245,20 @@ function ApplicationDetailContent() {
 
                 </div>
               </section>
+
+              {/* Emergency Contact */}
+              {(application.emergencyContactName || application.emergencyContactRelationship || application.emergencyContactNumber) && (
+              <section>
+                <h3 className="font-semibold text-lg border-b pb-2 mb-4 flex items-center">
+                  <Phone className="mr-2 h-5 w-5 text-primary" /> Emergency Contact
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                  <DetailItem label="Name" value={application.emergencyContactName} icon={User}/>
+                  <DetailItem label="Relationship" value={application.emergencyContactRelationship} icon={Users} />
+                  <DetailItem label="Phone Number" value={application.emergencyContactNumber} icon={Phone} />
+                </div>
+              </section>
+              )}
               
                {/* Job Requirements */}
               <section>
@@ -446,3 +461,5 @@ export default function ApplicationDetailPage() {
         </PublicLayout>
     );
 }
+
+    

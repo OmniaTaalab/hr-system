@@ -157,6 +157,11 @@ const JobApplicationSchema = z.object({
   isParentAtNIS: optionalString,
   numberOfChildren: optionalNumber,
 
+  /** Emergency Contact */
+  emergencyContactName: optionalString,
+  emergencyContactRelationship: optionalString,
+  emergencyContactNumber: optionalString,
+
   /** Contact */
   country: optionalString,
   city: optionalString,
@@ -641,3 +646,5 @@ export async function bulkUpdateApplicationStatusAction(
     };
   }
 }
+
+    

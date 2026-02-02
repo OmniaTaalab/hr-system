@@ -135,6 +135,15 @@ function PersonalInfoSection() {
           <div className="space-y-2"><Label htmlFor="email1">Email address (1)</Label><Input id="email1" name="email1" type="email"/></div>
           <div className="space-y-2"><Label htmlFor="email2">Email address (2)</Label><Input id="email2" name="email2" type="email"/></div>
        </div>
+
+      <Separator />
+
+      <h3 className="text-xl font-semibold border-b pb-2">Emergency Contact</h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2"><Label htmlFor="emergencyContactName">Name</Label><Input id="emergencyContactName" name="emergencyContactName" /></div>
+          <div className="space-y-2"><Label htmlFor="emergencyContactRelationship">Relationship</Label><Input id="emergencyContactRelationship" name="emergencyContactRelationship" /></div>
+          <div className="space-y-2"><Label htmlFor="emergencyContactNumber">Phone Number</Label><Input id="emergencyContactNumber" name="emergencyContactNumber" type="tel"/></div>
+      </div>
     </div>
   );
 }
@@ -763,3 +772,5 @@ export default function CreateApplicationPage() {
     </PublicLayout>
   );
 }
+
+    
