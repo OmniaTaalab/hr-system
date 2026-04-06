@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode, useEffect } from 'react';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarInset } from "@/components/ui/sidebar";
 import { AppLogo, SidebarNav } from "@/components/layout/sidebar-nav";
 import { Header } from "@/components/layout/header";
@@ -9,6 +9,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { User as FirebaseUser } from 'firebase/auth';
 import type { DocumentData } from 'firebase/firestore';
 import { useApp } from './app-provider';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
 // Define the shape of the employee profile
 export interface EmployeeProfile extends DocumentData {
@@ -43,7 +45,32 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const { user, profile, loading } = useApp();
+  const router = useRouter();
   
+  // 🔐 Redirect unauthenticated users to the login page
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/login');
+    }
+  }, [user, loading, router]);
+
+  // ⌛ Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-muted-foreground animate-pulse font-medium">Initializing system...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 🛡️ Prevent rendering of protected content for guests
+  if (!user) {
+    return null;
+  }
+
   const contextValue = { user, profile, loading };
 
   return (
