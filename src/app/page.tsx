@@ -578,13 +578,6 @@ function DashboardPageContent() {
       href: "/leave/request",
       linkText: "Request Now",
     },
-    {
-      title: "Job Board",
-      description: "Explore current openings.",
-      iconName: "Briefcase",
-      href: "/jobs",
-      linkText: "See Openings",
-    },
   ];
 
   if (isPrivilegedUser) {
