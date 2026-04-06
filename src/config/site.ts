@@ -1,4 +1,3 @@
-
 export interface NavItem {
   i18nKey: string;
   href: string;
@@ -37,11 +36,6 @@ export const navItems: NavItem[] = [
     i18nKey: 'sidebar.all_leave_requests',
     href: '/leave/all-requests',
     iconName: 'ListChecks', 
-  },
-  {
-    i18nKey: 'sidebar.tpi',
-    href: '/tpi',
-    iconName: 'Trophy',
   },
   {
     i18nKey: 'sidebar.kpis',
