@@ -34,7 +34,7 @@ export function SidebarNav() {
 
   useEffect(() => {
     const checkIfManager = async () => {
-      const email = profile?.nisEmail?.trim().toLowerCase();
+      const email = profile?.nisEmail?.trim();
       if (!email) {
         setIsManager(false);
         return;
@@ -53,10 +53,7 @@ export function SidebarNav() {
         );
   
         const managerSnapshot = await getDocs(managerQuery);
-  
-        const isMgr = !managerSnapshot.empty;
-        setIsManager(isMgr);
-  
+        setIsManager(!managerSnapshot.empty);
   
       } catch (err) {
         console.error("🔥 Error checking manager role:", err);
@@ -64,7 +61,7 @@ export function SidebarNav() {
       }
     };
   
-    if (!loading) {
+    if (!loading && profile) {
       checkIfManager();
     }
   }, [profile, loading]);
@@ -83,36 +80,38 @@ export function SidebarNav() {
     const userRole = profile.role?.toLowerCase();
     const isPrivilegedUser = userRole === "admin" || userRole === "hr";
 
-
     return siteConfig.navItems.filter((item) => {
-      if (item.href?.startsWith("/system-logs") || item.href === '/form') {
-        return userRole === "admin" || userRole === "hr";
+      // 1. Admin/HR only sections
+      const adminOnlyPaths = [
+        '/settings', 
+        '/payroll', 
+        '/jobs/applications', 
+        '/tpi', 
+        '/system-logs', 
+        '/attendance-logs', 
+        '/form'
+      ];
+      if (adminOnlyPaths.some(path => item.href?.startsWith(path))) {
+        return isPrivilegedUser;
       }
 
-      // Show everything to Admin/HR
-      if (isPrivilegedUser) {
-        return true;
-      }
-      
-      // If the user is a manager (checked via state), show them the employee list
-      if (isManager && item.href === '/employees') {
-        return true;
+      // 2. Employee Management, Org Chart & All Leave Requests (Admin/HR/Managers)
+      const managerAndAdminPaths = [
+        '/employees', 
+        '/employees-chart', 
+        '/leave/all-requests'
+      ];
+      if (managerAndAdminPaths.some(path => item.href?.startsWith(path))) {
+        return isPrivilegedUser || isManager;
       }
 
-      // For regular users (not admin, not hr, not a manager)
-      const protectedForRegularUsers =
-        item.href?.startsWith("/leave/all-requests") ||
-         item.href?.startsWith("/settings") ||
-        item.href?.startsWith("/employees") ||
-         item.href?.startsWith("/employees-chart") ||
-        item.href?.startsWith("/attendance-logs") ;
-         item.href?.startsWith("/payroll") ||
-         item.href?.startsWith("/jobs/applications") ||
-         item.href?.startsWith("/tpi") ||
-         item.href?.startsWith("/system-logs") ||
-         item.href?.startsWith("/applications/create");
+      // 3. Create Application (External link - typically hidden in main sidebar but reachable)
+      if (item.href === '/applications/create') {
+        return isPrivilegedUser;
+      }
 
-      return !protectedForRegularUsers;
+      // 4. Default: Dashboard, Job Board, My Requests, Profile, etc.
+      return true;
     });
   }, [profile, isManager]);
 
