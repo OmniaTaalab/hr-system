@@ -95,11 +95,12 @@ export function SidebarNav() {
         return isPrivilegedUser;
       }
 
-      // 2. Employee Management, Org Chart & All Leave Requests (Admin/HR/Managers)
+      // 2. Employee Management, Org Chart, All Leave Requests & KPIs (Admin/HR/Managers)
       const managerAndAdminPaths = [
         '/employees', 
         '/employees-chart', 
-        '/leave/all-requests'
+        '/leave/all-requests',
+        '/kpis'
       ];
       if (managerAndAdminPaths.some(path => item.href?.startsWith(path))) {
         return isPrivilegedUser || isManager;
