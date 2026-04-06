@@ -53,11 +53,6 @@ export const navItems: NavItem[] = [
     href: '/attendance-logs',
     iconName: 'Logs',
   },
-  {
-    i18nKey: 'sidebar.job_board',
-    href: '/jobs',
-    iconName: 'Briefcase',
-  },
    {
     i18nKey: 'sidebar.form',
     href: '/jobs/applications',
