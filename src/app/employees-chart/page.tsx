@@ -229,7 +229,7 @@ function EmployeesChartContent() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  const canViewPage = !isLoadingProfile && profile && (profile.role?.toLowerCase() === 'admin' || profile.role?.toLowerCase() === 'hr');
+  const canViewPage = !isLoadingProfile && profile && (['admin', 'hr', 'director'].includes(profile.role?.toLowerCase() || ''));
 
   useEffect(() => {
     if (isLoadingProfile) return;
@@ -513,5 +513,3 @@ export default function EmployeesChartPage() {
     </AppLayout>
   );
 }
-
-    
