@@ -33,7 +33,7 @@ export const navItems: NavItem[] = [
     iconName: 'ClipboardList', 
   },
   {
-    i18nKey: 'sidebar.form',
+    i18nKey: 'sidebar.job_applications',
     href: '/jobs/applications',
     iconName: 'FileText',
   },
