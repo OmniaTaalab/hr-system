@@ -71,9 +71,10 @@ export default function LoginPage() {
 
   const handleAuthSuccess = async (user: any) => {
     if (user?.email) {
+      const lowerCaseEmail = user.email.toLowerCase().trim();
       const q = query(
         collection(db, "employee"),
-        where("nisEmail", "==", user.email),
+        where("nisEmail", "==", lowerCaseEmail),
         limit(1)
       );
       const employeeSnapshot = await getDocs(q);
@@ -177,21 +178,22 @@ export default function LoginPage() {
       console.log("✅ Google Sign-In success:", user?.email, user);
 
       if (user?.email) {
-        console.log("🔍 Checking Firestore for email:", user.email);
+        const lowerCaseEmail = user.email.toLowerCase().trim();
+        console.log("🔍 Checking Firestore for email:", lowerCaseEmail);
 
         const nisEmailQuery = query(
           collection(db, "employee"),
-          where("nisEmail", "==", user.email),
+          where("nisEmail", "==", lowerCaseEmail),
           limit(1)
         );
 
         const emailQuery = query(
           collection(db, "employee"),
-          where("email", "==", user.email),
+          where("email", "==", lowerCaseEmail),
           limit(1)
         );
 
-        console.log("📡 Running Firestore queries for:", user.email);
+        console.log("📡 Running Firestore queries for:", lowerCaseEmail);
 
         const [nisEmailSnapshot, emailSnapshot] = await Promise.all([
           getDocs(nisEmailQuery),
@@ -228,7 +230,7 @@ export default function LoginPage() {
           console.log("➡️ Redirecting to dashboard...");
           router.push("/");
         } else {
-          console.warn("❌ No employee found in Firestore for:", user.email);
+          console.warn("❌ No employee found in Firestore for:", lowerCaseEmail);
           toast({
             variant: "destructive",
             title: "Access Denied",
@@ -252,8 +254,9 @@ export default function LoginPage() {
             console.warn("⚠️ Account exists with different credential:", error);
             const email = error.customData.email;
             if (email) {
-              const methods = await fetchSignInMethodsForEmail(auth, email);
-              console.log("🔁 Sign-in methods for", email, ":", methods);
+              const lowerCaseEmail = email.toLowerCase().trim();
+              const methods = await fetchSignInMethodsForEmail(auth, lowerCaseEmail);
+              console.log("🔁 Sign-in methods for", lowerCaseEmail, ":", methods);
               if (methods.includes(GoogleAuthProvider.PROVIDER_ID)) {
                 errorMessage =
                   "This Google account is already associated with a user.";
@@ -265,7 +268,7 @@ export default function LoginPage() {
                   if (password) {
                     const userCredential = await signInWithEmailAndPassword(
                       auth,
-                      email,
+                      lowerCaseEmail,
                       password
                     );
                     const credential =

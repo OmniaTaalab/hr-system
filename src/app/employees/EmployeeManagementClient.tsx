@@ -1628,7 +1628,10 @@ export default function EmployeeManagementContent() {
                 <TableHead>Stage</TableHead>
                 <TableHead>Campus</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                {(profile?.role?.toLowerCase() === 'admin' || 
+  profile?.role?.toLowerCase() === 'hr') && (
+  <TableHead className="text-right">Actions</TableHead>
+)}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1664,74 +1667,102 @@ export default function EmployeeManagementContent() {
                       </Badge>
                     </TableCell>
                       <TableCell className="text-right">
-                       {canManageEmployee(employee) && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Open menu</span>
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                           <DropdownMenuItem onSelect={() => router.push(`/employees/${employee.id}`)}>
-                              <Eye className="mr-2 h-4 w-4" />
-                              View Full Profile
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuSub>
-                              <DropdownMenuSubTrigger>
-                                <UserPlus className="mr-2 h-4 w-4" />
-                                Login Management
-                              </DropdownMenuSubTrigger>
-                              <DropdownMenuPortal>
-                                <DropdownMenuSubContent>
-                                  <DropdownMenuItem onClick={() => openCreateLoginDialog(employee)} disabled={!!employee.userId}>
-                                    <UserPlus className="mr-2 h-4 w-4" />
-                                    Create Login
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => openChangePasswordDialog(employee)} disabled={!employee.userId}>
-                                    <KeyRound className="mr-2 h-4 w-4" />
-                                    Change Password
-                                  </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => openDeleteLoginDialog(employee)} disabled={!employee.userId} className="text-destructive focus:text-destructive">
-                                      <UserMinus className="mr-2 h-4 w-4" />
-                                      Delete Login
-                                  </DropdownMenuItem>
-                                </DropdownMenuSubContent>
-                              </DropdownMenuPortal>
-                            </DropdownMenuSub>
-                            <DropdownMenuItem onSelect={() => openEditDialog(employee)}>
-                              <Edit3 className="mr-2 h-4 w-4" />
-                              Edit Employee
-                            </DropdownMenuItem>
-                             {employee.status === 'deactivated' ? (
-                                <DropdownMenuItem onSelect={() => {
-                                    startActivateTransition(() => {
-                                        const formData = new FormData();
-                                        formData.append('employeeDocId', employee.id);
-                                        if (profile?.id) formData.append('actorId', profile.id);
-                                        if (profile?.email) formData.append('actorEmail', profile.email);
-                                        if (profile?.role) formData.append('actorRole', profile.role);
-                                        activateAction(formData);
-                                    });
-                                }}>
-                                    {isActivateTransitionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UserRoundCheck className="mr-2 h-4 w-4" />}
-                                    Activate Employee
-                                </DropdownMenuItem>
-                            ) : (
-                                <DropdownMenuItem onSelect={() => openDeactivateDialog(employee)}>
-                                   <UserMinus className="mr-2 h-4 w-4" />
-                                   Deactivate Employee
-                                </DropdownMenuItem>
-                            )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onSelect={() => openDeleteConfirmDialog(employee)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete Employee
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                       )}
+                      {(profile?.role?.toLowerCase() === 'admin' || 
+  profile?.role?.toLowerCase() === 'hr') && (
+  <TableCell className="text-right">
+    {canManageEmployee(employee) && (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="h-8 w-8 p-0">
+            <span className="sr-only">Open menu</span>
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => router.push(`/employees/${employee.id}`)}>
+            <Eye className="mr-2 h-4 w-4" />
+            View Full Profile
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Login Management
+            </DropdownMenuSubTrigger>
+
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onClick={() => openCreateLoginDialog(employee)} disabled={!!employee.userId}>
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Create Login
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={() => openChangePasswordDialog(employee)} disabled={!employee.userId}>
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  Change Password
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={() => openDeleteLoginDialog(employee)}
+                  disabled={!employee.userId}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <UserMinus className="mr-2 h-4 w-4" />
+                  Delete Login
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+
+          <DropdownMenuItem onSelect={() => openEditDialog(employee)}>
+            <Edit3 className="mr-2 h-4 w-4" />
+            Edit Employee
+          </DropdownMenuItem>
+
+          {employee.status === "deactivated" ? (
+            <DropdownMenuItem
+              onSelect={() => {
+                startActivateTransition(() => {
+                  const formData = new FormData();
+                  formData.append("employeeDocId", employee.id);
+                  if (profile?.id) formData.append("actorId", profile.id);
+                  if (profile?.email) formData.append("actorEmail", profile.email);
+                  if (profile?.role) formData.append("actorRole", profile.role);
+                  activateAction(formData);
+                });
+              }}
+            >
+              {isActivateTransitionPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <UserRoundCheck className="mr-2 h-4 w-4" />
+              )}
+              Activate Employee
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onSelect={() => openDeactivateDialog(employee)}>
+              <UserMinus className="mr-2 h-4 w-4" />
+              Deactivate Employee
+            </DropdownMenuItem>
+          )}
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            onSelect={() => openDeleteConfirmDialog(employee)}
+            className="text-destructive focus:text-destructive focus:bg-destructive/10"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Employee
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )}
+  </TableCell>
+)}
                       </TableCell>
                   </TableRow>
                 ))
