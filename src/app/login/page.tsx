@@ -71,18 +71,19 @@ export default function LoginPage() {
 
   const handleAuthSuccess = async (user: any) => {
     if (user?.email) {
-      const lowerCaseEmail = user.email.toLowerCase().trim();
-      const q = query(
-        collection(db, "employee"),
-        where("nisEmail", "==", lowerCaseEmail),
-        limit(1)
-      );
-      const employeeSnapshot = await getDocs(q);
+      const loginEmail = user.email.toLowerCase().trim();
+      
+      // Fetch all employees to perform case-insensitive comparison
+      const employeeSnapshot = await getDocs(collection(db, "employee"));
+      const matchedEmployee = employeeSnapshot.docs.find(doc => {
+        const data = doc.data();
+        const nisEmail = (data.nisEmail || "").toLowerCase().trim();
+        return nisEmail === loginEmail;
+      });
 
-      if (!employeeSnapshot.empty) {
-        const employeeDoc = employeeSnapshot.docs[0];
-        if (!employeeDoc.data().userId) {
-          await updateDoc(doc(db, "employee", employeeDoc.id), {
+      if (matchedEmployee) {
+        if (!matchedEmployee.data().userId) {
+          await updateDoc(doc(db, "employee", matchedEmployee.id), {
             userId: user.uid,
           });
           toast({
@@ -178,41 +179,20 @@ export default function LoginPage() {
       console.log("✅ Google Sign-In success:", user?.email, user);
 
       if (user?.email) {
-        const lowerCaseEmail = user.email.toLowerCase().trim();
-        console.log("🔍 Checking Firestore for email:", lowerCaseEmail);
+        const googleEmail = user.email.toLowerCase().trim();
+        console.log("🔍 Checking Firestore for email (case-insensitive):", googleEmail);
 
-        const nisEmailQuery = query(
-          collection(db, "employee"),
-          where("nisEmail", "==", lowerCaseEmail),
-          limit(1)
-        );
+        // Fetch all employees to perform case-insensitive comparison
+        const allEmployeesSnapshot = await getDocs(collection(db, "employee"));
+        const matchedEmployee = allEmployeesSnapshot.docs.find(doc => {
+          const data = doc.data();
+          const nisEmail = (data.nisEmail || "").toLowerCase().trim();
+          const emailField = (data.email || "").toLowerCase().trim();
+          return nisEmail === googleEmail || emailField === googleEmail;
+        });
 
-        const emailQuery = query(
-          collection(db, "employee"),
-          where("email", "==", lowerCaseEmail),
-          limit(1)
-        );
-
-        console.log("📡 Running Firestore queries for:", lowerCaseEmail);
-
-        const [nisEmailSnapshot, emailSnapshot] = await Promise.all([
-          getDocs(nisEmailQuery),
-          getDocs(emailQuery),
-        ]);
-
-        console.log(
-          "🧾 nisEmailSnapshot empty?:",
-          nisEmailSnapshot.empty,
-          " emailSnapshot empty?:",
-          emailSnapshot.empty
-        );
-
-        const employeeSnapshot = !nisEmailSnapshot.empty
-          ? nisEmailSnapshot
-          : emailSnapshot;
-
-        if (!employeeSnapshot.empty) {
-          const employeeDoc = employeeSnapshot.docs[0];
+        if (matchedEmployee) {
+          const employeeDoc = matchedEmployee;
           console.log("✅ Found employee doc:", employeeDoc.id, employeeDoc.data());
 
           if (!employeeDoc.data().userId) {
@@ -230,7 +210,7 @@ export default function LoginPage() {
           console.log("➡️ Redirecting to dashboard...");
           router.push("/");
         } else {
-          console.warn("❌ No employee found in Firestore for:", lowerCaseEmail);
+          console.warn("❌ No employee found in Firestore for:", googleEmail);
           toast({
             variant: "destructive",
             title: "Access Denied",
