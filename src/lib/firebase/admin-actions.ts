@@ -1,5 +1,3 @@
-
-
 'use server';
 import { z } from 'zod';
 import * as XLSX from "xlsx";
@@ -8,6 +6,41 @@ import { db } from '@/lib/firebase/config';
 import { adminAuth, adminStorage } from '@/lib/firebase/admin-config';
 import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc, getDoc, writeBatch, orderBy, startAfter } from 'firebase/firestore';
 import { logSystemEvent } from '../system-log';
+
+// Helper for date string validation (MM/DD/YYYY)
+const dateInputSchema = z.preprocess(
+  (arg) => (arg === "" || arg === null || arg === undefined ? undefined : String(arg)),
+  z.string().optional().refine((val) => {
+    if (!val || val === "") return true;
+    const match = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!match) return false;
+    const mm = parseInt(match[1], 10);
+    return mm >= 1 && mm <= 12;
+  }, { message: "Invalid date format or month > 12. Please use MM/DD/YYYY." })
+  .transform(val => {
+    if (!val || val === "") return undefined;
+    const [m, d, y] = val.split('/').map(Number);
+    const date = new Date(y, m - 1, d);
+    return isNaN(date.getTime()) ? undefined : date;
+  })
+);
+
+const dateInputSchemaNullable = z.preprocess(
+  (arg) => (arg === "" || arg === null || arg === undefined ? undefined : String(arg)),
+  z.string().optional().refine((val) => {
+    if (!val || val === "") return true;
+    const match = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!match) return false;
+    const mm = parseInt(match[1], 10);
+    return mm >= 1 && mm <= 12;
+  }, { message: "Invalid date format or month > 12. Please use MM/DD/YYYY." })
+  .transform(val => {
+    if (!val || val === "") return null;
+    const [m, d, y] = val.split('/').map(Number);
+    const date = new Date(y, m - 1, d);
+    return isNaN(date.getTime()) ? null : date;
+  })
+);
 
 export async function getAllAuthUsers() {
   if (!adminAuth) {
@@ -79,8 +112,8 @@ const CreateEmployeeFormSchema = z.object({
     const parsed = parseFloat(String(val));
     return isNaN(parsed) ? undefined : parsed;
   }, z.number().nonnegative().optional()),
-  dateOfBirth: z.preprocess((arg) => (arg === "" ? undefined : new Date(z.string().parse(arg))), z.date().optional()),
-  joiningDate: z.preprocess((arg) => (arg === "" ? undefined : new Date(z.string().parse(arg))), z.date().optional()),
+  dateOfBirth: dateInputSchema,
+  joiningDate: dateInputSchema,
   nationalId: z.string().optional(),
   religion: z.string().optional(),
   subject: z.string().optional(),
@@ -163,41 +196,6 @@ export async function createEmployeeAction(
     ...otherData
   } = validatedFields.data;
 
-  // --- External API Call via internal route ---
-  // if (apiToken) {
-  //     try {
-  //       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  //       const apiResponse = await fetch(`${appUrl}/api/employees`, {
-  //         method: 'POST',
-  //         headers: { 'Content-Type': 'application/json' },
-  //         body: JSON.stringify({
-  //           apiToken: apiToken,
-  //           firstname: firstName,
-  //           lastname: lastName,
-  //           email: email,
-  //           role_name: role_name,
-  //           gender: gender,
-  //           domain: null,
-  //         }),
-  //       });
-
-  //       if (!apiResponse.ok) {
-  //         const errorBody = await apiResponse.json();
-  //         return {
-  //           success: false,
-  //           errors: { form: [errorBody.message || `API call failed with status ${apiResponse.status}`] },
-  //         };
-  //       }
-  //     } catch (apiError: any) {
-  //       return {
-  //         success: false,
-  //         errors: { form: [`Failed to call internal API route: ${apiError.message}`] },
-  //       };
-  //     }
-  // }
-  // --- End External API Call ---
-
-
   try {
     const employeeCollection = collection(db, "employee");
 
@@ -227,11 +225,7 @@ export async function createEmployeeAction(
 
 
     const fullName = `${firstName || ''} ${lastName || ''}`.trim();
-    const dateOfBirth =
-    otherData.dateOfBirth ? new Date(otherData.dateOfBirth) : null;
-  
-  const joiningDate =
-    otherData.joiningDate ? new Date(otherData.joiningDate) : null;
+    
     const newEmployeeDoc = {
       employeeId: employeeId || null,
       name: fullName,
@@ -259,8 +253,8 @@ export async function createEmployeeAction(
       campus: otherData.campus || null,
       phone: otherData.phone || null,
       hourlyRate: otherData.hourlyRate || null,
-      dateOfBirth: dateOfBirth ? Timestamp.fromDate(dateOfBirth) : null,
-      joiningDate: joiningDate ? Timestamp.fromDate(joiningDate) : null,
+      dateOfBirth: otherData.dateOfBirth ? Timestamp.fromDate(otherData.dateOfBirth) : null,
+      joiningDate: otherData.joiningDate ? Timestamp.fromDate(otherData.joiningDate) : null,
       nationalId: otherData.nationalId || null,
       religion: otherData.religion || null,
       subject: otherData.subject || null,
@@ -321,10 +315,7 @@ const CreateProfileSchema = z.object({
   phone: z.string().min(1, 'Phone number is required.'),
   role: z.string().min(1, 'Role is required.'),
   stage: z.string().optional(),
-  dateOfBirth: z.preprocess((arg) => {
-    if (!arg || typeof arg !== "string" || arg === "") return undefined;
-    return new Date(arg);
-  }, z.date({ required_error: "A valid date of birth is required." })),
+  dateOfBirth: dateInputSchema,
 });
 
 export async function createEmployeeProfileAction(
@@ -382,7 +373,7 @@ export async function createEmployeeProfileAction(
       firstName,
       lastName,
       employeeId: newEmployeeId,
-      dateOfBirth: Timestamp.fromDate(profileData.dateOfBirth),
+      dateOfBirth: profileData.dateOfBirth ? Timestamp.fromDate(profileData.dateOfBirth) : null,
       department: profileData.department,
       phone: profileData.phone,
       role: profileData.role,
@@ -432,21 +423,9 @@ const UpdateEmployeeFormSchema = z.object({
     },
     z.number().nonnegative({ message: "Hourly rate must be a non-negative number." }).optional()
   ),
-  dateOfBirth: z.preprocess((arg) => {
-    if (!arg || typeof arg !== "string" || arg === "") return undefined;
-    const date = new Date(arg);
-    return date instanceof Date && !isNaN(date.valueOf()) ? date : undefined;
-  }, z.date().optional()),
-  joiningDate: z.preprocess((arg) => {
-    if (!arg || typeof arg !== "string" || arg === "") return undefined;
-    const date = new Date(arg);
-    return date instanceof Date && !isNaN(date.valueOf()) ? date : undefined;
-  }, z.date().optional()),
-    leavingDate: z.preprocess((arg) => {
-    if (!arg || typeof arg !== "string" || arg === "") return null; // Handle empty string as null
-    const date = new Date(arg);
-    return date instanceof Date && !isNaN(date.valueOf()) ? date : null;
-  }, z.date().nullable().optional()),
+  dateOfBirth: dateInputSchema,
+  joiningDate: dateInputSchema,
+  leavingDate: dateInputSchemaNullable,
   gender: z.string().optional(),
   nationalId: z.string().optional(),
   religion: z.string().optional(),
@@ -572,7 +551,7 @@ export async function updateEmployeeAction(
       dataToUpdate.emergencyContact = emergencyContact;
     }
 
-    if (dataToUpdate.firstName || dataToData.lastName) {
+    if (dataToUpdate.firstName || dataToUpdate.lastName) {
       const newFirstName = dataToUpdate.firstName ?? currentEmployeeData.firstName ?? '';
       const newLastName = dataToUpdate.lastName ?? currentEmployeeData.lastName ?? '';
       dataToUpdate.name = `${newFirstName} ${newLastName}`.trim();
@@ -1391,7 +1370,3 @@ export async function correctAttendanceNamesAction(
         };
     }
 }
-
-    
-
-    

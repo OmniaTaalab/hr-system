@@ -1,4 +1,3 @@
-
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -209,13 +208,8 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { roles, stage: stages, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
   const [gender, setGender] = useState("");
   const [role, setRole] = useState("");
-  const [system, setSystem] = useState("");
   const [campus, setCampus] = useState<string | undefined>(undefined);
   const [stage, setStage] = useState<string | undefined>(undefined);
-  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>();
-  const [joiningDate, setJoiningDate] = useState<Date | undefined>();
-  const [isDobPopoverOpen, setIsDobPopoverOpen] = useState(false);
-  const [isJoiningDatePopoverOpen, setIsJoiningDatePopoverOpen] = useState(false);
   const addFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -248,8 +242,6 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         <input type="hidden" name="actorId" value={profile?.id ?? ''} />
         <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
         <input type="hidden" name="actorRole" value={profile?.role ?? ''} />
-        <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
-        <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
         
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
@@ -295,26 +287,9 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                      {addState?.errors?.gender && <p className="text-sm text-destructive">{addState.errors.gender.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
-                    <Label>Date of Birth</Label>
-                    <Popover open={isDobPopoverOpen} onOpenChange={setIsDobPopoverOpen}>
-                        <PopoverTrigger asChild>
-                            <Button variant={"outline"} className="w-full justify-start text-left font-normal">
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                            <Calendar
-                                mode="single"
-                                selected={dateOfBirth}
-                                onSelect={(date) => { setDateOfBirth(date); setIsDobPopoverOpen(false); }}
-                                captionLayout="dropdown-buttons"
-                                fromYear={1950}
-                                toYear={getYear(new Date()) - 18}
-                                initialFocus
-                            />
-                        </PopoverContent>
-                    </Popover>
+                    <Label htmlFor="add-dateOfBirth">Date of Birth (MM/DD/YYYY)</Label>
+                    <Input id="add-dateOfBirth" name="dateOfBirth" placeholder="MM/DD/YYYY" />
+                    {addState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{addState.errors.dateOfBirth.join(', ')}</p>}
                 </div>
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -379,26 +354,9 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                     </Select>
                 </div>
                  <div className="space-y-2">
-                    <Label>Joining Date</Label>
-                    <Popover open={isJoiningDatePopoverOpen} onOpenChange={setIsJoiningDatePopoverOpen}>
-                        <PopoverTrigger asChild>
-                            <Button variant={"outline"} className="w-full justify-start text-left font-normal">
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {joiningDate ? format(joiningDate, "PPP") : <span>Pick a date</span>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                            <Calendar
-                                mode="single"
-                                selected={joiningDate}
-                                onSelect={(date) => { setJoiningDate(date); setIsJoiningDatePopoverOpen(false); }}
-                                captionLayout="dropdown-buttons"
-                                fromYear={1970}
-                                toYear={getYear(new Date()) + 5}
-                                initialFocus
-                            />
-                        </PopoverContent>
-                    </Popover>
+                    <Label htmlFor="add-joiningDate">Joining Date (MM/DD/YYYY)</Label>
+                    <Input id="add-joiningDate" name="joiningDate" placeholder="MM/DD/YYYY" />
+                    {addState?.errors?.joiningDate && <p className="text-sm text-destructive">{addState.errors.joiningDate.join(', ')}</p>}
                 </div>
             </div>
             <div className="space-y-2">
@@ -460,9 +418,6 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
   const [gender, setGender] = useState(employee.gender || "");
   const [stage, setStage] = useState(employee.stage || "");
   const [childrenAtNIS, setChildrenAtNIS] = useState<'Yes' | 'No'>(employee.childrenAtNIS || 'No');
-  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(safeToDate(employee.dateOfBirth));
-  const [joiningDate, setJoiningDate] = useState<Date | undefined>(safeToDate(employee.joiningDate));
-  const [leavingDate, setLeavingDate] = useState<Date | undefined | null>(safeToDate(employee.leavingDate));
 
   useEffect(() => {
     if (!serverState) return;
@@ -483,6 +438,10 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
     }
   }, [serverState, toast, onSuccess]);
   
+  const dobFormatted = employee.dateOfBirth ? format(safeToDate(employee.dateOfBirth)!, "MM/dd/yyyy") : "";
+  const joiningFormatted = employee.joiningDate ? format(safeToDate(employee.joiningDate)!, "MM/dd/yyyy") : "";
+  const leavingFormatted = employee.leavingDate ? format(safeToDate(employee.leavingDate)!, "MM/dd/yyyy") : "";
+
   return (
     <>
       <AlertDialogHeader>
@@ -507,9 +466,6 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
         <input type="hidden" name="gender" value={gender || ''} />
         <input type="hidden" name="stage" value={stage || ''} />
         <input type="hidden" name="childrenAtNIS" value={childrenAtNIS} />
-        <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
-        <input type="hidden" name="joiningDate" value={joiningDate?.toISOString() ?? ''} />
-        <input type="hidden" name="leavingDate" value={leavingDate?.toISOString() ?? ''} />
         
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
@@ -577,18 +533,8 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
             
              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="edit-dateOfBirth">Date of Birth</Label>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1970} toYear={2035} initialFocus />
-                        </PopoverContent>
-                    </Popover>
+                    <Label htmlFor="edit-dateOfBirth">Date of Birth (MM/DD/YYYY)</Label>
+                    <Input id="edit-dateOfBirth" name="dateOfBirth" defaultValue={dobFormatted} placeholder="MM/DD/YYYY" />
                     {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
@@ -722,37 +668,14 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
                     {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
                 </div>
                  <div className="space-y-2">
-                    <Label htmlFor="edit-joiningDate">Joining Date</Label>
-                     <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !joiningDate && "text-muted-foreground")}>
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {joiningDate ? format(joiningDate, "PPP") : <span>Pick a date</span>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={joiningDate} onSelect={setJoiningDate} captionLayout="dropdown-buttons" fromYear={1970} toYear={2035} initialFocus />
-                        </PopoverContent>
-                    </Popover>
+                    <Label htmlFor="edit-joiningDate">Joining Date (MM/DD/YYYY)</Label>
+                    <Input id="edit-joiningDate" name="joiningDate" defaultValue={joiningFormatted} placeholder="MM/DD/YYYY" />
                     {serverState?.errors?.joiningDate && <p className="text-sm text-destructive">{serverState.errors.joiningDate.join(', ')}</p>}
                 </div>
             </div>
             <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                    <Label htmlFor="edit-leavingDate">Leaving Date (Optional)</Label>
-                    {leavingDate && <Button variant="ghost" size="sm" onClick={() => setLeavingDate(null)}>Clear</Button>}
-                </div>
-                <Popover>
-                    <PopoverTrigger asChild>
-                        <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !leavingDate && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {leavingDate ? format(leavingDate, "PPP") : <span>Pick a date</span>}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                        <Calendar mode="single" selected={leavingDate || undefined} onSelect={setLeavingDate} captionLayout="dropdown-buttons" fromYear={1970} toYear={2035} />
-                    </PopoverContent>
-                </Popover>
+                <Label htmlFor="edit-leavingDate">Leaving Date (Optional - MM/DD/YYYY)</Label>
+                <Input id="edit-leavingDate" name="leavingDate" defaultValue={leavingFormatted} placeholder="MM/DD/YYYY" />
                 {serverState?.errors?.leavingDate && <p className="text-sm text-destructive">{serverState.errors.leavingDate.join(', ')}</p>}
             </div>
 
@@ -850,7 +773,7 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit" variant="destructive" disabled={isDeactivatePending}>
-                             {isDeactivatePending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                            {isDeactivatePending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                             Deactivate
                         </Button>
                     </DialogFooter>
