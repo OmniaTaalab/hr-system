@@ -231,7 +231,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
       <DialogHeader>
         <DialogTitle>Add New Employee</DialogTitle>
         <DialogDescription>
-          Fill in the employee's details below.
+          Fill in the employee's details below. Fields marked with * are required.
         </DialogDescription>
       </DialogHeader>
        <form
@@ -308,13 +308,13 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="add-employeeId">Employee ID</Label>
-                    <Input id="add-employeeId" name="employeeId" />
+                    <Label htmlFor="add-employeeId">Employee ID *</Label>
+                    <Input id="add-employeeId" name="employeeId" required />
                     {addState?.errors?.employeeId && <p className="text-sm text-destructive">{addState.errors.employeeId.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="add-nisEmail">NIS Email</Label>
-                    <Input id="add-nisEmail" name="nisEmail" type="email" />
+                    <Label htmlFor="add-nisEmail">NIS Email *</Label>
+                    <Input id="add-nisEmail" name="nisEmail" type="email" required />
                     {addState?.errors?.nisEmail && <p className="text-sm text-destructive">{addState.errors.nisEmail.join(', ')}</p>}
                 </div>
             </div>
@@ -1550,10 +1550,9 @@ export default function EmployeeManagementContent() {
                 <TableHead>Stage</TableHead>
                 <TableHead>Campus</TableHead>
                 <TableHead>Status</TableHead>
-                {(profile?.role?.toLowerCase() === 'admin' || 
-  profile?.role?.toLowerCase() === 'hr') && (
-  <TableHead className="text-right">Actions</TableHead>
-)}
+                {(profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr') && (
+                  <TableHead className="text-right">Actions</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
