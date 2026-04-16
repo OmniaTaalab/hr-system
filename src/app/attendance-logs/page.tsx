@@ -44,7 +44,7 @@ interface Machine {
     name: string;
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 100; // Increased page size since we are grouping
 const initialDeleteState: DeleteAttendanceLogState = { success: false };
 const initialCorrectionState: CorrectionState = { success: false, message: null };
 
@@ -321,52 +321,36 @@ function AttendanceLogsContent() {
   const displayedRecords = useMemo(() => {
     const employeeMap = new Map(allEmployees.map(emp => [String(emp.employeeId), emp.name]));
     
-    const groupedLogs = allLogs.reduce((acc, log) => {
-        const key = `${log.userId}-${log.date}`;
-        if (!acc[key]) {
+    // Create a map to store unique employees based on userId
+    const uniqueEmployeesMap = new Map<number, any>();
+    
+    // Sort allLogs by date descending to ensure we get the latest activity for each user
+    // The query already returns them ordered by date desc if not filtered
+    allLogs.forEach(log => {
+        if (!uniqueEmployeesMap.has(log.userId)) {
             const employeeName = employeeMap.get(String(log.userId)) || log.employeeName;
-            acc[key] = {
+            uniqueEmployeesMap.set(log.userId, {
                 id: log.id,
                 userId: log.userId,
-                date: log.date,
                 employeeName: employeeName,
-                check_ins: [],
-                check_outs: [],
-                machines: new Set(),
-            };
+                lastActivity: log.date,
+                machine: log.machine,
+            });
         }
-        if (log.check_in) acc[key].check_ins.push(log.check_in);
-        if (log.check_out) acc[key].check_outs.push(log.check_out);
-        if (log.machine) acc[key].machines.add(log.machine);
-        
-        return acc;
-    }, {} as Record<string, { id: string; userId: number; date: string; employeeName: string; check_ins: string[]; check_outs: string[]; machines: Set<string>; }>);
-
-    let processedLogs: AttendanceLog[] = Object.values(groupedLogs).map(group => {
-        const sortedCheckIns = group.check_ins.sort();
-        const sortedCheckOuts = group.check_outs.sort();
-        return {
-            id: group.id,
-            userId: group.userId,
-            date: group.date,
-            employeeName: group.employeeName,
-            check_in: sortedCheckIns[0] || null,
-            check_out: sortedCheckOuts.length > 0 ? sortedCheckOuts[sortedCheckOuts.length - 1] : null,
-            machine: Array.from(group.machines).join(', '),
-        };
     });
+
+    let processedLogs = Array.from(uniqueEmployeesMap.values());
 
     if (searchTerm) {
         const lowercasedFilter = searchTerm.toLowerCase();
         processedLogs = processedLogs.filter(record =>
             (record.employeeName && record.employeeName.toLowerCase().includes(lowercasedFilter)) ||
-            record.userId.toString().includes(lowercasedFilter) ||
-            record.date.toLowerCase().includes(lowercasedFilter)
+            record.userId.toString().includes(lowercasedFilter)
         );
     }
     
-    // Sort client-side by date desc
-    processedLogs.sort((a, b) => b.date.localeCompare(a.date) || a.employeeName.localeCompare(b.employeeName));
+    // Sort client-side by name for better navigation
+    processedLogs.sort((a, b) => a.employeeName.localeCompare(b.employeeName));
 
     return processedLogs;
 }, [allLogs, allEmployees, searchTerm]);
@@ -384,20 +368,18 @@ function AttendanceLogsContent() {
     const dataToExport = displayedRecords.map(log => ({
       'Employee ID': log.userId,
       'Employee Name': log.employeeName,
-      'Date': log.date,
-      'Check In': log.check_in || '-',
-      'Check Out': log.check_out || '-',
-      'Machine': log.machine || '-'
+      'Last Activity Date': log.lastActivity,
+      'Last Machine Used': log.machine || '-'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Logs");
-    XLSX.writeFile(workbook, `Attendance_Logs_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Summary");
+    XLSX.writeFile(workbook, `Attendance_Summary_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
 
     toast({
       title: "Export Successful",
-      description: "Attendance logs have been exported to Excel.",
+      description: "Attendance summary has been exported to Excel.",
     });
   };
 
@@ -417,23 +399,15 @@ function AttendanceLogsContent() {
           Attendance Logs
         </h1>
         <p className="text-muted-foreground">
-          {selectedDate
-            ? `Showing all logs for ${format(selectedDate, 'PPP')}.`
-            : machineFilter === 'All' 
-              ? 'Showing the most recent logs. Click a row for full history.' 
-              : `Showing all logs for machine: ${machineFilter}.`}
+          View a summary of employees with attendance records. Click an employee to view their full history.
         </p>
       </header>
 
       <Card className="shadow-lg">
           <CardHeader>
-              <CardTitle>Employee Logs</CardTitle>
+              <CardTitle>Employee Summary</CardTitle>
               <CardDescription>
-                  {selectedDate
-                    ? 'A detailed list of all check-in/out events for the selected day.'
-                    : machineFilter === 'All' 
-                      ? 'A detailed list of all check-in/out events across employees.' 
-                      : `A detailed list of all check-in/out events for the selected machine.`}
+                  Each employee is listed once. Click a row to see all their check-in/out events.
               </CardDescription>
                <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
                   <div className="relative flex-grow">
@@ -489,12 +463,12 @@ function AttendanceLogsContent() {
                {isLoading ? (
                   <div className="flex justify-center items-center h-64">
                       <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                      <p className="ml-4 text-lg">Loading logs...</p>
+                      <p className="ml-4 text-lg">Loading employees...</p>
                   </div>
                ) : displayedRecords.length === 0 ? (
                   <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
-                      <h3 className="text-xl font-semibold">No Attendance Logs Found</h3>
-                      <p className="mt-2">{searchTerm || machineFilter !== 'All' || selectedDate ? `No records match your search/filter.` : "There are currently no logs available."}</p>
+                      <h3 className="text-xl font-semibold">No Employees Found</h3>
+                      <p className="mt-2">{searchTerm || machineFilter !== 'All' || selectedDate ? `No employees match your search/filter.` : "There are currently no attendance logs available."}</p>
                   </div>
                ) : (
                   <Table>
@@ -502,32 +476,28 @@ function AttendanceLogsContent() {
                           <TableRow>
                               <TableHead>Employee ID</TableHead>
                               <TableHead>Employee Name</TableHead>
-                              <TableHead>Activity Date</TableHead>
-                              <TableHead>Check In</TableHead>
-                              <TableHead>Check Out</TableHead>
-                              <TableHead>Machine Name</TableHead>
+                              <TableHead>Last Activity</TableHead>
+                              <TableHead>Last Machine Name</TableHead>
                               <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
                           {displayedRecords.map((record) => (
                               <TableRow 
-                                key={`${record.userId}-${record.date}`} 
-                                className="group"
+                                key={record.userId} 
+                                className="group cursor-pointer hover:bg-muted/50"
+                                onClick={() => router.push(`/attendance-logs/${record.userId}`)}
                               >
-                                  <TableCell onClick={() => router.push(`/attendance-logs/${record.userId}`)} className="cursor-pointer">{record.userId}</TableCell>
-                                  <TableCell onClick={() => router.push(`/attendance-logs/${record.userId}`)} className="cursor-pointer font-medium">{record.employeeName}</TableCell>
-                                  <TableCell onClick={() => router.push(`/attendance-logs/${record.userId}`)} className="cursor-pointer">{record.date}</TableCell>
-                                  <TableCell onClick={() => router.push(`/attendance-logs/${record.userId}`)} className="cursor-pointer">{record.check_in || '-'}</TableCell>
-                                  <TableCell onClick={() => router.push(`/attendance-logs/${record.userId}`)} className="cursor-pointer">{record.check_out || '-'}</TableCell>
-                                  <TableCell onClick={() => router.push(`/attendance-logs/${record.userId}`)} className="cursor-pointer">{record.machine || '-'}</TableCell>
+                                  <TableCell className="font-medium">{record.userId}</TableCell>
+                                  <TableCell className="font-medium">{record.employeeName}</TableCell>
+                                  <TableCell>{record.lastActivity}</TableCell>
+                                  <TableCell>{record.machine || '-'}</TableCell>
                                   <TableCell className="text-right">
                                     <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end">
-                                      <Button variant="ghost" size="sm" onClick={() => router.push(`/attendance-logs/${record.userId}`)}>
-                                        View All
+                                      <Button variant="ghost" size="sm">
+                                        View History
                                         <ArrowRight className="ml-2 h-4 w-4" />
                                       </Button>
-                                      {isPrivileged && <DeleteLogDialog log={record} actorProfile={profile} />}
                                     </div>
                                   </TableCell>
                               </TableRow>
