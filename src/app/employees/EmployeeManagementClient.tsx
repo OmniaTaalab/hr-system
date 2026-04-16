@@ -903,7 +903,7 @@ export default function EmployeeManagementContent() {
     let q;
     const employeeCollection = collection(db, "employee");
 
-    if (userRole && userRole !== "admin" && userRole !== "hr" && userRole !== "director" && profile?.email) {
+    if (userRole && userRole !== "admin" && userRole !== "hr"  && profile?.email) {
       q = query(
         employeeCollection,
         or(

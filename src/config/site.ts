@@ -34,7 +34,7 @@ export const navItems: NavItem[] = [
   },
   {
     i18nKey: 'sidebar.job_applications',
-    href: '/jobs/applications',
+    href: '/form',
     iconName: 'FileText',
   },
   {

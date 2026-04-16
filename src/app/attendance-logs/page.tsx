@@ -6,7 +6,7 @@ import { AppLayout, useUserProfile } from '@/components/layout/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
-import { collection, query, orderBy, limit, getDocs, startAfter, endBefore, limitToLast, DocumentSnapshot, where, QueryConstraint, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, startAfter, endBefore, limitToLast, DocumentSnapshot, where, QueryConstraint, onSnapshot, or } from 'firebase/firestore';
 import { Loader2, BookOpenCheck, Search, AlertTriangle, ArrowRight, ArrowLeft, Filter, Calendar as CalendarIcon, X, FileDown, Trash2, MoreHorizontal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
@@ -117,11 +117,54 @@ function AttendanceLogsContent() {
   
   const [correctionState, correctionAction, isCorrectionPending] = useActionState(correctAttendanceNamesAction, initialCorrectionState);
 
+  const [subordinateIds, setSubordinateIds] = useState<number[]>([]);
+  const [isManager, setIsManager] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
 
-  const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
-  
-  const isDateFiltered = !!selectedDate;
-  const isMachineFiltered = machineFilter !== "All";
+  const isPrivileged = useMemo(() => {
+      const role = profile?.role?.toLowerCase();
+      return role === 'admin' || role === 'hr';
+  }, [profile]);
+
+  // Check access and fetch subordinates if necessary
+  useEffect(() => {
+    if (isLoadingProfile || !profile?.email) return;
+    
+    const checkAccess = async () => {
+        setCheckingAccess(true);
+        if (isPrivileged) {
+            setCheckingAccess(false);
+            return;
+        }
+
+        try {
+            const q = query(
+                collection(db, "employee"),
+                or(
+                    where("reportLine1", "==", profile.email),
+                    where("reportLine2", "==", profile.email)
+                )
+            );
+            const snapshot = await getDocs(q);
+            if (!snapshot.empty || profile.role?.toLowerCase() === 'director') {
+                setIsManager(true);
+                const ids = snapshot.docs.map(doc => Number(doc.data().employeeId)).filter(id => !isNaN(id));
+                setSubordinateIds(ids);
+            } else {
+                router.replace('/');
+            }
+        } catch (e) {
+            console.error("Error checking manager access:", e);
+            router.replace('/');
+        } finally {
+            setCheckingAccess(false);
+        }
+    };
+
+    checkAccess();
+  }, [profile, isLoadingProfile, isPrivileged, router]);
+
+  const canViewPage = !isLoadingProfile && !checkingAccess;
 
   // Fetch employees to map IDs to names
     useEffect(() => {
@@ -184,18 +227,30 @@ function AttendanceLogsContent() {
       const logsCollection = collection(db, "attendance_log");
       let queryConstraints: QueryConstraint[] = [];
       
-      const shouldPaginate = !isMachineFiltered && !isDateFiltered && !searchTerm;
+      const isFiltered = !!searchTerm || machineFilter !== "All" || !!selectedDate;
+      const shouldPaginate = !isFiltered;
 
       // Base query sorted by date
       queryConstraints.push(orderBy("date", "desc"));
 
-      if (isDateFiltered && selectedDate) {
+      if (selectedDate) {
         const dateString = format(selectedDate, 'yyyy-MM-dd');
         queryConstraints.push(where("date", "==", dateString));
       }
       
-      if (isMachineFiltered) {
+      if (machineFilter !== "All") {
         queryConstraints.push(where("machine", "==", machineFilter));
+      }
+
+      // Filter by subordinates if user is a manager and not Admin/HR
+      if (!isPrivileged && subordinateIds.length > 0) {
+          // Firestore 'in' query limit is 30.
+          queryConstraints.push(where("userId", "in", subordinateIds.slice(0, 30)));
+      } else if (!isPrivileged && subordinateIds.length === 0) {
+          // No subordinates and not privileged? No logs to show.
+          setAllLogs([]);
+          setIsLoading(false);
+          return;
       }
 
       if (shouldPaginate) {
@@ -214,13 +269,13 @@ function AttendanceLogsContent() {
       const documentSnapshots = await getDocs(finalQuery);
       let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
       
-      if (!documentSnapshots.empty || (isMachineFiltered && logsData.length > 0)) {
+      if (!documentSnapshots.empty || (machineFilter !== "All" && logsData.length > 0)) {
         setAllLogs(logsData);
         if (shouldPaginate) {
             setFirstVisible(documentSnapshots.docs[0]);
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
             
-            const nextPageCheckConstraints = [orderBy("date", "desc"), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
+            const nextPageCheckConstraints = [...queryConstraints.filter(c => !String(c).includes('limit')), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
             const nextQuery = query(logsCollection, ...nextPageCheckConstraints);
             const nextSnapshot = await getDocs(nextQuery);
             setIsLastPage(nextSnapshot.empty);
@@ -246,20 +301,16 @@ function AttendanceLogsContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDate, machineFilter, toast, lastVisible, firstVisible, isDateFiltered, isMachineFiltered, searchTerm]);
+  }, [selectedDate, machineFilter, toast, lastVisible, firstVisible, isPrivileged, subordinateIds, searchTerm]);
 
   useEffect(() => {
-    if (!canViewPage) {
-        if(!isLoadingProfile) router.replace('/');
-        return;
-    }
+    if (!canViewPage) return;
     // Reset to page 1 and fetch logs whenever a filter changes
     setCurrentPage(1);
     setFirstVisible(null);
     setLastVisible(null);
     fetchLogs('first');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canViewPage, isLoadingProfile, router, machineFilter, selectedDate]);
+  }, [canViewPage, machineFilter, selectedDate, fetchLogs]);
 
 
   const goToNextPage = () => {
@@ -373,20 +424,10 @@ function AttendanceLogsContent() {
     });
   };
 
-  if (isLoadingProfile) {
+  if (isLoadingProfile || checkingAccess) {
     return (
         <div className="flex justify-center items-center h-full">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        </div>
-    );
-  }
-
-  if (!canViewPage) {
-    return (
-        <div className="flex justify-center items-center h-full flex-col gap-4">
-            <AlertTriangle className="h-12 w-12 text-destructive" />
-            <h2 className="text-xl font-semibold">Access Denied</h2>
-            <p className="text-muted-foreground">You do not have permission to view attendance logs.</p>
         </div>
     );
   }
@@ -402,7 +443,7 @@ function AttendanceLogsContent() {
           {selectedDate
             ? `Showing all logs for ${format(selectedDate, 'PPP')}.`
             : machineFilter === 'All' 
-              ? 'Showing the most recent logs across all employees. Click a row for full history.' 
+              ? 'Showing the most recent logs. Click a row for full history.' 
               : `Showing all logs for machine: ${machineFilter}.`}
         </p>
       </header>
@@ -414,7 +455,7 @@ function AttendanceLogsContent() {
                   {selectedDate
                     ? 'A detailed list of all check-in/out events for the selected day.'
                     : machineFilter === 'All' 
-                      ? 'A detailed list of all check-in/out events across all employees.' 
+                      ? 'A detailed list of all check-in/out events across employees.' 
                       : `A detailed list of all check-in/out events for the selected machine.`}
               </CardDescription>
                <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
@@ -456,12 +497,14 @@ function AttendanceLogsContent() {
                         <FileDown className="mr-2 h-4 w-4" />
                         Export Excel
                       </Button>
-                      <form action={handleCorrection}>
-                        <Button variant="outline" disabled={isCorrectionPending} className="w-full sm:w-auto">
-                            {isCorrectionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                            Correct Names
-                        </Button>
-                      </form>
+                      {isPrivileged && (
+                        <form action={handleCorrection}>
+                          <Button variant="outline" disabled={isCorrectionPending} className="w-full sm:w-auto">
+                              {isCorrectionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                              Correct Names
+                          </Button>
+                        </form>
+                      )}
                   </div>
                </div>
           </CardHeader>
@@ -474,7 +517,7 @@ function AttendanceLogsContent() {
                ) : displayedRecords.length === 0 ? (
                   <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
                       <h3 className="text-xl font-semibold">No Attendance Logs Found</h3>
-                      <p className="mt-2">{searchTerm || machineFilter !== 'All' || selectedDate ? `No records match your search/filter.` : "There are currently no logs in the `attendance_log` collection."}</p>
+                      <p className="mt-2">{searchTerm || machineFilter !== 'All' || selectedDate ? `No records match your search/filter.` : "There are currently no logs available."}</p>
                   </div>
                ) : (
                   <Table>
@@ -507,7 +550,7 @@ function AttendanceLogsContent() {
                                         View All
                                         <ArrowRight className="ml-2 h-4 w-4" />
                                       </Button>
-                                      <DeleteLogDialog log={record} actorProfile={profile} />
+                                      {isPrivileged && <DeleteLogDialog log={record} actorProfile={profile} />}
                                     </div>
                                   </TableCell>
                               </TableRow>
@@ -516,7 +559,7 @@ function AttendanceLogsContent() {
                   </Table>
                )}
           </CardContent>
-           {(!isDateFiltered && !isMachineFiltered && !searchTerm) && (
+           {(!selectedDate && machineFilter === "All" && !searchTerm) && (
             <CardContent>
               <div className="flex items-center justify-end space-x-2 py-4">
                   <Button

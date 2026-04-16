@@ -46,15 +46,55 @@ function UserAttendanceLogContent() {
   const employeeIdentifier = params.id as string;
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-  const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
+  const [checkingAccess, setCheckingAccess] = useState(true);
+
+  useEffect(() => {
+    if (isLoadingProfile || !employeeIdentifier || !profile?.email) return;
+
+    const verifyAccess = async () => {
+        setCheckingAccess(true);
+        const userRole = profile.role?.toLowerCase();
+        
+        // Admins and HR see everyone
+        if (userRole === 'admin' || userRole === 'hr') {
+            setCheckingAccess(false);
+            return;
+        }
+
+        try {
+            // Find the employee being viewed
+            const empQuery = query(
+                collection(db, "employee"), 
+                where("employeeId", "==", employeeIdentifier),
+                limit(1)
+            );
+            const empSnap = await getDocs(empQuery);
+            
+            if (!empSnap.empty) {
+                const empData = empSnap.docs[0].data();
+                const isSubordinate = empData.reportLine1 === profile.email || empData.reportLine2 === profile.email;
+                const isDirector = userRole === 'director';
+
+                if (isSubordinate || isDirector) {
+                    setCheckingAccess(false);
+                    return;
+                }
+            }
+            
+            router.replace('/');
+        } catch (e) {
+            console.error("Error verifying access:", e);
+            router.replace('/');
+        }
+    };
+
+    verifyAccess();
+  }, [profile, isLoadingProfile, employeeIdentifier, router]);
+
+  const canViewPage = !isLoadingProfile && !checkingAccess;
   
   useEffect(() => {
-    if (isLoadingProfile || !employeeIdentifier) return;
-    
-    if (!canViewPage) {
-        router.replace('/');
-        return;
-    }
+    if (!canViewPage || !employeeIdentifier) return;
 
     setIsLoading(true);
 
@@ -62,7 +102,7 @@ function UserAttendanceLogContent() {
         let employeeId: number | null = null;
         let fetchedEmployeeName: string | null = null;
 
-        // Check if identifier is an email
+        // Check if identifier is an email (though normally it's an ID here)
         if (employeeIdentifier.includes('@')) {
             try {
                 const employeeQuery = query(collection(db, "employee"), where("nisEmail", "==", employeeIdentifier), limit(1));
@@ -164,7 +204,7 @@ function UserAttendanceLogContent() {
           toast({
             variant: "destructive",
             title: "Error",
-            description: "Could not load user attendance logs. Check Firestore rules or query constraints.",
+            description: "Could not load user attendance logs.",
           });
           setIsLoading(false);
         });
@@ -181,7 +221,7 @@ function UserAttendanceLogContent() {
             }
         });
     };
-  }, [toast, canViewPage, isLoadingProfile, router, employeeIdentifier, selectedDate]);
+  }, [toast, canViewPage, employeeIdentifier, selectedDate]);
 
   const handleExportExcel = () => {
     if (logs.length === 0) {
@@ -210,20 +250,10 @@ function UserAttendanceLogContent() {
     });
   };
 
-  if (isLoadingProfile || isLoading) {
+  if (isLoadingProfile || checkingAccess || isLoading) {
     return (
         <div className="flex justify-center items-center h-full">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        </div>
-    );
-  }
-
-  if (!canViewPage) {
-    return (
-        <div className="flex justify-center items-center h-full flex-col gap-4">
-            <AlertTriangle className="h-12 w-12 text-destructive" />
-            <h2 className="text-xl font-semibold">Access Denied</h2>
-            <p className="text-muted-foreground">You do not have permission to view this page.</p>
         </div>
     );
   }
@@ -276,7 +306,7 @@ function UserAttendanceLogContent() {
                ) : logs.length === 0 ? (
                   <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
                       <h3 className="text-xl font-semibold">No Logs Found</h3>
-                      <p className="mt-2">{selectedDate ? `No records found for ${format(selectedDate, 'PPP')}.` : `No attendance records found for ${employeeName}.`}</p>
+                      <p className="mt-2">{selectedDate ? `No records found for ${format(selectedDate, 'PPP')}.` : `No attendance records found.`}</p>
                   </div>
                ) : (
                   <Table>

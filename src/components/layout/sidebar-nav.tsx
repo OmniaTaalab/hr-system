@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -93,21 +94,21 @@ export function SidebarNav() {
         '/jobs/applications', 
         '/tpi', 
         '/system-logs', 
-        '/attendance-logs', 
         '/form'
       ];
       if (adminOnlyPaths.some(path => item.href?.startsWith(path))) {
         return isPrivilegedUser;
       }
 
-      // 3. Employee Management, All Leave Requests & KPIs (Admin/HR/Managers)
+      // 3. Employee Management, All Leave Requests, KPIs & Attendance (Admin/HR/Director/Managers)
       const managerAndAdminPaths = [
         '/employees', 
         '/leave/all-requests',
-        '/kpis'
+        '/kpis',
+        '/attendance-logs'
       ];
       if (managerAndAdminPaths.some(path => item.href?.startsWith(path))) {
-        return isPrivilegedUser || isManager;
+        return isPrivilegedUser || isDirector || isManager;
       }
 
       // 4. Create Application (External link - typically hidden in main sidebar but reachable)
