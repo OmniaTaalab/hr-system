@@ -118,7 +118,6 @@ function AttendanceLogsContent() {
   const [correctionState, correctionAction, isCorrectionPending] = useActionState(correctAttendanceNamesAction, initialCorrectionState);
 
   const [subordinateIds, setSubordinateIds] = useState<number[]>([]);
-  const [isManager, setIsManager] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(true);
 
   const isPrivileged = useMemo(() => {
@@ -146,8 +145,8 @@ function AttendanceLogsContent() {
                 )
             );
             const snapshot = await getDocs(q);
+            // Managers and Directors are allowed
             if (!snapshot.empty || profile.role?.toLowerCase() === 'director') {
-                setIsManager(true);
                 const ids = snapshot.docs.map(doc => Number(doc.data().employeeId)).filter(id => !isNaN(id));
                 setSubordinateIds(ids);
             } else {
@@ -175,47 +174,40 @@ function AttendanceLogsContent() {
             setAllEmployees(employeeData);
         }, (error) => {
             console.error("Error fetching employees:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch employee data for name mapping.' });
         });
         return () => unsubscribe();
-    }, [canViewPage, toast]);
+    }, [canViewPage]);
     
-  // Fetch unique machines from the 'attendance_log' collection
+  // Fetch unique machines
   useEffect(() => {
     if (!canViewPage) return;
     setIsLoadingMachines(true);
     const fetchMachines = async () => {
         try {
-            // Fetch all logs to extract machine names
             const logsCollection = collection(db, "attendance_log");
-            const snapshot = await getDocs(logsCollection);
+            const snapshot = await getDocs(query(logsCollection, limit(1000)));
             const machineNames = new Set<string>();
             snapshot.forEach(doc => {
                 const machine = doc.data().machine;
-                if(machine) {
-                    machineNames.add(machine);
-                }
+                if(machine) machineNames.add(machine);
             });
             const machineData = Array.from(machineNames).map((name, index) => ({ id: `${index}`, name }));
             setMachines(machineData);
         } catch (error) {
             console.error("Error fetching machine names:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch machine names.' });
         } finally {
             setIsLoadingMachines(false);
         }
     };
     fetchMachines();
-  }, [canViewPage, toast]);
+  }, [canViewPage]);
 
-    // Toast for correction action
     useEffect(() => {
         if (correctionState?.message) {
             toast({
                 title: correctionState.success ? "Correction Ran" : "Correction Failed",
                 description: correctionState.message,
                 variant: correctionState.success ? "default" : "destructive",
-                duration: 10000,
             });
         }
     }, [correctionState, toast]);
@@ -227,11 +219,13 @@ function AttendanceLogsContent() {
       const logsCollection = collection(db, "attendance_log");
       let queryConstraints: QueryConstraint[] = [];
       
-      const isFiltered = !!searchTerm || machineFilter !== "All" || !!selectedDate;
-      const shouldPaginate = !isFiltered;
+      const isFiltered = machineFilter !== "All" || !!selectedDate || (!isPrivileged && subordinateIds.length > 0);
+      const shouldPaginate = !isFiltered && !searchTerm;
 
-      // Base query sorted by date
-      queryConstraints.push(orderBy("date", "desc"));
+      // Only add orderBy if not combining with multiple filters to avoid index requirements
+      if (!isFiltered) {
+        queryConstraints.push(orderBy("date", "desc"));
+      }
 
       if (selectedDate) {
         const dateString = format(selectedDate, 'yyyy-MM-dd');
@@ -247,7 +241,6 @@ function AttendanceLogsContent() {
           // Firestore 'in' query limit is 30.
           queryConstraints.push(where("userId", "in", subordinateIds.slice(0, 30)));
       } else if (!isPrivileged && subordinateIds.length === 0) {
-          // No subordinates and not privileged? No logs to show.
           setAllLogs([]);
           setIsLoading(false);
           return;
@@ -269,33 +262,22 @@ function AttendanceLogsContent() {
       const documentSnapshots = await getDocs(finalQuery);
       let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
       
-      if (!documentSnapshots.empty || (machineFilter !== "All" && logsData.length > 0)) {
-        setAllLogs(logsData);
-        if (shouldPaginate) {
-            setFirstVisible(documentSnapshots.docs[0]);
-            setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
-            
-            const nextPageCheckConstraints = [...queryConstraints.filter(c => !String(c).includes('limit')), startAfter(documentSnapshots.docs[documentSnapshots.docs.length - 1]), limit(1)];
-            const nextQuery = query(logsCollection, ...nextPageCheckConstraints);
-            const nextSnapshot = await getDocs(nextQuery);
-            setIsLastPage(nextSnapshot.empty);
-        } else {
-            setIsLastPage(true);
-        }
+      setAllLogs(logsData);
+
+      if (shouldPaginate && !documentSnapshots.empty) {
+          setFirstVisible(documentSnapshots.docs[0]);
+          setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
+          setIsLastPage(documentSnapshots.docs.length < PAGE_SIZE);
       } else {
-         setAllLogs([]);
-         if (shouldPaginate) {
-            setFirstVisible(null);
-            setLastVisible(null);
-         }
-         setIsLastPage(true);
+          setIsLastPage(true);
       }
+
     } catch (error: any) {
       console.error("Error fetching attendance logs:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Could not load attendance logs. This filter combination might require a composite index in Firestore.",
+        description: "Could not load attendance logs. Please try clearing filters.",
       });
       setAllLogs([]);
     } finally {
@@ -305,7 +287,6 @@ function AttendanceLogsContent() {
 
   useEffect(() => {
     if (!canViewPage) return;
-    // Reset to page 1 and fetch logs whenever a filter changes
     setCurrentPage(1);
     setFirstVisible(null);
     setLastVisible(null);
@@ -341,7 +322,6 @@ function AttendanceLogsContent() {
     const employeeMap = new Map(allEmployees.map(emp => [String(emp.employeeId), emp.name]));
     
     const groupedLogs = allLogs.reduce((acc, log) => {
-        // Use userId from the log, which corresponds to the company employeeId
         const key = `${log.userId}-${log.date}`;
         if (!acc[key]) {
             const employeeName = employeeMap.get(String(log.userId)) || log.employeeName;
@@ -385,11 +365,8 @@ function AttendanceLogsContent() {
         );
     }
     
-    processedLogs.sort((a, b) => {
-        const dateComp = b.date.localeCompare(a.date);
-        if (dateComp !== 0) return dateComp;
-        return a.employeeName.localeCompare(b.employeeName);
-    });
+    // Sort client-side by date desc
+    processedLogs.sort((a, b) => b.date.localeCompare(a.date) || a.employeeName.localeCompare(b.employeeName));
 
     return processedLogs;
 }, [allLogs, allEmployees, searchTerm]);
