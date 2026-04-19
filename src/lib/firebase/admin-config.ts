@@ -2,46 +2,47 @@
 import '@/env'; // Ensures environment variables are loaded
 import admin from 'firebase-admin';
 
-// This ensures the private key is parsed correctly
-let adminAuth: admin.auth.Auth | null = null;
-let adminStorage: admin.storage.Storage | null = null;
-let adminDb: admin.firestore.Firestore | null = null;
-let adminMessaging: admin.messaging.Messaging | null = null;
-
-// Initialize Firebase Admin SDK only if it's not already initialized
-if (!admin.apps.length) {
-  try {
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-
-    if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !privateKey) {
-      throw new Error('Firebase Admin credentials are not set in environment variables. Ensure FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are present.');
-    }
-
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: privateKey,
-      }),
-      storageBucket: "gs://streamlined-hr-assistant",
-    });
-
-    console.log("Firebase Admin SDK initialized successfully.");
-    adminAuth = admin.auth();
-    adminStorage = admin.storage();
-    adminDb = admin.firestore();
-    adminMessaging = admin.messaging();
-
-  } catch (error: any) {
-    console.error('Firebase admin initialization error:', error.message);
-    // Keep services as null
+// Initialize Firebase Admin SDK with detailed logging for debugging
+function getAdminApp() {
+  if (admin.apps.length > 0) {
+    return admin.apps[0]!;
   }
-} else {
-    // If already initialized, get the services from the existing app
-    adminAuth = admin.auth();
-    adminStorage = admin.storage();
-    adminDb = admin.firestore();
-    adminMessaging = admin.messaging();
+
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  // Handle private key formatting and potential surrounding quotes
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n').replace(/^"(.*)"$/, '$1');
+
+  if (!projectId || !clientEmail || !privateKey) {
+    const missing = [];
+    if (!projectId) missing.push('FIREBASE_PROJECT_ID');
+    if (!clientEmail) missing.push('FIREBASE_CLIENT_EMAIL');
+    if (!privateKey) missing.push('FIREBASE_PRIVATE_KEY');
+    
+    // Log precisely what is missing to the server console
+    console.error(`Firebase Admin SDK failed to initialize. Missing variables: ${missing.join(', ')}`);
+    return null;
+  }
+
+  try {
+    return admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId,
+        clientEmail,
+        privateKey,
+      }),
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "gs://streamlined-hr-assistant",
+    });
+  } catch (error: any) {
+    console.error('Firebase Admin SDK initialization error:', error.message);
+    return null;
+  }
 }
 
-export { adminAuth, adminDb, adminStorage, adminMessaging };
+const adminApp = getAdminApp();
+
+// Export services as null-safe references
+export const adminAuth = adminApp ? adminApp.auth() : null;
+export const adminDb = adminApp ? adminApp.firestore() : null;
+export const adminStorage = adminApp ? adminApp.storage() : null;
+export const adminMessaging = adminApp ? adminApp.messaging() : null;
