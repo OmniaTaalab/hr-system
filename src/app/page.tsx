@@ -21,6 +21,24 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { format, startOfDay, endOfDay } from 'date-fns';
 
+// Helper functions for attendance logic
+const toStr = (v: any) => String(v ?? "").trim();
+
+const parseTimeToMinutes = (t?: string | null): number | null => {
+  if (!t) return null;
+  // Supports formats: 9:05 / 9:05 AM / 09:05:12 pm
+  const match = t.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)?/i);
+  if (!match) return null;
+  let h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  const ampm = match[3]?.toLowerCase();
+
+  if (ampm === "am" && h === 12) h = 0;
+  else if (ampm === "pm" && h < 12) h += 12;
+
+  return h * 60 + m;
+};
+
 interface Employee {
   id: string;
   name: string;
@@ -157,8 +175,6 @@ function DashboardPageContent() {
     if (isLoadingProfile) return;
   
     const fetchCounts = async () => {
-      const userRole = profile?.role?.toLowerCase();
-  
       if(isPrivilegedUser) {
         setIsLoadingTotalEmp(true);
         setIsLoadingActiveEmp(true);
@@ -188,11 +204,10 @@ function DashboardPageContent() {
   
       try {
         const leaveRequestsCollection = collection(db, "leaveRequests");
-        
         let leaveQueryConstraints: QueryConstraint[] = [];
   
         if (profile?.id) {
-          if (!isPrivilegedUser) { // Regular employee or manager
+          if (!isPrivilegedUser) {
             leaveQueryConstraints.push(where("requestingEmployeeDocId", "==", profile.id));
           }
         }
@@ -232,6 +247,7 @@ function DashboardPageContent() {
         setIsLoadingTotalLeaves(false);
       }
     };
+
     const fetchDailyAttendance = async () => {
       if (!isPrivilegedUser) {
         setIsLoadingTodaysAttendance(false);
@@ -271,7 +287,6 @@ function DashboardPageContent() {
             ),
           ]);
     
-        // ========= 1) Employees (Active only) + Maps (employeeId / badgeNumber) =========
         const allEmployees = employeeSnap.docs.map((doc) => {
           const d = doc.data() as any;
           return {
@@ -279,29 +294,26 @@ function DashboardPageContent() {
             employeeId: toStr(d.employeeId),
             badgeNumber: toStr(d.badgeNumber),
             campus: toStr(d.campus).toLowerCase(),
-            status: toStr(d.status).toLowerCase(), // active / deactivated ...
+            status: toStr(d.status).toLowerCase(),
           };
         });
     
-        const activeEmployees = allEmployees.filter(
+        const activeEmployeesList = allEmployees.filter(
           (e) => e.status !== "deactivated"
         );
     
-        // employeeId => employee
         const empByEmployeeId = new Map(
-          activeEmployees
+          activeEmployeesList
             .filter((e) => e.employeeId)
             .map((e) => [e.employeeId, e] as const)
         );
     
-        // badgeNumber => employee
         const empByBadgeNumber = new Map(
-          activeEmployees
+          activeEmployeesList
             .filter((e) => e.badgeNumber)
             .map((e) => [e.badgeNumber, e] as const)
         );
     
-        // ========= 2) Leaves today (Approved) =========
         const onLeaveEmployeeDocIds = new Set<string>();
     
         leaveSnap.forEach((doc) => {
@@ -310,7 +322,6 @@ function DashboardPageContent() {
             ? leave.endDate.toDate()
             : null;
     
-          // نفس منطق الصفحة التانية: لازم الإجازة تكون متقاطعة مع اليوم
           if (endDate && endDate >= todayStart) {
             const empDocId = toStr(leave.requestingEmployeeDocId);
             if (empDocId) onLeaveEmployeeDocIds.add(empDocId);
@@ -319,21 +330,16 @@ function DashboardPageContent() {
     
         setOnLeaveToday(onLeaveEmployeeDocIds.size);
     
-        // ========= 3) Campus rules =========
         const campusRules = new Map<string, { checkInEndTime: string }>();
         campusHoursSnap.forEach((doc) => {
           campusRules.set(doc.id.trim().toLowerCase(), doc.data() as any);
         });
     
-        // ========= 4) Attendance logs: match to employeeId OR badgeNumber =========
-        // هنحسب present على مستوى "employee document id" عشان ميبقاش فيه دبل
         const presentEmployeeDocIds = new Set<string>();
         const earliestCheckInByEmpDocId = new Map<string, string>();
     
         attendanceSnapshot.forEach((doc) => {
           const log = doc.data() as any;
-    
-          // زي صفحة الستاتس: badgeNumber OR userId
           const key = toStr(log.badgeNumber || log.userId);
           if (!key) return;
     
@@ -341,15 +347,11 @@ function DashboardPageContent() {
             empByEmployeeId.get(key) ||
             empByBadgeNumber.get(key);
     
-          // لو مش لاقي موظف Active مطابق => متحسبوش (نفس منطق الستاتس: isRegistered)
           if (!emp) return;
-    
-          // استبعاد اللي في إجازة من الـ present (نفس HR logic اللي انت طلبته)
           if (onLeaveEmployeeDocIds.has(emp.id)) return;
     
           presentEmployeeDocIds.add(emp.id);
     
-          // خزّن أبكر check_in عشان late يتحسب صح
           const checkIn = toStr(log.check_in);
           if (!checkIn) return;
     
@@ -363,11 +365,9 @@ function DashboardPageContent() {
           }
         });
     
-        // ========= 5) Today's Attendance =========
         setTodaysAttendance(presentEmployeeDocIds.size);
     
-        // ========= 6) Absent Today (Active - Present - OnLeave) =========
-        const absentCount = activeEmployees.filter(
+        const absentCount = activeEmployeesList.filter(
           (e) =>
             !presentEmployeeDocIds.has(e.id) &&
             !onLeaveEmployeeDocIds.has(e.id)
@@ -375,11 +375,9 @@ function DashboardPageContent() {
     
         setAbsentToday(absentCount);
     
-        // ========= 7) Late Arrivals (Present + campus rule) =========
         let lateCount = 0;
-    
         presentEmployeeDocIds.forEach((empDocId) => {
-          const emp = activeEmployees.find((x) => x.id === empDocId);
+          const emp = activeEmployeesList.find((x) => x.id === empDocId);
           if (!emp?.campus) return;
     
           const rule = campusRules.get(emp.campus.trim().toLowerCase());
@@ -720,22 +718,7 @@ function DashboardPageContent() {
     </div>
   );
 }
-const toStr = (v: any) => String(v ?? "").trim();
 
-const parseTimeToMinutes = (t?: string | null): number | null => {
-  if (!t) return null;
-  // يدعم: 9:05 / 9:05 AM / 09:05:12 pm
-  const match = t.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)?/i);
-  if (!match) return null;
-  let h = parseInt(match[1], 10);
-  const m = parseInt(match[2], 10);
-  const ampm = match[3]?.toLowerCase();
-
-  if (ampm === "am" && h === 12) h = 0;
-  else if (ampm === "pm" && h < 12) h += 12;
-
-  return h * 60 + m;
-};
 export default function HRDashboardPage() {
   return (
     <AppLayout>

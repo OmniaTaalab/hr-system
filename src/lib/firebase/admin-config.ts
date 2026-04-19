@@ -12,15 +12,14 @@ function getAdminApp() {
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  // تنظيف المفتاح الخاص من أي رموز زائدة أو علامات تنصيص مع التأكد من عدم الانهيار إذا كان المتغير مفقوداً
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n')?.replace(/^"(.*)"$/, '$1');
+  const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
  
-  if (!projectId || !clientEmail || !privateKey) {
-    if (process.env.NODE_ENV === 'production') {
-        console.warn('Firebase Admin variables are partially missing. Functions requiring Admin SDK will fail.');
-    }
+  if (!projectId || !clientEmail || !rawPrivateKey) {
     return null;
   }
+
+  // تنظيف المفتاح الخاص من أي رموز زائدة أو علامات تنصيص مع التأكد من تحويل \n إلى أسطر حقيقية
+  const privateKey = rawPrivateKey.replace(/\\n/g, '\n').replace(/^"(.*)"$/, '$1');
 
   try {
     return admin.initializeApp({

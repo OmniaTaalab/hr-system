@@ -13,7 +13,7 @@ import {
 import { Icons } from "@/components/icons";
 import { siteConfig } from "@/config/site";
 import { iconMap } from "@/components/icon-map";
-import { useUserProfile } from "./app-layout";
+import { useApp } from "./app-provider";
 import { Skeleton } from "../ui/skeleton";
 import { db } from "@/lib/firebase/config";
 import { collection, query, where, getDocs, or, limit } from "firebase/firestore";
@@ -29,7 +29,7 @@ function formatI18nKey(key: string): string {
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const { profile, loading } = useUserProfile();
+  const { profile, loading } = useApp();
   const [isManager, setIsManager] = useState(false);
 
   useEffect(() => {
