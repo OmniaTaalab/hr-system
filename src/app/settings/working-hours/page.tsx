@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { manageCampusWorkingHoursAction, type CampusWorkingHoursState } from "@/actions/settings-actions";
+import { manageCampusWorkingHoursAction, type CampusWorkingHoursState } from "@/app/actions/settings-actions";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { Loader2, PlusCircle, Trash2, Edit, Save, AlertTriangle } from 'lucide-react';
@@ -86,9 +86,6 @@ function CampusWorkingHoursPage() {
      if (profile?.id) formData.append('actorId', profile.id);
      if (profile?.email) formData.append('actorEmail', profile.email);
      if (profile?.role) formData.append('actorRole', profile.role);
-     // Since this is a simple action, we can call it directly in a formAction context
-     // However, for consistency and to avoid the same error, we should also wrap it or use a form.
-     // For now, assuming the error is only in the main form.
      formAction(formData);
   };
 

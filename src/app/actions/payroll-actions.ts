@@ -3,8 +3,8 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { collection, addDoc, query, where, getDocs, serverTimestamp, Timestamp, doc, updateDoc, limit, setDoc } from 'firebase/firestore';
-import { parse as parseDateFns, isValid as isValidDateFns, startOfMonth, endOfMonth, format as formatDateFns } from 'date-fns';
+import { collection, addDoc, query, where, getDocs, serverTimestamp, Timestamp, doc, updateDoc, limit } from 'firebase/firestore';
+import { startOfMonth, endOfMonth } from 'date-fns';
 import { getWeekendSettings } from './settings-actions';
 import { logSystemEvent } from '@/lib/system-log';
 
@@ -16,7 +16,7 @@ const PayrollFormSchema = z.object({
     (val) => parseFloat(z.string().parse(val)),
     z.number().nonnegative({ message: "Hourly rate must be a non-negative number." })
   ),
-  totalWorkHoursFetched: z.preprocess( // This will come from server-side fetch, but good to have in schema
+  totalWorkHoursFetched: z.preprocess(
     (val) => parseFloat(z.string().parse(val)),
     z.number().nonnegative()
   ),
@@ -61,9 +61,9 @@ export async function savePayrollAction(
   const validatedFields = PayrollFormSchema.safeParse({
     employeeDocId: formData.get('employeeDocId'),
     employeeName: formData.get('employeeName'),
-    monthYear: formData.get('monthYear'), // YYYY-MM
+    monthYear: formData.get('monthYear'),
     hourlyRateForCalc: formData.get('hourlyRateForCalc'),
-    totalWorkHoursFetched: formData.get('totalWorkHoursFetched'), // This is passed from client after fetching
+    totalWorkHoursFetched: formData.get('totalWorkHoursFetched'),
     bonus: formData.get('bonus'),
     deductions: formData.get('deductions'),
     finalNetSalary: formData.get('finalNetSalary'),
@@ -74,7 +74,6 @@ export async function savePayrollAction(
   });
 
   if (!validatedFields.success) {
-    console.error("Validation Errors:", validatedFields.error.flatten().fieldErrors);
     return {
       errors: validatedFields.error.flatten().fieldErrors,
       message: 'Validation failed. Please check your input.',
@@ -85,12 +84,12 @@ export async function savePayrollAction(
   const {
     employeeDocId,
     employeeName,
-    monthYear, // YYYY-MM
+    monthYear,
     hourlyRateForCalc,
     totalWorkHoursFetched,
     bonus,
     deductions,
-    finalNetSalary: finalNetSalaryFromForm,
+    finalNetSalary,
     notes,
     actorId,
     actorEmail,
@@ -101,17 +100,17 @@ export async function savePayrollAction(
   const netSalaryCalculated = baseSalaryCalculated + bonus - deductions;
 
   try {
-    const payrollData: any = { // Use 'any' temporarily or define a more specific type for Firestore data
+    const payrollData: any = {
       employeeDocId,
       employeeName,
-      monthYear, // Storing as YYYY-MM string
+      monthYear,
       hourlyRateUsed: hourlyRateForCalc,
       totalWorkHours: totalWorkHoursFetched,
       baseSalaryCalculated: parseFloat(baseSalaryCalculated.toFixed(2)),
       bonusAdded: parseFloat(bonus.toFixed(2)),
       deductionsApplied: parseFloat(deductions.toFixed(2)),
       netSalaryCalculated: parseFloat(netSalaryCalculated.toFixed(2)),
-      netSalaryFinal: parseFloat(finalNetSalaryFromForm.toFixed(2)), // This is the potentially adjusted one
+      netSalaryFinal: parseFloat(finalNetSalary.toFixed(2)),
       notes: notes || "",
       lastUpdatedAt: serverTimestamp(),
     };
@@ -135,13 +134,11 @@ export async function savePayrollAction(
 
     let payrollRecordId: string;
     if (docIdToUpdate) {
-      // Update existing record
       const payrollDocRef = doc(db, "monthlyPayrolls", docIdToUpdate);
       await updateDoc(payrollDocRef, payrollData);
       payrollRecordId = docIdToUpdate;
     } else {
-      // Create new record
-      payrollData.calculatedAt = serverTimestamp(); // Add calculatedAt only for new records
+      payrollData.calculatedAt = serverTimestamp();
       const newPayrollDocRef = await addDoc(payrollCollectionRef, payrollData);
       payrollRecordId = newPayrollDocRef.id;
     }
@@ -171,7 +168,6 @@ export async function savePayrollAction(
   }
 }
 
-// Helper function to get total work hours for an employee in a specific month
 export async function getTotalWorkHoursForMonth(employeeDocId: string, year: number, month: number): Promise<number> {
   const monthStartDate = startOfMonth(new Date(year, month));
   const monthEndDate = endOfMonth(new Date(year, month));
@@ -181,7 +177,7 @@ export async function getTotalWorkHoursForMonth(employeeDocId: string, year: num
     where("employeeDocId", "==", employeeDocId),
     where("date", ">=", Timestamp.fromDate(monthStartDate)),
     where("date", "<=", Timestamp.fromDate(monthEndDate)),
-    where("status", "==", "Completed") // Only count completed shifts
+    where("status", "==", "Completed")
   );
 
   try {
@@ -193,23 +189,20 @@ export async function getTotalWorkHoursForMonth(employeeDocId: string, year: num
         totalMinutes += record.workDurationMinutes;
       }
     });
-    return totalMinutes / 60; // Convert minutes to hours
+    return totalMinutes / 60;
   } catch (error) {
     console.error("Error fetching total work hours:", error);
-    return 0; // Return 0 in case of error
+    return 0;
   }
 }
 
-// Helper function to get approved leave days for an employee in a specific month, excluding weekends and holidays
 export async function getApprovedLeaveDaysForMonth(employeeDocId: string, year: number, month: number): Promise<number> {
   const monthStartDate = startOfMonth(new Date(Date.UTC(year, month)));
   const monthEndDate = endOfMonth(new Date(Date.UTC(year, month)));
   
-  // Fetch weekend settings
   const weekendDays = await getWeekendSettings();
   const weekendSet = new Set(weekendDays);
 
-  // Fetch all holidays within the month
   const holidaysQuery = query(
     collection(db, "holidays"),
     where("date", ">=", Timestamp.fromDate(monthStartDate)),
@@ -219,12 +212,10 @@ export async function getApprovedLeaveDaysForMonth(employeeDocId: string, year: 
   const holidayDates = holidaySnapshots.docs.map(doc => {
     const ts = doc.data().date as Timestamp;
     const d = ts.toDate();
-    // Return date string in YYYY-MM-DD format for easy comparison
     return `${d.getUTCFullYear()}-${(d.getUTCMonth() + 1).toString().padStart(2, '0')}-${d.getUTCDate().toString().padStart(2, '0')}`;
   });
   const holidaySet = new Set(holidayDates);
 
-  // Fetch leave requests that overlap with the month
   const leavesQuery = query(
     collection(db, "leaveRequests"),
     where("requestingEmployeeDocId", "==", employeeDocId),
@@ -241,29 +232,22 @@ export async function getApprovedLeaveDaysForMonth(employeeDocId: string, year: 
       const leaveStartDate = (leave.startDate as Timestamp).toDate();
       const leaveEndDate = (leave.endDate as Timestamp).toDate();
 
-      // Skip leaves that end before the month starts
-      if (leaveEndDate < monthStartDate) {
-        continue;
-      }
+      if (leaveEndDate < monthStartDate) continue;
       
-      // Determine the effective date range for the calculation within the current month
       const effectiveStart = leaveStartDate < monthStartDate ? monthStartDate : leaveStartDate;
       const effectiveEnd = leaveEndDate > monthEndDate ? monthEndDate : leaveEndDate;
 
-      // Iterate through each day of the leave within the month's bounds
       let currentDate = new Date(Date.UTC(effectiveStart.getUTCFullYear(), effectiveStart.getUTCMonth(), effectiveStart.getUTCDate()));
 
       while (currentDate <= effectiveEnd) {
-        const dayOfWeek = currentDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+        const dayOfWeek = currentDate.getUTCDay();
         const isWeekend = weekendSet.has(dayOfWeek);
-
         const dateStr = `${currentDate.getUTCFullYear()}-${(currentDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${currentDate.getUTCDate().toString().padStart(2, '0')}`;
         const isHoliday = holidaySet.has(dateStr);
 
         if (!isWeekend && !isHoliday) {
           totalLeaveDaysInMonth++;
         }
-
         currentDate.setUTCDate(currentDate.getUTCDate() + 1);
       }
     }
@@ -274,7 +258,6 @@ export async function getApprovedLeaveDaysForMonth(employeeDocId: string, year: 
   }
 }
 
-// Helper function to get existing payroll data
 export async function getExistingPayrollData(employeeDocId: string, monthYear: string) {
   try {
     const q = query(
@@ -288,7 +271,6 @@ export async function getExistingPayrollData(employeeDocId: string, monthYear: s
         const docId = snapshot.docs[0].id;
         const data = snapshot.docs[0].data();
         
-        // Convert Timestamps to ISO strings to make the object "plain"
         const processedData: {[key: string]: any} = { ...data };
         if (data.calculatedAt instanceof Timestamp) {
             processedData.calculatedAt = data.calculatedAt.toDate().toISOString();
@@ -296,13 +278,11 @@ export async function getExistingPayrollData(employeeDocId: string, monthYear: s
         if (data.lastUpdatedAt instanceof Timestamp) {
             processedData.lastUpdatedAt = data.lastUpdatedAt.toDate().toISOString();
         }
-        // Process any other Timestamp fields if they exist
-
         return { id: docId, ...processedData };
     }
     return null;
   } catch (error) {
-    console.error("Error fetching existing payroll data for", employeeDocId, monthYear, error);
-    return null; // Return null in case of an error to prevent crashing the action
+    console.error("Error fetching existing payroll data:", error);
+    return null;
   }
 }

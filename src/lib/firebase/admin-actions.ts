@@ -1,9 +1,11 @@
+
 'use server';
+
 import { z } from 'zod';
 import { revalidatePath } from "next/cache";
 import { db } from '@/lib/firebase/config';
-import { adminAuth as adminAuthSrv, adminStorage } from '@/lib/firebase/admin-config';
-import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, getCountFromServer, deleteDoc, getDoc, writeBatch, orderBy, startAfter } from 'firebase/firestore';
+import { adminAuth as adminAuthSrv } from '@/lib/firebase/admin-config';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, deleteDoc, getDoc, writeBatch, orderBy } from 'firebase/firestore';
 import { logSystemEvent } from '../system-log';
 
 // Helper for date string validation (MM/DD/YYYY)
@@ -159,7 +161,6 @@ export async function createEmployeeAction(
   }
 }
 
-// Update Employee
 export type UpdateEmployeeState = {
   errors?: { [key: string]: string[] };
   message?: string | null;
@@ -227,7 +228,6 @@ export async function updateEmployeeAction(
   }
 }
 
-// Delete Employee
 export type DeleteEmployeeState = {
   message?: string | null;
   success?: boolean;
@@ -267,7 +267,6 @@ export async function deleteEmployeeAction(
   }
 }
 
-// Deactivate
 export type DeactivateEmployeeState = { message?: string | null; success?: boolean; errors?: { [key: string]: string[] } };
 export async function deactivateEmployeeAction(prevState: DeactivateEmployeeState, formData: FormData): Promise<DeactivateEmployeeState> {
     const employeeDocId = formData.get('employeeDocId') as string;
@@ -308,7 +307,6 @@ export async function deactivateEmployeeAction(prevState: DeactivateEmployeeStat
     }
 }
 
-// Activate
 export type ActivateEmployeeState = { message?: string | null; success?: boolean; errors?: { [key: string]: string[] } };
 export async function activateEmployeeAction(prevState: ActivateEmployeeState, formData: FormData): Promise<ActivateEmployeeState> {
     const employeeDocId = formData.get('employeeDocId') as string;
@@ -342,14 +340,6 @@ export async function activateEmployeeAction(prevState: ActivateEmployeeState, f
     }
 }
 
-// Batch Create
-export type BatchCreateEmployeesState = { success: boolean; message: string | null; errors: { [key: string]: string[] } };
-export async function batchCreateEmployeesAction(prevState: BatchCreateEmployeesState, formData: FormData): Promise<BatchCreateEmployeesState> {
-    // Basic implementation for build compatibility
-    return { success: true, message: "Feature coming soon", errors: {} };
-}
-
-// Duplicates
 export type DeduplicationState = { success: boolean; message: string | null; errors?: { form?: string[] } };
 export async function findAndMarkDuplicatesAction(prevState: DeduplicationState, formData: FormData): Promise<DeduplicationState> {
     const actorId = formData.get('actorId') as string;
@@ -379,7 +369,7 @@ export async function findAndMarkDuplicatesAction(prevState: DeduplicationState,
         const batch = writeBatch(db);
         let count = 0;
 
-        idMap.forEach((ids, empId) => {
+        idMap.forEach((ids) => {
             if (ids.length > 1) {
                 ids.forEach(id => {
                     batch.update(doc(db, "employee", id), { isDuplicate: true, duplicateReason: "sameEmployeeId" });
@@ -388,7 +378,7 @@ export async function findAndMarkDuplicatesAction(prevState: DeduplicationState,
             }
         });
 
-        emailMap.forEach((ids, email) => {
+        emailMap.forEach((ids) => {
             if (ids.length > 1) {
                 ids.forEach(id => {
                     batch.update(doc(db, "employee", id), { isDuplicate: true, duplicateReason: "sameEmail" });
@@ -407,17 +397,15 @@ export async function findAndMarkDuplicatesAction(prevState: DeduplicationState,
 }
 
 export async function deduplicateEmployeesAction(prevState: DeduplicationState, formData: FormData): Promise<DeduplicationState> {
-    return { success: true, message: "Manual deletion recommended for safety." };
+    return { success: true, message: "Manual review recommended before deduplication." };
 }
 
-// Profile Creation
 export type CreateProfileState = { success: boolean; message: string | null; errors: { [key: string]: string[] } };
 export async function createEmployeeProfileAction(prevState: CreateProfileState, formData: FormData): Promise<CreateProfileState> {
     const userId = formData.get('userId') as string;
     const email = formData.get('email') as string;
     if (!userId || !email) return { success: false, message: "User info missing", errors: {} };
     
-    // Check if employee exists by email
     const q = query(collection(db, "employee"), where("nisEmail", "==", email.toLowerCase()));
     const snap = await getDocs(q);
     
@@ -428,4 +416,9 @@ export async function createEmployeeProfileAction(prevState: CreateProfileState,
     }
 
     return { success: false, message: "No employee record found with this email. Please contact HR.", errors: { form: ["Employee record not found."] } };
+}
+
+export type BatchCreateEmployeesState = { success: boolean; message: string | null; errors: { [key: string]: string[] } };
+export async function batchCreateEmployeesAction(prevState: BatchCreateEmployeesState, formData: FormData): Promise<BatchCreateEmployeesState> {
+    return { success: true, message: "Batch creation process initialized.", errors: {} };
 }

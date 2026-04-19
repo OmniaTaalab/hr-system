@@ -3,18 +3,16 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
-import { doc, deleteDoc, setDoc, query, where, getDocs, collection, addDoc, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
+import { doc, deleteDoc, setDoc, query, where, getDocs, collection, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
 import { logSystemEvent } from '@/lib/system-log';
 import { revalidatePath } from 'next/cache';
-import { eachDayOfInterval, startOfDay } from 'date-fns';
-
+import { startOfDay } from 'date-fns';
 
 interface Employee {
   id: string;
   name: string;
   employeeId: string;
 }
-
 
 const DeleteAttendanceLogSchema = z.object({
   logId: z.string().min(1, "Log ID is required."),
@@ -66,7 +64,6 @@ export async function deleteAttendanceLogAction(
   }
 }
 
-// --- Attendance Exemption Actions ---
 export async function manageAttendanceExemptionAction(
     originalExemptedIds: string[], 
     newlySelectedIds: string[],
@@ -83,13 +80,12 @@ export async function manageAttendanceExemptionAction(
         
         const batch = writeBatch(db);
         
-        // Handle additions
         toAdd.forEach(employeeId => {
             const employee = allEmployees.find(e => e.id === employeeId);
             if (employee) {
-                const exemptionRef = doc(db, 'attendanceExemptions', employee.id); // Use Firestore doc ID
+                const exemptionRef = doc(db, 'attendanceExemptions', employee.id);
                 batch.set(exemptionRef, {
-                    employeeId: employee.id, // Storing doc ID for consistency
+                    employeeId: employee.id,
                     employeeName: employee.name,
                     createdAt: serverTimestamp(),
                     createdBy: actorEmail || 'System',
@@ -98,7 +94,6 @@ export async function manageAttendanceExemptionAction(
             }
         });
 
-        // Handle removals
         toRemove.forEach(employeeId => {
              const exemptionRef = doc(db, 'attendanceExemptions', employeeId);
              batch.delete(exemptionRef);
@@ -122,15 +117,11 @@ export async function manageAttendanceExemptionAction(
     }
 }
 
-
-
-// --- Add Manual Attendance Points Action ---
 const AddPointsSchema = z.object({
   employeeDocId: z.string().min(1, "Employee ID is required."),
   points: z.coerce.number(),
   actorName: z.string().optional(),
 });
-
 
 export type AddPointsState = {
   errors?: {
@@ -157,7 +148,6 @@ export async function addAttendancePointsAction(prevState: AddPointsState, formD
   }
 
   const { employeeDocId, points, actorName } = validatedFields.data;
-  
   const date = new Date();
 
   try {
@@ -165,12 +155,11 @@ export async function addAttendancePointsAction(prevState: AddPointsState, formD
     await setDoc(newPointRef, {
         employeeId: employeeDocId,
         points,
-        date: Timestamp.fromDate(startOfDay(date)), // Always use the start of the current day
+        date: Timestamp.fromDate(startOfDay(date)),
         createdAt: serverTimestamp(),
         actorName: actorName || "System",
     });
     
-
     await logSystemEvent("Add Attendance Points", { 
         actorName, 
         targetEmployeeId: employeeDocId, 
@@ -189,7 +178,6 @@ export async function addAttendancePointsAction(prevState: AddPointsState, formD
   }
 }
 
-// --- New Delete Attendance Points Action ---
 const DeletePointsSchema = z.object({
   pointId: z.string().min(1, "Point ID is required."),
   actorEmail: z.string().optional(),
