@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -895,15 +896,19 @@ export default function EmployeeManagementContent() {
   const [activateState, activateAction, isActivatePending] = useActionState(activateEmployeeAction, initialActivateState);
   const [isActivateTransitionPending, startActivateTransition] = useTransition();
 
+  const userRole = profile?.role?.toLowerCase();
+  const isPrivileged = useMemo(() => {
+    return userRole === 'admin' || userRole === 'hr' || userRole === 'director';
+  }, [userRole]);
+
   useEffect(() => {
     if (isLoadingProfile) return;
 
     setIsLoading(true);
-    const userRole = profile?.role?.toLowerCase();
     let q;
     const employeeCollection = collection(db, "employee");
 
-    if (userRole && userRole !== "admin" && userRole !== "hr"  && profile?.email) {
+    if (profile?.email && !isPrivileged) {
       q = query(
         employeeCollection,
         or(
@@ -931,7 +936,7 @@ export default function EmployeeManagementContent() {
     });
 
     return () => unsubscribe();
-}, [profile, isLoadingProfile, toast]);
+}, [profile, isLoadingProfile, toast, isPrivileged]);
   
   useEffect(() => {
     if (createLoginServerState?.message) {
@@ -1211,8 +1216,8 @@ export default function EmployeeManagementContent() {
 
   const canManageEmployee = useCallback((employee: Employee) => {
     if (!profile) return false;
-    const userRole = profile.role?.toLowerCase();
-    if (userRole === 'admin' || userRole === 'hr') return true;
+    const role = profile.role?.toLowerCase();
+    if (role === 'admin' || role === 'hr') return true;
     if (employee.reportLine1 === profile.email) return true;
     return false;
   }, [profile]);
@@ -1406,27 +1411,33 @@ export default function EmployeeManagementContent() {
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 {isLoadingProfile ? (
                     <Skeleton className="h-10 w-[190px]" />
-                ) : (profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr') && (
+                ) : (
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                        <Button className="w-full" onClick={handleDownloadTemplate} variant="outline">
-                           <Download className="mr-2 h-4 w-4" />
-                           Download Template
-                        </Button>
-                        <Button className="w-full" onClick={handleExportExcel} variant="outline">
-                           <FileDown className="mr-2 h-4 w-4" />
-                           Export to Excel
-                        </Button>
-                        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                          <DialogTrigger asChild>
-                            <Button className="w-full">
-                                <PlusCircle className="mr-2 h-4 w-4" />
-                                Add New Employee
-                              </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-3xl">
-                            <AddEmployeeFormContent onSuccess={() => setIsAddDialogOpen(false)} />
-                          </DialogContent>
-                        </Dialog>
+                        {isPrivileged && (
+                          <>
+                            <Button className="w-full" onClick={handleDownloadTemplate} variant="outline">
+                               <Download className="mr-2 h-4 w-4" />
+                               Download Template
+                            </Button>
+                            <Button className="w-full" onClick={handleExportExcel} variant="outline">
+                               <FileDown className="mr-2 h-4 w-4" />
+                               Export to Excel
+                            </Button>
+                          </>
+                        )}
+                        {(userRole === 'admin' || userRole === 'hr') && (
+                          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                            <DialogTrigger asChild>
+                              <Button className="w-full">
+                                  <PlusCircle className="mr-2 h-4 w-4" />
+                                  Add New Employee
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl">
+                              <AddEmployeeFormContent onSuccess={() => setIsAddDialogOpen(false)} />
+                            </DialogContent>
+                          </Dialog>
+                        )}
                     </div>
                 )}
               </div>
@@ -1550,7 +1561,7 @@ export default function EmployeeManagementContent() {
                 <TableHead>Stage</TableHead>
                 <TableHead>Campus</TableHead>
                 <TableHead>Status</TableHead>
-                {(profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr') && (
+                {(userRole === 'admin' || userRole === 'hr') && (
                   <TableHead className="text-right">Actions</TableHead>
                 )}
               </TableRow>
@@ -1587,7 +1598,7 @@ export default function EmployeeManagementContent() {
                         {employee.isDuplicate ? 'Duplicate' : (employee.status === 'deactivated' ? 'Deactivated' : 'Active')}
                       </Badge>
                     </TableCell>
-                      {(profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr') && (
+                      {(userRole === 'admin' || userRole === 'hr') && (
                         <TableCell className="text-right">
                           {canManageEmployee(employee) && (
                             <DropdownMenu>

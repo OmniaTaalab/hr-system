@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState, useCallback } from "react";
@@ -400,7 +399,7 @@ function EmployeeProfileContent() {
     const userRole = currentUserProfile.role?.toLowerCase();
     const userEmail = currentUserProfile.email;
   
-    if (userRole === "admin" || userRole === "hr" || currentUserProfile.id === employee.id) {
+    if (userRole === "admin" || userRole === "hr" || userRole === "director" || currentUserProfile.id === employee.id) {
       return true;
     }
   
