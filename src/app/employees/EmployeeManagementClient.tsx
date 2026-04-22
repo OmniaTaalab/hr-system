@@ -384,11 +384,18 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             <Separator />
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold flex items-center"><Users className="mr-2 h-5 w-5 text-primary" />Reporting Lines</h3>
-                {reportLineCount < 6 && (
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setReportLineCount(prev => prev + 1)}>
-                        <Plus className="h-4 w-4 mr-1" /> Add
-                    </Button>
-                )}
+                <div className="flex items-center gap-2">
+                    {reportLineCount > 2 && (
+                        <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setReportLineCount(prev => prev - 1)}>
+                            <Trash2 className="h-4 w-4 mr-1" /> Remove
+                        </Button>
+                    )}
+                    {reportLineCount < 6 && (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setReportLineCount(prev => prev + 1)}>
+                            <Plus className="h-4 w-4 mr-1" /> Add
+                        </Button>
+                    )}
+                </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <Input name="reportLine1" placeholder="Report Line 1 Email" />
@@ -651,7 +658,7 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
              <div className="space-y-2">
                   <Label>Campus</Label>
                    <Select value={campus} onValueChange={setCampus} disabled={isLoadingLists}>
-                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Campus"} /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Select Campus" /></SelectTrigger>
                       <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
                   </Select>
                   {serverState?.errors?.campus && <p className="text-sm text-destructive">{serverState.errors.campus.join(', ')}</p>}
@@ -675,11 +682,18 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
             
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold flex items-center"><Users className="mr-2 h-5 w-5 text-primary" />Reporting Lines</h3>
-                {reportLineCount < 6 && (
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setReportLineCount(prev => prev + 1)}>
-                        <Plus className="h-4 w-4 mr-1" /> Add
-                    </Button>
-                )}
+                <div className="flex items-center gap-2">
+                    {reportLineCount > 2 && (
+                        <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setReportLineCount(prev => prev - 1)}>
+                            <Trash2 className="h-4 w-4 mr-1" /> Remove
+                        </Button>
+                    )}
+                    {reportLineCount < 6 && (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setReportLineCount(prev => prev + 1)}>
+                            <Plus className="h-4 w-4 mr-1" /> Add
+                        </Button>
+                    )}
+                </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input name="reportLine1" defaultValue={employee.reportLine1} placeholder="Report Line 1" />
@@ -713,7 +727,7 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
             {(formClientError || serverState?.errors?.form) && (
               <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
                 <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-                <span>{formClientError || serverState?.errors?.form?.join(', ')}</span>
+                <span>(formClientError || serverState?.errors?.form?.join(', ')}</span>
               </div>
             )}
           </div>
