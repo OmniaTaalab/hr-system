@@ -43,59 +43,13 @@ interface Machine {
     name: string;
 }
 
-const PAGE_SIZE = 100; // Increased page size since we are grouping
+const PAGE_SIZE = 100; 
 const initialDeleteState: DeleteAttendanceLogState = { success: false };
 const initialCorrectionState: CorrectionState = { success: false, message: null };
 
 
-function DeleteLogDialog({ log, actorProfile }: { log: AttendanceLog; actorProfile: any }) {
-    const { toast } = useToast();
-    const [deleteState, deleteAction, isDeletePending] = useActionState(deleteAttendanceLogAction, initialDeleteState);
-
-    useEffect(() => {
-        if (deleteState.message) {
-            toast({
-                title: deleteState.success ? "Success" : "Error",
-                description: deleteState.message,
-                variant: deleteState.success ? "default" : "destructive",
-            });
-        }
-    }, [deleteState, toast]);
-
-    return (
-        <AlertDialog>
-            <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
-                    <Trash2 className="h-4 w-4" />
-                </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-                <form action={deleteAction} onClick={(e) => e.stopPropagation()}>
-                    <input type="hidden" name="logId" value={log.id} />
-                    <input type="hidden" name="actorId" value={actorProfile?.id} />
-                    <input type="hidden" name="actorEmail" value={actorProfile?.email} />
-                    <input type="hidden" name="actorRole" value={actorProfile?.role} />
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This will permanently delete the log for <strong>{log.employeeName}</strong> on <strong>{log.date}</strong>. This action cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    {deleteState?.errors?.form && <p className="text-sm text-destructive mt-2">{deleteState.errors.form.join(', ')}</p>}
-                    <AlertDialogFooter className="mt-4">
-                        <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
-                        <AlertDialogAction type="submit" disabled={isDeletePending} className="bg-destructive hover:bg-destructive/90">
-                            {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Delete"}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </form>
-            </AlertDialogContent>
-        </AlertDialog>
-    );
-}
-
 function AttendanceLogsContent() {
-  const [allLogs, setAllLogs] = setLogs = useState<AttendanceLog[]>([]);
+  const [allLogs, setAllLogs] = useState<AttendanceLog[]>([]);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -140,7 +94,11 @@ function AttendanceLogsContent() {
                 collection(db, "employee"),
                 or(
                     where("reportLine1", "==", profile.email),
-                    where("reportLine2", "==", profile.email)
+                    where("reportLine2", "==", profile.email),
+                    where("reportLine3", "==", profile.email),
+                    where("reportLine4", "==", profile.email),
+                    where("reportLine5", "==", profile.email),
+                    where("reportLine6", "==", profile.email)
                 )
             );
             const snapshot = await getDocs(q);
@@ -324,11 +282,8 @@ function AttendanceLogsContent() {
 
   const displayedRecords = useMemo(() => {
     const employeeMap = new Map(allEmployees.map(emp => [String(emp.employeeId), emp.name]));
-    
-    // Create a map to store unique employees based on userId
     const uniqueEmployeesMap = new Map<number, any>();
     
-    // Process logs to find the unique set of employees
     allLogs.forEach(log => {
         if (!uniqueEmployeesMap.has(log.userId)) {
             const employeeName = employeeMap.get(String(log.userId)) || log.employeeName;
@@ -352,9 +307,7 @@ function AttendanceLogsContent() {
         );
     }
     
-    // Sort client-side by name for better navigation
     processedLogs.sort((a, b) => a.employeeName.localeCompare(b.employeeName));
-
     return processedLogs;
 }, [allLogs, allEmployees, searchTerm]);
 

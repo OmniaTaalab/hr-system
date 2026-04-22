@@ -415,7 +415,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
           </div>
         </ScrollArea>
         <DialogFooter className="pt-4 flex-shrink-0 border-t">
-          <DialogClose asChild><Button type="button" variant="outline" onClick={() => onSuccess()}>Cancel</Button></DialogClose>
+          <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
           <Button type="submit" disabled={isAddPending}>
               {isAddPending ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adding...</>) : "Add Employee"}
           </Button>
@@ -689,7 +689,7 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
                         </Button>
                     )}
                     {reportLineCount < 6 && (
-                        <Button type="button" variant="ghost" size="sm" onClick={() => setReportLineCount(prev => prev + 1)}>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => reportLineCount < 6 && setReportLineCount(prev => prev + 1)}>
                             <Plus className="h-4 w-4 mr-1" /> Add
                         </Button>
                     )}
@@ -724,7 +724,7 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
 
             <EmployeeFileManager employee={employee} />
             
-            {(formClientError || serverState?.errors?.form) && (
+            {(serverState?.errors?.form) && (
               <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
                 <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
                 <span>{formClientError || serverState?.errors?.form?.join(', ')}</span>
@@ -950,16 +950,20 @@ export default function EmployeeManagementContent() {
     let q;
     const employeeCollection = collection(db, "employee");
 
-    if (profile?.email && !isPrivileged) {
+    if (isPrivileged) {
+      q = query(employeeCollection);
+    } else if (profile?.email) {
       q = query(
         employeeCollection,
         or(
           where("reportLine1", "==", profile.email),
-          where("reportLine2", "==", profile.email)
+          where("reportLine2", "==", profile.email),
+          where("reportLine3", "==", profile.email),
+          where("reportLine4", "==", profile.email),
+          where("reportLine5", "==", profile.email),
+          where("reportLine6", "==", profile.email)
         )
       );
-    } else {
-      q = query(employeeCollection);
     }
 
 
@@ -1828,7 +1832,7 @@ export default function EmployeeManagementContent() {
                 <Button
                     type="submit"
                     className={cn(buttonVariants({ variant: "destructive" }), "bg-destructive text-destructive-foreground hover:bg-destructive/90")}
-                    disabled={isDeletePending}
+                    disabled={isPending}
                 >
                     {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
                     Delete Employee
@@ -2055,7 +2059,7 @@ export default function EmployeeManagementContent() {
               <DialogFooter>
                 <DialogClose asChild>
                   <Button type="button" variant="outline" onClick={closeChangePasswordDialog}>Cancel</Button>
-                </Button>
+                </DialogClose>
                 <Button type="submit" disabled={isChangePasswordPending}>
                   {isChangePasswordPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Update Password"}
                 </Button>

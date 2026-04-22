@@ -27,7 +27,6 @@ interface AttendanceLog {
   check_out: string | null;
 }
 
-// New interface for the processed, unique daily log
 interface DailyAttendanceLog {
     date: string;
     check_in: string | null;
@@ -61,7 +60,6 @@ function UserAttendanceLogContent() {
         }
 
         try {
-            // Find the employee being viewed
             const empQuery = query(
                 collection(db, "employee"), 
                 where("employeeId", "==", employeeIdentifier),
@@ -71,9 +69,12 @@ function UserAttendanceLogContent() {
             
             if (!empSnap.empty) {
                 const empData = empSnap.docs[0].data();
-                const isSubordinate = empData.reportLine1 === profile.email || empData.reportLine2 === profile.email;
+                const reportingEmails = [
+                    empData.reportLine1, empData.reportLine2, empData.reportLine3,
+                    empData.reportLine4, empData.reportLine5, empData.reportLine6
+                ].filter(Boolean);
 
-                if (isSubordinate) {
+                if (reportingEmails.includes(profile.email)) {
                     setCheckingAccess(false);
                     return;
                 }
@@ -100,7 +101,6 @@ function UserAttendanceLogContent() {
         let employeeId: number | null = null;
         let fetchedEmployeeName: string | null = null;
 
-        // Check if identifier is an email (though normally it's an ID here)
         if (employeeIdentifier.includes('@')) {
             try {
                 const employeeQuery = query(collection(db, "employee"), where("nisEmail", "==", employeeIdentifier), limit(1));
@@ -157,23 +157,13 @@ function UserAttendanceLogContent() {
                   const timeParts = log.check_in.split(/[:\s]/);
                   let hour = parseInt(timeParts[0], 10);
                   const isPM = log.check_in.toLowerCase().includes('pm');
+                  if (isPM && hour < 12) hour += 12;
+                  else if (!isPM && hour === 12) hour = 0;
                   
-                  if (isPM && hour < 12) {
-                      hour += 12;
-                  } else if (!isPM && hour === 12) {
-                      // Handle 12 AM (midnight) as 0
-                      hour = 0;
-                  }
-                  
-                  if (hour >= 12) {
-                      groupedLogs[log.date].check_outs.push(log.check_in);
-                  } else {
-                      groupedLogs[log.date].check_ins.push(log.check_in);
-                  }
+                  if (hour >= 12) groupedLogs[log.date].check_outs.push(log.check_in);
+                  else groupedLogs[log.date].check_ins.push(log.check_in);
               }
-              if (log.check_out) {
-                  groupedLogs[log.date].check_outs.push(log.check_out);
-              }
+              if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
           });
           
           const processedLogs: DailyAttendanceLog[] = Object.keys(groupedLogs).map(date => {
@@ -188,7 +178,6 @@ function UserAttendanceLogContent() {
           });
           
           processedLogs.sort((a, b) => b.date.localeCompare(a.date));
-
           setLogs(processedLogs);
 
           if (rawLogs.length > 0 && !fetchedEmployeeName) {
@@ -199,11 +188,7 @@ function UserAttendanceLogContent() {
           setIsLoading(false);
         }, (error) => {
           console.error("Error fetching user attendance logs:", error);
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not load user attendance logs.",
-          });
+          toast({ variant: "destructive", title: "Error", description: "Could not load user attendance logs." });
           setIsLoading(false);
         });
 
@@ -214,38 +199,21 @@ function UserAttendanceLogContent() {
 
     return () => {
         unsubscribePromise.then(unsubscribe => {
-            if (unsubscribe) {
-                unsubscribe();
-            }
+            if (unsubscribe) unsubscribe();
         });
     };
   }, [toast, canViewPage, employeeIdentifier, selectedDate]);
 
   const handleExportExcel = () => {
     if (logs.length === 0) {
-      toast({
-        title: "No Data",
-        description: "There are no records to export in the current view.",
-        variant: "destructive"
-      });
+      toast({ title: "No Data", description: "There are no records to export.", variant: "destructive" });
       return;
     }
-    
-    const dataToExport = logs.map(log => ({
-      'Date': log.date,
-      'Check In': log.check_in || '-',
-      'Check Out': log.check_out || '-',
-    }));
-
+    const dataToExport = logs.map(log => ({ 'Date': log.date, 'Check In': log.check_in || '-', 'Check Out': log.check_out || '-' }));
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance History");
     XLSX.writeFile(workbook, `Attendance_History_${employeeName.replace(/\s/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
-
-    toast({
-      title: "Export Successful",
-      description: "Attendance history has been exported to Excel.",
-    });
   };
 
   if (isLoadingProfile || checkingAccess || isLoading) {
@@ -268,9 +236,6 @@ function UserAttendanceLogContent() {
           <BookOpenCheck className="mr-3 h-8 w-8 text-primary" />
           {`Attendance History for ${employeeName || `ID: ${employeeIdentifier}`}`}
         </h1>
-        <p className="text-muted-foreground">
-            {selectedDate ? `Showing records for ${format(selectedDate, 'PPP')}.` : "Showing all check-in and check-out events for this employee."}
-        </p>
       </header>
 
       <Card className="shadow-lg">
@@ -296,15 +261,9 @@ function UserAttendanceLogContent() {
               </div>
           </CardHeader>
           <CardContent>
-               {isLoading ? (
-                  <div className="flex justify-center items-center h-64">
-                      <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                      <p className="ml-4 text-lg">Loading logs...</p>
-                  </div>
-               ) : logs.length === 0 ? (
+               {logs.length === 0 ? (
                   <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
                       <h3 className="text-xl font-semibold">No Logs Found</h3>
-                      <p className="mt-2">{selectedDate ? `No records found for ${format(selectedDate, 'PPP')}.` : `No attendance records found.`}</p>
                   </div>
                ) : (
                   <Table>
