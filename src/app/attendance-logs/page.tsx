@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useActionState } from 'react';
@@ -20,7 +19,7 @@ import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { deleteAttendanceLogAction, type DeleteAttendanceLogState } from '@/app/actions/attendance-actions';
-import { correctAttendanceNamesAction, type CorrectionState } from "@/app/actions/settings-actions";
+import { correctAttendanceNamesAction, type SyncState as CorrectionState } from "@/app/actions/settings-actions";
 
 
 interface AttendanceLog {
@@ -96,7 +95,7 @@ function DeleteLogDialog({ log, actorProfile }: { log: AttendanceLog; actorProfi
 }
 
 function AttendanceLogsContent() {
-  const [allLogs, setAllLogs] = useState<AttendanceLog[]>([]);
+  const [allLogs, setAllLogs] = setLogs = useState<AttendanceLog[]>([]);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -122,7 +121,7 @@ function AttendanceLogsContent() {
 
   const isPrivileged = useMemo(() => {
       const role = profile?.role?.toLowerCase();
-      return role === 'admin' || role === 'hr';
+      return role === 'admin' || role === 'hr' || role === 'director';
   }, [profile]);
 
   // Check access and fetch subordinates if necessary
@@ -145,8 +144,8 @@ function AttendanceLogsContent() {
                 )
             );
             const snapshot = await getDocs(q);
-            // Managers and Directors are allowed
-            if (!snapshot.empty || profile.role?.toLowerCase() === 'director') {
+            // Managers are allowed
+            if (!snapshot.empty) {
                 const ids = snapshot.docs.map(doc => Number(doc.data().employeeId)).filter(id => !isNaN(id));
                 setSubordinateIds(ids);
             } else {
@@ -236,7 +235,7 @@ function AttendanceLogsContent() {
         queryConstraints.push(where("machine", "==", machineFilter));
       }
 
-      // Filter by subordinates if user is a manager and not Admin/HR
+      // Filter by subordinates if user is a manager and not Admin/HR/Director
       if (!isPrivileged && subordinateIds.length > 0) {
           // Firestore 'in' query limit is 30.
           queryConstraints.push(where("userId", "in", subordinateIds.slice(0, 30)));
@@ -262,6 +261,11 @@ function AttendanceLogsContent() {
       const documentSnapshots = await getDocs(finalQuery);
       let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
       
+      // If we used a filter, we sort manually since we removed orderBy from the query
+      if (isFiltered) {
+          logsData.sort((a, b) => b.date.localeCompare(a.date));
+      }
+
       setAllLogs(logsData);
 
       if (shouldPaginate && !documentSnapshots.empty) {
@@ -324,8 +328,7 @@ function AttendanceLogsContent() {
     // Create a map to store unique employees based on userId
     const uniqueEmployeesMap = new Map<number, any>();
     
-    // Sort allLogs by date descending to ensure we get the latest activity for each user
-    // The query already returns them ordered by date desc if not filtered
+    // Process logs to find the unique set of employees
     allLogs.forEach(log => {
         if (!uniqueEmployeesMap.has(log.userId)) {
             const employeeName = employeeMap.get(String(log.userId)) || log.employeeName;

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -55,8 +54,8 @@ function UserAttendanceLogContent() {
         setCheckingAccess(true);
         const userRole = profile.role?.toLowerCase();
         
-        // Admins and HR see everyone
-        if (userRole === 'admin' || userRole === 'hr') {
+        // Admins, HR and Director see everyone
+        if (userRole === 'admin' || userRole === 'hr' || userRole === 'director') {
             setCheckingAccess(false);
             return;
         }
@@ -73,9 +72,8 @@ function UserAttendanceLogContent() {
             if (!empSnap.empty) {
                 const empData = empSnap.docs[0].data();
                 const isSubordinate = empData.reportLine1 === profile.email || empData.reportLine2 === profile.email;
-                const isDirector = userRole === 'director';
 
-                if (isSubordinate || isDirector) {
+                if (isSubordinate) {
                     setCheckingAccess(false);
                     return;
                 }

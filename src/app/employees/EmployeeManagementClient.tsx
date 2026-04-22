@@ -391,7 +391,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                         </Button>
                     )}
                     {reportLineCount < 6 && (
-                        <Button type="button" variant="ghost" size="sm" onClick={() => setReportLineCount(prev => prev + 1)}>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => reportLineCount < 6 && setReportLineCount(prev => prev + 1)}>
                             <Plus className="h-4 w-4 mr-1" /> Add
                         </Button>
                     )}
@@ -727,7 +727,7 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
             {(formClientError || serverState?.errors?.form) && (
               <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
                 <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-                <span>(formClientError || serverState?.errors?.form?.join(', ')}</span>
+                <span>{formClientError || serverState?.errors?.form?.join(', ')}</span>
               </div>
             )}
           </div>
@@ -940,7 +940,7 @@ export default function EmployeeManagementContent() {
 
   const userRole = profile?.role?.toLowerCase();
   const isPrivileged = useMemo(() => {
-    return userRole === 'admin' || userRole === 'hr' ;
+    return userRole === 'admin' || userRole === 'hr' || userRole === 'director';
   }, [userRole]);
 
   useEffect(() => {
@@ -2055,7 +2055,7 @@ export default function EmployeeManagementContent() {
               <DialogFooter>
                 <DialogClose asChild>
                   <Button type="button" variant="outline" onClick={closeChangePasswordDialog}>Cancel</Button>
-                </DialogClose>
+                </Button>
                 <Button type="submit" disabled={isChangePasswordPending}>
                   {isChangePasswordPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Update Password"}
                 </Button>
