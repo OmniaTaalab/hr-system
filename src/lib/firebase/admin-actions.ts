@@ -1,4 +1,3 @@
-
 'use server';
 
 import { z } from 'zod';
@@ -45,6 +44,10 @@ const CreateEmployeeFormSchema = z.object({
   emergencyContactNumber: z.string().optional(),
   reportLine1: z.string().optional(),
   reportLine2: z.string().optional(),
+  reportLine3: z.string().optional(),
+  reportLine4: z.string().optional(),
+  reportLine5: z.string().optional(),
+  reportLine6: z.string().optional(),
   department: z.string().optional(),
   stage: z.string().optional().nullable(),
   system: z.string().optional(),
@@ -131,6 +134,10 @@ export async function createEmployeeAction(
       },
       reportLine1: otherData.reportLine1 || null,
       reportLine2: otherData.reportLine2 || null,
+      reportLine3: otherData.reportLine3 || null,
+      reportLine4: otherData.reportLine4 || null,
+      reportLine5: otherData.reportLine5 || null,
+      reportLine6: otherData.reportLine6 || null,
       department: otherData.department || null,
       stage: otherData.stage || null,
       system: otherData.system || null,
@@ -202,7 +209,12 @@ export async function updateEmployeeAction(
         relationship: otherData.emergencyContactRelationship,
         number: otherData.emergencyContactNumber,
       },
-      reportLine1: otherData.reportLine1, reportLine2: otherData.reportLine2,
+      reportLine1: otherData.reportLine1, 
+      reportLine2: otherData.reportLine2,
+      reportLine3: otherData.reportLine3,
+      reportLine4: otherData.reportLine4,
+      reportLine5: otherData.reportLine5,
+      reportLine6: otherData.reportLine6,
       department: otherData.department, stage: otherData.stage, system: otherData.system,
       campus: otherData.campus, phone: otherData.phone, hourlyRate: otherData.hourlyRate,
       dateOfBirth: otherData.dateOfBirth ? Timestamp.fromDate(otherData.dateOfBirth) : null,

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState, useCallback } from "react";
@@ -54,6 +53,10 @@ interface Employee {
   emergencyContact?: EmergencyContact;
   reportLine1?: string;
   reportLine2?: string;
+  reportLine3?: string;
+  reportLine4?: string;
+  reportLine5?: string;
+  reportLine6?: string;
   employeeId: string; 
   badgeNumber?: string;
   department: string;
@@ -403,7 +406,7 @@ function EmployeeProfileContent() {
       return true;
     }
   
-    if (userEmail && (employee.reportLine1 === userEmail || employee.reportLine2 === userEmail)) {
+    if (userEmail && (employee.reportLine1 === userEmail || employee.reportLine2 === userEmail || employee.reportLine3 === userEmail || employee.reportLine4 === userEmail || employee.reportLine5 === userEmail || employee.reportLine6 === userEmail)) {
         return true;
     }
   
@@ -469,6 +472,12 @@ function EmployeeProfileContent() {
       ['Religion', employee.religion || '-'],
       ['Emergency Contact', employee.emergencyContact ? `${employee.emergencyContact.name} (${employee.emergencyContact.relationship})` : '-'],
       ['Emergency Number', employee.emergencyContact?.number || '-'],
+      ['Report Line 1', employee.reportLine1 || '-'],
+      ['Report Line 2', employee.reportLine2 || '-'],
+      ['Report Line 3', employee.reportLine3 || '-'],
+      ['Report Line 4', employee.reportLine4 || '-'],
+      ['Report Line 5', employee.reportLine5 || '-'],
+      ['Report Line 6', employee.reportLine6 || '-'],
     ];
 
     autoTable(doc, {
@@ -686,6 +695,10 @@ const getAttendancePointValue = (entry: any): number => {
                    <DetailItem icon={Stethoscope} label="Subject" value={employee.subject || "-"} />
                    <DetailItem icon={Users} label="Report Line 1" value={employee.reportLine1 || "-"} />
                    <DetailItem icon={Users} label="Report Line 2" value={employee.reportLine2 || "-"} />
+                   <DetailItem icon={Users} label="Report Line 3" value={employee.reportLine3 || "-"} />
+                   <DetailItem icon={Users} label="Report Line 4" value={employee.reportLine4 || "-"} />
+                   <DetailItem icon={Users} label="Report Line 5" value={employee.reportLine5 || "-"} />
+                   <DetailItem icon={Users} label="Report Line 6" value={employee.reportLine6 || "-"} />
                    <DetailItem icon={Activity} label="Status">
                      <Badge variant={employee.status === "deactivated" ? "destructive" : "secondary"} className={employee.status !== 'deactivated' ? 'bg-green-100 text-green-800' : ''}>
                        {employee.status === 'deactivated' ? 'Deactivated' : 'Active'}

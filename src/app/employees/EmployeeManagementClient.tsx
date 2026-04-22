@@ -1,4 +1,3 @@
-
 "use client";
 
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
@@ -28,7 +27,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall, UserRoundCheck, X } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall, UserRoundCheck, X, Plus } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback, useTransition, Suspense } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -91,6 +90,10 @@ export interface Employee {
   emergencyContact?: EmergencyContact;
   reportLine1?: string;
   reportLine2?: string;
+  reportLine3?: string;
+  reportLine4?: string;
+  reportLine5?: string;
+  reportLine6?: string;
   employeeId: string; 
   department: string;
   role: string;
@@ -211,6 +214,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [role, setRole] = useState("");
   const [campus, setCampus] = useState<string | undefined>(undefined);
   const [stage, setStage] = useState<string | undefined>(undefined);
+  const [reportLineCount, setReportLineCount] = useState(2);
   const addFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -378,10 +382,21 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
             </div>
 
             <Separator />
-            <h3 className="text-lg font-semibold flex items-center"><Users className="mr-2 h-5 w-5 text-primary" />Reporting Lines</h3>
+            <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold flex items-center"><Users className="mr-2 h-5 w-5 text-primary" />Reporting Lines</h3>
+                {reportLineCount < 6 && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setReportLineCount(prev => prev + 1)}>
+                        <Plus className="h-4 w-4 mr-1" /> Add
+                    </Button>
+                )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <Input name="reportLine1" placeholder="Report Line 1 Email" />
                  <Input name="reportLine2" placeholder="Report Line 2 Email" />
+                 {reportLineCount >= 3 && <Input name="reportLine3" placeholder="Report Line 3 Email" />}
+                 {reportLineCount >= 4 && <Input name="reportLine4" placeholder="Report Line 4 Email" />}
+                 {reportLineCount >= 5 && <Input name="reportLine5" placeholder="Report Line 5 Email" />}
+                 {reportLineCount >= 6 && <Input name="reportLine6" placeholder="Report Line 6 Email" />}
             </div>
 
              {(addState?.errors?.form) && (
@@ -419,6 +434,13 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
   const [gender, setGender] = useState(employee.gender || "");
   const [stage, setStage] = useState(employee.stage || "");
   const [childrenAtNIS, setChildrenAtNIS] = useState<'Yes' | 'No'>(employee.childrenAtNIS || 'No');
+  const [reportLineCount, setReportLineCount] = useState(() => {
+    if (employee.reportLine6) return 6;
+    if (employee.reportLine5) return 5;
+    if (employee.reportLine4) return 4;
+    if (employee.reportLine3) return 3;
+    return 2;
+  });
 
   useEffect(() => {
     if (!serverState) return;
@@ -595,7 +617,7 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                <div className="space-y-2">
                   <Label htmlFor="edit-department">Department</Label>
                   <Input id="edit-department" name="department" defaultValue={employee.department} />
@@ -651,15 +673,21 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
                 </div>
             </div>
             
+            <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold flex items-center"><Users className="mr-2 h-5 w-5 text-primary" />Reporting Lines</h3>
+                {reportLineCount < 6 && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setReportLineCount(prev => prev + 1)}>
+                        <Plus className="h-4 w-4 mr-1" /> Add
+                    </Button>
+                )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="edit-reportLine1">Report Line 1</Label>
-                    <Input id="edit-reportLine1" name="reportLine1" defaultValue={employee.reportLine1} />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="edit-reportLine2">Report Line 2</Label>
-                    <Input id="edit-reportLine2" name="reportLine2" defaultValue={employee.reportLine2} />
-                </div>
+                <Input name="reportLine1" defaultValue={employee.reportLine1} placeholder="Report Line 1" />
+                <Input name="reportLine2" defaultValue={employee.reportLine2} placeholder="Report Line 2" />
+                {reportLineCount >= 3 && <Input name="reportLine3" defaultValue={employee.reportLine3} placeholder="Report Line 3" />}
+                {reportLineCount >= 4 && <Input name="reportLine4" defaultValue={employee.reportLine4} placeholder="Report Line 4" />}
+                {reportLineCount >= 5 && <Input name="reportLine5" defaultValue={employee.reportLine5} placeholder="Report Line 5" />}
+                {reportLineCount >= 6 && <Input name="reportLine6" defaultValue={employee.reportLine6} placeholder="Report Line 6" />}
             </div>
            
              <div className="grid grid-cols-2 gap-4">
@@ -800,7 +828,7 @@ export default function EmployeeManagementContent() {
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') || "");
   const [statusFilters, setStatusFilters] = useState(() => searchParams.getAll('status') || []);
   const [campusFilters, setCampusFilters] = useState(() => searchParams.getAll('campus') || []);
-  const [titleFilters, setTitleFilters] = useState(() => searchParams.getAll('title') || []);
+  const [titleFilters, setTitleFilters] = useState(() => searchParams.get('title') ? [searchParams.get('title')!] : []);
   const [stageFilters, setStageFilters] = useState(() => searchParams.getAll('stage') || []);
   const [subjectFilters, setSubjectFilters] = useState(() => searchParams.getAll('subject') || []);
   const [genderFilters, setGenderFilters] = useState(() => searchParams.getAll('gender') || []);
@@ -898,7 +926,7 @@ export default function EmployeeManagementContent() {
 
   const userRole = profile?.role?.toLowerCase();
   const isPrivileged = useMemo(() => {
-    return userRole === 'admin' || userRole === 'hr' || userRole === 'director';
+    return userRole === 'admin' || userRole === 'hr' ;
   }, [userRole]);
 
   useEffect(() => {
@@ -1076,13 +1104,19 @@ export default function EmployeeManagementContent() {
       lines.add(normalized);
     };
   
-    reportLines1.forEach(l => addIfValid(l.name));
-    reportLines2.forEach(l => addIfValid(l.name));
+    allEmployees.forEach(emp => {
+        addIfValid(emp.reportLine1);
+        addIfValid(emp.reportLine2);
+        addIfValid(emp.reportLine3);
+        addIfValid(emp.reportLine4);
+        addIfValid(emp.reportLine5);
+        addIfValid(emp.reportLine6);
+    });
   
     return Array.from(lines)
       .sort()
       .map(l => ({ label: l, value: l }));
-  }, [reportLines1, reportLines2]);
+  }, [allEmployees]);
   
   const filteredEmployees = useMemo(() => {
     let listToFilter = [...allEmployees];
@@ -1106,7 +1140,14 @@ export default function EmployeeManagementContent() {
         });
     }
     if (reportLineFilters.length > 0) {
-        listToFilter = listToFilter.filter(emp => (emp.reportLine1 && reportLineFilters.includes(emp.reportLine1)) || (emp.reportLine2 && reportLineFilters.includes(emp.reportLine2)));
+        listToFilter = listToFilter.filter(emp => 
+            (emp.reportLine1 && reportLineFilters.includes(emp.reportLine1)) || 
+            (emp.reportLine2 && reportLineFilters.includes(emp.reportLine2)) ||
+            (emp.reportLine3 && reportLineFilters.includes(emp.reportLine3)) ||
+            (emp.reportLine4 && reportLineFilters.includes(emp.reportLine4)) ||
+            (emp.reportLine5 && reportLineFilters.includes(emp.reportLine5)) ||
+            (emp.reportLine6 && reportLineFilters.includes(emp.reportLine6))
+        );
     }
     if (statusFilters.length > 0) {
         listToFilter = listToFilter.filter(emp => {
@@ -1318,8 +1359,12 @@ export default function EmployeeManagementContent() {
             'National ID': emp.nationalId,
             'Religion': emp.religion,
             'Status': emp.status === 'deactivated' ? 'Deactivated' : 'Active',
-            'Report Line1': emp.reportLine1,
-            'Report Line2': emp.reportLine2,
+            'Report Line 1': emp.reportLine1,
+            'Report Line 2': emp.reportLine2,
+            'Report Line 3': emp.reportLine3,
+            'Report Line 4': emp.reportLine4,
+            'Report Line 5': emp.reportLine5,
+            'Report Line 6': emp.reportLine6,
             'Reason For Leaving': emp.status === 'deactivated' ? emp.reasonForLeaving : '-',
             'Emergency Contact Name': emp.emergencyContact?.name,
             'Emergency Contact Relationship': emp.emergencyContact?.relationship,
@@ -1344,7 +1389,7 @@ export default function EmployeeManagementContent() {
       "Department", "Campus", "Stage", "Status", "Subject", "personal Email",
       "Phone", "Date Of Birth", "joining Date", "Gender", "National ID", "Religion",
       "Emergency Contact Name", "Emergency Contact Relationship", "Emergency Contact Number",
-      "ReportLine1", "ReportLine2"
+      "ReportLine1", "ReportLine2", "ReportLine3", "ReportLine4", "ReportLine5", "ReportLine6"
     ];
     const worksheet = XLSX.utils.aoa_to_sheet([headers]);
     const workbook = XLSX.utils.book_new();
