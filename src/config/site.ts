@@ -65,11 +65,6 @@ export const navItems: NavItem[] = [
     iconName: 'History',
   },
   {
-    i18nKey: 'sidebar.error_logs', // New entry
-    href: '/system-errors',
-    iconName: 'Bug',
-  },
-  {
     i18nKey: 'sidebar.settings',
     href: '/settings',
     iconName: 'Settings',

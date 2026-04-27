@@ -45,7 +45,6 @@ import {
   History,
   User,
   Shield,
-  Bug, // Added Bug icon for Error Logs
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -93,5 +92,4 @@ export const iconMap: { [key: string]: LucideIcon } = {
   History,
   User,
   Shield,
-  Bug, // Added Bug icon for Error Logs
 };

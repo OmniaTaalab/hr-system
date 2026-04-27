@@ -79,20 +79,14 @@ export function SidebarNav() {
     const userRole = profile.role?.toLowerCase();
     const isPrivilegedUser = userRole === "admin" || userRole === "hr";
     const isDirector = userRole === "director";
-    const isHR = userRole === "hr";
 
     return siteConfig.navItems.filter((item) => {
-      // 1. Error Logs - EXCLUSIVELY for HR
-      if (item.href === '/system-errors') {
-        return isHR;
-      }
-
-      // 2. Organization Chart - Restricted to HR, Director, or Admin
+      // 1. Organization Chart - Restricted to HR, Director, or Admin
       if (item.href === '/employees-chart') {
         return isPrivilegedUser || isDirector;
       }
 
-      // 3. Admin/HR only sections
+      // 2. Admin/HR only sections
       const adminOnlyPaths = [
         '/settings', 
         '/payroll', 
@@ -105,7 +99,7 @@ export function SidebarNav() {
         return isPrivilegedUser;
       }
 
-      // 4. Employee Management, All Leave Requests, KPIs & Attendance (Admin/HR/Director/Managers)
+      // 3. Employee Management, All Leave Requests, KPIs & Attendance (Admin/HR/Director/Managers)
       const managerAndAdminPaths = [
         '/employees', 
         '/leave/all-requests',
@@ -116,7 +110,7 @@ export function SidebarNav() {
         return isPrivilegedUser || isDirector || isManager;
       }
 
-      // 5. Default: Dashboard, Job Board, My Requests, Profile, etc.
+      // 4. Default: Dashboard, Job Board, My Requests, Profile, etc.
       return true;
     });
   }, [profile, isManager]);
