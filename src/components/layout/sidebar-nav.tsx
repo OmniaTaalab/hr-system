@@ -68,7 +68,6 @@ export function SidebarNav() {
   
   const navItems = useMemo(() => {
     if (!profile) {
-      // Show a minimal set for non-logged-in users or while loading
       return siteConfig.navItems.filter((item) => {
         const isPublic =
           item.href === "/" ||
@@ -80,14 +79,20 @@ export function SidebarNav() {
     const userRole = profile.role?.toLowerCase();
     const isPrivilegedUser = userRole === "admin" || userRole === "hr";
     const isDirector = userRole === "director";
+    const isHR = userRole === "hr";
 
     return siteConfig.navItems.filter((item) => {
-      // 1. Organization Chart - Restricted to HR, Director, or Admin
+      // 1. Error Logs - EXCLUSIVELY for HR
+      if (item.href === '/system-errors') {
+        return isHR;
+      }
+
+      // 2. Organization Chart - Restricted to HR, Director, or Admin
       if (item.href === '/employees-chart') {
         return isPrivilegedUser || isDirector;
       }
 
-      // 2. Admin/HR only sections
+      // 3. Admin/HR only sections
       const adminOnlyPaths = [
         '/settings', 
         '/payroll', 
@@ -100,7 +105,7 @@ export function SidebarNav() {
         return isPrivilegedUser;
       }
 
-      // 3. Employee Management, All Leave Requests, KPIs & Attendance (Admin/HR/Director/Managers)
+      // 4. Employee Management, All Leave Requests, KPIs & Attendance (Admin/HR/Director/Managers)
       const managerAndAdminPaths = [
         '/employees', 
         '/leave/all-requests',
@@ -109,11 +114,6 @@ export function SidebarNav() {
       ];
       if (managerAndAdminPaths.some(path => item.href?.startsWith(path))) {
         return isPrivilegedUser || isDirector || isManager;
-      }
-
-      // 4. Create Application (External link - typically hidden in main sidebar but reachable)
-      if (item.href === '/applications/create') {
-        return isPrivilegedUser;
       }
 
       // 5. Default: Dashboard, Job Board, My Requests, Profile, etc.

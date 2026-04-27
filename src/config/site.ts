@@ -1,9 +1,10 @@
+
 export interface NavItem {
   i18nKey: string;
   href: string;
   iconName: string; 
   disabled?: boolean;
-  external?: boolean; // Add this property
+  external?: boolean;
 }
 
 export const navItems: NavItem[] = [
@@ -61,7 +62,12 @@ export const navItems: NavItem[] = [
   {
     i18nKey: 'sidebar.system_log',
     href: '/system-logs',
-    iconName: 'Eye',
+    iconName: 'History',
+  },
+  {
+    i18nKey: 'sidebar.error_logs', // New entry
+    href: '/system-errors',
+    iconName: 'Bug',
   },
   {
     i18nKey: 'sidebar.settings',

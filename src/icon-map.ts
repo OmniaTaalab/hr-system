@@ -30,21 +30,22 @@ import {
   Save,
   DollarSign,
   CalendarCheck2,
-  Sheet, // Added Sheet icon for reports
+  Sheet,
   UserPlus,
   KeyRound,
   FileDown,
-  Settings, // Added Settings icon
-  Trophy, // Added Trophy Icon
+  Settings,
+  Trophy,
   Send,
   UploadCloud,
   FileText,
   AlertTriangle,
   BookOpenCheck,
   Bell,
-  History, // Added History icon for System Log
-  User, // Added User icon
-  Shield, // Added Shield icon
+  History,
+  User,
+  Shield,
+  Bug, // Added Bug icon for Error Logs
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -77,19 +78,20 @@ export const iconMap: { [key: string]: LucideIcon } = {
   Save,
   DollarSign,
   CalendarCheck2,
-  Sheet, // Added Sheet icon for reports
+  Sheet,
   UserPlus,
   KeyRound,
   FileDown,
-  Settings, // Added Settings icon
-  Trophy, // Added Trophy Icon
+  Settings,
+  Trophy,
   Send,
   UploadCloud,
   FileText,
   AlertTriangle,
   BookOpenCheck,
   Bell,
-  History, // Added History icon for System Log
-  User, // Added User icon
-  Shield, // Added Shield icon
+  History,
+  User,
+  Shield,
+  Bug, // Added Bug icon for Error Logs
 };
