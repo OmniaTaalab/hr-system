@@ -1,5 +1,3 @@
-
-
 'use server';
 
 import { z } from 'zod';
@@ -176,13 +174,13 @@ const JobApplicationSchema = z.object({
 
   email1:  z
   .string()
-  .email()
+  .email("Invalid primary email format")
   .optional()
   .nullable()
   .or(z.literal("")),
   email2:  z
   .string()
-  .email()
+  .email("Invalid secondary email format")
   .optional()
   .nullable()
   .or(z.literal("")),
@@ -258,7 +256,7 @@ const JobApplicationSchema = z.object({
   skill_oracle_db: optionalString,
 
   /** Files */
-  cvUrl: z.string().url(),
+  cvUrl: z.string().url("CV URL is required"),
   nationalIdUrl: z.string().url().optional().nullable(),
 
   /** Work Experience */
@@ -272,12 +270,11 @@ export async function applyForJobAction(
   const validatedFields = JobApplicationSchema.safeParse(payload);
 
   if (!validatedFields.success) {
-      
-    console.error("Validation Error:", validatedFields.error.flatten());
+    const errorMessages = validatedFields.error.errors.map(err => `${err.path.join('.')}: ${err.message}`).join(', ');
     return {
       success: false,
       errors: validatedFields.error.flatten().fieldErrors,
-      message: "Validation failed. Please check the required fields.",
+      message: `Validation failed: ${errorMessages}`,
     };
   }
 
@@ -646,5 +643,3 @@ export async function bulkUpdateApplicationStatusAction(
     };
   }
 }
-
-    

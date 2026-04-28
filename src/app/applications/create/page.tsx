@@ -1,4 +1,3 @@
-
 "use client";
 
 import { PublicLayout } from "@/components/layout/public-layout";
@@ -369,6 +368,10 @@ function WorkExperienceSection() {
   const handleAddWorkExperience = () => setWorkExperiences(prev => [...prev, { id: `exp-${Date.now()}` }]);
   const handleRemoveWorkExperience = (id: string) => setWorkExperiences(prev => prev.filter(exp => exp.id !== id));
 
+  // File names for mobile-friendly display
+  const [cvFileName, setCvFileName] = useState<string>("");
+  const [nationalIdFileName, setNationalIdFileName] = useState<string>("");
+
   return (
     <div className="space-y-6">
       <h3 className="text-xl font-semibold border-b pb-2">Work Experience</h3>
@@ -456,15 +459,48 @@ function WorkExperienceSection() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-2">
                 <Label htmlFor="cv">CV *</Label>
-                <div className="flex items-center gap-2">
-                    <Input id="cv" name="cv" type="file" required className="flex-1" accept=".pdf,.doc,.docx" />
+                <div className="flex flex-col gap-2">
+                    <Button 
+                        type="button" 
+                        variant="outline" 
+                        className="w-full justify-start h-12 text-muted-foreground border-dashed border-2 hover:bg-muted"
+                        onClick={() => document.getElementById('cv-input')?.click()}
+                    >
+                        <UploadCloud className="mr-2 h-5 w-5" />
+                        {cvFileName || "Tap to Select CV (PDF/DOC)..."}
+                    </Button>
+                    <Input 
+                        id="cv-input" 
+                        name="cv" 
+                        type="file" 
+                        required 
+                        className="hidden" 
+                        accept=".pdf,.doc,.docx"
+                        onChange={(e) => setCvFileName(e.target.files?.[0]?.name || "")}
+                    />
                 </div>
                 <p className="text-xs text-muted-foreground">choose pdf, doc, or docx only. 10mb max</p>
             </div>
              <div className="space-y-2">
                 <Label htmlFor="nationalId">National ID / Passport</Label>
-                 <div className="flex items-center gap-2">
-                    <Input id="nationalId" name="nationalId" type="file" className="flex-1" accept="image/png,image/jpeg,image/gif,application/pdf" />
+                 <div className="flex flex-col gap-2">
+                    <Button 
+                        type="button" 
+                        variant="outline" 
+                        className="w-full justify-start h-12 text-muted-foreground border-dashed border-2 hover:bg-muted"
+                        onClick={() => document.getElementById('national-id-input')?.click()}
+                    >
+                        <UploadCloud className="mr-2 h-5 w-5" />
+                        {nationalIdFileName || "Tap to Select ID File (JPG/PDF)..."}
+                    </Button>
+                    <Input 
+                        id="national-id-input" 
+                        name="nationalId" 
+                        type="file" 
+                        className="hidden" 
+                        accept="image/png,image/jpeg,image/gif,application/pdf"
+                        onChange={(e) => setNationalIdFileName(e.target.files?.[0]?.name || "")}
+                    />
                 </div>
                 <p className="text-xs text-muted-foreground">choose only pdf, png, jpg, or gif. 10 mb only</p>
             </div>
@@ -495,7 +531,11 @@ export default function CreateApplicationPage() {
       toast({ title: "Success", description: state.message });
       router.push(`/form/${state.applicationId}`); // Redirect with the new ID
     } else if (!state.success && state.message) {
-      toast({ title: "Error", description: state.message, variant: "destructive" });
+      toast({ 
+        title: "Submission Error", 
+        description: state.message, 
+        variant: "destructive" 
+      });
     }
   }, [state, toast, router]);
 
@@ -588,8 +628,11 @@ export default function CreateApplicationPage() {
     }
 
     const formData = new FormData(form);
-    const cvFile = formData.get('cv') as File | null;
-    const nationalIdFile = formData.get('nationalId') as File | null;
+    const cvFileInput = form.querySelector('#cv-input') as HTMLInputElement;
+    const nationalIdFileInput = form.querySelector('#national-id-input') as HTMLInputElement;
+    
+    const cvFile = cvFileInput?.files?.[0];
+    const nationalIdFile = nationalIdFileInput?.files?.[0];
     const contactedByHR = formData.get('contactedByHR');
 
     if (!cvFile || cvFile.size === 0) {
@@ -692,9 +735,9 @@ export default function CreateApplicationPage() {
             const result = await applyForJobAction(payload);
             setState(result);
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Submission error:", error);
-            setState({ success: false, message: "An error occurred during file upload." });
+            setState({ success: false, message: error.message || "An error occurred during submission." });
         }
     });
   };
@@ -772,5 +815,3 @@ export default function CreateApplicationPage() {
     </PublicLayout>
   );
 }
-
-    
