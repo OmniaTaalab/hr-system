@@ -1832,7 +1832,7 @@ export default function EmployeeManagementContent() {
                 <Button
                     type="submit"
                     className={cn(buttonVariants({ variant: "destructive" }), "bg-destructive text-destructive-foreground hover:bg-destructive/90")}
-                    disabled={isPending}
+                    disabled={isDeletePending}
                 >
                     {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
                     Delete Employee
