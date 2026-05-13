@@ -91,11 +91,12 @@ export async function createJobAction(
   }
 }
 
-const optionalString = z.string().optional().nullable();
+const optionalString = z.string().optional().nullable().or(z.literal(""));
 const optionalNumber = z
   .union([z.string(), z.number()])
   .optional()
-  .nullable();
+  .nullable()
+  .or(z.literal(""));
 
 /**
  * Work Experience Schema
@@ -132,6 +133,7 @@ export type ApplyForJobState = {
   success?: boolean;
   applicationId?: string; // Add this to return the new ID
 };
+
 const JobApplicationSchema = z.object({
   /** Job Meta */
   jobId: z.string(),
@@ -172,18 +174,9 @@ const JobApplicationSchema = z.object({
   mobilePhone: optionalString,
   otherPhone: optionalString,
 
-  email1:  z
-  .string()
-  .email("Invalid primary email format")
-  .optional()
-  .nullable()
-  .or(z.literal("")),
-  email2:  z
-  .string()
-  .email("Invalid secondary email format")
-  .optional()
-  .nullable()
-  .or(z.literal("")),
+  // Relaxed email validation for optional fields
+  email1: optionalString,
+  email2: optionalString,
 
   /** Job Requirements */
   howDidYouHear: optionalString,
@@ -223,7 +216,7 @@ const JobApplicationSchema = z.object({
 
   diplomas: z.array(DiplomaSchema).optional().nullable(),
 
-  /** Languages (dynamic but sabitah 3ndak) */
+  /** Languages */
   lang_english_speak: optionalString,
   lang_english_understand: optionalString,
   lang_english_read: optionalString,
@@ -262,7 +255,7 @@ const JobApplicationSchema = z.object({
   /** Work Experience */
   workExperience: z.array(WorkExperienceSchema).optional().nullable(),
 
-}).passthrough(); // Allow any additional fields
+}).passthrough();
 
 export async function applyForJobAction(
   payload: JobApplicationPayload,
@@ -302,7 +295,6 @@ export async function applyForJobAction(
   }
 }
 
-// --- New Delete Job Action ---
 const DeleteJobSchema = z.object({
   jobId: z.string().min(1, "Job ID is required."),
   actorId: z.string().optional(),
@@ -352,9 +344,6 @@ export async function deleteJobAction(
     };
   }
 }
-
-
-// --- New actions for managing job application templates ---
 
 const ManageTemplateSchema = z.object({
   operation: z.enum(['add', 'update', 'delete']),
@@ -410,7 +399,6 @@ export async function manageApplicationTemplateAction(
   const { operation, templateName, fields, templateId, actorId, actorEmail, actorRole } = validatedFields.data;
   const collectionRef = collection(db, "jobApplicationTemplates");
 
-  // Conditional validation
   if (operation === 'add' && (!templateName || templateName.length < 2)) {
       return { 
           success: false, 
@@ -422,11 +410,10 @@ export async function manageApplicationTemplateAction(
   try {
     switch (operation) {
       case 'add':
-        if (!templateName) { // This check is now for type-safety after conditional validation
+        if (!templateName) {
              return { success: false, errors: { templateName: ["Template name is required."] } };
         }
         
-        // Check if template with the same name already exists
         const q = query(collectionRef, where("name", "==", templateName));
         const existing = await getDocs(q);
         if (!existing.empty) {
@@ -468,7 +455,6 @@ export async function manageApplicationTemplateAction(
   }
 }
 
-// --- New Delete Application Action ---
 const DeleteApplicationSchema = z.object({
   applicationId: z.string().min(1, "Application ID is required."),
   actorId: z.string().optional(),
@@ -519,7 +505,6 @@ export async function deleteApplicationAction(
   }
 }
 
-// --- New Bulk Delete Applications Action ---
 const BulkDeleteApplicationSchema = z.object({
   applicationIds: z.array(z.string().min(1)),
   actorId: z.string().optional(),
@@ -579,10 +564,9 @@ export async function bulkDeleteApplicationsAction(
   }
 }
 
-// --- New Bulk Update Application Status Action ---
 const BulkUpdateStatusSchema = z.object({
   applicationIds: z.array(z.string().min(1)),
-  status: z.enum(["read", "unread"]), // For now, status is just read/unread
+  status: z.enum(["read", "unread"]),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),

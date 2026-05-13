@@ -48,11 +48,9 @@ function PersonalInfoSection() {
       <div className="space-y-2">
         <Label>Name in Arabic (As in I.D.)</Label>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Input name="familyNameAr" placeholder="* العائلة" required dir="rtl" />
-
+          <Input name="familyNameAr" placeholder="* العائلة" required dir="rtl" />
           <Input name="fatherNameAr" placeholder="اسم الأب" dir="rtl" />
           <Input name="firstNameAr" placeholder="* الاسم الأول" required dir="rtl" />
-
         </div>
       </div>
       
@@ -101,7 +99,7 @@ function PersonalInfoSection() {
         </div>
          <div className="space-y-2">
             <Label htmlFor="numberOfChildren">Number of children (if any)</Label>
-            <Input id="numberOfChildren" name="numberOfChildren" type="number" min="0" defaultValue="0" />
+            <Input id="numberOfChildren" name="numberOfChildren" type="text" defaultValue="0" />
         </div>
       </div>
       
@@ -128,11 +126,11 @@ function PersonalInfoSection() {
           <div className="space-y-2"><Label htmlFor="street">Street</Label><Input id="street" name="street" /></div>
           <div className="space-y-2"><Label htmlFor="building">Building/Floor</Label><Input id="building" name="building" /></div>
           <div className="space-y-2"><Label htmlFor="apartment">Apartment Number</Label><Input id="apartment" name="apartment" /></div>
-          <div className="space-y-2"><Label htmlFor="homePhone">Home Telephone Number</Label><Input id="homePhone" name="homePhone" type="tel"/></div>
-          <div className="space-y-2"><Label htmlFor="mobilePhone">Mobile</Label><Input id="mobilePhone" name="mobilePhone" type="tel"/></div>
-          <div className="space-y-2"><Label htmlFor="otherPhone">Other Telephone Numbers</Label><Input id="otherPhone" name="otherPhone" type="tel"/></div>
-          <div className="space-y-2"><Label htmlFor="email1">Email address (1)</Label><Input id="email1" name="email1" type="email"/></div>
-          <div className="space-y-2"><Label htmlFor="email2">Email address (2)</Label><Input id="email2" name="email2" type="email"/></div>
+          <div className="space-y-2"><Label htmlFor="homePhone">Home Telephone Number</Label><Input id="homePhone" name="homePhone" type="text"/></div>
+          <div className="space-y-2"><Label htmlFor="mobilePhone">Mobile</Label><Input id="mobilePhone" name="mobilePhone" type="text"/></div>
+          <div className="space-y-2"><Label htmlFor="otherPhone">Other Telephone Numbers</Label><Input id="otherPhone" name="otherPhone" type="text"/></div>
+          <div className="space-y-2"><Label htmlFor="email1">Email address (1)</Label><Input id="email1" name="email1" type="text"/></div>
+          <div className="space-y-2"><Label htmlFor="email2">Email address (2)</Label><Input id="email2" name="email2" type="text"/></div>
        </div>
 
       <Separator />
@@ -141,7 +139,7 @@ function PersonalInfoSection() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2"><Label htmlFor="emergencyContactName">Name</Label><Input id="emergencyContactName" name="emergencyContactName" /></div>
           <div className="space-y-2"><Label htmlFor="emergencyContactRelationship">Relationship</Label><Input id="emergencyContactRelationship" name="emergencyContactRelationship" /></div>
-          <div className="space-y-2"><Label htmlFor="emergencyContactNumber">Phone Number</Label><Input id="emergencyContactNumber" name="emergencyContactNumber" type="tel"/></div>
+          <div className="space-y-2"><Label htmlFor="emergencyContactNumber">Phone Number</Label><Input id="emergencyContactNumber" name="emergencyContactNumber" type="text"/></div>
       </div>
     </div>
   );
@@ -182,7 +180,7 @@ function JobRequirementsSection() {
         </div>
         <div className="space-y-2">
             <Label htmlFor="expectedSalary">Expected monthly salary</Label>
-            <Input id="expectedSalary" name="expectedSalary" type="number" min="0" />
+            <Input id="expectedSalary" name="expectedSalary" type="text" />
         </div>
         <div className="space-y-2">
             <Label>School Type Experience</Label>
@@ -208,7 +206,7 @@ function JobRequirementsSection() {
         )}
         <div className="space-y-2">
             <Label htmlFor="noticePeriod">Minimum notice period in days to leave your current job</Label>
-            <Input id="noticePeriod" name="noticePeriod" type="number" min="0" />
+            <Input id="noticePeriod" name="noticePeriod" type="text" />
         </div>
         <div className="space-y-2">
             <Label>Available to start work on</Label>
@@ -344,7 +342,7 @@ function LanguageAndSkillsSection() {
                         <Select name={`lang_${lang}_understand`}><SelectTrigger><SelectValue placeholder="Understand" /></SelectTrigger><ProficiencySelect/></Select>
                         <Select name={`lang_${lang}_read`}><SelectTrigger><SelectValue placeholder="Read" /></SelectTrigger><ProficiencySelect/></Select>
                         <Select name={`lang_${lang}_write`}><SelectTrigger><SelectValue placeholder="Write" /></SelectTrigger><ProficiencySelect/></Select>
-                        <Input name={`lang_${lang}_typing`} type="number" placeholder="w/m" />
+                        <Input name={`lang_${lang}_typing`} type="text" placeholder="w/m" />
                     </div>
                 </div>
             ))}
@@ -368,7 +366,6 @@ function WorkExperienceSection() {
   const handleAddWorkExperience = () => setWorkExperiences(prev => [...prev, { id: `exp-${Date.now()}` }]);
   const handleRemoveWorkExperience = (id: string) => setWorkExperiences(prev => prev.filter(exp => exp.id !== id));
 
-  // File names for mobile-friendly display
   const [cvFileName, setCvFileName] = useState<string>("");
   const [nationalIdFileName, setNationalIdFileName] = useState<string>("");
 
@@ -408,7 +405,7 @@ function WorkExperienceSection() {
             </div>
             <div className="space-y-2">
               <Label htmlFor={`telephone-${exp.id}`}>Telephone</Label>
-              <Input id={`telephone-${exp.id}`} name={`workExperience[${index}][telephone]`} type="tel" />
+              <Input id={`telephone-${exp.id}`} name={`workExperience[${index}][telephone]`} type="text" />
             </div>
             <div className="space-y-2">
               <Label htmlFor={`duties-${exp.id}`}>Description of your duties</Label>
@@ -416,7 +413,7 @@ function WorkExperienceSection() {
             </div>
              <div className="space-y-2">
               <Label htmlFor={`supervisedCount-${exp.id}`}>Number of employees supervised by you</Label>
-              <Input id={`supervisedCount-${exp.id}`} name={`workExperience[${index}][supervisedCount]`} type="number" />
+              <Input id={`supervisedCount-${exp.id}`} name={`workExperience[${index}][supervisedCount]`} type="text" />
             </div>
             <div className="space-y-2">
               <Label htmlFor={`reasonForLeaving-${exp.id}`}>Reason for Leaving</Label>
@@ -429,7 +426,7 @@ function WorkExperienceSection() {
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div className="space-y-2">
                 <Label htmlFor={`salary-${exp.id}`}>Basic salary / month</Label>
-                <Input id={`salary-${exp.id}`} name={`workExperience[${index}][salary]`} type="number" />
+                <Input id={`salary-${exp.id}`} name={`workExperience[${index}][salary]`} type="text" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor={`benefits-${exp.id}`}>Benefits</Label>
@@ -529,7 +526,7 @@ export default function CreateApplicationPage() {
   useEffect(() => {
     if (state.success && state.applicationId) {
       toast({ title: "Success", description: state.message });
-      router.push(`/form/${state.applicationId}`); // Redirect with the new ID
+      router.push(`/form/${state.applicationId}`); 
     } else if (!state.success && state.message) {
       toast({ 
         title: "Submission Error", 
@@ -543,39 +540,12 @@ export default function CreateApplicationPage() {
     const form = formRef.current;
     if (!form) return;
 
-    if (step === 1) { // When leaving the Personal Info step
-      const email1 = form.elements.namedItem('email1') as HTMLInputElement;
-      const email2 = form.elements.namedItem('email2') as HTMLInputElement;
-      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-      if (email1 && email1.value && !emailPattern.test(email1.value)) {
-        toast({
-            title: "Invalid Email",
-            description: "Please enter a valid format for Email address (1).",
-            variant: "destructive",
-        });
-        email1.focus();
-        return;
-      }
-
-      if (email2 && email2.value && !emailPattern.test(email2.value)) {
-          toast({
-              title: "Invalid Email",
-              description: "Please enter a valid format for Email address (2).",
-              variant: "destructive",
-          });
-          email2.focus();
-          return;
-      }
-    }
-
     const currentStepContainer = form.querySelector<HTMLElement>(`[data-step="${step}"]`);
     if (!currentStepContainer) {
-        setStep(s => s + 1); // Failsafe in case the selector fails
+        setStep(s => s + 1);
         return;
     };
     
-    // Find all required native inputs
     const inputs = Array.from(
       currentStepContainer.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
         'input[required], select[required], textarea[required]'
@@ -584,9 +554,8 @@ export default function CreateApplicationPage() {
 
     let firstInvalidInput: HTMLElement | null = null;
 
-    // Check validity for native elements
     for (const input of inputs) {
-        if (input.offsetParent !== null) { // is visible
+        if (input.offsetParent !== null) { 
             if (!input.checkValidity()) {
                 if (!firstInvalidInput) {
                     firstInvalidInput = input;
@@ -606,7 +575,6 @@ export default function CreateApplicationPage() {
         return;
     }
 
-    // If all good, proceed
     setStep(s => s + 1);
     window.scrollTo(0, 0);
   };
@@ -616,7 +584,6 @@ export default function CreateApplicationPage() {
     event.preventDefault();
     const form = formRef.current!;
 
-    // Final validation before submitting
     if (!form.checkValidity()) {
         form.reportValidity();
         toast({
@@ -640,8 +607,7 @@ export default function CreateApplicationPage() {
         return;
     }
 
-    // CV Validation
-    if (cvFile.size > 10 * 1024 * 1024) { // 10MB
+    if (cvFile.size > 10 * 1024 * 1024) { 
         toast({ variant: 'destructive', title: 'CV File Too Large', description: 'Your CV file must be under 10MB.' });
         return;
     }
@@ -662,8 +628,7 @@ export default function CreateApplicationPage() {
     }
     
     if (nationalIdFile && nationalIdFile.size > 0) {
-        // National ID Validation
-        if (nationalIdFile.size > 10 * 1024 * 1024) { // 10MB
+        if (nationalIdFile.size > 10 * 1024 * 1024) { 
             toast({ variant: 'destructive', title: 'National ID File Too Large', description: 'Your National ID file must be under 10MB.' });
             return;
         }
@@ -722,7 +687,6 @@ export default function CreateApplicationPage() {
             };
 
 
-            // Remove file objects from payload to avoid serialization errors
             delete (payload as any).cv;
             delete (payload as any).nationalId;
             delete (payload as any).diploma1_name;
@@ -768,7 +732,7 @@ export default function CreateApplicationPage() {
                 <CardDescription>All fields marked with * are required.</CardDescription>
             </CardHeader>
             <CardContent>
-                <form ref={formRef} onSubmit={handleFormSubmit}>
+                <form ref={formRef} onSubmit={handleFormSubmit} noValidate>
                  <div data-step="1" className={step === 1 ? "block" : "hidden"}>
                     <PersonalInfoSection />
                 </div>
