@@ -1,3 +1,4 @@
+
 "use client";
 
 import { PublicLayout } from "@/components/layout/public-layout";
@@ -37,7 +38,7 @@ function PersonalInfoSection() {
       <h3 className="text-xl font-semibold border-b pb-2">Personal Info</h3>
       
       <div className="space-y-2">
-        <Label>Name in English (As in official documents)</Label>
+        <Label>Name in English (As in official documents) *</Label>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input name="firstNameEn" placeholder="First Name *" required />
           <Input name="middleNameEn" placeholder="Middle Name" />
@@ -46,7 +47,7 @@ function PersonalInfoSection() {
       </div>
 
       <div className="space-y-2">
-        <Label>Name in Arabic (As in I.D.)</Label>
+        <Label>Name in Arabic (As in I.D.) *</Label>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input name="familyNameAr" placeholder="* العائلة" required dir="rtl" />
           <Input name="fatherNameAr" placeholder="اسم الأب" dir="rtl" />
@@ -56,7 +57,7 @@ function PersonalInfoSection() {
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-            <Label>Date of Birth (as in official documents)</Label>
+            <Label>Date of Birth (as in official documents) *</Label>
             <Popover>
                 <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
@@ -68,7 +69,7 @@ function PersonalInfoSection() {
                     <Calendar mode="single" selected={dateOfBirth} onSelect={setDateOfBirth} captionLayout="dropdown-buttons" fromYear={1920} toYear={2026} initialFocus={false} defaultMonth={dateOfBirth} />
                 </PopoverContent>
             </Popover>
-            <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} />
+            <input type="hidden" name="dateOfBirth" value={dateOfBirth?.toISOString() ?? ''} required />
         </div>
         <div className="space-y-2">
             <Label htmlFor="nationalities">Nationality(ies)</Label>
@@ -127,9 +128,9 @@ function PersonalInfoSection() {
           <div className="space-y-2"><Label htmlFor="building">Building/Floor</Label><Input id="building" name="building" /></div>
           <div className="space-y-2"><Label htmlFor="apartment">Apartment Number</Label><Input id="apartment" name="apartment" /></div>
           <div className="space-y-2"><Label htmlFor="homePhone">Home Telephone Number</Label><Input id="homePhone" name="homePhone" type="text"/></div>
-          <div className="space-y-2"><Label htmlFor="mobilePhone">Mobile</Label><Input id="mobilePhone" name="mobilePhone" type="text"/></div>
+          <div className="space-y-2"><Label htmlFor="mobilePhone">Mobile *</Label><Input id="mobilePhone" name="mobilePhone" type="text" required /></div>
           <div className="space-y-2"><Label htmlFor="otherPhone">Other Telephone Numbers</Label><Input id="otherPhone" name="otherPhone" type="text"/></div>
-          <div className="space-y-2"><Label htmlFor="email1">Email address (1)</Label><Input id="email1" name="email1" type="text"/></div>
+          <div className="space-y-2"><Label htmlFor="email1">Email address (1) *</Label><Input id="email1" name="email1" type="text" required /></div>
           <div className="space-y-2"><Label htmlFor="email2">Email address (2)</Label><Input id="email2" name="email2" type="text"/></div>
        </div>
 
@@ -166,12 +167,12 @@ function JobRequirementsSection() {
         </div>
          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-                <Label htmlFor="positionJobTitle">Job Title</Label>
-                <Input id="positionJobTitle" name="positionJobTitle" />
+                <Label htmlFor="positionJobTitle">Job Title *</Label>
+                <Input id="positionJobTitle" name="positionJobTitle" required />
             </div>
             <div className="space-y-2">
-                <Label htmlFor="positionSubject">Subject</Label>
-                <Input id="positionSubject" name="positionSubject" />
+                <Label htmlFor="positionSubject">Subject *</Label>
+                <Input id="positionSubject" name="positionSubject" required />
             </div>
         </div>
         <div className="space-y-2">
@@ -527,14 +528,41 @@ export default function CreateApplicationPage() {
     if (state.success && state.applicationId) {
       toast({ title: "Success", description: state.message });
       router.push(`/form/${state.applicationId}`); 
-    } else if (!state.success && state.message) {
+    } else if (!state.success && (state.message || state.errors)) {
+      let description = state.message || "Please check the form for errors.";
+      
+      // If we have field-specific errors, list them clearly
+      if (state.errors && Object.keys(state.errors).length > 0) {
+        const fieldErrors = Object.entries(state.errors)
+          .map(([field, errors]) => {
+            const fieldName = field.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+            return `${fieldName}: ${errors?.join(', ')}`;
+          })
+          .join('\n');
+        if (fieldErrors) description = fieldErrors;
+      }
+
       toast({ 
         title: "Submission Error", 
-        description: state.message, 
+        description: description, 
         variant: "destructive" 
       });
     }
   }, [state, toast, router]);
+
+  const getFieldLabelsInContainer = (container: HTMLElement) => {
+    const invalidInputs = Array.from(container.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+        'input:invalid, select:invalid, textarea:invalid'
+    ));
+
+    return invalidInputs.map(input => {
+        // Try to find the nearest label
+        const label = input.closest('.space-y-2')?.querySelector('label')?.textContent?.replace('*', '').trim()
+                     || input.placeholder 
+                     || input.name;
+        return label;
+    }).filter(Boolean);
+  };
 
   const handleNextStep = () => {
     const form = formRef.current;
@@ -546,30 +574,35 @@ export default function CreateApplicationPage() {
         return;
     };
     
+    // Check if the current step has any invalid inputs
     const inputs = Array.from(
       currentStepContainer.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
         'input[required], select[required], textarea[required]'
       )
     );
 
+    const missingFields: string[] = [];
     let firstInvalidInput: HTMLElement | null = null;
 
     for (const input of inputs) {
         if (input.offsetParent !== null) { 
             if (!input.checkValidity()) {
-                if (!firstInvalidInput) {
-                    firstInvalidInput = input;
+                if (!firstInvalidInput) firstInvalidInput = input;
+                const label = input.closest('.space-y-2')?.querySelector('label')?.textContent?.replace('*', '').trim()
+                             || input.placeholder 
+                             || input.name;
+                if (label && !missingFields.includes(label)) {
+                    missingFields.push(label);
                 }
             }
         }
     }
     
-    if (firstInvalidInput) {
-        firstInvalidInput.focus();
-        (firstInvalidInput as HTMLInputElement).reportValidity();
+    if (missingFields.length > 0) {
+        if (firstInvalidInput) firstInvalidInput.focus();
         toast({
             title: "Missing Information",
-            description: "Please fill out all required fields marked with an asterisk (*).",
+            description: `Please fill out the following required fields: ${missingFields.join(', ')}`,
             variant: "destructive",
         });
         return;
@@ -585,12 +618,13 @@ export default function CreateApplicationPage() {
     const form = formRef.current!;
 
     if (!form.checkValidity()) {
-        form.reportValidity();
+        const missingFields = getFieldLabelsInContainer(form);
         toast({
             title: "Missing Information",
-            description: "Please ensure all required fields are filled out before submitting.",
+            description: `Please ensure all required fields are filled out: ${missingFields.join(', ')}`,
             variant: "destructive",
         });
+        form.reportValidity();
         return;
     }
 
@@ -623,7 +657,7 @@ export default function CreateApplicationPage() {
 
 
     if (!contactedByHR) {
-        toast({ variant: 'destructive', title: 'HR Contact confirmation Required', description: 'Please specify if you were contacted by HR.' });
+        toast({ variant: 'destructive', title: 'HR Contact Required', description: 'Please specify if you were contacted by HR.' });
         return;
     }
     
