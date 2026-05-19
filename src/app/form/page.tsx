@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useActionState, useTransition } from "react";
@@ -232,16 +233,10 @@ function ApplicationsTable() {
     return () => unsubscribe();
   }, [isLoadingProfile, canViewPage]);
 
-  const handleRowClick = async (app: Application) => {
-    if (canViewPage && !app.read) {
-        const appRef = doc(db, 'nis', app.id);
-        try {
-            await updateDoc(appRef, { read: true });
-        } catch (error) {
-            console.error("Failed to mark as read:", error);
-        }
-    }
-    router.push(`/form/${app.id}`);
+  const handleRowClick = (app: Application) => {
+    // Open in a new tab as requested
+    window.open(`/form/${app.id}`, '_blank');
+    // Note: marking as read is handled in the detail page's useEffect
   };
 
   const handleSort = (columnId: SortKey) => {
@@ -623,7 +618,7 @@ function ApplicationsTable() {
                             
   
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                         <Button variant="ghost" size="icon" onClick={() => router.push(`/form/${app.id}`)}>
+                         <Button variant="ghost" size="icon" onClick={() => window.open(`/form/${app.id}`, '_blank')}>
                            <Eye className="h-4 w-4" />
                          </Button>
                          <DeleteApplicationDialog application={app} actorProfile={profile} />
