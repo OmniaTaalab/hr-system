@@ -234,9 +234,7 @@ function ApplicationsTable() {
   }, [isLoadingProfile, canViewPage]);
 
   const handleRowClick = (app: Application) => {
-    // Open in a new tab as requested
     window.open(`/form/${app.id}`, '_blank');
-    // Note: marking as read is handled in the detail page's useEffect
   };
 
   const handleSort = (columnId: SortKey) => {
@@ -258,7 +256,6 @@ function ApplicationsTable() {
       filtered = filtered.filter(app => {
         if (!app.submittedAt) return false;
         const submittedDate = app.submittedAt instanceof Timestamp ? app.submittedAt.toDate() : new Date(app.submittedAt);
-        // Compare just the date part, ignoring time
         return format(submittedDate, 'yyyy-MM-dd') === format(dateFilter, 'yyyy-MM-dd');
       });
     }
@@ -266,7 +263,7 @@ function ApplicationsTable() {
     if (readFilter !== 'all') {
       if (readFilter === 'unread') {
         filtered = filtered.filter(app => !app.read);
-      } else { // 'read'
+      } else { 
         filtered = filtered.filter(app => app.read === true);
       }
     }
@@ -275,20 +272,32 @@ function ApplicationsTable() {
         const lowercasedTerm = searchTerm.toLowerCase().trim();
         
         filtered = filtered.filter(app => {
-            const firstNameEn = (app.firstNameEn || '').toLowerCase().trim();
-            const middleNameEn = (app.middleNameEn || '').toLowerCase().trim();
-            const lastNameEn = (app.lastNameEn || '').toLowerCase().trim();
-            const fullNameEn = `${firstNameEn} ${middleNameEn} ${lastNameEn}`.replace(/\s+/g, ' ').trim();
+            // English Name Construction
+            const fnEn = (app.firstNameEn || '').toLowerCase().trim();
+            const mnEn = (app.middleNameEn || '').toLowerCase().trim();
+            const lnEn = (app.lastNameEn || '').toLowerCase().trim();
             
-            const firstNameAr = (app.firstNameAr || '').toLowerCase().trim();
-            const fatherNameAr = (app.fatherNameAr || '').toLowerCase().trim();
-            const familyNameAr = (app.familyNameAr || '').toLowerCase().trim();
-            const fullNameAr = `${firstNameAr} ${fatherNameAr} ${familyNameAr}`.replace(/\s+/g, ' ').trim();
+            const fullNameEn = `${fnEn} ${mnEn} ${lnEn}`.replace(/\s+/g, ' ').trim();
+            const firstLastEn = `${fnEn} ${lnEn}`.replace(/\s+/g, ' ').trim();
+            
+            // Arabic Name Construction
+            const fnAr = (app.firstNameAr || '').toLowerCase().trim();
+            const fathAr = (app.fatherNameAr || '').toLowerCase().trim();
+            const famAr = (app.familyNameAr || '').toLowerCase().trim();
+            
+            const fullNameAr = `${fnAr} ${fathAr} ${famAr}`.replace(/\s+/g, ' ').trim();
+            const firstLastAr = `${fnAr} ${famAr}`.replace(/\s+/g, ' ').trim();
 
-            // Strict sequence matching for names (starts with)
-            const nameMatch = fullNameEn.startsWith(lowercasedTerm) || fullNameAr.startsWith(lowercasedTerm);
+            // Strict sequential name match (Starts With)
+            const nameMatch = 
+                fullNameEn.startsWith(lowercasedTerm) || 
+                firstLastEn.startsWith(lowercasedTerm) ||
+                fullNameAr.startsWith(lowercasedTerm) || 
+                firstLastAr.startsWith(lowercasedTerm);
             
-            // Loose matching for other informational fields
+            if (nameMatch) return true;
+
+            // Fallback to other fields only if whole term is found
             const otherFieldsMatch = [
               app.positionJobTitle,
               app.positionSubject,
@@ -300,7 +309,7 @@ function ApplicationsTable() {
               app.school_name
             ].some(field => field?.toLowerCase().includes(lowercasedTerm));
 
-            return nameMatch || otherFieldsMatch;
+            return otherFieldsMatch;
         });
     }
 
@@ -309,13 +318,12 @@ function ApplicationsTable() {
         let valA, valB;
 
         if (id === 'name') {
-            valA = `${a.firstNameEn || ''} ${a.lastNameEn || ''}`.trim();
-            valB = `${b.firstNameEn || ''} ${b.lastNameEn || ''}`.trim();
+            valA = [a.firstNameEn, a.middleNameEn, a.lastNameEn].filter(Boolean).join(' ').toLowerCase();
+            valB = [b.firstNameEn, b.middleNameEn, b.lastNameEn].filter(Boolean).join(' ').toLowerCase();
         } else if (id === 'nameAr') {
-            valA = `${a.firstNameAr || ''} ${a.fatherNameAr || ''} ${a.familyNameAr || ''}`.trim();
-            valB = `${b.firstNameAr || ''} ${b.fatherNameAr || ''} ${b.familyNameAr || ''}`.trim();
-        }
-        else {
+            valA = [a.firstNameAr, a.fatherNameAr, a.familyNameAr].filter(Boolean).join(' ').toLowerCase();
+            valB = [b.firstNameAr, b.fatherNameAr, b.familyNameAr].filter(Boolean).join(' ').toLowerCase();
+        } else {
             valA = a[id as keyof Application];
             valB = b[id as keyof Application];
         }
@@ -343,11 +351,7 @@ function ApplicationsTable() {
 
   const handleExportExcel = () => {
     if (filteredAndSortedApplications.length === 0) {
-      toast({
-        title: "No Data",
-        description: "There are no applications to export in the current view.",
-        variant: "destructive"
-      });
+      toast({ title: "No Data", description: "There are no applications to export.", variant: "destructive" });
       return;
     }
     
@@ -355,7 +359,7 @@ function ApplicationsTable() {
         const row: Record<string, any> = {};
         allColumns.filter(c => columnVisibility[c.id]).forEach(col => {
             if (col.id === 'name') {
-                row[col.label] = `${app.firstNameEn || ''} ${app.lastNameEn || ''}`.trim();
+                row[col.label] = [app.firstNameEn, app.middleNameEn, app.lastNameEn].filter(Boolean).join(' ');
             } else if (col.id === 'submittedAt' || col.id === 'dateOfBirth' || col.id === 'availableStartDate') {
                 row[col.label] = formatDateSafe(app[col.id]);
             } else {
@@ -370,11 +374,7 @@ function ApplicationsTable() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Job Applications");
     XLSX.writeFile(workbook, `Job_Applications_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
-
-    toast({
-      title: "Export Successful",
-      description: "The application list has been exported to Excel.",
-    });
+    toast({ title: "Export Successful", description: "The list has been exported to Excel." });
   };
 
   const renderHeader = (columnId: SortKey, label: string) => {
@@ -403,9 +403,7 @@ function ApplicationsTable() {
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">You do not have permission to view this page.</p>
-          <Button asChild className="mt-4">
-            <a href="/">Go to Dashboard</a>
-          </Button>
+          <Button asChild className="mt-4"><Link href="/">Go to Dashboard</Link></Button>
         </CardContent>
       </Card>
     );
@@ -438,7 +436,7 @@ function ApplicationsTable() {
           <div className="flex flex-col gap-2 pt-4">
               <div className="flex flex-nowrap items-center gap-2">
                   <Input
-                    placeholder="Search name, job, material, email..."
+                    placeholder="Search sequential name, job, email..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="min-w-[200px]"
@@ -487,7 +485,7 @@ function ApplicationsTable() {
                   {dateFilter && <Button variant="ghost" size="icon" onClick={() => setDateFilter(null)}><X className="h-4 w-4" /></Button>}
                   
                   <Select value={readFilter} onValueChange={(value) => setReadFilter(value as any)}>
-                  <SelectTrigger className="w-full sm:w-auto">
+                  <SelectTrigger className="w-full sm:w-[180px]">
                       <SelectValue placeholder="Filter by status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -592,14 +590,21 @@ function ApplicationsTable() {
                           </div>
                         )}
                       </TableCell>
-                      {columnVisibility.name && <TableCell className="font-medium">{`${app.firstNameEn || ''} ${app.lastNameEn || ''}`.trim()}</TableCell>}
-                      {columnVisibility.nameAr && <TableCell dir="rtl" className="font-medium">{`${app.firstNameAr || ''} ${app.fatherNameAr || ''} ${app.familyNameAr || ''}`.trim()}</TableCell>}
+                      {columnVisibility.name && (
+                        <TableCell className="font-medium">
+                          {[app.firstNameEn, app.middleNameEn, app.lastNameEn].filter(Boolean).join(' ')}
+                        </TableCell>
+                      )}
+                      {columnVisibility.nameAr && (
+                        <TableCell dir="rtl" className="font-medium">
+                          {[app.firstNameAr, app.fatherNameAr, app.familyNameAr].filter(Boolean).join(' ')}
+                        </TableCell>
+                      )}
                       {columnVisibility.positionJobTitle && <TableCell>{app.positionJobTitle || 'N/A'}</TableCell>}
                       {columnVisibility.positionSubject && <TableCell>{app.positionSubject || 'N/A'}</TableCell>}
                       {columnVisibility.expectedSalary && <TableCell>{app.expectedSalary ? `$${app.expectedSalary.toLocaleString()}` : 'N/A'}</TableCell>}
                       {columnVisibility.schoolType && <TableCell>{app.schoolType || 'N/A'}</TableCell>}
                       {columnVisibility.nationalCampus && <TableCell>{app.nationalCampus || 'N/A'}</TableCell>}
-                      {columnVisibility.internationalCampus && <TableCell>{app.internationalCampus || 'N/A'}</TableCell>}
                       {columnVisibility.submittedAt && <TableCell>{app.submittedAt instanceof Timestamp ? format(app.submittedAt.toDate(), "dd MMM yyyy") : 'N/A'}</TableCell>}
                       {columnVisibility.yearsOfExperience && <TableCell>{app.yearsOfExperience ?? 'N/A'}</TableCell>}
                       {columnVisibility.email1 && <TableCell>{app.email1 || 'N/A'}</TableCell>}
@@ -640,7 +645,6 @@ function ApplicationsTable() {
                       {columnVisibility.skill_oracle_db && <TableCell>{app.skill_oracle_db || 'N/A'}</TableCell>}
                       {columnVisibility.workExperience && <TableCell>{app.workExperience?.length || 0}</TableCell>}
                             
-  
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                          <Button variant="ghost" size="icon" onClick={() => window.open(`/form/${app.id}`, '_blank')}>
                            <Eye className="h-4 w-4" />
