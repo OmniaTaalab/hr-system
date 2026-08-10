@@ -271,12 +271,27 @@ function ApplicationsTable() {
       }
     }
 
-    if (searchTerm) {
-        const lowercasedTerm = searchTerm.toLowerCase();
+    if (searchTerm.trim()) {
+        const lowercasedTerm = searchTerm.toLowerCase().trim();
+        const searchWords = lowercasedTerm.split(/\s+/);
+        
         filtered = filtered.filter(app => {
-            return Object.values(app).some(value =>
-                typeof value === 'string' && value.toLowerCase().includes(lowercasedTerm)
-            );
+            // Build a string of searchable text for this specific application
+            const searchPool = [
+              `${app.firstNameEn || ''} ${app.middleNameEn || ''} ${app.lastNameEn || ''}`,
+              `${app.firstNameAr || ''} ${app.fatherNameAr || ''} ${app.familyNameAr || ''}`,
+              app.positionJobTitle || '',
+              app.positionSubject || '',
+              app.nationalCampus || '',
+              app.schoolType || '',
+              app.email1 || '',
+              app.mobilePhone || '',
+              app.university_name || '',
+              app.school_name || ''
+            ].join(' ').toLowerCase();
+
+            // Check if every word in the search term is present in the pool
+            return searchWords.every(word => searchPool.includes(word));
         });
     }
 
@@ -414,7 +429,7 @@ function ApplicationsTable() {
           <div className="flex flex-col gap-2 pt-4">
               <div className="flex flex-nowrap items-center gap-2">
                   <Input
-                    placeholder="Search all application fields..."
+                    placeholder="Search name, job, material, email..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="min-w-[200px]"
