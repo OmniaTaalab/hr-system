@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useActionState, useCallback } from "react";
@@ -73,6 +74,7 @@ interface Employee {
   status?: "Active" | "deactivated";
   leavingDate?: Timestamp | { _seconds: number; _nanoseconds: number; } | null;
   reasonForLeaving?: string;
+  reasonNote?: string;
   deactivatedBy?: string;
   isExemptFromAttendance?: boolean;
   [key: string]: any; // Allow other properties
@@ -146,10 +148,12 @@ function LeaveStatusBadge({ status }: { status: "Pending" | "Approved" | "Reject
 function DetailItem({ icon: Icon, label, value, children }: { icon: React.ElementType, label: string, value?: string | number | null | undefined, children?: React.ReactNode }) {
   if (!value && !children) return null;
   return (
-    <div className="flex items-center text-sm">
-      <Icon className="h-4 w-4 mr-3 text-muted-foreground flex-shrink-0" />
-      <span className="font-medium text-muted-foreground mr-2">{label}:</span>
-      {value ? <span className="text-foreground">{value}</span> : children ? children : null}
+    <div className="flex items-start text-sm">
+      <Icon className="h-4 w-4 mr-3 mt-0.5 text-muted-foreground flex-shrink-0" />
+      <div className="flex-grow min-w-0">
+        <span className="font-medium text-muted-foreground mr-2">{label}:</span>
+        {value ? <span className="text-foreground whitespace-pre-wrap break-words">{value}</span> : children ? children : null}
+      </div>
     </div>
   );
 }
@@ -480,6 +484,13 @@ function EmployeeProfileContent() {
       ['Report Line 6', employee.reportLine6 || '-'],
     ];
 
+    if (employee.status === 'deactivated') {
+        tableData.push(['Status', 'Deactivated']);
+        tableData.push(['Leaving Date', safeToDate(employee.leavingDate) ? format(safeToDate(employee.leavingDate)!, 'PPP') : '-']);
+        tableData.push(['Deactivation Reason', employee.reasonForLeaving || '-']);
+        tableData.push(['Deactivation Note', employee.reasonNote || '-']);
+    }
+
     autoTable(doc, {
       startY: 80,
       head: [['Attribute', 'Information']],
@@ -673,11 +684,12 @@ const getAttendancePointValue = (entry: any): number => {
               </CardHeader>
               <CardContent className="p-6">
                 {employee.status === 'deactivated' && (
-                    <div className="mb-6 p-4 bg-destructive/10 rounded-lg border border-destructive/20">
-                         <h3 className="text-lg font-semibold flex items-center mb-2 text-destructive"><UserMinus className="mr-2 h-5 w-5" />Deactivation Information</h3>
+                    <div className="mb-6 p-4 bg-destructive/10 rounded-lg border border-destructive/20 space-y-3">
+                         <h3 className="text-lg font-semibold flex items-center mb-1 text-destructive"><UserMinus className="mr-2 h-5 w-5" />Deactivation Information</h3>
                          <DetailItem icon={User} label="Deactivated By" value={employee.deactivatedBy} />
-                         <DetailItem icon={CalendarDays} label="Leaving Date" value={safeToDate(employee.leavingDate) ? format(safeToDate(employee.leavingDate)!, 'PPP') : undefined} />
+                         <DetailItem icon={CalendarDays} label="Leaving Date" value={safeToDate(employee.leavingDate) ? format(safeToDate(employee.leavingDate)!, 'MMMM do, yyyy') : undefined} />
                          <DetailItem icon={FileText} label="Reason" value={employee.reasonForLeaving} />
+                         <DetailItem icon={FileText} label="Memos / Notes" value={employee.reasonNote} />
                     </div>
                 )}
 
