@@ -54,7 +54,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ImageUploader } from "@/components/image-uploader";
 import { useOrganizationLists, type ListItem } from "@/hooks/use-organization-lists";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
@@ -119,6 +119,7 @@ export interface Employee {
   title?: string;
   status?: "Active" | "deactivated";
   reasonForLeaving?: string;
+  reasonNote?: string;
   deactivatedBy?: string;
   isDuplicate?: boolean;
 }
@@ -754,10 +755,17 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
     const { profile } = useUserProfile();
     const [deactivateState, deactivateAction, isDeactivatePending] = useActionState(deactivateEmployeeAction, initialDeactivateState);
     const [leavingDate, setLeavingDate] = useState<Date | undefined>(new Date());
+    const [selectedReason, setSelectedReason] = useState<string>("");
+
+    const isHR = useMemo(() => {
+        const role = profile?.role?.toLowerCase();
+        return role === 'admin' || role === 'hr';
+    }, [profile]);
 
     useEffect(() => {
         if (!open) {
-            setLeavingDate(new Date()); // Reset date when dialog closes
+            setLeavingDate(new Date());
+            setSelectedReason("");
         }
     }, [open]);
     
@@ -767,7 +775,7 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
                 toast({ title: "Success", description: deactivateState.message });
                 onOpenChange(false);
             } else {
-                const errorMessage = Object.values(deactivateState.errors || {}).flat().join(' ');
+                const errorMessage = deactivateState.message || Object.values(deactivateState.errors || {}).flat().join(' ');
                 toast({ variant: "destructive", title: "Error", description: errorMessage || "Failed to deactivate employee." });
             }
         }
@@ -777,21 +785,25 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-md">
                 <form action={deactivateAction}>
                     <input type="hidden" name="employeeDocId" value={employee.id} />
                     <input type="hidden" name="actorId" value={profile?.id ?? ''} />
                     <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
                     <input type="hidden" name="actorRole" value={profile?.role ?? ''} />
+                    <input type="hidden" name="leavingDate" value={leavingDate?.toISOString() ?? ''} />
+                    <input type="hidden" name="reason" value={selectedReason} />
+
                     <DialogHeader>
                         <DialogTitle>Deactivate Employee: {employee.name}</DialogTitle>
                         <DialogDescription>
-                            Set the leaving date and reason for deactivating this employee. This will set their status to "deactivated".
+                            Set the leaving date and reason for deactivating this employee. This will set their status to "deactivated" and revoke system access.
                         </DialogDescription>
                     </DialogHeader>
+
                     <div className="grid gap-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="leavingDate">Leaving Date</Label>
+                            <Label htmlFor="leavingDate">Effective Leaving Date *</Label>
                              <Popover>
                                 <PopoverTrigger asChild>
                                     <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !leavingDate && "text-muted-foreground")}>
@@ -799,25 +811,87 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
                                         {leavingDate ? format(leavingDate, "PPP") : <span>Pick a date</span>}
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                    <Calendar mode="single" selected={leavingDate} onSelect={setLeavingDate} captionLayout="dropdown-buttons" fromYear={1970} toYear={2035} initialFocus />
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar 
+                                      mode="single" 
+                                      selected={leavingDate} 
+                                      onSelect={setLeavingDate} 
+                                      captionLayout="dropdown-buttons" 
+                                      fromYear={1970} 
+                                      toYear={2035} 
+                                      initialFocus 
+                                    />
                                 </PopoverContent>
                             </Popover>
-                            <input type="hidden" name="leavingDate" value={leavingDate?.toISOString() ?? ''} />
-                            {deactivateState?.errors?.leavingDate && <p className="text-sm text-destructive">{deactivateState.errors.leavingDate.join(', ')}</p>}
+                            {deactivateState?.errors?.leavingDate && <p className="text-xs text-destructive">{deactivateState.errors.leavingDate[0]}</p>}
                         </div>
+
                         <div className="space-y-2">
-                            <Label htmlFor="reasonForLeaving">Reason for Leaving</Label>
-                            <Textarea id="reasonForLeaving" name="reasonForLeaving" placeholder="Enter reason..." required />
-                             {deactivateState?.errors?.reasonForLeaving && <p className="text-sm text-destructive">{deactivateState.errors.reasonForLeaving.join(', ')}</p>}
+                            <Label htmlFor="reason">Reason for Leaving *</Label>
+                            <Select value={selectedReason} onValueChange={setSelectedReason} required>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a reason..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectGroup>
+                                        <Label className="px-2 py-1.5 text-xs font-bold text-muted-foreground uppercase">Voluntary</Label>
+                                        <SelectItem value="Better Opportunity">Better Opportunity</SelectItem>
+                                        <SelectItem value="Salary/ Benefit">Salary/ Benefit</SelectItem>
+                                        <SelectItem value="Career Growth">Career Growth</SelectItem>
+                                        <SelectItem value="Relocation">Relocation</SelectItem>
+                                        <SelectItem value="Personal Reasons">Personal Reasons</SelectItem>
+                                        <SelectItem value="Family Reasons">Family Reasons</SelectItem>
+                                        <SelectItem value="Health Reasons">Health Reasons</SelectItem>
+                                        <SelectItem value="Work Environment">Work Environment</SelectItem>
+                                        <SelectItem value="Management">Management</SelectItem>
+                                        <SelectItem value="Retirement">Retirement</SelectItem>
+                                        <SelectItem value="Study/ Education">Study/ Education</SelectItem>
+                                        <SelectItem value="Transportation Issue">Transportation Issue</SelectItem>
+                                        <SelectItem value="Marriage">Marriage</SelectItem>
+                                        <SelectItem value="Maternity">Maternity</SelectItem>
+                                        <SelectItem value="Relocation abroad">Relocation abroad</SelectItem>
+                                        <SelectItem value="Relocation in area we do not have campus in">Relocation in area we do not have campus in</SelectItem>
+                                        <SelectItem value="Marriage and relocation">Marriage and relocation</SelectItem>
+                                    </SelectGroup>
+                                    {isHR && (
+                                        <SelectGroup>
+                                            <Separator className="my-1" />
+                                            <Label className="px-2 py-1.5 text-xs font-bold text-muted-foreground uppercase">Conduct / Attendance (HR Only)</Label>
+                                            <SelectItem value="Termination">Termination</SelectItem>
+                                            <SelectItem value="Sudden No Show">Sudden No Show</SelectItem>
+                                        </SelectGroup>
+                                    )}
+                                    <SelectGroup>
+                                        <Separator className="my-1" />
+                                        <Label className="px-2 py-1.5 text-xs font-bold text-muted-foreground uppercase">Other</Label>
+                                        <SelectItem value="Deceased">Deceased</SelectItem>
+                                        <SelectItem value="Other">Other</SelectItem>
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
+                            {deactivateState?.errors?.reason && <p className="text-xs text-destructive">{deactivateState.errors.reason[0]}</p>}
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="reasonNote">Memos / Notes *</Label>
+                            <Textarea 
+                                id="reasonNote" 
+                                name="reasonNote" 
+                                placeholder="Explain the deactivation (min 20 characters)..." 
+                                required 
+                                minLength={20}
+                                className="min-h-[100px]"
+                            />
+                             <p className="text-[10px] text-muted-foreground">Always required. Minimum 20 characters.</p>
+                             {deactivateState?.errors?.reasonNote && <p className="text-xs text-destructive">{deactivateState.errors.reasonNote[0]}</p>}
                         </div>
                     </div>
-                     {deactivateState?.errors?.form && <p className="text-sm text-destructive text-center mb-2">{deactivateState.errors.form.join(', ')}</p>}
+                     {deactivateState?.message && !deactivateState.success && <p className="text-sm text-destructive text-center mb-2 font-medium">{deactivateState.message}</p>}
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit" variant="destructive" disabled={isDeactivatePending}>
                             {isDeactivatePending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                            Deactivate
+                            Deactivate & Revoke Access
                         </Button>
                     </DialogFooter>
                 </form>
@@ -940,7 +1014,7 @@ export default function EmployeeManagementContent() {
 
   const userRole = profile?.role?.toLowerCase();
   const isPrivileged = useMemo(() => {
-    return userRole === 'admin' || userRole === 'hr' || userRole === 'director';
+    return userRole === 'admin' || userRole === 'hr';
   }, [userRole]);
 
   useEffect(() => {
@@ -1384,6 +1458,7 @@ export default function EmployeeManagementContent() {
             'Report Line 5': emp.reportLine5,
             'Report Line 6': emp.reportLine6,
             'Reason For Leaving': emp.status === 'deactivated' ? emp.reasonForLeaving : '-',
+            'Reason Note': emp.status === 'deactivated' ? emp.reasonNote : '-',
             'Emergency Contact Name': emp.emergencyContact?.name,
             'Emergency Contact Relationship': emp.emergencyContact?.relationship,
             'Emergency Contact Number': emp.emergencyContact?.number,

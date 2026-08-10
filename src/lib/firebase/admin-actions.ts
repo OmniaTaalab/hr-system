@@ -294,42 +294,97 @@ export async function deleteEmployeeAction(
   }
 }
 
-export type DeactivateEmployeeState = { message?: string | null; success?: boolean; errors?: { [key: string]: string[] } };
-export async function deactivateEmployeeAction(prevState: DeactivateEmployeeState, formData: FormData): Promise<DeactivateEmployeeState> {
-    const employeeDocId = formData.get('employeeDocId') as string;
-    const leavingDateStr = formData.get('leavingDate') as string;
-    const reasonForLeaving = formData.get('reasonForLeaving') as string;
-    const actorId = formData.get('actorId') as string;
-    const actorEmail = formData.get('actorEmail') as string;
-    const actorRole = formData.get('actorRole') as string;
+export type DeactivateEmployeeState = { 
+  message?: string | null; 
+  success?: boolean; 
+  errors?: { [key: string]: string[] } 
+};
 
-    if (!employeeDocId) return { success: false, message: "Employee ID is missing." };
+const DeactivateEmployeeSchema = z.object({
+  employeeDocId: z.string().min(1),
+  leavingDate: z.string().min(1, "Effective date is required."),
+  reason: z.string().min(1, "Reason is required."),
+  reasonNote: z.string().min(20, "Memos/Notes must be at least 20 characters long."),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
+});
+
+export async function deactivateEmployeeAction(
+  prevState: DeactivateEmployeeState, 
+  formData: FormData
+): Promise<DeactivateEmployeeState> {
+    const validatedFields = DeactivateEmployeeSchema.safeParse({
+        employeeDocId: formData.get('employeeDocId'),
+        leavingDate: formData.get('leavingDate'),
+        reason: formData.get('reason'),
+        reasonNote: formData.get('reasonNote'),
+        actorId: formData.get('actorId'),
+        actorEmail: formData.get('actorEmail'),
+        actorRole: formData.get('actorRole'),
+    });
+
+    if (!validatedFields.success) {
+        return { 
+          success: false, 
+          errors: validatedFields.error.flatten().fieldErrors,
+          message: "Validation failed." 
+        };
+    }
+
+    const { employeeDocId, leavingDate, reason, reasonNote, actorId, actorEmail, actorRole } = validatedFields.data;
 
     try {
         const employeeRef = doc(db, "employee", employeeDocId);
         const snap = await getDoc(employeeRef);
+        if (!snap.exists()) return { success: false, message: "Employee not found." };
+        
         const oldData = snap.data();
+        const effectiveDate = new Date(leavingDate);
 
         const updateData = {
             status: "deactivated",
-            leavingDate: leavingDateStr ? Timestamp.fromDate(new Date(leavingDateStr)) : serverTimestamp(),
-            reasonForLeaving,
+            leavingDate: Timestamp.fromDate(effectiveDate),
+            reasonForLeaving: reason,
+            reasonNote: reasonNote,
             deactivatedBy: actorEmail,
             updatedAt: serverTimestamp(),
         };
 
         await updateDoc(employeeRef, updateData);
 
+        // 🔐 Revoke System Access if there is a linked user ID
+        if (oldData.userId && adminAuthSrv) {
+            try {
+                // Future improvement: only disable on effectiveDate if it's in the future
+                // For MVP: Disable now if effectiveDate <= today
+                const now = new Date();
+                if (effectiveDate <= now) {
+                  await adminAuthSrv.updateUser(oldData.userId, { disabled: true });
+                }
+            } catch (authError: any) {
+                console.error("Failed to disable auth user:", authError);
+                // We don't fail the whole action if auth disable fails, but we should log it
+            }
+        }
+
+        // 📝 Immutable Audit Record
         await logSystemEvent("Deactivate Employee", {
-            actorId, actorEmail, actorRole,
+            actorId, 
+            actorEmail, 
+            actorRole,
             targetEmployeeId: employeeDocId,
-            targetEmployeeName: oldData?.name,
+            targetEmployeeName: oldData.name,
+            effectiveDate: leavingDate,
+            reason: reason,
+            note: reasonNote,
             changes: { oldData: { status: "Active" }, newData: updateData }
         });
 
         revalidatePath("/employees");
-        return { success: true, message: "Employee deactivated successfully." };
+        return { success: true, message: "Employee deactivated and system access revoked." };
     } catch (error: any) {
+        console.error("Deactivation error:", error);
         return { success: false, message: error.message };
     }
 }
@@ -350,9 +405,15 @@ export async function activateEmployeeAction(prevState: ActivateEmployeeState, f
             status: "Active",
             leavingDate: null,
             reasonForLeaving: null,
+            reasonNote: null,
             deactivatedBy: null,
             updatedAt: serverTimestamp(),
         });
+
+        // Re-enable auth if exists
+        if (oldData?.userId && adminAuthSrv) {
+            await adminAuthSrv.updateUser(oldData.userId, { disabled: false });
+        }
 
         await logSystemEvent("Activate Employee", {
             actorId, actorEmail, actorRole,
@@ -361,7 +422,7 @@ export async function activateEmployeeAction(prevState: ActivateEmployeeState, f
         });
 
         revalidatePath("/employees");
-        return { success: true, message: "Employee activated successfully." };
+        return { success: true, message: "Employee activated and system access restored." };
     } catch (error: any) {
         return { success: false, message: error.message };
     }
