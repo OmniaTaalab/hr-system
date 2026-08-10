@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback, useActionState, useTransition } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useTransition } from "react";
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -273,25 +273,34 @@ function ApplicationsTable() {
 
     if (searchTerm.trim()) {
         const lowercasedTerm = searchTerm.toLowerCase().trim();
-        const searchWords = lowercasedTerm.split(/\s+/);
         
         filtered = filtered.filter(app => {
-            // Build a string of searchable text for this specific application
-            const searchPool = [
-              `${app.firstNameEn || ''} ${app.middleNameEn || ''} ${app.lastNameEn || ''}`,
-              `${app.firstNameAr || ''} ${app.fatherNameAr || ''} ${app.familyNameAr || ''}`,
-              app.positionJobTitle || '',
-              app.positionSubject || '',
-              app.nationalCampus || '',
-              app.schoolType || '',
-              app.email1 || '',
-              app.mobilePhone || '',
-              app.university_name || '',
-              app.school_name || ''
-            ].join(' ').toLowerCase();
+            const firstNameEn = (app.firstNameEn || '').toLowerCase().trim();
+            const middleNameEn = (app.middleNameEn || '').toLowerCase().trim();
+            const lastNameEn = (app.lastNameEn || '').toLowerCase().trim();
+            const fullNameEn = `${firstNameEn} ${middleNameEn} ${lastNameEn}`.replace(/\s+/g, ' ').trim();
+            
+            const firstNameAr = (app.firstNameAr || '').toLowerCase().trim();
+            const fatherNameAr = (app.fatherNameAr || '').toLowerCase().trim();
+            const familyNameAr = (app.familyNameAr || '').toLowerCase().trim();
+            const fullNameAr = `${firstNameAr} ${fatherNameAr} ${familyNameAr}`.replace(/\s+/g, ' ').trim();
 
-            // Check if every word in the search term is present in the pool
-            return searchWords.every(word => searchPool.includes(word));
+            // Strict sequence matching for names (starts with)
+            const nameMatch = fullNameEn.startsWith(lowercasedTerm) || fullNameAr.startsWith(lowercasedTerm);
+            
+            // Loose matching for other informational fields
+            const otherFieldsMatch = [
+              app.positionJobTitle,
+              app.positionSubject,
+              app.nationalCampus,
+              app.schoolType,
+              app.email1,
+              app.mobilePhone,
+              app.university_name,
+              app.school_name
+            ].some(field => field?.toLowerCase().includes(lowercasedTerm));
+
+            return nameMatch || otherFieldsMatch;
         });
     }
 
@@ -312,7 +321,7 @@ function ApplicationsTable() {
         }
 
         if (valA instanceof Timestamp && valB instanceof Timestamp) {
-            return desc ? valB.toMillis() - valA.toMillis() : valA.toMillis() - b.toMillis();
+            return desc ? valB.toMillis() - valA.toMillis() : valA.toMillis() - valB.toMillis();
         }
         
         if (valA === undefined || valA === null) return 1;
