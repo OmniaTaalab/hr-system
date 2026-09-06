@@ -1,4 +1,7 @@
 {
-  "name": "studio-4223954622",
-  "description": "App imported from Firebase Studio"
+  "name": "HR Portal",
+  "description": "A comprehensive Human Resource Management System for managing employees, attendance, leaves, KPIs, payroll, and job applications.",
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
