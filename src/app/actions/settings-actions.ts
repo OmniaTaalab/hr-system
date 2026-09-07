@@ -370,10 +370,14 @@ export async function manageCampusWorkingHoursAction(
     checkInEndTime,
     checkOutStartTime,
     checkOutEndTime,
-    actorId,
-    actorEmail,
-    actorRole,
+    actorId: rawActorId,
+    actorEmail: rawActorEmail,
+    actorRole: rawActorRole,
   } = validated.data;
+
+  const actorId = rawActorId ?? undefined;
+  const actorEmail = rawActorEmail ?? undefined;
+  const actorRole = rawActorRole ?? undefined;
 
   try {
     if (operation === 'delete') {
@@ -381,7 +385,12 @@ export async function manageCampusWorkingHoursAction(
         return { success: false, message: "ID is required to delete campus working hours." };
       }
       await deleteDoc(doc(db, "campusWorkingHours", id));
-      await logSystemEvent("Delete Campus Working Hours", { actorId, actorEmail, actorRole, id });
+      await logSystemEvent("Delete Campus Working Hours", {
+        actorId,
+        actorEmail,
+        actorRole,
+        id,
+      });
       return { success: true, message: "Campus working hours deleted successfully." };
     }
 
