@@ -270,10 +270,207 @@ export async function getWorkdaySettings(): Promise<{ standardHours: number }> {
   }
 }
 
+// --- CAMPUS WORKING HOURS SETTINGS (SLT & TEACHER / ADMIN / SUPPORT) ---
+
+const CampusWorkingHoursSchema = z.object({
+  operation: z.enum(['add', 'update', 'delete']),
+  id: z.string().optional().nullable(),
+  campusName: z.string().optional().nullable(),
+  // SLT Working Hours
+  sltFlexible: z.union([z.boolean(), z.string()]).optional().nullable(),
+  sltCheckInStartTime: z.string().optional().nullable(),
+  sltCheckInEndTime: z.string().optional().nullable(),
+  sltCheckOutStartTime: z.string().optional().nullable(),
+  sltCheckOutEndTime: z.string().optional().nullable(),
+  // Staff (Teacher, Administrative / Support) Working Hours
+  staffCheckInStartTime: z.string().optional().nullable(),
+  staffCheckInEndTime: z.string().optional().nullable(),
+  staffCheckOutStartTime: z.string().optional().nullable(),
+  staffCheckOutEndTime: z.string().optional().nullable(),
+  // Fallback / legacy fields
+  checkInStartTime: z.string().optional().nullable(),
+  checkInEndTime: z.string().optional().nullable(),
+  checkOutStartTime: z.string().optional().nullable(),
+  checkOutEndTime: z.string().optional().nullable(),
+  actorId: z.string().optional().nullable(),
+  actorEmail: z.string().optional().nullable(),
+  actorRole: z.string().optional().nullable(),
+});
+
+export type CampusWorkingHoursState = {
+  errors?: {
+    campusName?: string[];
+    sltCheckInStartTime?: string[];
+    sltCheckInEndTime?: string[];
+    sltCheckOutStartTime?: string[];
+    sltCheckOutEndTime?: string[];
+    staffCheckInStartTime?: string[];
+    staffCheckInEndTime?: string[];
+    staffCheckOutStartTime?: string[];
+    staffCheckOutEndTime?: string[];
+    checkInStartTime?: string[];
+    checkInEndTime?: string[];
+    checkOutStartTime?: string[];
+    checkOutEndTime?: string[];
+    form?: string[];
+  };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function manageCampusWorkingHoursAction(
+  prevState: CampusWorkingHoursState,
+  formData: FormData
+): Promise<CampusWorkingHoursState> {
+  const rawData = {
+    operation: formData.get('operation') as string,
+    id: formData.get('id') as string | null,
+    campusName: formData.get('campusName') as string | null,
+    sltFlexible: formData.get('sltFlexible') === 'true' || formData.get('sltFlexible') === 'on',
+    sltCheckInStartTime: formData.get('sltCheckInStartTime') as string | null,
+    sltCheckInEndTime: formData.get('sltCheckInEndTime') as string | null,
+    sltCheckOutStartTime: formData.get('sltCheckOutStartTime') as string | null,
+    sltCheckOutEndTime: formData.get('sltCheckOutEndTime') as string | null,
+    staffCheckInStartTime: formData.get('staffCheckInStartTime') as string | null,
+    staffCheckInEndTime: formData.get('staffCheckInEndTime') as string | null,
+    staffCheckOutStartTime: formData.get('staffCheckOutStartTime') as string | null,
+    staffCheckOutEndTime: formData.get('staffCheckOutEndTime') as string | null,
+    checkInStartTime: formData.get('checkInStartTime') as string | null,
+    checkInEndTime: formData.get('checkInEndTime') as string | null,
+    checkOutStartTime: formData.get('checkOutStartTime') as string | null,
+    checkOutEndTime: formData.get('checkOutEndTime') as string | null,
+    actorId: formData.get('actorId') as string | null,
+    actorEmail: formData.get('actorEmail') as string | null,
+    actorRole: formData.get('actorRole') as string | null,
+  };
+
+  const validated = CampusWorkingHoursSchema.safeParse(rawData);
+  if (!validated.success) {
+    return {
+      errors: validated.error.flatten().fieldErrors,
+      message: "Validation failed.",
+      success: false,
+    };
+  }
+
+  const {
+    operation,
+    id,
+    campusName,
+    sltFlexible,
+    sltCheckInStartTime,
+    sltCheckInEndTime,
+    sltCheckOutStartTime,
+    sltCheckOutEndTime,
+    staffCheckInStartTime,
+    staffCheckInEndTime,
+    staffCheckOutStartTime,
+    staffCheckOutEndTime,
+    checkInStartTime,
+    checkInEndTime,
+    checkOutStartTime,
+    checkOutEndTime,
+    actorId,
+    actorEmail,
+    actorRole,
+  } = validated.data;
+
+  try {
+    if (operation === 'delete') {
+      if (!id) {
+        return { success: false, message: "ID is required to delete campus working hours." };
+      }
+      await deleteDoc(doc(db, "campusWorkingHours", id));
+      await logSystemEvent("Delete Campus Working Hours", { actorId, actorEmail, actorRole, id });
+      return { success: true, message: "Campus working hours deleted successfully." };
+    }
+
+    if (!campusName || !campusName.trim()) {
+      return {
+        errors: { campusName: ["Campus selection is required."] },
+        message: "Campus selection is required.",
+        success: false,
+      };
+    }
+
+    const trimmedCampus = campusName.trim();
+
+    const isSltFlex = sltFlexible === true || sltFlexible === 'true' || sltCheckInEndTime === 'flexible' || !sltCheckInEndTime;
+    // Determine values for SLT
+    const sltInStart = sltCheckInStartTime || checkInStartTime || "07:00";
+    const sltInEnd = isSltFlex ? "flexible" : (sltCheckInEndTime || checkInEndTime || "07:30");
+    const sltOutStart = sltCheckOutStartTime || checkOutStartTime || "15:30";
+    const sltOutEnd = sltCheckOutEndTime || checkOutEndTime || "16:30";
+
+    // Determine values for Staff (Teacher, Administrative / Support)
+    const staffInStart = staffCheckInStartTime || checkInStartTime || "07:20";
+    const staffInEnd = staffCheckInEndTime || checkInEndTime || "07:30";
+    const staffOutStart = staffCheckOutStartTime || checkOutStartTime || "15:00";
+    const staffOutEnd = staffCheckOutEndTime || checkOutEndTime || "16:00";
+
+    const dataToSave = {
+      campusName: trimmedCampus,
+      // SLT schedule
+      sltFlexible: isSltFlex,
+      sltCheckInStartTime: sltInStart,
+      sltCheckInEndTime: sltInEnd,
+      sltCheckOutStartTime: sltOutStart,
+      sltCheckOutEndTime: sltOutEnd,
+      sltHours: {
+        flexible: isSltFlex,
+        checkInStartTime: sltInStart,
+        checkInEndTime: sltInEnd,
+        checkOutStartTime: sltOutStart,
+        checkOutEndTime: sltOutEnd,
+      },
+      // Teacher, Administrative / Support schedule
+      staffCheckInStartTime: staffInStart,
+      staffCheckInEndTime: staffInEnd,
+      staffCheckOutStartTime: staffOutStart,
+      staffCheckOutEndTime: staffOutEnd,
+      staffHours: {
+        checkInStartTime: staffInStart,
+        checkInEndTime: staffInEnd,
+        checkOutStartTime: staffOutStart,
+        checkOutEndTime: staffOutEnd,
+      },
+      // Root legacy fields (defaulting to general staff hours for backwards compatibility)
+      checkInStartTime: staffInStart,
+      checkInEndTime: staffInEnd,
+      checkOutStartTime: staffOutStart,
+      checkOutEndTime: staffOutEnd,
+      updatedAt: serverTimestamp(),
+    };
+
+    const docRef = doc(db, "campusWorkingHours", id ? id : trimmedCampus);
+    await setDoc(docRef, dataToSave, { merge: true });
+
+    await logSystemEvent(operation === 'add' ? "Add Campus Working Hours" : "Update Campus Working Hours", {
+      actorId,
+      actorEmail,
+      actorRole,
+      campusName: trimmedCampus,
+    });
+
+    return {
+      success: true,
+      message: `Campus working hours for ${trimmedCampus} saved successfully.`,
+    };
+  } catch (error: any) {
+    console.error("Error managing campus working hours:", error);
+    return {
+      errors: { form: [error.message || "Failed to save campus working hours."] },
+      message: `Error: ${error.message}`,
+      success: false,
+    };
+  }
+}
+
+
 
 // --- ORGANIZATION LISTS (DEPARTMENTS, ROLES, ETC.) ---
 
-const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes", "stage", "subjects", "machineNames", "reportLines1", "reportLines2"]);
+const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes", "stage", "subjects", "machineNames", "reportLines1", "reportLines2", "positionClasses"]);
 
 const ManageItemSchema = z.object({
   collectionName: collectionNames,
@@ -527,6 +724,10 @@ export async function syncReportLine1FromEmployeesAction(prevState: SyncState, f
 
 export async function syncReportLine2FromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
     return runSync(formData, (actorDetails) => syncListFromSource("employee", "reportLine2", "reportLines2", actorDetails));
+}
+
+export async function syncPositionClassesFromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
+    return runSync(formData, (actorDetails) => syncListFromSource("employee", "positionClass", "positionClasses", actorDetails));
 }
 
 export async function correctAttendanceNamesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {

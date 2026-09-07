@@ -6,6 +6,7 @@ export default {
     employees_chart: 'مخطط الموظفين',
     submit_leave_request: 'تقديم طلب إجازة',
     employee_work_leave_summary: 'ملخص الإجازات والعمل',
+    document_requests: 'طلبات المستندات',
     all_leave_requests: 'كل طلبات الإجازة',
     attendance: 'الحاضر',
     daily_clock_in_out: 'تسجيل الحضور اليومي',

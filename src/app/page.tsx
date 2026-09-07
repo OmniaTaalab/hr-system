@@ -295,6 +295,7 @@ function DashboardPageContent() {
             badgeNumber: toStr(d.badgeNumber),
             campus: toStr(d.campus).toLowerCase(),
             status: toStr(d.status).toLowerCase(),
+            positionClass: toStr(d.positionClass),
           };
         });
     
@@ -380,12 +381,26 @@ function DashboardPageContent() {
           const emp = activeEmployeesList.find((x) => x.id === empDocId);
           if (!emp?.campus) return;
     
-          const rule = campusRules.get(emp.campus.trim().toLowerCase());
-          if (!rule?.checkInEndTime) return;
+          const rule: any = campusRules.get(emp.campus.trim().toLowerCase());
+          if (!rule) return;
+
+          const isSLT = emp.positionClass?.trim().toLowerCase() === 'slt' || emp.positionClass?.trim().toLowerCase().includes('slt');
+          let targetEndTime: string | null = null;
+          if (isSLT) {
+            // SLT has flexible arrival time / no late cutoff
+            if (rule.sltFlexible || !rule.sltCheckInEndTime || rule.sltCheckInEndTime === "flexible" || rule.sltCheckInEndTime.trim() === "") {
+              return; // SLT is exempt from late tracking
+            }
+            targetEndTime = rule.sltCheckInEndTime;
+          } else {
+            targetEndTime = rule.staffCheckInEndTime || rule.staffHours?.checkInEndTime || rule.checkInEndTime;
+          }
+
+          if (!targetEndTime) return;
     
           const checkIn = earliestCheckInByEmpDocId.get(empDocId);
           const checkInMin = parseTimeToMinutes(checkIn);
-          const endMin = parseTimeToMinutes(rule.checkInEndTime);
+          const endMin = parseTimeToMinutes(targetEndTime);
     
           if (checkInMin !== null && endMin !== null && checkInMin > endMin) {
             lateCount++;

@@ -15,6 +15,7 @@ import {
     syncStagesFromEmployeesAction,
     syncSubjectsFromEmployeesAction,
     syncMachineNamesFromAttendanceLogsAction,
+    syncPositionClassesFromEmployeesAction,
     type SyncState 
 } from "@/app/actions/settings-actions";
 
@@ -35,7 +36,7 @@ interface ListItem {
 
 interface ListManagerProps {
   title: string;
-  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage" | "subjects" | "machineNames" | "reportLines1" | "reportLines2";
+  collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage" | "subjects" | "machineNames" | "reportLines1" | "reportLines2" | "positionClasses";
 }
 
 const initialManageState: ManageListItemState = { success: false, message: null, errors: {} };
@@ -65,6 +66,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   const [syncStagesState, syncStagesAction, isSyncStagesPending] = useActionState(syncStagesFromEmployeesAction, initialSyncState);
   const [syncSubjectsState, syncSubjectsAction, isSyncSubjectsPending] = useActionState(syncSubjectsFromEmployeesAction, initialSyncState);
   const [syncMachineNamesState, syncMachineNamesAction, isSyncMachineNamesPending] = useActionState(syncMachineNamesFromAttendanceLogsAction, initialSyncState);
+  const [syncPositionClassesState, syncPositionClassesAction, isSyncPositionClassesPending] = useActionState(syncPositionClassesFromEmployeesAction, initialSyncState);
 
 
   const addFormRef = useRef<HTMLFormElement>(null);
@@ -129,7 +131,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
             });
         }
     });
-  }, [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState, syncReportLine2State, toast]);
+  }, [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState, syncReportLine2State, syncPositionClassesState, toast]);
 
 
   const filteredItems = useMemo(() => {
@@ -208,6 +210,14 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
               <form action={syncMachineNamesAction}>
                   <Button size="sm" variant="secondary" disabled={isSyncMachineNamesPending}>
                       {isSyncMachineNamesPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Sync
+                  </Button>
+              </form>
+            )}
+            {collectionName === 'positionClasses' && (
+              <form action={syncPositionClassesAction}>
+                  <Button size="sm" variant="secondary" disabled={isSyncPositionClassesPending}>
+                      {isSyncPositionClassesPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
                       Sync
                   </Button>
               </form>

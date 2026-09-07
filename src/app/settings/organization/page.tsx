@@ -35,6 +35,7 @@ export default function OrganizationSettingsPage() {
               <ListManager title="Leave Types" collectionName="leaveTypes" />
               <ListManager title="Report Line 1" collectionName="reportLines1" />
               <ListManager title="Report Line 2" collectionName="reportLines2" />
+              <ListManager title="Position Class" collectionName="positionClasses" />
             </CardContent>
           </Card>
         </div>

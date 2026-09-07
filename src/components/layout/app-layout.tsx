@@ -33,10 +33,15 @@ const UserProfileContext = createContext<UserProfileContextType | undefined>(und
 // Create the custom hook
 export function useUserProfile() {
   const context = useContext(UserProfileContext);
-  if (context === undefined) {
-    throw new Error('useUserProfile must be used within an AppProvider context');
+  const appContext = useApp();
+
+  if (context !== undefined) {
+    return context;
   }
-  return context;
+  if (appContext !== undefined && appContext !== null) {
+    return appContext;
+  }
+  return { user: null, profile: null, loading: false };
 }
 
 interface AppLayoutProps {

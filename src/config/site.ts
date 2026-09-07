@@ -34,6 +34,11 @@ export const navItems: NavItem[] = [
     iconName: 'ClipboardList', 
   },
   {
+    i18nKey: 'sidebar.document_requests',
+    href: '/document-requests',
+    iconName: 'FileText',
+  },
+  {
     i18nKey: 'sidebar.job_applications',
     href: '/form',
     iconName: 'FileText',

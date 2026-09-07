@@ -117,6 +117,7 @@ export interface Employee {
   religion?: string;
   subject?: string;
   title?: string;
+  positionClass?: string;
   status?: "Active" | "deactivated";
   reasonForLeaving?: string;
   reasonNote?: string;
@@ -210,11 +211,12 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const { profile } = useUserProfile();
   const [addState, addAction, isAddPending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
-  const { roles, stage: stages, systems, campuses, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, stage: stages, systems, campuses, positionClasses, isLoading: isLoadingLists } = useOrganizationLists();
   const [gender, setGender] = useState("");
   const [role, setRole] = useState("");
   const [campus, setCampus] = useState<string | undefined>(undefined);
   const [stage, setStage] = useState<string | undefined>(undefined);
+  const [positionClass, setPositionClass] = useState<string | undefined>(undefined);
   const [reportLineCount, setReportLineCount] = useState(2);
   const addFormRef = useRef<HTMLFormElement>(null);
 
@@ -248,6 +250,7 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
         <input type="hidden" name="actorId" value={profile?.id ?? ''} />
         <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
         <input type="hidden" name="actorRole" value={profile?.role ?? ''} />
+        <input type="hidden" name="positionClass" value={positionClass || ''} />
         
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
@@ -344,14 +347,21 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                      {addState?.errors?.role && <p className="text-sm text-destructive">{addState.errors.role.join(', ')}</p>}
                 </div>
                 <div className="space-y-2">
+                    <Label>Position class</Label>
+                    <Select name="positionClass" value={positionClass} onValueChange={setPositionClass} disabled={isLoadingLists}>
+                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Position class"} /></SelectTrigger>
+                        <SelectContent>{positionClasses?.map(pc => <SelectItem key={pc.id} value={pc.name}>{pc.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="space-y-2">
                     <Label>Campus</Label>
                     <Select name="campus" value={campus} onValueChange={setCampus} disabled={isLoadingLists}>
                         <SelectTrigger><SelectValue placeholder="Select Campus" /></SelectTrigger>
                         <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
                     </Select>
                 </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="space-y-2">
                     <Label>Stage</Label>
                     <Select name="stage" value={stage} onValueChange={setStage} disabled={isLoadingLists}>
@@ -359,11 +369,11 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
                         <SelectContent>{stages.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
                     </Select>
                 </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="add-joiningDate">Joining Date (MM/DD/YYYY)</Label>
-                    <Input id="add-joiningDate" name="joiningDate" placeholder="MM/DD/YYYY" />
-                    {addState?.errors?.joiningDate && <p className="text-sm text-destructive">{addState.errors.joiningDate.join(', ')}</p>}
-                </div>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="add-joiningDate">Joining Date (MM/DD/YYYY)</Label>
+                <Input id="add-joiningDate" name="joiningDate" placeholder="MM/DD/YYYY" />
+                {addState?.errors?.joiningDate && <p className="text-sm text-destructive">{addState.errors.joiningDate.join(', ')}</p>}
             </div>
             <div className="space-y-2">
                 <Label>Has Children at NIS?</Label>
@@ -432,7 +442,7 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
   const { toast } = useToast();
   const { profile } = useUserProfile();
   const [serverState, formAction, isPending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
-  const { roles, stage: stages, systems, campuses, subjects, isLoading: isLoadingLists } = useOrganizationLists();
+  const { roles, stage: stages, systems, campuses, subjects, positionClasses, isLoading: isLoadingLists } = useOrganizationLists();
   const [formClientError, setFormClientError] = useState<string | null>(null);
 
   // State for controlled components
@@ -441,6 +451,7 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
   const [campus, setCampus] = useState(employee.campus || '');
   const [gender, setGender] = useState(employee.gender || "");
   const [stage, setStage] = useState(employee.stage || "");
+  const [positionClass, setPositionClass] = useState(employee.positionClass || '');
   const [childrenAtNIS, setChildrenAtNIS] = useState<'Yes' | 'No'>(employee.childrenAtNIS || 'No');
   const [reportLineCount, setReportLineCount] = useState(() => {
     if (employee.reportLine6) return 6;
@@ -497,6 +508,7 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
         <input type="hidden" name="gender" value={gender || ''} />
         <input type="hidden" name="stage" value={stage || ''} />
         <input type="hidden" name="childrenAtNIS" value={childrenAtNIS} />
+        <input type="hidden" name="positionClass" value={positionClass || ''} />
         
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
@@ -656,14 +668,23 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
                     {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
                 </div>
             </div>
-             <div className="space-y-2">
-                  <Label>Campus</Label>
-                   <Select value={campus} onValueChange={setCampus} disabled={isLoadingLists}>
-                      <SelectTrigger><SelectValue placeholder="Select Campus" /></SelectTrigger>
-                      <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {serverState?.errors?.campus && <p className="text-sm text-destructive">{serverState.errors.campus.join(', ')}</p>}
-              </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="space-y-2">
+                   <Label>Campus</Label>
+                    <Select value={campus} onValueChange={setCampus} disabled={isLoadingLists}>
+                       <SelectTrigger><SelectValue placeholder="Select Campus" /></SelectTrigger>
+                       <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                   </Select>
+                   {serverState?.errors?.campus && <p className="text-sm text-destructive">{serverState.errors.campus.join(', ')}</p>}
+               </div>
+               <div className="space-y-2">
+                   <Label>Position class</Label>
+                   <Select value={positionClass} onValueChange={setPositionClass} disabled={isLoadingLists}>
+                       <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Position class"} /></SelectTrigger>
+                       <SelectContent>{positionClasses?.map(pc => <SelectItem key={pc.id} value={pc.name}>{pc.name}</SelectItem>)}</SelectContent>
+                   </Select>
+               </div>
+             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -1435,6 +1456,7 @@ export default function EmployeeManagementContent() {
             'Employee ID': emp.employeeId,
             'Name': emp.name,
             'Title': emp.title,
+            'Position Class': emp.positionClass || '-',
             'Role': emp.role,
             'childrenAtNIS': emp.childrenAtNIS,
             'Department': emp.department,
@@ -1478,7 +1500,7 @@ export default function EmployeeManagementContent() {
 
   const handleDownloadTemplate = () => {
     const headers = [
-      "Employee ID", "Name", "NameAr", "childrenAtNIS", "NIS Email", "Title",
+      "Employee ID", "Name", "NameAr", "childrenAtNIS", "NIS Email", "Title", "Position Class",
       "Department", "Campus", "Stage", "Status", "Subject", "personal Email",
       "Phone", "Date Of Birth", "joining Date", "Gender", "National ID", "Religion",
       "Emergency Contact Name", "Emergency Contact Relationship", "Emergency Contact Number",

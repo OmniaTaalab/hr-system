@@ -174,11 +174,10 @@ function AllLeaveRequestsContent() {
                 return;
             }
             
-            // Use a single 'in' query for all subordinate requests
+            // Use a single 'in' query for all subordinate requests without composite index requirement
             finalQuery = query(
               collection(db, "leaveRequests"),
-              where("requestingEmployeeDocId", "in", employeeIds),
-              orderBy("submittedAt", "desc")
+              where("requestingEmployeeDocId", "in", employeeIds)
             );
         } else {
             // No profile/email, shouldn't happen if properly guarded, but good to handle
@@ -190,6 +189,18 @@ function AllLeaveRequestsContent() {
         if (finalQuery) {
             const snapshot = await getDocs(finalQuery);
             const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequestEntry));
+            requestsData.sort((a, b) => {
+              const getMillis = (val: any) => {
+                if (!val) return 0;
+                if (typeof val.toMillis === "function") return val.toMillis();
+                if (typeof val.toDate === "function") return val.toDate().getTime();
+                if (typeof val.seconds === "number") return val.seconds * 1000;
+                if (val instanceof Date) return val.getTime();
+                const parsed = new Date(val).getTime();
+                return isNaN(parsed) ? 0 : parsed;
+              };
+              return getMillis(b.submittedAt) - getMillis(a.submittedAt);
+            });
             setAllRequests(requestsData);
         }
 

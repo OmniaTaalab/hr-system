@@ -64,6 +64,7 @@ const CreateEmployeeFormSchema = z.object({
   religion: z.string().optional(),
   subject: z.string().optional(),
   title: z.string().optional(),
+  positionClass: z.string().optional().nullable(),
 });
 
 export type CreateEmployeeState = {
@@ -150,6 +151,7 @@ export async function createEmployeeAction(
       religion: otherData.religion || null,
       subject: otherData.subject || null,
       title: otherData.title || null,
+      positionClass: otherData.positionClass || null,
     };
 
     const docRef = await addDoc(employeeCollection, newEmployeeDoc);
@@ -236,6 +238,7 @@ export async function updateEmployeeAction(
       religion: otherData.religion || null,
       subject: otherData.subject || null,
       title: otherData.title || null,
+      positionClass: otherData.positionClass || null,
       updatedAt: serverTimestamp(),
     };
 

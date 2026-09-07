@@ -44,6 +44,7 @@ interface Employee {
   status?: string;
   badgeNumber?: string;
   campus?: string;
+  positionClass?: string;
 }
 
 interface Row {
@@ -133,6 +134,7 @@ function EmployeeStatusContent() {
             badgeNumber: toStr(d.badgeNumber),
             campus: d.campus,
             status: d.status,
+            positionClass: toStr(d.positionClass),
           };
         });
 
@@ -246,18 +248,31 @@ function EmployeeStatusContent() {
 
               if (filter === "late") {
                 if (empRecord?.campus) {
-                  const campusRule = campusRules.get(empRecord.campus.trim().toLowerCase());
-                  if (campusRule && campusRule.checkInEndTime) {
-                    const checkInMinutes = parseTimeToMinutes(checkIn);
-                    const endTimeMinutes = parseTimeToMinutes(campusRule.checkInEndTime);
+                  const campusRule: any = campusRules.get(empRecord.campus.trim().toLowerCase());
+                  if (campusRule) {
+                    const isSLT = (empRecord.positionClass || "").trim().toLowerCase() === "slt" || (empRecord.positionClass || "").trim().toLowerCase().includes("slt");
+                    let targetEndTime: string | null = null;
+                    if (isSLT) {
+                      if (campusRule.sltFlexible || !campusRule.sltCheckInEndTime || campusRule.sltCheckInEndTime === "flexible" || campusRule.sltCheckInEndTime.trim() === "") {
+                        return; // Exempt from late arrival tracking
+                      }
+                      targetEndTime = campusRule.sltCheckInEndTime;
+                    } else {
+                      targetEndTime = campusRule.staffCheckInEndTime || campusRule.staffHours?.checkInEndTime || campusRule.checkInEndTime;
+                    }
 
-                    if (
-                      checkInMinutes !== null &&
-                      endTimeMinutes !== null &&
-                      checkInMinutes > endTimeMinutes
-                    ) {
-                      row.delayMinutes = checkInMinutes - endTimeMinutes;
-                      dataRows.push(row);
+                    if (targetEndTime) {
+                      const checkInMinutes = parseTimeToMinutes(checkIn);
+                      const endTimeMinutes = parseTimeToMinutes(targetEndTime);
+
+                      if (
+                        checkInMinutes !== null &&
+                        endTimeMinutes !== null &&
+                        checkInMinutes > endTimeMinutes
+                      ) {
+                        row.delayMinutes = checkInMinutes - endTimeMinutes;
+                        dataRows.push(row);
+                      }
                     }
                   }
                 }

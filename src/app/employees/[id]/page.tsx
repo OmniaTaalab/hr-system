@@ -65,6 +65,7 @@ interface Employee {
   groupName: string;
   system: string;
   campus: string;
+  positionClass?: string;
   nisEmail: string; // This is the NIS Email
   phone: string; // Personal Phone
   hourlyRate?: number;
@@ -463,6 +464,7 @@ function EmployeeProfileContent() {
     const tableData = [
       ['Employee ID', employee.employeeId],
       ['NIS Email', employee.nisEmail],
+      ['Position Class', employee.positionClass || '-'],
       ['Personal Email', employee.personalEmail || '-'],
       ['Phone', employee.phone],
       ['Department', employee.department],
@@ -700,6 +702,7 @@ const getAttendancePointValue = (entry: any): number => {
                    <DetailItem icon={Briefcase} label="Department" value={employee.department || "-"} />
                    <DetailItem icon={Hash} label="Employee ID" value={employee.employeeId || "-"} />
                    <DetailItem icon={Star} label="Role" value={employee.role || "-"} />
+                   <DetailItem icon={Briefcase} label="Position Class" value={employee.positionClass || "-"} />
                    <DetailItem icon={Users} label="Stage" value={employee.stage || "-"} />
                    <DetailItem icon={Code} label="System" value={employee.system || "-"} />
                    <DetailItem icon={MapPin} label="Campus" value={employee.campus || "-"} />

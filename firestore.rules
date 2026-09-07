@@ -35,6 +35,15 @@ service cloud.firestore {
       allow read, write, delete: if request.auth != null && isAdmin(request.auth.uid);
     }
 
+    // Document Requests:
+    // - Authenticated users can create requests and read their own requests.
+    // - Admins and HR can read, update, and manage all document requests.
+    match /documentRequests/{requestId} {
+      allow read, write: if request.auth != null && isAdmin(request.auth.uid);
+      allow create: if request.auth != null;
+      allow read: if request.auth != null && (resource == null || resource.data.userId == request.auth.uid || resource.data.requestingEmployeeDocId == request.auth.uid);
+    }
+
     // All other collections are locked down by default and require admin access.
     match /{document=**} {
       allow read, write: if request.auth != null && isAdmin(request.auth.uid);

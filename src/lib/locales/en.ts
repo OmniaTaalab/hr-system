@@ -6,6 +6,7 @@ export default {
     employees_chart: 'Organization Chart',
     submit_leave_request: 'Submit Leave Request',
     employee_work_leave_summary: 'Work & Leave Summary',
+    document_requests: 'Document Requests',
     all_leave_requests: 'All Leave Requests',
     attendance_logs: 'Attendance Logs',
     payroll: 'Payroll',
