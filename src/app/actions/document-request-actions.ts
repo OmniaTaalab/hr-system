@@ -329,15 +329,18 @@ export async function updateDocumentRequestStatusAction(
 
     const reviewerTag = actorName || actorEmail || "HR Department";
 
-    const historyEntry = {
+    const historyEntry: Record<string, any> = {
       status: newStatus as DocumentRequestStatus,
       timestamp: new Date().toISOString(),
       updatedBy: reviewerTag,
       notes: isRejected
-        ? rejectionReason?.trim()
-        : hrNotes?.trim() || `Status updated to ${newStatus}`,
-      rejectionReason: isRejected ? rejectionReason?.trim() : undefined,
+        ? (rejectionReason?.trim() || "Request rejected")
+        : (hrNotes?.trim() || `Status updated to ${newStatus}`),
     };
+
+    if (isRejected && rejectionReason?.trim()) {
+      historyEntry.rejectionReason = rejectionReason.trim();
+    }
 
     const updatePayload: Record<string, any> = {
       status: newStatus,
@@ -356,8 +359,10 @@ export async function updateDocumentRequestStatusAction(
     }
 
     if (isIssuedOrReady) {
+      const docTypeClean = (requestData?.documentType || "Document").replace(/\s+/g, "_");
+      const reqNumClean = requestData?.requestNumber || requestId;
       updatePayload.issuedDocument = {
-        fileName: `${requestData.documentType.replace(/\s+/g, "_")}_${requestData.requestNumber || requestId}.pdf`,
+        fileName: `${docTypeClean}_${reqNumClean}.pdf`,
         issuedAt: new Date().toISOString(),
         issuedBy: reviewerTag,
         collectionRoomOrDesk: collectionRoomOrDesk?.trim() || "HR Office",
@@ -427,14 +432,17 @@ export async function updateDocumentRequestStatusAction(
     }
 
     // 3. Log system event
-    await logSystemEvent("Update Document Request Status", {
-      actorId,
-      actorEmail,
-      actorRole,
+    const logDetails: Record<string, any> = {
       requestId,
       newStatus,
-      rejectionReason: isRejected ? rejectionReason : undefined,
-    });
+    };
+    if (actorId) logDetails.actorId = actorId;
+    if (actorEmail) logDetails.actorEmail = actorEmail;
+    if (actorRole) logDetails.actorRole = actorRole;
+    if (isRejected && rejectionReason?.trim()) {
+      logDetails.rejectionReason = rejectionReason.trim();
+    }
+    await logSystemEvent("Update Document Request Status", logDetails);
 
     return {
       success: true,
@@ -479,17 +487,18 @@ export async function deleteDocumentRequestAction(
       statusHistory: arrayUnion({
         status: "Closed",
         timestamp: new Date().toISOString(),
-        updatedBy: actorInfo.email || "Requester",
+        updatedBy: actorInfo?.email || "Requester",
         notes: "Request cancelled / closed.",
       }),
     });
 
-    await logSystemEvent("Cancel Document Request", {
-      actorId: actorInfo.id,
-      actorEmail: actorInfo.email,
-      actorRole: actorInfo.role,
+    const cancelLog: Record<string, any> = {
       requestId,
-    });
+    };
+    if (actorInfo?.id) cancelLog.actorId = actorInfo.id;
+    if (actorInfo?.email) cancelLog.actorEmail = actorInfo.email;
+    if (actorInfo?.role) cancelLog.actorRole = actorInfo.role;
+    await logSystemEvent("Cancel Document Request", cancelLog);
 
     return { success: true, message: "Document request cancelled successfully." };
   } catch (err: any) {

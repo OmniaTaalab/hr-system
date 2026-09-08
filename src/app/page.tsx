@@ -4,22 +4,24 @@
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Loader2, CalendarCheck2 } from "lucide-react";
+import { ArrowRight, Loader2, CalendarCheck2, Trash2, PlusCircle, Sunrise, Sun, Moon } from "lucide-react";
 import Link from "next/link";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useMemo } from "react";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, query, where, getCountFromServer, Timestamp, orderBy, QueryConstraint, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where, getCountFromServer, Timestamp, orderBy, QueryConstraint, limit, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import type { Timestamp as FirebaseTimestamp } from 'firebase/firestore';
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay, differenceInCalendarDays, isToday, isTomorrow } from 'date-fns';
+import { useToast } from "@/hooks/use-toast";
+import { useApp } from "@/components/layout/app-provider";
 
 // Helper functions for attendance logic
 const toStr = (v: any) => String(v ?? "").trim();
@@ -87,30 +89,58 @@ function DashboardCard({
   const IconComponent = iconMap[iconName];
 
   return (
-    <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", className)}>
-      <CardHeader className="pb-4">
+    <Card
+      className={cn(
+        "group relative overflow-hidden rounded-xl border border-border/70 bg-card p-0 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/15 hover:border-primary/50 hover:ring-2 hover:ring-primary/20 flex flex-col cursor-pointer",
+        className
+      )}
+    >
+      {/* Ambient luminous glow on hover */}
+      <div className="pointer-events-none absolute -inset-px rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-b from-primary/10 via-primary/5 to-transparent" />
+
+      <CardHeader className="relative pb-4">
         <div className="flex items-start justify-between">
-          <CardTitle className="font-headline text-xl">{title}</CardTitle>
-          {IconComponent ? <IconComponent className="h-7 w-7 text-primary flex-shrink-0" /> : <span className="h-7 w-7" />}
+          <CardTitle className="font-headline text-xl group-hover:text-primary transition-colors">
+            {title}
+          </CardTitle>
+          {IconComponent ? (
+            <div className="p-2 rounded-lg bg-primary/10 text-primary transition-all duration-300 group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground group-hover:shadow-md group-hover:shadow-primary/30">
+              <IconComponent className="h-5 w-5 flex-shrink-0" />
+            </div>
+          ) : (
+            <span className="h-7 w-7" />
+          )}
         </div>
         {statistic !== undefined && (
-          <div className="mt-1">
+          <div className="mt-2">
             {isLoadingStatistic ? (
-              <Skeleton className="h-8 w-1/4" />
+              <Skeleton className="h-9 w-1/3" />
             ) : (
-              <p className="text-3xl font-bold text-primary">{statistic}</p>
+              <p className="text-3xl font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
+                {statistic}
+              </p>
             )}
-            {statisticLabel && <p className="text-xs text-muted-foreground">{statisticLabel}</p>}
+            {statisticLabel && (
+              <p className="text-xs text-muted-foreground mt-1">{statisticLabel}</p>
+            )}
           </div>
         )}
-        {description && <CardDescription className={cn(statistic !== undefined && "mt-2")}>{description}</CardDescription>}
+        {description && (
+          <CardDescription className={cn(statistic !== undefined && "mt-2")}>
+            {description}
+          </CardDescription>
+        )}
       </CardHeader>
-      <CardContent className="flex-grow flex flex-col justify-end pt-0">
+      <CardContent className="relative flex-grow flex flex-col justify-end pt-0">
         {href && linkText && (
-          <Button asChild variant="outline" className="w-full mt-auto group">
+          <Button
+            asChild
+            variant="outline"
+            className="w-full mt-auto group/btn transition-colors group-hover:border-primary/40 group-hover:bg-primary/5"
+          >
             <Link href={href}>
               {linkText}
-              <ArrowRight className="ml-2 h-4 w-4 transform transition-transform group-hover:translate-x-1" />
+              <ArrowRight className="ml-2 h-4 w-4 transform transition-transform group-hover/btn:translate-x-1" />
             </Link>
           </Button>
         )}
@@ -123,6 +153,20 @@ interface CampusData {
   name: string;
   count: number;
 }
+
+// Harmonious, elegant enterprise palette for school campuses
+const CAMPUS_PALETTE = [
+  "#2563EB", // Royal Blue
+  "#0D9488", // Deep Teal
+  "#7C3AED", // Vibrant Purple
+  "#F59E0B", // Warm Amber
+  "#10B981", // Emerald Green
+  "#E11D48", // Rose Coral
+  "#0284C7", // Sky Cerulean
+  "#6366F1", // Modern Indigo
+  "#14B8A6", // Bright Teal
+  "#D97706", // Ochre Gold
+];
 
 const chartConfig = {
   employees: {
@@ -164,6 +208,51 @@ function DashboardPageContent() {
   const [isLoadingKpis, setIsLoadingKpis] = useState(true);
 
   const { profile, loading: isLoadingProfile } = useUserProfile();
+  const { user } = useApp();
+  const { toast } = useToast();
+
+  // Dynamic greeting based on time of day:
+  // Before 12 PM: good morning
+  // 12 PM to 6 PM: good afternoon
+  // 6 PM to night: good evening
+  const [timeGreeting, setTimeGreeting] = useState<string>("good morning");
+  const [greetingPeriod, setGreetingPeriod] = useState<"morning" | "afternoon" | "evening">("morning");
+
+  useEffect(() => {
+    const updateGreeting = () => {
+      const hour = new Date().getHours();
+      if (hour < 12) {
+        setTimeGreeting("good morning");
+        setGreetingPeriod("morning");
+      } else if (hour < 18) {
+        setTimeGreeting("good afternoon");
+        setGreetingPeriod("afternoon");
+      } else {
+        setTimeGreeting("good evening");
+        setGreetingPeriod("evening");
+      }
+    };
+    updateGreeting();
+    const interval = setInterval(updateGreeting, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const userName = useMemo(() => {
+    if (profile?.name && typeof profile.name === "string") {
+      const parts = profile.name.trim().split(/\s+/);
+      if (parts[0]) return parts[0];
+    }
+    if (user?.displayName && typeof user.displayName === "string") {
+      const parts = user.displayName.trim().split(/\s+/);
+      if (parts[0]) return parts[0];
+    }
+    if (user?.email) {
+      const prefix = user.email.split("@")[0];
+      const namePart = prefix.split(".")[0] || prefix;
+      return namePart.charAt(0).toUpperCase() + namePart.slice(1);
+    }
+    return "Omnia";
+  }, [profile, user]);
   
   const isPrivilegedUser = useMemo(() => {
       if (isLoadingProfile || !profile) return false;
@@ -447,50 +536,112 @@ function DashboardPageContent() {
       }
     };
   
-    const fetchHolidays = async () => {
-      setIsLoadingHolidays(true);
+    const fetchKpis = async () => {
+      if (!profile?.employeeId) {
+        setIsLoadingKpis(false);
+        return;
+      }
+      setIsLoadingKpis(true);
       try {
-        const today = new Date();
-        const holidaysQuery = query(collection(db, "holidays"), where("date", ">=", Timestamp.fromDate(today)), orderBy("date", "asc"), limit(3));
-        const holidaySnapshot = await getDocs(holidaysQuery);
-        setUpcomingHolidays(holidaySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Holiday)));
+        const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", profile.id));
+        const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", profile.id));
+
+        const [eleotSnapshot, totSnapshot] = await Promise.all([getDocs(eleotQuery), getDocs(totQuery)]);
+
+        const eleotData = eleotSnapshot.docs.map(doc => doc.data() as KpiEntry);
+        const totData = totSnapshot.docs.map(doc => doc.data() as KpiEntry);
+        setKpiData({ eleot: eleotData, tot: totData });
+
       } catch (error) {
-        console.error("Error fetching holidays:", error);
+        console.error("Error fetching KPIs for dashboard:", error);
       } finally {
-        setIsLoadingHolidays(false);
+        setIsLoadingKpis(false);
       }
     };
-    
-    const fetchKpis = async () => {
-        if (!profile?.employeeId) {
-            setIsLoadingKpis(false);
-            return;
-        }
-        setIsLoadingKpis(true);
-        try {
-            const eleotQuery = query(collection(db, "eleot"), where("employeeDocId", "==", profile.id));
-            const totQuery = query(collection(db, "tot"), where("employeeDocId", "==", profile.id));
 
-            const [eleotSnapshot, totSnapshot] = await Promise.all([getDocs(eleotQuery), getDocs(totQuery)]);
-            
-            const eleotData = eleotSnapshot.docs.map(doc => doc.data() as KpiEntry);
-            const totData = totSnapshot.docs.map(doc => doc.data() as KpiEntry);
-            setKpiData({ eleot: eleotData, tot: totData });
-
-        } catch (error) {
-             console.error("Error fetching KPIs for dashboard:", error);
-        } finally {
-            setIsLoadingKpis(false);
-        }
-    };
-  
     fetchCounts();
     fetchDailyAttendance();
     fetchCampusData();
-    fetchHolidays();
     fetchKpis();
 
   }, [profile, isLoadingProfile, isPrivilegedUser]);
+
+  // Real-time holidays synchronization and automatic expired holiday cleanup ("ولما تاريخها يخلص امسحها")
+  useEffect(() => {
+    setIsLoadingHolidays(true);
+    const holidaysCol = collection(db, "holidays");
+
+    const unsubscribe = onSnapshot(
+      holidaysCol,
+      async (snapshot) => {
+        const todayStart = startOfDay(new Date());
+        const allFetched: Holiday[] = [];
+        const expiredDocs: { id: string; name: string }[] = [];
+
+        snapshot.docs.forEach((d) => {
+          const data = d.data();
+          const dateObj: Date = data.date?.toDate ? data.date.toDate() : new Date(data.date);
+
+          // If holiday date has ended (strictly before today's start of day), mark for auto-deletion
+          if (dateObj < todayStart) {
+            expiredDocs.push({ id: d.id, name: data.name || "Holiday" });
+          } else {
+            allFetched.push({
+              id: d.id,
+              name: data.name || "Holiday",
+              date: data.date,
+            });
+          }
+        });
+
+        // Automatically delete expired holidays from Firestore
+        if (expiredDocs.length > 0) {
+          for (const exp of expiredDocs) {
+            try {
+              await deleteDoc(doc(db, "holidays", exp.id));
+              console.log("Auto-deleted expired holiday from database:", exp.name);
+            } catch (err) {
+              console.error("Error auto-deleting expired holiday:", exp.id, err);
+            }
+          }
+        }
+
+        // Sort upcoming holidays ascending by date
+        allFetched.sort((a, b) => {
+          const timeA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
+          const timeB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
+          return timeA - timeB;
+        });
+
+        setUpcomingHolidays(allFetched);
+        setIsLoadingHolidays(false);
+      },
+      (error) => {
+        console.error("Error in holidays onSnapshot:", error);
+        setIsLoadingHolidays(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Manual delete handler for holidays directly from the dashboard
+  const handleDeleteHoliday = async (holidayId: string, holidayName: string) => {
+    try {
+      await deleteDoc(doc(db, "holidays", holidayId));
+      toast({
+        title: "Holiday Deleted",
+        description: `"${holidayName}" has been removed.`,
+      });
+    } catch (err) {
+      console.error("Error deleting holiday:", err);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete holiday.",
+      });
+    }
+  };
   
 
   const eleotScore = useMemo(() => {
@@ -612,13 +763,24 @@ function DashboardPageContent() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-          HR Dashboard
-        </h1>
-        <p className="text-muted-foreground">
-          Welcome! Here's an overview of key HR metrics and quick actions.
-        </p>
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-border/40">
+        <div>
+          <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center gap-3 text-foreground">
+            {greetingPeriod === "morning" && (
+              <Sunrise className="h-8 w-8 text-amber-500 flex-shrink-0 animate-pulse" />
+            )}
+            {greetingPeriod === "afternoon" && (
+              <Sun className="h-8 w-8 text-amber-500 flex-shrink-0" />
+            )}
+            {greetingPeriod === "evening" && (
+              <Moon className="h-8 w-8 text-indigo-400 flex-shrink-0" />
+            )}
+            <span className="capitalize">{timeGreeting}</span> {userName} !
+          </h1>
+          <p className="text-muted-foreground text-base mt-1.5 font-normal">
+            Let’s see what’s happening today .
+          </p>
+        </div>
       </header>
 
       <section aria-labelledby="statistics-title">
@@ -632,84 +794,223 @@ function DashboardPageContent() {
         </div>
       </section>
 
-      {(isLoadingHolidays || upcomingHolidays.length > 0) && (
-        <section aria-labelledby="holidays-title" className="mt-8">
-          <h2 id="holidays-title" className="text-2xl font-semibold font-headline mb-4">
-            Announcements
+      {/* Upcoming Holidays Section */}
+      <section aria-labelledby="holidays-title" className="mt-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 id="holidays-title" className="text-2xl font-semibold font-headline flex items-center gap-2">
+            <CalendarCheck2 className="h-6 w-6 text-primary" />
+            Upcoming Holidays
+            {upcomingHolidays.length > 0 && (
+              <span className="ml-2 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                {upcomingHolidays.length} upcoming
+              </span>
+            )}
           </h2>
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="font-headline text-xl flex items-center">
-                <CalendarCheck2 className="mr-2 h-6 w-6 text-primary" />
-                Upcoming Holidays
-              </CardTitle>
-              <CardDescription>Official company holidays for the upcoming period.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingHolidays ? (
-                <div className="flex justify-center items-center h-[100px]">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : upcomingHolidays.length > 0 ? (
-                <ul className="space-y-3">
-                  {upcomingHolidays.map(holiday => (
-                    <li key={holiday.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                      <span className="font-medium text-foreground">{holiday.name}</span>
-                      <span className="text-sm text-muted-foreground">{format(holiday.date.toDate(), 'PPP')}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-center text-muted-foreground py-6">No upcoming holidays scheduled.</p>
-              )}
-            </CardContent>
-          </Card>
-        </section>
-      )}
+          {isPrivilegedUser && (
+            <Button asChild variant="outline" size="sm" className="gap-1.5 hover:border-primary/40">
+              <Link href="/settings/general">
+                <PlusCircle className="h-4 w-4 text-primary" />
+                Manage Holidays
+              </Link>
+            </Button>
+          )}
+        </div>
+
+        <Card className="group relative overflow-hidden rounded-xl border border-border/70 bg-card p-0 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.01] hover:shadow-xl hover:shadow-primary/15 hover:border-primary/50 hover:ring-2 hover:ring-primary/20">
+          <div className="pointer-events-none absolute -inset-px rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-b from-primary/10 via-primary/5 to-transparent" />
+          <CardHeader className="relative pb-3 border-b bg-muted/20">
+            <CardTitle className="font-headline text-lg">Official School & National Holidays</CardTitle>
+            <CardDescription>
+              Holidays automatically appear here when added and are automatically removed once concluded.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="relative p-4 sm:p-6">
+            {isLoadingHolidays ? (
+              <div className="flex justify-center items-center h-28">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : upcomingHolidays.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {upcomingHolidays.map((holiday) => {
+                  const hDate = holiday.date?.toDate ? holiday.date.toDate() : new Date(holiday.date);
+                  const daysDiff = differenceInCalendarDays(hDate, new Date());
+                  const isCurrentDay = isToday(hDate);
+                  const isNextDay = isTomorrow(hDate);
+
+                  return (
+                    <div
+                      key={holiday.id}
+                      className="group/item relative flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-muted/30 transition-all duration-200 hover:bg-muted/60 hover:border-primary/40 hover:shadow-sm"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex flex-col items-center justify-center h-12 w-12 rounded-lg bg-primary/10 text-primary border border-primary/20 flex-shrink-0 font-headline">
+                          <span className="text-[10px] font-bold uppercase tracking-wider leading-none">
+                            {format(hDate, "MMM")}
+                          </span>
+                          <span className="text-lg font-extrabold leading-none mt-0.5">
+                            {format(hDate, "dd")}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground text-sm truncate" title={holiday.name}>
+                            {holiday.name}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-muted-foreground">
+                              {format(hDate, "EEEE, yyyy")}
+                            </span>
+                            {isCurrentDay ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                                🎉 Today
+                              </span>
+                            ) : isNextDay ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30">
+                                Tomorrow
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border">
+                                In {daysDiff} {daysDiff === 1 ? "day" : "days"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {isPrivilegedUser && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg ml-2 flex-shrink-0 transition-colors"
+                          onClick={() => handleDeleteHoliday(holiday.id, holiday.name)}
+                          title="Delete holiday"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 px-4 border border-dashed rounded-lg bg-muted/10">
+                <CalendarCheck2 className="mx-auto h-9 w-9 text-muted-foreground/60 mb-2" />
+                <p className="text-sm font-medium text-foreground">No upcoming holidays scheduled</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  New holidays added from Settings will immediately appear here.
+                </p>
+                {isPrivilegedUser && (
+                  <Button asChild variant="outline" size="sm" className="mt-3 gap-1.5">
+                    <Link href="/settings/general">
+                      <PlusCircle className="h-4 w-4 text-primary" />
+                      Add Holiday
+                    </Link>
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
       {isPrivilegedUser && (
         <section aria-labelledby="charts-title" className="mt-8">
           <h2 id="charts-title" className="text-2xl font-semibold font-headline mb-4">
             Visualizations
           </h2>
-          <Card className="shadow-lg col-span-1 lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="font-headline text-xl flex items-center">
-                <iconMap.BarChartBig className="mr-2 h-6 w-6 text-primary" />
-                Employee Distribution by Campus
-              </CardTitle>
-              <CardDescription>Number of employees in each campus.</CardDescription>
+          <Card className="group relative overflow-hidden rounded-xl border border-border/70 bg-card p-0 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.01] hover:shadow-xl hover:shadow-primary/15 hover:border-primary/50 hover:ring-2 hover:ring-primary/20 col-span-1 lg:col-span-2">
+            <div className="pointer-events-none absolute -inset-px rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-b from-primary/10 via-primary/5 to-transparent" />
+            <CardHeader className="relative pb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="font-headline text-xl flex items-center">
+                    <iconMap.BarChartBig className="mr-2 h-6 w-6 text-primary" />
+                    Employee Distribution by Campus
+                  </CardTitle>
+                  <CardDescription>Number of active employees distributed across each school campus.</CardDescription>
+                </div>
+                {campusData.length > 0 && (
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 self-start sm:self-auto">
+                    {campusData.reduce((acc, curr) => acc + curr.count, 0)} Total Assigned
+                  </span>
+                )}
+              </div>
             </CardHeader>
-            <CardContent className="pl-2 pr-6">
+            <CardContent className="relative pl-2 pr-6">
               {isLoadingCampusData ? (
                 <div className="flex justify-center items-center h-[350px]">
                   <Loader2 className="h-12 w-12 animate-spin text-primary" />
                 </div>
               ) : campusData.length > 0 ? (
-                <ChartContainer config={chartConfig} className="h-[350px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart accessibilityLayer data={campusData} margin={{ top: 5, right: 0, left: -20, bottom: 70 }}>
-                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="name"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                        angle={-45}
-                        textAnchor="end"
-                        interval={0}
-                        height={80}
-                        tickFormatter={(value) => value.length > 15 ? `${value.substring(0,12)}...` : value}
-                      />
-                      <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} />
-                      <ChartTooltip
-                        cursor={false}
-                        content={<ChartTooltipContent indicator="dashed" />}
-                      />
-                      <Bar dataKey="count" fill="var(--color-employees)" radius={4} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </ChartContainer>
+                <div className="space-y-4">
+                  <ChartContainer config={chartConfig} className="h-[350px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart accessibilityLayer data={campusData} margin={{ top: 15, right: 10, left: -20, bottom: 65 }}>
+                        <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
+                        <XAxis
+                          dataKey="name"
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={10}
+                          angle={-30}
+                          textAnchor="end"
+                          interval={0}
+                          height={70}
+                          className="text-xs fill-muted-foreground font-medium"
+                          tickFormatter={(value) => value.length > 16 ? `${value.substring(0, 14)}...` : value}
+                        />
+                        <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} className="text-xs fill-muted-foreground" />
+                        <ChartTooltip
+                          cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload as CampusData;
+                              const index = campusData.findIndex(c => c.name === data.name);
+                              const color = CAMPUS_PALETTE[index >= 0 ? index % CAMPUS_PALETTE.length : 0];
+                              return (
+                                <div className="rounded-lg border bg-popover p-2.5 shadow-md text-xs">
+                                  <div className="flex items-center gap-2 font-medium text-popover-foreground mb-1">
+                                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+                                    <span>{data.name}</span>
+                                  </div>
+                                  <p className="text-muted-foreground">
+                                    Employees: <span className="font-bold text-foreground text-sm">{data.count}</span>
+                                  </p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                          {campusData.map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={CAMPUS_PALETTE[index % CAMPUS_PALETTE.length]}
+                              className="transition-opacity duration-200 hover:opacity-80"
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartContainer>
+
+                  {/* Harmonious campus color legend chips */}
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-3 border-t">
+                    {campusData.map((c, i) => (
+                      <div
+                        key={c.name}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/40 hover:bg-muted/70 px-2.5 py-1 rounded-md border transition-colors"
+                      >
+                        <span
+                          className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: CAMPUS_PALETTE[i % CAMPUS_PALETTE.length] }}
+                        />
+                        <span className="font-medium text-foreground">{c.name}:</span>
+                        <span className="font-semibold">{c.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ) : (
                 <p className="text-center text-muted-foreground py-10">No campus data available to display chart.</p>
               )}

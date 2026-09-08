@@ -11,10 +11,16 @@ interface LogDetails {
 
 export async function logSystemEvent(action: string, details: LogDetails = {}) {
     try {
+        const cleanDetails: Record<string, any> = {};
+        for (const [key, val] of Object.entries(details)) {
+            if (val !== undefined) {
+                cleanDetails[key] = val;
+            }
+        }
         await addDoc(collection(db, "system_logs"), {
             action,
             timestamp: serverTimestamp(),
-            ...details,
+            ...cleanDetails,
         });
     } catch (error) {
         console.error("Failed to log system event:", error);

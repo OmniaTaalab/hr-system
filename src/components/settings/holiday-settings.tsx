@@ -21,6 +21,7 @@ import { collection, query, where, onSnapshot, orderBy, Timestamp } from 'fireba
 import { format, getYear } from 'date-fns';
 import { Calendar as CalendarIcon, PlusCircle, Trash2, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import { useUserProfile } from "@/components/layout/app-layout";
 
 interface Holiday {
   id: string;
@@ -34,6 +35,7 @@ const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
 export function HolidaySettings() {
   const { toast } = useToast();
+  const { profile, user } = useUserProfile();
 
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -78,7 +80,7 @@ export function HolidaySettings() {
         variant: addState.success ? "default" : "destructive",
       });
       if (addState.success) {
-        setAddHolidayForm({ name: "" });
+        setAddHolidayForm({ name: "", date: undefined });
       }
     }
   }, [addState, toast]);
@@ -101,6 +103,13 @@ export function HolidaySettings() {
     }
     const formData = new FormData(e.currentTarget);
     formData.append('date', addHolidayForm.date.toISOString());
+    const actorId = profile?.id || user?.uid;
+    const actorEmail = profile?.workEmail || user?.email;
+    const actorRole = profile?.role;
+    if (actorId) formData.append('actorId', actorId);
+    if (actorEmail) formData.append('actorEmail', actorEmail);
+    if (actorRole) formData.append('actorRole', actorRole);
+
     startTransition(() => {
       addAction(formData);
     });
@@ -187,6 +196,9 @@ export function HolidaySettings() {
                       <TableCell className="text-right">
                         <form action={deleteAction}>
                             <input type="hidden" name="holidayId" value={holiday.id} />
+                            {(profile?.id || user?.uid) && <input type="hidden" name="actorId" value={profile?.id || user?.uid || ''} />}
+                            {(profile?.workEmail || user?.email) && <input type="hidden" name="actorEmail" value={profile?.workEmail || user?.email || ''} />}
+                            {profile?.role && <input type="hidden" name="actorRole" value={profile.role} />}
                             <Button type="submit" variant="ghost" size="icon" disabled={isDeletePending} aria-label="Delete holiday">
                                 <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>

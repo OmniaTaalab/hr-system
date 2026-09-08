@@ -40,6 +40,30 @@ function LeaveRequestForm() {
 
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
+  const [selectedLeaveType, setSelectedLeaveType] = useState<string>("");
+
+  const isMaternity = selectedLeaveType.trim().toLowerCase().includes("maternity");
+
+  const calculateMaternityEndDate = (start: Date): Date => {
+    const end = new Date(start);
+    end.setDate(end.getDate() + 119); // 120 calendar days inclusive
+    return end;
+  };
+
+  const handleLeaveTypeChange = (val: string) => {
+    setSelectedLeaveType(val);
+    if (val.trim().toLowerCase().includes("maternity") && startDate) {
+      setEndDate(calculateMaternityEndDate(startDate));
+    }
+  };
+
+  const handleStartDateSelect = (d: Date | undefined) => {
+    setStartDate(d);
+    setIsStartDatePickerOpen(false);
+    if (d && isMaternity) {
+      setEndDate(calculateMaternityEndDate(d));
+    }
+  };
 
   const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
   const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
@@ -72,6 +96,7 @@ function LeaveRequestForm() {
         });
 
         formRef.current?.reset();
+        setSelectedLeaveType("");
         setStartDate(undefined);
         setEndDate(undefined);
         setAttachment(null);
@@ -122,9 +147,18 @@ function LeaveRequestForm() {
   
     const formData = new FormData(currentForm);
   
+    if (selectedLeaveType) {
+      formData.set("leaveType", selectedLeaveType);
+    }
+
     // Dates
     if (startDate) formData.set("startDate", startDate.toISOString());
-    if (endDate) formData.set("endDate", endDate.toISOString());
+    if (endDate) {
+      formData.set("endDate", endDate.toISOString());
+    } else if (isMaternity && startDate) {
+      const autoEnd = calculateMaternityEndDate(startDate);
+      formData.set("endDate", autoEnd.toISOString());
+    }
   
     // File Upload
     if (attachment) {
@@ -193,6 +227,8 @@ function LeaveRequestForm() {
           <Label htmlFor="leaveType">Leave Type</Label>
           <Select
             name="leaveType"
+            value={selectedLeaveType}
+            onValueChange={handleLeaveTypeChange}
             disabled={isPending || isSubmittingFile || isLoadingLeaveTypes}
             required
           >
@@ -206,8 +242,20 @@ function LeaveRequestForm() {
                   {type.name}
                 </SelectItem>
               ))}
+              {!leaveTypes.some((t) => t.name.trim().toLowerCase().includes("maternity")) && (
+                <SelectItem value="Maternity Leave">Maternity Leave</SelectItem>
+              )}
             </SelectContent>
           </Select>
+
+          {isMaternity && (
+            <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-xs md:text-sm text-primary">
+              <p className="font-semibold">Maternity Leave (120 Days)</p>
+              <p className="text-muted-foreground mt-0.5">
+                The leave duration is fixed at 120 calendar days. The end date is automatically calculated from the start date, and no absence will be calculated for these 120 days once approved.
+              </p>
+            </div>
+          )}
 
           {serverState?.errors?.leaveType && (
             <p className="text-sm text-destructive">
@@ -239,10 +287,7 @@ function LeaveRequestForm() {
                 <Calendar
                   mode="single"
                   selected={startDate}
-                  onSelect={(d) => {
-                    setStartDate(d);
-                    setIsStartDatePickerOpen(false);
-                  }}
+                  onSelect={handleStartDateSelect}
                   captionLayout="dropdown-buttons"
                   fromYear={1920}
                   toYear={2026}
@@ -258,36 +303,59 @@ function LeaveRequestForm() {
 
           {/* End Date */}
           <div className="space-y-2">
-            <Label>End Date</Label>
-            <Popover open={isEndDatePickerOpen} onOpenChange={setIsEndDatePickerOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full pl-3 text-left font-normal",
-                    !endDate && "text-muted-foreground"
-                  )}
-                >
-                  {endDate ? format(endDate, "PPP") : "Pick a date"}
-                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                </Button>
-              </PopoverTrigger>
+            <div className="flex items-center justify-between">
+              <Label>End Date</Label>
+              {isMaternity && (
+                <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
+                  120 Days (Auto)
+                </span>
+              )}
+            </div>
+            {isMaternity ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled
+                className="w-full pl-3 text-left font-normal bg-muted/40 cursor-not-allowed opacity-90 justify-between"
+              >
+                <span>
+                  {startDate && endDate
+                    ? `${format(endDate, "PPP")} (120 Days)`
+                    : "Select start date to calculate (120 days)"}
+                </span>
+                <CalendarIcon className="h-4 w-4 opacity-50" />
+              </Button>
+            ) : (
+              <Popover open={isEndDatePickerOpen} onOpenChange={setIsEndDatePickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full pl-3 text-left font-normal",
+                      !endDate && "text-muted-foreground"
+                    )}
+                  >
+                    {endDate ? format(endDate, "PPP") : "Pick a date"}
+                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
 
-              <PopoverContent align="start" className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={endDate}
-                  onSelect={(d) => {
-                    setEndDate(d);
-                    setIsEndDatePickerOpen(false);
-                  }}
-                  captionLayout="dropdown-buttons"
-                  fromYear={1920}
-                  toYear={2026}
-                  disabled={(d) => d < (startDate || new Date())}
-                />
-              </PopoverContent>
-            </Popover>
+                <PopoverContent align="start" className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={(d) => {
+                      setEndDate(d);
+                      setIsEndDatePickerOpen(false);
+                    }}
+                    captionLayout="dropdown-buttons"
+                    fromYear={1920}
+                    toYear={2026}
+                    disabled={(d) => d < (startDate || new Date())}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
 
             {serverState?.errors?.endDate && (
               <p className="text-sm text-destructive">{serverState.errors.endDate[0]}</p>

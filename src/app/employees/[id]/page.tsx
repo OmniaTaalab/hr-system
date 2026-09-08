@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, getDocs, orderBy, limit, or, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle, Trophy, Plus, UserX, Trash2, Edit3 } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCircle, Briefcase, MapPin, DollarSign, CalendarDays, Phone, Mail, FileText, User, Hash, Cake, Stethoscope, BookOpen, Star, LogIn, LogOut, BookOpenCheck, Users, Code, ShieldCheck, Hourglass, ShieldX, CalendarOff, UserMinus, Activity, Smile, Home, AlertTriangle, Trophy, Plus, UserX, Trash2, Edit3, ShieldAlert, Clock, AlertCircle } from 'lucide-react';
 import { format, getYear, getMonth, getDate, intervalToDuration, formatDistanceToNow, eachDayOfInterval, startOfDay } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,6 +30,7 @@ import { deleteAttendancePointsAction, type DeletePointsState } from "@/app/acti
 import { DialogTrigger } from "@/components/ui/dialog";
 import { DateRange } from "react-day-picker";
 import { EditEmployeeFormContent, type Employee as EmployeeType } from "../EmployeeManagementClient";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface EmergencyContact {
   name: string;
@@ -105,6 +106,44 @@ interface KpiEntry {
   id: string;
   date: Timestamp;
   points: number;
+}
+
+interface ViolationRecord {
+  id: string;
+  date: string;
+  checkIn: string;
+  delayMinutes: number;
+  tier: 'T1' | 'T2' | 'T3' | 'T4';
+  tierDescription: string;
+  occurrenceNumber: number;
+  occurrenceDisplay: string;
+  monthKey: string;
+}
+
+function parseCheckInToMinutes(checkIn: string | null | undefined): number | null {
+  if (!checkIn) return null;
+  const clean = checkIn.trim();
+  const isPM = clean.toLowerCase().includes('pm');
+  const isAM = clean.toLowerCase().includes('am');
+  const digitsOnly = clean.replace(/(am|pm)/i, '').trim();
+  const parts = digitsOnly.split(':');
+  if (parts.length < 2) return null;
+  let hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+  if (isNaN(hours) || isNaN(minutes)) return null;
+
+  if (isPM && hours < 12) hours += 12;
+  if (isAM && hours === 12) hours = 0;
+
+  return hours * 60 + minutes;
+}
+
+function formatViolationOccurrence(n: number): string {
+  if (n === 1) return '1st';
+  if (n === 2) return '2nd';
+  if (n === 3) return '3rd';
+  if (n === 4) return '4th';
+  return `(${n})`;
 }
 
 
@@ -600,6 +639,112 @@ const getAttendancePointValue = (entry: any): number => {
     };
   }, [attendanceAndLeaveHistory]);
 
+  const [selectedViolationMonth, setSelectedViolationMonth] = useState<string>('all');
+
+  const violationAnalysis = useMemo(() => {
+    if (!attendanceAndLeaveHistory || attendanceAndLeaveHistory.length === 0) {
+      return {
+        violationsByRecordId: new Map<string, ViolationRecord>(),
+        allViolations: [] as ViolationRecord[],
+        monthlyStats: new Map<string, { T1: number; T2: number; T3: number; T4: number; total: number }>(),
+        monthsList: [] as string[],
+        totalTiers: { T1: 0, T2: 0, T3: 0, T4: 0, total: 0 },
+      };
+    }
+
+    const targetMinutes = 7 * 60 + 30; // 07:30 AM
+    const violationsMap = new Map<string, ViolationRecord>();
+    const allViolations: ViolationRecord[] = [];
+    const monthTierCounts: { [monthKey: string]: { T1: number; T2: number; T3: number; T4: number } } = {};
+    const totalTiers = { T1: 0, T2: 0, T3: 0, T4: 0, total: 0 };
+
+    // Sort ascending by date to count monthly occurrences chronologically
+    const sortedAttendance = [...attendanceAndLeaveHistory]
+      .filter((e) => e.type === 'attendance' && !!e.check_in)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    sortedAttendance.forEach((entry) => {
+      const checkInMinutes = parseCheckInToMinutes(entry.check_in);
+      if (checkInMinutes === null) return;
+
+      const delayMinutes = checkInMinutes - targetMinutes;
+      if (delayMinutes <= 0) return; // On time
+
+      let tier: 'T1' | 'T2' | 'T3' | 'T4';
+      let tierDescription: string;
+
+      if (delayMinutes <= 15) {
+        tier = 'T1';
+        tierDescription = 'Up to 15 minutes';
+      } else if (delayMinutes <= 30) {
+        tier = 'T2';
+        tierDescription = 'Up to 30 minutes';
+      } else if (delayMinutes <= 50) {
+        tier = 'T3';
+        tierDescription = 'Up to 40 minutes';
+      } else {
+        tier = 'T4';
+        tierDescription = 'Over 50 minutes';
+      }
+
+      const monthKey = entry.date.slice(0, 7); // yyyy-MM
+      if (!monthTierCounts[monthKey]) {
+        monthTierCounts[monthKey] = { T1: 0, T2: 0, T3: 0, T4: 0 };
+      }
+
+      monthTierCounts[monthKey][tier] += 1;
+      totalTiers[tier] += 1;
+      totalTiers.total += 1;
+
+      const occNumber = monthTierCounts[monthKey][tier];
+      const occDisplay = formatViolationOccurrence(occNumber);
+
+      const record: ViolationRecord = {
+        id: entry.id,
+        date: entry.date,
+        checkIn: entry.check_in!,
+        delayMinutes,
+        tier,
+        tierDescription,
+        occurrenceNumber: occNumber,
+        occurrenceDisplay: occDisplay,
+        monthKey,
+      };
+
+      violationsMap.set(entry.id, record);
+      violationsMap.set(entry.date, record);
+      allViolations.push(record);
+    });
+
+    const monthlyStats = new Map<string, { T1: number; T2: number; T3: number; T4: number; total: number }>();
+    Object.keys(monthTierCounts).forEach((mKey) => {
+      const counts = monthTierCounts[mKey];
+      monthlyStats.set(mKey, {
+        ...counts,
+        total: counts.T1 + counts.T2 + counts.T3 + counts.T4,
+      });
+    });
+
+    // Sort descending by date for display
+    allViolations.sort((a, b) => b.date.localeCompare(a.date));
+    const monthsList = Array.from(monthlyStats.keys()).sort((a, b) => b.localeCompare(a));
+
+    return {
+      violationsByRecordId: violationsMap,
+      allViolations,
+      monthlyStats,
+      monthsList,
+      totalTiers,
+    };
+  }, [attendanceAndLeaveHistory]);
+
+  const filteredViolations = useMemo(() => {
+    if (selectedViolationMonth === 'all') {
+      return violationAnalysis.allViolations;
+    }
+    return violationAnalysis.allViolations.filter((v) => v.monthKey === selectedViolationMonth);
+  }, [violationAnalysis.allViolations, selectedViolationMonth]);
+
 
   if (loading || profileLoading) {
     return (
@@ -920,6 +1065,7 @@ const getAttendancePointValue = (entry: any): number => {
                               <TableHead>Check-In</TableHead>
                               <TableHead>Check-Out</TableHead>
                               <TableHead>POINT</TableHead>
+                              <TableHead>Late Violation Tier</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -937,11 +1083,285 @@ const getAttendancePointValue = (entry: any): number => {
                                   </TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
                                   <TableCell>{getAttendancePointDisplay(record)}</TableCell>
+                                  <TableCell>
+                                    {(() => {
+                                      if (record.type === 'leave' || record.type === 'manual_points' || !record.check_in) {
+                                        return <span className="text-muted-foreground text-xs">-</span>;
+                                      }
+                                      const violation = violationAnalysis.violationsByRecordId.get(record.id) || violationAnalysis.violationsByRecordId.get(record.date);
+                                      if (!violation) {
+                                        return (
+                                          <Badge variant="outline" className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20 text-xs font-normal">
+                                            On Time
+                                          </Badge>
+                                        );
+                                      }
+                                      return (
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <Badge
+                                            className={cn(
+                                              "font-semibold text-xs border shadow-none",
+                                              violation.tier === "T1" && "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200",
+                                              violation.tier === "T2" && "bg-orange-100 text-orange-900 border-orange-300 dark:bg-orange-950 dark:text-orange-200",
+                                              violation.tier === "T3" && "bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950 dark:text-rose-200",
+                                              violation.tier === "T4" && "bg-red-100 text-red-900 border-red-300 dark:bg-red-950 dark:text-red-200"
+                                            )}
+                                          >
+                                            {violation.tier} · {violation.occurrenceDisplay}
+                                          </Badge>
+                                          <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                                            (+{violation.delayMinutes}m)
+                                          </span>
+                                        </div>
+                                      );
+                                    })()}
+                                  </TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
                   </Table>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Attendance Violation Rules Engine Card */}
+            <Card id="attendance-violation-rules-engine" className="shadow-lg border-primary/20">
+              <CardHeader className="bg-muted/20">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <CardTitle className="flex items-center text-xl">
+                      <ShieldAlert className="mr-2.5 h-6 w-6 text-primary" />
+                      Attendance Violation Rules Engine
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      Automated late arrival tiering (T1 to T4) and monthly occurrence tracking (1st to 4th, then (n)) for arrivals after 07:30 AM.
+                    </CardDescription>
+                  </div>
+                  {violationAnalysis.totalTiers.total > 0 ? (
+                    <Badge variant="destructive" className="font-semibold text-xs sm:text-sm px-3 py-1">
+                      {violationAnalysis.totalTiers.total} Total Violation{violationAnalysis.totalTiers.total > 1 ? 's' : ''}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 font-medium text-xs sm:text-sm px-3 py-1">
+                      0 Violations Recorded
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                {/* 1. Summary Cards for Tiers */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-3.5 rounded-lg border bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-bold text-amber-800 dark:text-amber-300">Tier 1 (T1)</span>
+                      <Badge variant="outline" className="text-[10px] bg-amber-100 dark:bg-amber-900/60 border-amber-300 text-amber-900 dark:text-amber-200">≤ 15 mins</Badge>
+                    </div>
+                    <div className="text-2xl font-extrabold text-amber-900 dark:text-amber-200">
+                      {violationAnalysis.totalTiers.T1}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Up to 15 minutes late</p>
+                  </div>
+
+                  <div className="p-3.5 rounded-lg border bg-orange-50/50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-900/50">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-bold text-orange-800 dark:text-orange-300">Tier 2 (T2)</span>
+                      <Badge variant="outline" className="text-[10px] bg-orange-100 dark:bg-orange-900/60 border-orange-300 text-orange-900 dark:text-orange-200">≤ 30 mins</Badge>
+                    </div>
+                    <div className="text-2xl font-extrabold text-orange-900 dark:text-orange-200">
+                      {violationAnalysis.totalTiers.T2}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Up to 30 minutes late</p>
+                  </div>
+
+                  <div className="p-3.5 rounded-lg border bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/50">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-bold text-rose-800 dark:text-rose-300">Tier 3 (T3)</span>
+                      <Badge variant="outline" className="text-[10px] bg-rose-100 dark:bg-rose-900/60 border-rose-300 text-rose-900 dark:text-rose-200">≤ 40 mins</Badge>
+                    </div>
+                    <div className="text-2xl font-extrabold text-rose-900 dark:text-rose-200">
+                      {violationAnalysis.totalTiers.T3}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Up to 40 minutes late</p>
+                  </div>
+
+                  <div className="p-3.5 rounded-lg border bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-900/50">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-bold text-red-800 dark:text-red-300">Tier 4 (T4)</span>
+                      <Badge variant="outline" className="text-[10px] bg-red-100 dark:bg-red-900/60 border-red-300 text-red-900 dark:text-red-200">&gt; 50 mins</Badge>
+                    </div>
+                    <div className="text-2xl font-extrabold text-red-900 dark:text-red-200">
+                      {violationAnalysis.totalTiers.T4}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Over 50 minutes late</p>
+                  </div>
+                </div>
+
+                {/* 2. Official Rules Matrix Table (Matches user's spreadsheet screenshot) */}
+                <div>
+                  <h4 className="text-sm font-semibold mb-2.5 flex items-center text-foreground">
+                    <BookOpen className="mr-2 h-4 w-4 text-primary" />
+                    Attendance Violation Rules Specification
+                  </h4>
+                  <div className="rounded-lg border overflow-hidden bg-card shadow-sm">
+                    <Table>
+                      <TableHeader className="bg-slate-900 text-white dark:bg-slate-950">
+                        <TableRow className="hover:bg-slate-900 text-white">
+                          <TableHead className="text-white font-bold w-24">Tier</TableHead>
+                          <TableHead className="text-white font-bold">Lateness</TableHead>
+                          <TableHead className="text-white font-bold">Occurrence in month</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow className="hover:bg-muted/40">
+                          <TableCell className="font-bold text-amber-700 dark:text-amber-400">T1</TableCell>
+                          <TableCell className="font-medium">
+                            Up to 15 minutes <span className="text-xs text-muted-foreground block sm:inline sm:ml-1">(07:31 - 07:45)</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge variant="outline" className="text-xs bg-muted/40">1st</Badge>
+                              <Badge variant="outline" className="text-xs bg-muted/40">2nd</Badge>
+                              <Badge variant="outline" className="text-xs bg-muted/40">3rd</Badge>
+                              <Badge variant="outline" className="text-xs bg-muted/40">4th</Badge>
+                              <Badge variant="secondary" className="text-xs font-semibold">(5)+</Badge>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow className="hover:bg-muted/40">
+                          <TableCell className="font-bold text-orange-700 dark:text-orange-400">T2</TableCell>
+                          <TableCell className="font-medium">
+                            Up to 30 minutes <span className="text-xs text-muted-foreground block sm:inline sm:ml-1">(07:46 - 08:00)</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge variant="outline" className="text-xs bg-muted/40">1st</Badge>
+                              <Badge variant="outline" className="text-xs bg-muted/40">2nd</Badge>
+                              <Badge variant="outline" className="text-xs bg-muted/40">3rd</Badge>
+                              <Badge variant="outline" className="text-xs bg-muted/40">4th</Badge>
+                              <Badge variant="secondary" className="text-xs font-semibold">(5)+</Badge>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow className="hover:bg-muted/40">
+                          <TableCell className="font-bold text-rose-700 dark:text-rose-400">T3</TableCell>
+                          <TableCell className="font-medium">
+                            Up to 40 minutes <span className="text-xs text-muted-foreground block sm:inline sm:ml-1">(08:01 - 08:20)</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge variant="outline" className="text-xs bg-muted/40">1st</Badge>
+                              <Badge variant="outline" className="text-xs bg-muted/40">2nd</Badge>
+                              <Badge variant="outline" className="text-xs bg-muted/40">3rd</Badge>
+                              <Badge variant="outline" className="text-xs bg-muted/40">4th</Badge>
+                              <Badge variant="secondary" className="text-xs font-semibold">(5)+</Badge>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow className="hover:bg-muted/40">
+                          <TableCell className="font-bold text-red-700 dark:text-red-400">T4</TableCell>
+                          <TableCell className="font-medium">
+                            Over 50 minutes <span className="text-xs text-muted-foreground block sm:inline sm:ml-1">(After 08:20)</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge variant="outline" className="text-xs bg-muted/40">1st</Badge>
+                              <Badge variant="outline" className="text-xs bg-muted/40">2nd</Badge>
+                              <Badge variant="outline" className="text-xs bg-muted/40">3rd</Badge>
+                              <Badge variant="outline" className="text-xs bg-muted/40">4th</Badge>
+                              <Badge variant="secondary" className="text-xs font-semibold">(5)+</Badge>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* 3. Employee Violation History Log */}
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <h4 className="text-sm font-semibold flex items-center text-foreground">
+                      <Clock className="mr-2 h-4 w-4 text-primary" />
+                      Employee Violation History Log
+                    </h4>
+
+                    {violationAnalysis.monthsList.length > 1 && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Filter Month:</span>
+                        <Select value={selectedViolationMonth} onValueChange={setSelectedViolationMonth}>
+                          <SelectTrigger className="h-8 w-[140px] text-xs">
+                            <SelectValue placeholder="All Months" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Months</SelectItem>
+                            {violationAnalysis.monthsList.map((m) => (
+                              <SelectItem key={m} value={m}>
+                                {m}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+
+                  {filteredViolations.length === 0 ? (
+                    <div className="p-8 text-center rounded-lg border border-dashed text-muted-foreground text-sm space-y-2">
+                      <ShieldCheck className="mx-auto h-8 w-8 text-emerald-500" />
+                      <p className="font-medium text-foreground">No attendance violations recorded</p>
+                      <p className="text-xs text-muted-foreground">This employee has maintained on-time attendance for the recorded period.</p>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border overflow-hidden bg-card">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Check-In</TableHead>
+                            <TableHead>Delay</TableHead>
+                            <TableHead>Violation Tier</TableHead>
+                            <TableHead>Occurrence in Month</TableHead>
+                            <TableHead className="text-right">Month</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredViolations.map((v) => (
+                            <TableRow key={v.id} className="hover:bg-muted/40">
+                              <TableCell className="font-medium">{v.date}</TableCell>
+                              <TableCell>{v.checkIn}</TableCell>
+                              <TableCell className="text-destructive font-medium">
+                                +{v.delayMinutes} mins
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  className={cn(
+                                    "font-bold text-xs border shadow-none",
+                                    v.tier === "T1" && "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200",
+                                    v.tier === "T2" && "bg-orange-100 text-orange-900 border-orange-300 dark:bg-orange-950 dark:text-orange-200",
+                                    v.tier === "T3" && "bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950 dark:text-rose-200",
+                                    v.tier === "T4" && "bg-red-100 text-red-900 border-red-300 dark:bg-red-950 dark:text-red-200"
+                                  )}
+                                >
+                                  {v.tier} ({v.tierDescription})
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="font-bold text-xs border-primary/40 bg-primary/10 text-primary">
+                                  {v.occurrenceDisplay}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right text-muted-foreground text-xs font-mono">
+                                {v.monthKey}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </>

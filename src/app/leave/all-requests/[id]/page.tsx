@@ -154,7 +154,14 @@ function LeaveRequestDetailContent() {
     if (!profile || !request) return false;
     const userRole = profile.role?.toLowerCase();
     if (userRole === 'admin' || userRole === 'hr') return true; // HR/Admin can always action
-    if (profile.email === request.currentApprover && request.status === 'Pending') return true;
+    if (
+      profile.email &&
+      request.currentApprover &&
+      profile.email.trim().toLowerCase() === request.currentApprover.trim().toLowerCase() &&
+      request.status === 'Pending'
+    ) {
+      return true;
+    }
     return false;
   }, [profile, request]);
 

@@ -9,11 +9,11 @@ import { logSystemEvent } from '@/lib/system-log';
 // --- HOLIDAY SETTINGS ---
 
 const HolidaySchema = z.object({
-  name: z.string().min(2, "Holiday name must be at least 2 characters long."),
+  name: z.string().trim().min(2, "Holiday name must be at least 2 characters long."),
   date: z.coerce.date({ required_error: "A valid date is required." }),
-  actorId: z.string().optional(),
-  actorEmail: z.string().optional(),
-  actorRole: z.string().optional(),
+  actorId: z.string().optional().nullable(),
+  actorEmail: z.string().optional().nullable(),
+  actorRole: z.string().optional().nullable(),
 });
 
 export type HolidayState = {
@@ -30,18 +30,28 @@ export async function addHolidayAction(
   prevState: HolidayState,
   formData: FormData
 ): Promise<HolidayState> {
+  const rawName = formData.get('name');
+  const rawDate = formData.get('date');
+  const rawActorId = formData.get('actorId');
+  const rawActorEmail = formData.get('actorEmail');
+  const rawActorRole = formData.get('actorRole');
+
   const validatedFields = HolidaySchema.safeParse({
-    name: formData.get('name'),
-    date: formData.get('date'),
-    actorId: formData.get('actorId'),
-    actorEmail: formData.get('actorEmail'),
-    actorRole: formData.get('actorRole'),
+    name: typeof rawName === 'string' ? rawName.trim() : rawName,
+    date: rawDate,
+    actorId: rawActorId || undefined,
+    actorEmail: rawActorEmail || undefined,
+    actorRole: rawActorRole || undefined,
   });
 
   if (!validatedFields.success) {
+    const fieldErrors = validatedFields.error.flatten().fieldErrors;
+    const errorMessages = Object.entries(fieldErrors)
+      .map(([field, msgs]) => `${field}: ${msgs?.join(', ')}`)
+      .join('; ');
     return {
-      errors: validatedFields.error.flatten().fieldErrors,
-      message: "Validation failed.",
+      errors: fieldErrors,
+      message: errorMessages ? `Validation failed: ${errorMessages}` : "Validation failed.",
       success: false,
     };
   }
@@ -59,6 +69,7 @@ export async function addHolidayAction(
     if (!existing.empty) {
       return {
         errors: { form: ["A holiday on this date already exists."] },
+        message: "A holiday on this date already exists.",
         success: false
       }
     }
@@ -69,7 +80,7 @@ export async function addHolidayAction(
       createdAt: serverTimestamp(),
     });
 
-    await logSystemEvent("Add Holiday", { actorId, actorEmail, actorRole, holidayName: name, holidayDate: date.toISOString().split('T')[0] });
+    await logSystemEvent("Add Holiday", { actorId: actorId ?? undefined, actorEmail: actorEmail ?? undefined, actorRole: actorRole ?? undefined, holidayName: name, holidayDate: date.toISOString().split('T')[0] });
 
     return { success: true, message: `Holiday "${name}" added successfully.` };
   } catch (error: any) {
@@ -83,9 +94,9 @@ export async function addHolidayAction(
 
 const DeleteHolidaySchema = z.object({
   holidayId: z.string().min(1, "Holiday ID is required."),
-  actorId: z.string().optional(),
-  actorEmail: z.string().optional(),
-  actorRole: z.string().optional(),
+  actorId: z.string().optional().nullable(),
+  actorEmail: z.string().optional().nullable(),
+  actorRole: z.string().optional().nullable(),
 });
 
 export async function deleteHolidayAction(
@@ -94,14 +105,15 @@ export async function deleteHolidayAction(
 ): Promise<HolidayState> {
   const validatedFields = DeleteHolidaySchema.safeParse({
     holidayId: formData.get('holidayId'),
-    actorId: formData.get('actorId'),
-    actorEmail: formData.get('actorEmail'),
-    actorRole: formData.get('actorRole'),
+    actorId: formData.get('actorId') || undefined,
+    actorEmail: formData.get('actorEmail') || undefined,
+    actorRole: formData.get('actorRole') || undefined,
   });
 
   if (!validatedFields.success) {
     return {
       errors: { form: ["Invalid Holiday ID."] },
+      message: "Invalid Holiday ID.",
       success: false,
     };
   }
@@ -110,7 +122,7 @@ export async function deleteHolidayAction(
 
   try {
     await deleteDoc(doc(db, "holidays", holidayId));
-    await logSystemEvent("Delete Holiday", { actorId, actorEmail, actorRole, holidayId });
+    await logSystemEvent("Delete Holiday", { actorId: actorId ?? undefined, actorEmail: actorEmail ?? undefined, actorRole: actorRole ?? undefined, holidayId });
     return { success: true, message: "Holiday deleted successfully." };
   } catch (error: any) {
     return {
@@ -131,9 +143,9 @@ export type WeekendSettingsState = {
 
 const WeekendSettingsSchema = z.object({
     weekend: z.array(z.string()),
-    actorId: z.string().optional(),
-    actorEmail: z.string().optional(),
-    actorRole: z.string().optional(),
+    actorId: z.string().optional().nullable(),
+    actorEmail: z.string().optional().nullable(),
+    actorRole: z.string().optional().nullable(),
 });
 
 // Action to update weekend settings
@@ -144,14 +156,15 @@ export async function updateWeekendSettingsAction(
   
   const validatedFields = WeekendSettingsSchema.safeParse({
       weekend: formData.getAll('weekend'),
-      actorId: formData.get('actorId'),
-      actorEmail: formData.get('actorEmail'),
-      actorRole: formData.get('actorRole'),
+      actorId: formData.get('actorId') || undefined,
+      actorEmail: formData.get('actorEmail') || undefined,
+      actorRole: formData.get('actorRole') || undefined,
   });
 
   if (!validatedFields.success) {
     return {
       errors: { form: ["Invalid data submitted for weekend days."] },
+      message: "Invalid data submitted for weekend days.",
       success: false,
     };
   }
@@ -162,6 +175,7 @@ export async function updateWeekendSettingsAction(
   if (weekendDays.some(isNaN)) {
      return {
       errors: { form: ["Invalid data submitted for weekend days."] },
+      message: "Invalid data submitted for weekend days.",
       success: false,
     };
   }
@@ -169,7 +183,7 @@ export async function updateWeekendSettingsAction(
   try {
     const settingsRef = doc(db, "settings", "weekend");
     await setDoc(settingsRef, { days: weekendDays }, { merge: true });
-    await logSystemEvent("Update Weekend Settings", { actorId, actorEmail, actorRole, newWeekendDays: weekendDays });
+    await logSystemEvent("Update Weekend Settings", { actorId: actorId ?? undefined, actorEmail: actorEmail ?? undefined, actorRole: actorRole ?? undefined, newWeekendDays: weekendDays });
     return { success: true, message: "Weekend settings updated successfully." };
   } catch (error: any) {
     return {
@@ -211,9 +225,9 @@ export type WorkdaySettingsState = {
 
 const WorkdaySettingsSchema = z.object({
     hours: z.coerce.number().positive("Hours must be a positive number.").min(1).max(24),
-    actorId: z.string().optional(),
-    actorEmail: z.string().optional(),
-    actorRole: z.string().optional(),
+    actorId: z.string().optional().nullable(),
+    actorEmail: z.string().optional().nullable(),
+    actorRole: z.string().optional().nullable(),
 });
 
 // Action to update workday settings
@@ -224,15 +238,19 @@ export async function updateWorkdaySettingsAction(
   
   const validatedFields = WorkdaySettingsSchema.safeParse({
     hours: formData.get('hours'),
-    actorId: formData.get('actorId'),
-    actorEmail: formData.get('actorEmail'),
-    actorRole: formData.get('actorRole'),
+    actorId: formData.get('actorId') || undefined,
+    actorEmail: formData.get('actorEmail') || undefined,
+    actorRole: formData.get('actorRole') || undefined,
   });
 
   if (!validatedFields.success) {
+    const fieldErrors = validatedFields.error.flatten().fieldErrors;
+    const errorMessages = Object.entries(fieldErrors)
+      .map(([field, msgs]) => `${field}: ${msgs?.join(', ')}`)
+      .join('; ');
     return {
-      errors: validatedFields.error.flatten().fieldErrors,
-      message: "Validation failed.",
+      errors: fieldErrors,
+      message: errorMessages ? `Validation failed: ${errorMessages}` : "Validation failed.",
       success: false,
     };
   }
@@ -242,7 +260,7 @@ export async function updateWorkdaySettingsAction(
   try {
     const settingsRef = doc(db, "settings", "workday");
     await setDoc(settingsRef, { standardHours: hours }, { merge: true });
-    await logSystemEvent("Update Workday Settings", { actorId, actorEmail, actorRole, newStandardHours: hours });
+    await logSystemEvent("Update Workday Settings", { actorId: actorId ?? undefined, actorEmail: actorEmail ?? undefined, actorRole: actorRole ?? undefined, newStandardHours: hours });
     return { success: true, message: "Workday settings updated successfully." };
   } catch (error: any) {
     return {
