@@ -30,9 +30,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       );
 
       const snap = await getDocs(q);
+      let docSnap = !snap.empty ? snap.docs[0] : null;
 
-      if (!snap.empty) {
-        const docSnap = snap.docs[0];
+      if (!docSnap && firebaseUser.email) {
+        try {
+          const qEmail = query(
+            collection(db, "employee"),
+            where("nisEmail", "==", firebaseUser.email),
+            limit(1)
+          );
+          const snapEmail = await getDocs(qEmail);
+          if (!snapEmail.empty) {
+            docSnap = snapEmail.docs[0];
+          }
+        } catch {
+          // Ignore fallback error
+        }
+      }
+
+      if (docSnap) {
         setProfile({
           id: docSnap.id,
           ...docSnap.data(),

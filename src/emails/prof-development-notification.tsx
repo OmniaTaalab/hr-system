@@ -2,7 +2,6 @@
 
 import {
   Body,
-  Button,
   Container,
   Head,
   Hr,
@@ -19,7 +18,7 @@ interface ProfDevelopmentNotificationEmailProps {
   employeeName: string;
   courseName: string;
   date: string;
-  submissionLink: string;
+  submissionLink?: string;
   reason?: string;
 }
 
@@ -30,7 +29,6 @@ export const ProfDevelopmentNotificationEmail = ({
   employeeName,
   courseName,
   date,
-  submissionLink,
   reason,
 }: ProfDevelopmentNotificationEmailProps) => (
   <Html>
@@ -56,11 +54,6 @@ export const ProfDevelopmentNotificationEmail = ({
             <Text style={reviewItem}><strong>Course/Training:</strong> {courseName}</Text>
             <Text style={reviewItem}><strong>Date:</strong> {date}</Text>
              {reason && <Text style={reviewItem}><strong>Notes:</strong> {reason}</Text>}
-        </Section>
-        <Section style={btnContainer}>
-          <Button style={button} href={submissionLink}>
-            Review Submission
-          </Button>
         </Section>
         <Hr style={hr} />
         <Text style={footer}>
@@ -92,23 +85,6 @@ const logo = {
 const paragraph = {
   fontSize: "16px",
   lineHeight: "26px",
-};
-
-const btnContainer = {
-  textAlign: "center" as const,
-  margin: "24px 0",
-};
-
-const button = {
-  backgroundColor: "#465975",
-  borderRadius: "5px",
-  color: "#fff",
-  fontSize: "16px",
-  fontWeight: "bold",
-  textDecoration: "none",
-  textAlign: "center" as const,
-  display: "inline-block",
-  padding: "12px 20px",
 };
 
 const hr = {

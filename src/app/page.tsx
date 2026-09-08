@@ -212,23 +212,23 @@ function DashboardPageContent() {
   const { toast } = useToast();
 
   // Dynamic greeting based on time of day:
-  // Before 12 PM: good morning
-  // 12 PM to 6 PM: good afternoon
-  // 6 PM to night: good evening
-  const [timeGreeting, setTimeGreeting] = useState<string>("good morning");
+  // Before 12 PM: Good morning
+  // 12 PM to 6 PM: Good afternoon
+  // 6 PM to night: Good evening
+  const [timeGreeting, setTimeGreeting] = useState<string>("Good morning");
   const [greetingPeriod, setGreetingPeriod] = useState<"morning" | "afternoon" | "evening">("morning");
 
   useEffect(() => {
     const updateGreeting = () => {
       const hour = new Date().getHours();
       if (hour < 12) {
-        setTimeGreeting("good morning");
+        setTimeGreeting("Good morning");
         setGreetingPeriod("morning");
       } else if (hour < 18) {
-        setTimeGreeting("good afternoon");
+        setTimeGreeting("Good afternoon");
         setGreetingPeriod("afternoon");
       } else {
-        setTimeGreeting("good evening");
+        setTimeGreeting("Good evening");
         setGreetingPeriod("evening");
       }
     };
@@ -238,20 +238,15 @@ function DashboardPageContent() {
   }, []);
 
   const userName = useMemo(() => {
-    if (profile?.name && typeof profile.name === "string") {
+    if (profile?.name && typeof profile.name === "string" && profile.name.trim()) {
       const parts = profile.name.trim().split(/\s+/);
-      if (parts[0]) return parts[0];
+      if (parts[0] && parts[0].toLowerCase() !== "omnia") return parts[0];
     }
-    if (user?.displayName && typeof user.displayName === "string") {
+    if (user?.displayName && typeof user.displayName === "string" && user.displayName.trim()) {
       const parts = user.displayName.trim().split(/\s+/);
-      if (parts[0]) return parts[0];
+      if (parts[0] && parts[0].toLowerCase() !== "omnia") return parts[0];
     }
-    if (user?.email) {
-      const prefix = user.email.split("@")[0];
-      const namePart = prefix.split(".")[0] || prefix;
-      return namePart.charAt(0).toUpperCase() + namePart.slice(1);
-    }
-    return "Omnia";
+    return "Nour";
   }, [profile, user]);
   
   const isPrivilegedUser = useMemo(() => {
@@ -775,7 +770,7 @@ function DashboardPageContent() {
             {greetingPeriod === "evening" && (
               <Moon className="h-8 w-8 text-indigo-400 flex-shrink-0" />
             )}
-            <span className="capitalize">{timeGreeting}</span> {userName} !
+            <span>{timeGreeting}</span> {userName} !
           </h1>
           <p className="text-muted-foreground text-base mt-1.5 font-normal">
             Let’s see what’s happening today .
@@ -783,20 +778,9 @@ function DashboardPageContent() {
         </div>
       </header>
 
-      <section aria-labelledby="statistics-title">
-        <h2 id="statistics-title" className="text-2xl font-semibold font-headline mb-4">
-          Key Statistics
-        </h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredStatisticCards.map((card) => (
-            <DashboardCard key={card.title} {...card} />
-          ))}
-        </div>
-      </section>
-
-      {/* Upcoming Holidays Section */}
-      <section aria-labelledby="holidays-title" className="mt-8">
-        <div className="flex items-center justify-between mb-4">
+      {/* 1. Upcoming Holidays Section - First in the dashboard */}
+      <section aria-labelledby="holidays-title" className="space-y-4">
+        <div className="flex items-center justify-between">
           <h2 id="holidays-title" className="text-2xl font-semibold font-headline flex items-center gap-2">
             <CalendarCheck2 className="h-6 w-6 text-primary" />
             Upcoming Holidays
@@ -910,6 +894,18 @@ function DashboardPageContent() {
             )}
           </CardContent>
         </Card>
+      </section>
+
+      {/* 2. Key Statistics Section */}
+      <section aria-labelledby="statistics-title">
+        <h2 id="statistics-title" className="text-2xl font-semibold font-headline mb-4">
+          Key Statistics
+        </h2>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredStatisticCards.map((card) => (
+            <DashboardCard key={card.title} {...card} />
+          ))}
+        </div>
       </section>
 
       {isPrivilegedUser && (

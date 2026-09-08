@@ -1,6 +1,5 @@
 import {
   Body,
-  Button,
   Container,
   Head,
   Hr,
@@ -25,7 +24,7 @@ export interface DocumentRequestEmailProps {
   requesterNote?: string;
   rejectionReason?: string;
   hrNotes?: string;
-  actionLink: string;
+  actionLink?: string;
 }
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -131,12 +130,6 @@ export const DocumentRequestNotificationEmail = ({
             )}
           </Section>
 
-          <Section style={btnContainer}>
-            <Button style={button} href={actionLink}>
-              {isForHr ? "Open HR Queue" : "View My Request Details"}
-            </Button>
-          </Section>
-
           <Hr style={hr} />
           <Text style={footer}>
             Nermin Ismail Schools - Human Resources Portal. For inquiries, please contact the HR office at your campus.
@@ -172,23 +165,6 @@ const paragraph = {
   fontSize: "15px",
   lineHeight: "24px",
   color: "#334155",
-};
-
-const btnContainer = {
-  textAlign: "center" as const,
-  margin: "24px 0",
-};
-
-const button = {
-  backgroundColor: "#0284c7",
-  borderRadius: "6px",
-  color: "#ffffff",
-  fontSize: "15px",
-  fontWeight: "bold",
-  textDecoration: "none",
-  textAlign: "center" as const,
-  display: "inline-block",
-  padding: "12px 24px",
 };
 
 const hr = {

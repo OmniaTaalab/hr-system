@@ -2,7 +2,6 @@
 
 import {
   Body,
-  Button,
   Container,
   Head,
   Hr,
@@ -21,7 +20,7 @@ interface LeaveRequestNotificationEmailProps {
   startDate: string;
   endDate: string;
   reason: string;
-  leaveRequestLink: string;
+  leaveRequestLink?: string;
 }
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -33,7 +32,6 @@ export const LeaveRequestNotificationEmail = ({
   startDate,
   endDate,
   reason,
-  leaveRequestLink,
 }: LeaveRequestNotificationEmailProps) => (
   <Html>
     <Head />
@@ -58,11 +56,6 @@ export const LeaveRequestNotificationEmail = ({
             <Text style={reviewItem}><strong>Leave Type:</strong> {leaveType}</Text>
             <Text style={reviewItem}><strong>Dates:</strong> {startDate} to {endDate}</Text>
             <Text style={reviewItem}><strong>Reason:</strong> {reason}</Text>
-        </Section>
-        <Section style={btnContainer}>
-          <Button style={button} href={leaveRequestLink}>
-            Review Request
-          </Button>
         </Section>
         <Hr style={hr} />
         <Text style={footer}>
@@ -94,23 +87,6 @@ const logo = {
 const paragraph = {
   fontSize: "16px",
   lineHeight: "26px",
-};
-
-const btnContainer = {
-  textAlign: "center" as const,
-  margin: "24px 0",
-};
-
-const button = {
-  backgroundColor: "#465975",
-  borderRadius: "5px",
-  color: "#fff",
-  fontSize: "16px",
-  fontWeight: "bold",
-  textDecoration: "none",
-  textAlign: "center" as const,
-  display: "inline-block",
-  padding: "12px 20px",
 };
 
 const hr = {
