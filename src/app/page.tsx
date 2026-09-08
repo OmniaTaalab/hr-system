@@ -778,42 +778,36 @@ function DashboardPageContent() {
         </div>
       </header>
 
-      {/* 1. Upcoming Holidays Section - First in the dashboard */}
-      <section aria-labelledby="holidays-title" className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 id="holidays-title" className="text-2xl font-semibold font-headline flex items-center gap-2">
-            <CalendarCheck2 className="h-6 w-6 text-primary" />
-            Upcoming Holidays
-            {upcomingHolidays.length > 0 && (
+      {/* 1. Upcoming Holidays Section - Only shown when there are upcoming holidays */}
+      {upcomingHolidays.length > 0 && (
+        <section aria-labelledby="holidays-title" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 id="holidays-title" className="text-2xl font-semibold font-headline flex items-center gap-2">
+              <CalendarCheck2 className="h-6 w-6 text-primary" />
+              Upcoming Holidays
               <span className="ml-2 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                 {upcomingHolidays.length} upcoming
               </span>
+            </h2>
+            {isPrivilegedUser && (
+              <Button asChild variant="outline" size="sm" className="gap-1.5 hover:border-primary/40">
+                <Link href="/settings/general">
+                  <PlusCircle className="h-4 w-4 text-primary" />
+                  Manage Holidays
+                </Link>
+              </Button>
             )}
-          </h2>
-          {isPrivilegedUser && (
-            <Button asChild variant="outline" size="sm" className="gap-1.5 hover:border-primary/40">
-              <Link href="/settings/general">
-                <PlusCircle className="h-4 w-4 text-primary" />
-                Manage Holidays
-              </Link>
-            </Button>
-          )}
-        </div>
+          </div>
 
-        <Card className="group relative overflow-hidden rounded-xl border border-border/70 bg-card p-0 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.01] hover:shadow-xl hover:shadow-primary/15 hover:border-primary/50 hover:ring-2 hover:ring-primary/20">
-          <div className="pointer-events-none absolute -inset-px rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-b from-primary/10 via-primary/5 to-transparent" />
-          <CardHeader className="relative pb-3 border-b bg-muted/20">
-            <CardTitle className="font-headline text-lg">Official School & National Holidays</CardTitle>
-            <CardDescription>
-              Holidays automatically appear here when added and are automatically removed once concluded.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="relative p-4 sm:p-6">
-            {isLoadingHolidays ? (
-              <div className="flex justify-center items-center h-28">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : upcomingHolidays.length > 0 ? (
+          <Card className="group relative overflow-hidden rounded-xl border border-border/70 bg-card p-0 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.01] hover:shadow-xl hover:shadow-primary/15 hover:border-primary/50 hover:ring-2 hover:ring-primary/20">
+            <div className="pointer-events-none absolute -inset-px rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-b from-primary/10 via-primary/5 to-transparent" />
+            <CardHeader className="relative pb-3 border-b bg-muted/20">
+              <CardTitle className="font-headline text-lg">Official School & National Holidays</CardTitle>
+              <CardDescription>
+                Holidays automatically appear here when added and are automatically removed once concluded.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="relative p-4 sm:p-6">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {upcomingHolidays.map((holiday) => {
                   const hDate = holiday.date?.toDate ? holiday.date.toDate() : new Date(holiday.date);
@@ -875,26 +869,10 @@ function DashboardPageContent() {
                   );
                 })}
               </div>
-            ) : (
-              <div className="text-center py-8 px-4 border border-dashed rounded-lg bg-muted/10">
-                <CalendarCheck2 className="mx-auto h-9 w-9 text-muted-foreground/60 mb-2" />
-                <p className="text-sm font-medium text-foreground">No upcoming holidays scheduled</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  New holidays added from Settings will immediately appear here.
-                </p>
-                {isPrivilegedUser && (
-                  <Button asChild variant="outline" size="sm" className="mt-3 gap-1.5">
-                    <Link href="/settings/general">
-                      <PlusCircle className="h-4 w-4 text-primary" />
-                      Add Holiday
-                    </Link>
-                  </Button>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       {/* 2. Key Statistics Section */}
       <section aria-labelledby="statistics-title">
