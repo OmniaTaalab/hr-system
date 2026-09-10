@@ -212,7 +212,19 @@ function LeaveRequestDetailContent() {
                 <DetailItem icon={User} label="Employee" value={request.employeeName} />
                 <DetailItem icon={FileText} label="Leave Type" value={request.leaveType} />
                 <DetailItem icon={CalendarIcon} label="Dates" value={`${format(request.startDate.toDate(), "PPP")} to ${format(request.endDate.toDate(), "PPP")}`} />
-                <DetailItem icon={Hourglass} label="Duration" value={`${request.numberOfDays ?? 0} working day(s)`} />
+                <DetailItem
+                  icon={Hourglass}
+                  label="Duration"
+                  value={
+                    (request as any).hoursPerDay === 1 ||
+                    (request as any).isHourly ||
+                    (request.leaveType || "").toLowerCase().includes("hour") ||
+                    (request.leaveType || "").toLowerCase().includes("ساعة") ||
+                    (request.leaveType || "").toLowerCase().includes("رضاعة")
+                      ? `${request.numberOfDays ?? 0} working day(s) • 1 hour/day (${request.numberOfDays ?? 0}h total)`
+                      : ((request as any).durationText || `${request.numberOfDays ?? 0} working day(s)`)
+                  }
+                />
                 <DetailItem icon={Info} label="Status">
                    <LeaveStatusBadge status={request.status} />
                 </DetailItem>

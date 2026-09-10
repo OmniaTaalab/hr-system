@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Send, Loader2, AlertTriangle } from "lucide-react";
+import { CalendarIcon, Send, Loader2, AlertTriangle, Clock } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
@@ -42,7 +42,15 @@ function LeaveRequestForm() {
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [selectedLeaveType, setSelectedLeaveType] = useState<string>("");
 
-  const isMaternity = selectedLeaveType.trim().toLowerCase().includes("maternity");
+  const lowerSelectedType = selectedLeaveType.trim().toLowerCase();
+  const isMaternityHour =
+    lowerSelectedType.includes("hour") ||
+    lowerSelectedType.includes("ساعة") ||
+    lowerSelectedType.includes("ساعه") ||
+    lowerSelectedType.includes("رضاعة") ||
+    lowerSelectedType.includes("رعاية");
+
+  const isFullMaternity = !isMaternityHour && lowerSelectedType.includes("maternity");
 
   const calculateMaternityEndDate = (start: Date): Date => {
     const end = new Date(start);
@@ -52,16 +60,29 @@ function LeaveRequestForm() {
 
   const handleLeaveTypeChange = (val: string) => {
     setSelectedLeaveType(val);
-    if (val.trim().toLowerCase().includes("maternity") && startDate) {
+    const lower = val.trim().toLowerCase();
+    const isHour =
+      lower.includes("hour") ||
+      lower.includes("ساعة") ||
+      lower.includes("ساعه") ||
+      lower.includes("رضاعة") ||
+      lower.includes("رعاية");
+    const isFull = !isHour && lower.includes("maternity");
+
+    if (isFull && startDate) {
       setEndDate(calculateMaternityEndDate(startDate));
+    } else if (isHour && startDate && (!endDate || endDate.getTime() === calculateMaternityEndDate(startDate).getTime())) {
+      setEndDate(startDate);
     }
   };
 
   const handleStartDateSelect = (d: Date | undefined) => {
     setStartDate(d);
     setIsStartDatePickerOpen(false);
-    if (d && isMaternity) {
+    if (d && isFullMaternity) {
       setEndDate(calculateMaternityEndDate(d));
+    } else if (d && !endDate) {
+      setEndDate(d);
     }
   };
 
@@ -155,9 +176,16 @@ function LeaveRequestForm() {
     if (startDate) formData.set("startDate", startDate.toISOString());
     if (endDate) {
       formData.set("endDate", endDate.toISOString());
-    } else if (isMaternity && startDate) {
+    } else if (isFullMaternity && startDate) {
       const autoEnd = calculateMaternityEndDate(startDate);
       formData.set("endDate", autoEnd.toISOString());
+    } else if (startDate) {
+      formData.set("endDate", startDate.toISOString());
+    }
+
+    if (isMaternityHour) {
+      formData.set("hoursPerDay", "1");
+      formData.set("maternityCalculationMode", "1_hour_per_day");
     }
   
     // File Upload
@@ -248,7 +276,21 @@ function LeaveRequestForm() {
             </SelectContent>
           </Select>
 
-          {isMaternity && (
+          {isMaternityHour && (
+            <div className="rounded-md border border-sky-500/25 bg-sky-50/70 dark:bg-sky-950/30 p-3.5 text-xs md:text-sm text-sky-900 dark:text-sky-200">
+              <div className="flex items-center gap-2 font-semibold">
+                <Clock className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                <span>Maternity Hour (1 Hour / Day) • ساعة رعاية طفل / رضاعة</span>
+              </div>
+              <p className="text-muted-foreground mt-1">
+                يحسب هذا الطلب ساعة واحدة فقط في اليوم (1 hour/day) عن كل يوم عمل ضمن الفترة المحددة، دون احتساب غياب كامل للموظفة.
+                <br />
+                Calculates 1 hour off per working day between the selected start and end dates.
+              </p>
+            </div>
+          )}
+
+          {isFullMaternity && (
             <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-xs md:text-sm text-primary">
               <p className="font-semibold">Maternity Leave (120 Days)</p>
               <p className="text-muted-foreground mt-0.5">
@@ -305,13 +347,19 @@ function LeaveRequestForm() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>End Date</Label>
-              {isMaternity && (
+              {isMaternityHour && (
+                <span className="text-xs font-semibold text-sky-700 bg-sky-100 dark:bg-sky-900/40 dark:text-sky-300 px-2 py-0.5 rounded flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  1 Hour / Day (ساعة يومياً)
+                </span>
+              )}
+              {isFullMaternity && (
                 <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
                   120 Days (Auto)
                 </span>
               )}
             </div>
-            {isMaternity ? (
+            {isFullMaternity ? (
               <Button
                 type="button"
                 variant="outline"
@@ -355,6 +403,14 @@ function LeaveRequestForm() {
                   />
                 </PopoverContent>
               </Popover>
+            )}
+
+            {isMaternityHour && startDate && (
+              <p className="text-xs text-muted-foreground">
+                {endDate && endDate > startDate
+                  ? `Calculates 1 hour off per working day from ${format(startDate, "PP")} to ${format(endDate, "PP")}.`
+                  : `Calculates 1 hour off on ${format(startDate, "PP")}.`}
+              </p>
             )}
 
             {serverState?.errors?.endDate && (

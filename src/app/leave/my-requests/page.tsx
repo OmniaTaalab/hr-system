@@ -393,6 +393,10 @@ function MyRequestsContent() {
 
     let maternityApprovedDays = 0;
     let maternityPendingDays = 0;
+    let maternityHourApprovedDays = 0;
+    let maternityHourApprovedHours = 0;
+    let maternityHourPendingDays = 0;
+    let maternityHourPendingHours = 0;
 
     allUserLeaveRequests.forEach((leave) => {
       const status = leave.status;
@@ -471,7 +475,7 @@ function MyRequestsContent() {
         }
       }
 
-      // 4. Maternity Leave (120 days if female)
+      // 4. Maternity Leave & Maternity Hour (1 hour per day)
       const isMaternity =
         typeLower.includes("maternity") ||
         typeLower.includes("وضع") ||
@@ -479,7 +483,32 @@ function MyRequestsContent() {
         typeLower.includes("امومة") ||
         typeLower.includes("ولادة");
 
-      if (isMaternity) {
+      const isMaternityHour =
+        isMaternity &&
+        (typeLower.includes("hour") ||
+          typeLower.includes("ساعة") ||
+          typeLower.includes("ساعه") ||
+          typeLower.includes("رضاعة") ||
+          typeLower.includes("رعاية") ||
+          (leave as any).hoursPerDay === 1 ||
+          (leave as any).isHourly === true);
+
+      const isFullMaternity = isMaternity && !isMaternityHour;
+
+      if (isMaternityHour) {
+        const workingDays =
+          typeof (leave as any).numberOfDays === "number" && (leave as any).numberOfDays > 0
+            ? (leave as any).numberOfDays
+            : 1;
+        const hours = (leave as any).durationHours ?? workingDays * 1;
+        if (status === "Approved") {
+          maternityHourApprovedDays += workingDays;
+          maternityHourApprovedHours += hours;
+        } else if (status === "Pending") {
+          maternityHourPendingDays += workingDays;
+          maternityHourPendingHours += hours;
+        }
+      } else if (isFullMaternity) {
         const days =
           typeof (leave as any).numberOfDays === "number" && (leave as any).numberOfDays > 0
             ? (leave as any).numberOfDays
@@ -544,6 +573,12 @@ function MyRequestsContent() {
         pendingDays: maternityPendingDays,
         totalUsedDays: maternityTotalUsed,
         remainingDays: maternityRemaining,
+        // Maternity hour (1 hour per day)
+        hourApprovedDays: maternityHourApprovedDays,
+        hourApprovedHours: maternityHourApprovedHours,
+        hourPendingDays: maternityHourPendingDays,
+        hourPendingHours: maternityHourPendingHours,
+        hourTotalHours: maternityHourApprovedHours + maternityHourPendingHours,
       },
     };
   }, [allUserLeaveRequests, currentMonthDate, academicTerm, employeeGender, currentEmployee?.gender]);
@@ -888,20 +923,28 @@ function MyRequestsContent() {
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between text-xs">
+                  <div className="mt-4 pt-3 border-t border-border/60 flex flex-col gap-1 text-xs">
                     {leaveBalances.maternity.isEligible ? (
                       <>
-                        <span className="text-muted-foreground">
-                          Used: <strong className="text-foreground font-medium">{leaveBalances.maternity.totalUsedDays} day(s)</strong>
-                          {leaveBalances.maternity.pendingDays > 0 && (
-                            <span className="text-amber-600 dark:text-amber-400 font-normal ml-1">
-                              ({leaveBalances.maternity.pendingDays} pending)
-                            </span>
-                          )}
-                        </span>
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-emerald-600 border-emerald-300 dark:text-emerald-400">
-                          Eligible
-                        </Badge>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">
+                            Full Leave: <strong className="text-foreground font-medium">{leaveBalances.maternity.totalUsedDays} day(s)</strong>
+                            {leaveBalances.maternity.pendingDays > 0 && (
+                              <span className="text-amber-600 dark:text-amber-400 font-normal ml-1">
+                                ({leaveBalances.maternity.pendingDays} pending)
+                              </span>
+                            )}
+                          </span>
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-emerald-600 border-emerald-300 dark:text-emerald-400">
+                            Eligible
+                          </Badge>
+                        </div>
+                        {leaveBalances.maternity.hourTotalHours > 0 && (
+                          <div className="text-[11px] text-sky-700 dark:text-sky-400 font-medium">
+                            Maternity Hour: {leaveBalances.maternity.hourApprovedHours}h ({leaveBalances.maternity.hourApprovedDays} days @ 1h/day)
+                            {leaveBalances.maternity.hourPendingHours > 0 && ` • ${leaveBalances.maternity.hourPendingHours}h pending`}
+                          </div>
+                        )}
                       </>
                     ) : (
                       <>
@@ -1111,12 +1154,25 @@ function MyRequestsContent() {
                         const startDate = request.startDate.toDate();
                         const endDate = request.endDate.toDate();
                         const daysInSelectedMonth = calculateLeaveDaysInMonth(startDate, endDate, startOfMonth(currentMonthDate), endOfMonth(currentMonthDate));
+                        const isMaternityHour =
+                          (request as any).hoursPerDay === 1 ||
+                          (request as any).isHourly === true ||
+                          (request.leaveType || "").toLowerCase().includes("hour") ||
+                          (request.leaveType || "").toLowerCase().includes("ساعة") ||
+                          (request.leaveType || "").toLowerCase().includes("ساعه") ||
+                          (request.leaveType || "").toLowerCase().includes("رضاعة") ||
+                          (request.leaveType || "").toLowerCase().includes("رعاية");
+
                         return (
                           <TableRow key={request.id}>
                             <TableCell>{request.leaveType}</TableCell>
                             <TableCell>{request.startDate ? format(startDate, "PPP") : "-"}</TableCell>
                             <TableCell>{request.endDate ? format(endDate, "PPP") : "-"}</TableCell>
-                            <TableCell>{daysInSelectedMonth > 0 ? daysInSelectedMonth : "-"}</TableCell>
+                            <TableCell>
+                              {isMaternityHour
+                                ? `${daysInSelectedMonth > 0 ? daysInSelectedMonth : (request.numberOfDays ?? 1)}d (1h/d)`
+                                : (daysInSelectedMonth > 0 ? daysInSelectedMonth : "-")}
+                            </TableCell>
                             <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
                             <TableCell>{request.submittedAt ? format(request.submittedAt.toDate(), "PPP p") : "-"}</TableCell>
                             <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>

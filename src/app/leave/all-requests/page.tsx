@@ -552,7 +552,15 @@ function AllLeaveRequestsContent() {
                         <TableCell>{r.leaveType}</TableCell>
                         <TableCell>{format(r.startDate.toDate(), "PPP")}</TableCell>
                         <TableCell>{format(r.endDate.toDate(), "PPP")}</TableCell>
-                        <TableCell>{r.numberOfDays ?? 0}</TableCell>
+                        <TableCell>
+                          {(r as any).hoursPerDay === 1 ||
+                          (r as any).isHourly ||
+                          (r.leaveType || "").toLowerCase().includes("hour") ||
+                          (r.leaveType || "").toLowerCase().includes("ساعة") ||
+                          (r.leaveType || "").toLowerCase().includes("رضاعة")
+                            ? `${r.numberOfDays ?? 0} d (1h/d)`
+                            : (r.numberOfDays ?? 0)}
+                        </TableCell>
                         <TableCell>
                           <LeaveStatusBadge status={r.status} />
                         </TableCell>

@@ -172,16 +172,32 @@ if (leaveType === "Late Arrival" || leaveType === "Early Dismissal") {
     const employeeData = employeeSnap.data();
     const employeeName = employeeData.name ?? "Unknown Employee";
 
-    const isMaternity = leaveType.trim().toLowerCase().includes("maternity");
+    const lowerLeaveType = leaveType.trim().toLowerCase();
+    const isMaternityHour =
+      lowerLeaveType.includes("hour") ||
+      lowerLeaveType.includes("ساعة") ||
+      lowerLeaveType.includes("ساعه") ||
+      lowerLeaveType.includes("رضاعة") ||
+      lowerLeaveType.includes("رعاية") ||
+      formData.get('hoursPerDay') === '1' ||
+      formData.get('maternityCalculationMode') === '1_hour_per_day';
+
+    const isFullMaternity =
+      !isMaternityHour &&
+      lowerLeaveType.includes("maternity");
+
     let effectiveEndDate = endDate;
-    if (isMaternity) {
-      // Maternity Leave is legally 120 calendar days inclusive
+    if (isFullMaternity) {
+      // Full Maternity Leave (120 calendar days inclusive)
       const computedEnd = new Date(startDate);
       computedEnd.setDate(computedEnd.getDate() + 119);
       effectiveEndDate = computedEnd;
     }
 
-    const numberOfDays = isMaternity ? 120 : await calculateWorkingDays(startDate, effectiveEndDate);
+    const workingDays = await calculateWorkingDays(startDate, effectiveEndDate);
+    const numberOfDays = isFullMaternity ? 120 : workingDays;
+    const hoursPerDay = isMaternityHour ? 1 : null;
+    const durationHours = isMaternityHour ? workingDays * 1 : null;
 
     const newRequestRef = await addDoc(collection(db, "leaveRequests"), {
       requestingEmployeeDocId,
@@ -200,6 +216,12 @@ if (leaveType === "Late Arrival" || leaveType === "Early Dismissal") {
       reason,
       attachmentURL: attachmentURL ?? null,
       numberOfDays,
+      hoursPerDay: hoursPerDay ?? null,
+      durationHours: durationHours ?? null,
+      isHourly: isMaternityHour,
+      durationText: isMaternityHour
+        ? `${workingDays} working day(s) (1 hour/day = ${durationHours}h total)`
+        : `${numberOfDays} day(s)`,
       status: "Pending",
       submittedAt: serverTimestamp(),
       managerNotes: "",
@@ -467,9 +489,20 @@ export async function updateLeaveRequestStatusAction(
         isFinalDecision = true;
         finalStatus = "Approved";
 
-        // When Maternity Leave is approved, guarantee 120 calendar days duration so no absence is counted
-        const isMaternity = (requestData.leaveType || "").trim().toLowerCase().includes("maternity");
-        if (isMaternity && requestData.startDate?.toDate) {
+        // When Full Maternity Leave is approved (not Maternity Hour), guarantee 120 calendar days duration
+        const reqLower = (requestData.leaveType || "").trim().toLowerCase();
+        const isMaternityHour =
+          requestData.hoursPerDay === 1 ||
+          requestData.isHourly === true ||
+          reqLower.includes("hour") ||
+          reqLower.includes("ساعة") ||
+          reqLower.includes("ساعه") ||
+          reqLower.includes("رضاعة") ||
+          reqLower.includes("رعاية");
+
+        const isFullMaternity = !isMaternityHour && reqLower.includes("maternity");
+
+        if (isFullMaternity && requestData.startDate?.toDate) {
           const start = requestData.startDate.toDate();
           const computedEnd = new Date(start);
           computedEnd.setDate(computedEnd.getDate() + 119);
@@ -589,15 +622,27 @@ export async function editLeaveRequestAction(
   const { requestId, leaveType, startDate, endDate, reason, status, actorId, actorEmail, actorRole } = validatedFields.data;
 
   try {
-    const isMaternity = leaveType.trim().toLowerCase().includes("maternity");
+    const lowerLeaveType = leaveType.trim().toLowerCase();
+    const isMaternityHour =
+      lowerLeaveType.includes("hour") ||
+      lowerLeaveType.includes("ساعة") ||
+      lowerLeaveType.includes("ساعه") ||
+      lowerLeaveType.includes("رضاعة") ||
+      lowerLeaveType.includes("رعاية");
+
+    const isFullMaternity = !isMaternityHour && lowerLeaveType.includes("maternity");
+
     let effectiveEndDate = endDate;
-    if (isMaternity) {
+    if (isFullMaternity) {
       const computedEnd = new Date(startDate);
       computedEnd.setDate(computedEnd.getDate() + 119);
       effectiveEndDate = computedEnd;
     }
 
-    const numberOfDays = isMaternity ? 120 : await calculateWorkingDays(startDate, effectiveEndDate);
+    const workingDays = await calculateWorkingDays(startDate, effectiveEndDate);
+    const numberOfDays = isFullMaternity ? 120 : workingDays;
+    const hoursPerDay = isMaternityHour ? 1 : null;
+    const durationHours = isMaternityHour ? workingDays * 1 : null;
 
     const requestRef = doc(db, "leaveRequests", requestId);
     await updateDoc(requestRef, {
@@ -607,6 +652,12 @@ export async function editLeaveRequestAction(
       reason,
       status,
       numberOfDays, // Recalculate and update working days
+      hoursPerDay: hoursPerDay ?? null,
+      durationHours: durationHours ?? null,
+      isHourly: isMaternityHour,
+      durationText: isMaternityHour
+        ? `${workingDays} working day(s) (1 hour/day = ${durationHours}h total)`
+        : `${numberOfDays} day(s)`,
       updatedAt: serverTimestamp(),
     });
 
