@@ -238,15 +238,42 @@ function DashboardPageContent() {
   }, []);
 
   const userName = useMemo(() => {
-    if (profile?.name && typeof profile.name === "string" && profile.name.trim()) {
-      const parts = profile.name.trim().split(/\s+/);
-      if (parts[0] && parts[0].toLowerCase() !== "omnia") return parts[0];
+    // 1. Dynamic name from employee profile
+    const rawProfileName =
+      profile?.name ||
+      profile?.fullName ||
+      profile?.firstName ||
+      profile?.displayName;
+
+    if (typeof rawProfileName === "string" && rawProfileName.trim()) {
+      const trimmed = rawProfileName.trim();
+      const parts = trimmed.split(/\s+/);
+      if (["dr.", "mr.", "ms.", "mrs.", "eng.", "د.", "د/."].includes(parts[0].toLowerCase()) && parts[1]) {
+        return `${parts[0]} ${parts[1]}`;
+      }
+      return parts[0];
     }
+
+    // 2. Dynamic name from Firebase Auth displayName
     if (user?.displayName && typeof user.displayName === "string" && user.displayName.trim()) {
-      const parts = user.displayName.trim().split(/\s+/);
-      if (parts[0] && parts[0].toLowerCase() !== "omnia") return parts[0];
+      const trimmed = user.displayName.trim();
+      const parts = trimmed.split(/\s+/);
+      if (["dr.", "mr.", "ms.", "mrs.", "eng.", "د.", "د/."].includes(parts[0].toLowerCase()) && parts[1]) {
+        return `${parts[0]} ${parts[1]}`;
+      }
+      return parts[0];
     }
-    return "Nour";
+
+    // 3. Fallback name from user email
+    if (user?.email && typeof user.email === "string") {
+      const emailPrefix = user.email.split("@")[0] || "";
+      const firstPart = emailPrefix.split(/[._-]/)[0];
+      if (firstPart) {
+        return firstPart.charAt(0).toUpperCase() + firstPart.slice(1);
+      }
+    }
+
+    return "";
   }, [profile, user]);
   
   const isPrivilegedUser = useMemo(() => {
@@ -770,7 +797,7 @@ function DashboardPageContent() {
             {greetingPeriod === "evening" && (
               <Moon className="h-8 w-8 text-indigo-400 flex-shrink-0" />
             )}
-            <span>{timeGreeting}</span> {userName} !
+            <span>{timeGreeting}</span>{userName ? ` ${userName}` : ""} !
           </h1>
           <p className="text-muted-foreground text-base mt-1.5 font-normal">
             Let’s see what’s happening today .
