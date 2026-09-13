@@ -27,7 +27,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall, UserRoundCheck, X, Plus } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall, UserRoundCheck, X, Plus, CheckCircle2, Copy } from "lucide-react";
 import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback, useTransition, Suspense } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -130,6 +130,8 @@ const initialCreateEmployeeState: CreateEmployeeState = {
   message: null,
   errors: {},
   success: false,
+  employeeId: undefined,
+  employeeName: undefined,
 };
 
 const initialEditEmployeeState: UpdateEmployeeState = {
@@ -207,7 +209,11 @@ function safeToDate(timestamp: any): Date | undefined {
 
 
 // Internal component for Add Employee Form
-function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
+function AddEmployeeFormContent({
+  onSuccess,
+}: {
+  onSuccess: (result: { employeeId: string; name: string }) => void;
+}) {
   const { toast } = useToast();
   const { profile } = useUserProfile();
   const [addState, addAction, isAddPending] = useActionState(createEmployeeAction, initialCreateEmployeeState);
@@ -219,17 +225,26 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
   const [positionClass, setPositionClass] = useState<string | undefined>(undefined);
   const [reportLineCount, setReportLineCount] = useState(2);
   const addFormRef = useRef<HTMLFormElement>(null);
+  const lastHandledAddStateRef = useRef<CreateEmployeeState | null>(null);
 
   useEffect(() => {
-    if (addState.message) {
-      toast({
-        title: addState.success ? "Success" : "Error",
-        description: addState.message,
-        variant: addState.success ? "default" : "destructive",
+    if (lastHandledAddStateRef.current === addState) return;
+    lastHandledAddStateRef.current = addState;
+
+    if (addState.success && addState.employeeId) {
+      onSuccess({
+        employeeId: addState.employeeId,
+        name: addState.employeeName || "",
       });
-      if (addState.success) {
-        onSuccess(); // Close dialog on success
-      }
+      return;
+    }
+
+    if (addState.message && !addState.success) {
+      toast({
+        title: "Error",
+        description: addState.message,
+        variant: "destructive",
+      });
     }
   }, [addState, toast, onSuccess]);
 
@@ -317,9 +332,17 @@ function AddEmployeeFormContent({ onSuccess }: { onSuccess: () => void }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="add-employeeId">Employee ID *</Label>
-                    <Input id="add-employeeId" name="employeeId" required />
-                    {addState?.errors?.employeeId && <p className="text-sm text-destructive">{addState.errors.employeeId.join(', ')}</p>}
+                    <Label htmlFor="add-employeeId">Employee ID</Label>
+                    <Input
+                      id="add-employeeId"
+                      value="Assigned automatically"
+                      disabled
+                      readOnly
+                      className="bg-muted"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      A unique 4-digit ID is generated when you add this employee.
+                    </p>
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="add-nisEmail">NIS Email *</Label>
@@ -1004,6 +1027,14 @@ export default function EmployeeManagementContent() {
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [addFormKey, setAddFormKey] = useState(0);
+  const [createdEmployee, setCreatedEmployee] = useState<{ employeeId: string; name: string } | null>(null);
+  const [copiedEmployeeId, setCopiedEmployeeId] = useState(false);
+  const handleEmployeeCreated = useCallback((result: { employeeId: string; name: string }) => {
+    setIsAddDialogOpen(false);
+    setCopiedEmployeeId(false);
+    setCreatedEmployee(result);
+  }, []);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   
@@ -1586,7 +1617,13 @@ export default function EmployeeManagementContent() {
                           </>
                         )}
                         {(userRole === 'admin' || userRole === 'hr') && (
-                          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                          <Dialog
+                            open={isAddDialogOpen}
+                            onOpenChange={(open) => {
+                              setIsAddDialogOpen(open);
+                              if (open) setAddFormKey((key) => key + 1);
+                            }}
+                          >
                             <DialogTrigger asChild>
                               <Button className="w-full">
                                   <PlusCircle className="mr-2 h-4 w-4" />
@@ -1594,7 +1631,7 @@ export default function EmployeeManagementContent() {
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-3xl">
-                              <AddEmployeeFormContent onSuccess={() => setIsAddDialogOpen(false)} />
+                              <AddEmployeeFormContent key={addFormKey} onSuccess={handleEmployeeCreated} />
                             </DialogContent>
                           </Dialog>
                         )}
@@ -1893,6 +1930,53 @@ export default function EmployeeManagementContent() {
         )}
       </Card>
       
+      <AlertDialog
+        open={!!createdEmployee}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreatedEmployee(null);
+            setCopiedEmployeeId(false);
+          }
+        }}
+      >
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader className="items-center text-center sm:text-center">
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <CheckCircle2 className="h-6 w-6" />
+            </div>
+            <AlertDialogTitle>Employee added successfully</AlertDialogTitle>
+            <AlertDialogDescription>
+              {createdEmployee?.name
+                ? `${createdEmployee.name} has been added to the system.`
+                : "The employee has been added to the system."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="rounded-md border bg-muted/50 px-4 py-3 text-center">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Employee ID</p>
+            <p className="mt-1 font-mono text-2xl font-semibold tracking-wide">{createdEmployee?.employeeId}</p>
+          </div>
+          <AlertDialogFooter className="sm:justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={async () => {
+                if (!createdEmployee?.employeeId) return;
+                try {
+                  await navigator.clipboard.writeText(createdEmployee.employeeId);
+                  setCopiedEmployeeId(true);
+                } catch {
+                  setCopiedEmployeeId(false);
+                }
+              }}
+            >
+              <Copy className="mr-2 h-4 w-4" />
+              {copiedEmployeeId ? "Copied" : "Copy ID"}
+            </Button>
+            <AlertDialogAction>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {isEditDialogOpen && editingEmployee && (
         <AlertDialog open={isEditDialogOpen} onOpenChange={(open) => { if(!open) closeEditDialog(); else setIsEditDialogOpen(true); }}>
           <AlertDialogContent className="max-w-2xl">
