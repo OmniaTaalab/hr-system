@@ -15,7 +15,7 @@ import {
   reauthenticateWithCredential,
   updatePassword 
 } from "firebase/auth";
-import { collection, query, where, getDocs, limit, type Timestamp, onSnapshot, orderBy, addDoc, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, type Timestamp, onSnapshot, orderBy, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { format, getYear, getMonth, getDate, startOfYear, endOfYear, eachDayOfInterval, startOfDay } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -726,8 +726,9 @@ export function AttendanceChartCard({ employeeDocId, employeeId, onScoreCalculat
 }
 
 export default function ProfilePage() {
-  const [employeeProfile, setEmployeeProfile] = useState<EmployeeProfile | null>(null);
-  const [authUser, setAuthUser] = useState<User | null>(null);
+  const { profile: appProfile, user: appUser } = useUserProfile();
+  const [employeeProfile, setEmployeeProfile] = useState<EmployeeProfile | null>((appProfile as EmployeeProfile) || null);
+  const [authUser, setAuthUser] = useState<User | null>(appUser || null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateProfileDialog, setShowCreateProfileDialog] = useState(false);
@@ -796,44 +797,158 @@ export default function ProfilePage() {
 
 
   useEffect(() => {
+    let unsubscribeSnapshot: (() => void) | null = null;
+
+    if (appProfile) {
+      setEmployeeProfile(appProfile as EmployeeProfile);
+      setLoading(false);
+      setError(null);
+      setShowCreateProfileDialog(false);
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setAuthUser(user);
         try {
-          const q = query(
-            collection(db, "employee"),
-            where("userId", "==", user.uid),
-            limit(1)
-          );
-          const unsubscribeProfile = onSnapshot(q, (querySnapshot) => {
-            if (!querySnapshot.empty) {
-              const employeeDoc = querySnapshot.docs[0];
-              const profileData = { id: employeeDoc.id, ...employeeDoc.data() } as EmployeeProfile;
-              setEmployeeProfile(profileData);
-              setShowCreateProfileDialog(false);
-            } else {
-              setEmployeeProfile(null);
-              setError("No employee profile linked to this user account.");
-              setShowCreateProfileDialog(true);
+          let targetDocId = appProfile?.id;
+          let initialDocData = appProfile;
+
+          // 1. If no targetDocId, search by userId
+          if (!targetDocId) {
+            try {
+              const q = query(
+                collection(db, "employee"),
+                where("userId", "==", user.uid),
+                limit(1)
+              );
+              const snap = await getDocs(q);
+              if (!snap.empty) {
+                targetDocId = snap.docs[0].id;
+                initialDocData = { id: targetDocId, ...snap.docs[0].data() } as EmployeeProfile;
+              }
+            } catch (err) {
+              console.warn("Could not query by userId:", err);
             }
+          }
+
+          // 2. Fallback search by email
+          if (!targetDocId && user.email) {
+            const userEmail = user.email.trim();
+            const userEmailLower = userEmail.toLowerCase();
+
+            // Try nisEmail exact lowercase
+            try {
+              const qNis = query(
+                collection(db, "employee"),
+                where("nisEmail", "==", userEmailLower),
+                limit(1)
+              );
+              const snapNis = await getDocs(qNis);
+              if (!snapNis.empty) {
+                targetDocId = snapNis.docs[0].id;
+                initialDocData = { id: targetDocId, ...snapNis.docs[0].data() } as EmployeeProfile;
+              }
+            } catch {}
+
+            // Try nisEmail raw case
+            if (!targetDocId && userEmail !== userEmailLower) {
+              try {
+                const qNisRaw = query(
+                  collection(db, "employee"),
+                  where("nisEmail", "==", userEmail),
+                  limit(1)
+                );
+                const snapNisRaw = await getDocs(qNisRaw);
+                if (!snapNisRaw.empty) {
+                  targetDocId = snapNisRaw.docs[0].id;
+                  initialDocData = { id: targetDocId, ...snapNisRaw.docs[0].data() } as EmployeeProfile;
+                }
+              } catch {}
+            }
+
+            // Try personalEmail
+            if (!targetDocId) {
+              try {
+                const qPersonal = query(
+                  collection(db, "employee"),
+                  where("personalEmail", "==", userEmailLower),
+                  limit(1)
+                );
+                const snapPersonal = await getDocs(qPersonal);
+                if (!snapPersonal.empty) {
+                  targetDocId = snapPersonal.docs[0].id;
+                  initialDocData = { id: targetDocId, ...snapPersonal.docs[0].data() } as EmployeeProfile;
+                }
+              } catch {}
+            }
+          }
+
+          if (targetDocId) {
+            // Auto link userId if missing or outdated
+            if (initialDocData && initialDocData.userId !== user.uid) {
+              try {
+                await updateDoc(doc(db, "employee", targetDocId), {
+                  userId: user.uid,
+                });
+              } catch (e) {
+                console.warn("Could not link userId to employee doc:", e);
+              }
+            }
+
+            unsubscribeSnapshot = onSnapshot(doc(db, "employee", targetDocId), (docSnap) => {
+              if (docSnap.exists()) {
+                const profileData = { id: docSnap.id, ...docSnap.data() } as EmployeeProfile;
+                setEmployeeProfile(profileData);
+                setShowCreateProfileDialog(false);
+                setError(null);
+              } else if (initialDocData) {
+                setEmployeeProfile(initialDocData as EmployeeProfile);
+                setShowCreateProfileDialog(false);
+                setError(null);
+              } else {
+                setEmployeeProfile(null);
+                setError("Employee profile not found.");
+              }
+              setLoading(false);
+            }, (err) => {
+              console.error("Profile snapshot listener error:", err);
+              if (initialDocData) {
+                setEmployeeProfile(initialDocData as EmployeeProfile);
+                setError(null);
+              }
+              setLoading(false);
+            });
+          } else {
+            setEmployeeProfile(null);
+            setError("No employee profile is linked to this user account. Please contact the HR department.");
+            setShowCreateProfileDialog(false);
             setLoading(false);
-          });
-          return () => unsubscribeProfile();
+          }
 
         } catch (err) {
           console.error("Error fetching employee profile:", err);
-          setError("Failed to fetch employee profile data.");
+          if (appProfile) {
+            setEmployeeProfile(appProfile as EmployeeProfile);
+            setError(null);
+          } else {
+            setError("Failed to fetch employee profile data. Please contact the HR department.");
+          }
           setLoading(false);
         }
       } else {
         setAuthUser(null);
         setEmployeeProfile(null);
         setError("You are not logged in. Please log in to view your profile.");
+        setShowCreateProfileDialog(false);
         setLoading(false);
       }
     });
-    return () => unsubscribe();
-  }, []);
+
+    return () => {
+      unsubscribe();
+      if (unsubscribeSnapshot) unsubscribeSnapshot();
+    };
+  }, [appProfile]);
 
   useEffect(() => {
     if (!employeeProfile?.id) {
