@@ -6,12 +6,9 @@ import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Users, BarChartBig, ArrowDown, Filter, GitBranch, ZoomIn, ZoomOut, FileDown } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowDown, Filter, GitBranch, ZoomIn, ZoomOut, FileDown, Maximize2 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useRouter } from 'next/navigation';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from "@/hooks/use-toast";
 import html2canvas from 'html2canvas';
@@ -40,16 +37,30 @@ function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 }
 
+function getChartDisplayName(name: string, maxParts = 3) {
+  if (!name) return "";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= maxParts) return name.trim();
+  return parts.slice(0, maxParts).join(" ");
+}
+
 function EmployeeCard({ employee }: { employee: Employee }) {
+  const displayName = getChartDisplayName(employee.name, 3);
+  const jobTitle = employee.title || employee.role || "";
+
   return (
-    <Card className="w-48 text-center shadow-md hover:shadow-lg transition-shadow shrink-0 bg-card">
-      <CardContent className="flex flex-col items-center pt-6">
-        <Avatar className="h-20 w-20 mb-2">
+    <Card className="w-48 shrink-0 overflow-hidden bg-card text-center shadow-md transition-shadow hover:shadow-lg">
+      <CardContent className="flex h-[11.5rem] flex-col items-center px-3 pb-4 pt-5">
+        <Avatar className="mb-2 h-16 w-16 shrink-0">
           <AvatarImage src={employee.photoURL} alt={employee.name} />
           <AvatarFallback>{getInitials(employee.name)}</AvatarFallback>
         </Avatar>
-        <p className="w-full break-words text-sm leading-tight font-semibold">{employee.name}</p>
-        <p className="w-full break-words text-[10px] leading-tight text-muted-foreground">{employee.title || employee.role}</p>
+        <p className="w-full whitespace-normal text-sm font-semibold leading-tight line-clamp-2">
+          {displayName}
+        </p>
+        <p className="mt-1 w-full whitespace-normal text-[10px] leading-tight text-muted-foreground line-clamp-2">
+          {jobTitle}
+        </p>
       </CardContent>
     </Card>
   );
@@ -57,13 +68,15 @@ function EmployeeCard({ employee }: { employee: Employee }) {
 
 // Recursive component to render the employee tree
 function EmployeeNode({ employee }: { employee: Employee }) {
+  const hasSubordinates = employee.subordinates && employee.subordinates.length > 0;
+
   return (
     <div className="flex flex-col items-center gap-4">
       <EmployeeCard employee={employee} />
-      {employee.subordinates && employee.subordinates.length > 0 && (
+      {hasSubordinates && (
         <>
-          <ArrowDown className="h-6 w-6 text-muted-foreground shrink-0" />
-          <div className="flex flex-row flex-wrap justify-center gap-8 pl-8 border-l-2 border-muted">
+          <ArrowDown className="h-6 w-6 shrink-0 text-muted-foreground" />
+          <div className="flex flex-row flex-nowrap justify-center gap-8">
             {employee.subordinates.map(subordinate => (
               <EmployeeNode key={subordinate.id} employee={subordinate} />
             ))}
@@ -74,141 +87,12 @@ function EmployeeNode({ employee }: { employee: Employee }) {
   );
 }
 
-// Minimap Node for the minimap
-function MinimapNode({ employee }: { employee: Employee }) {
-    return (
-        <div className="flex flex-col items-center">
-            <div className="w-2 h-2 bg-primary rounded-full"></div>
-            {employee.subordinates && employee.subordinates.length > 0 && (
-                <>
-                    <div className="w-px h-2 bg-muted-foreground"></div>
-                    <div className="flex flex-row gap-2 pl-2 border-l border-muted-foreground">
-                        {employee.subordinates.map(subordinate => (
-                            <MinimapNode key={subordinate.id} employee={subordinate} />
-                        ))}
-                    </div>
-                </>
-            )}
-        </div>
-    );
+const MIN_ZOOM = 0.15;
+const MAX_ZOOM = 3;
+
+function clampZoom(zoom: number) {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
 }
-
-// Minimap component
-function Minimap({ contentRef, viewportRef, roots, zoom }: { contentRef: React.RefObject<HTMLDivElement>, viewportRef: React.RefObject<HTMLDivElement>, roots: Employee[], zoom: number }) {
-    const minimapRef = useRef<HTMLDivElement>(null);
-    const minimapViewportRef = useRef<HTMLDivElement>(null);
-    const [isDragging, setIsDragging] = useState(false);
-
-    const moveViewport = useCallback((e: MouseEvent) => {
-        const minimap = minimapRef.current;
-        const viewport = viewportRef.current;
-        const content = contentRef.current;
-
-        if (!minimap || !viewport || !content || !isDragging) return;
-        
-        const rect = minimap.getBoundingClientRect();
-        const scaleX = minimap.offsetWidth / (content.scrollWidth * zoom);
-
-        const x = e.clientX - rect.left;
-        
-        viewport.scrollLeft = (x / scaleX) - (viewport.offsetWidth / 2);
-    }, [contentRef, viewportRef, zoom, isDragging]);
-
-
-    const handleMouseDown = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(true);
-        moveViewport(e.nativeEvent);
-    }, [moveViewport]);
-
-    useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            if (isDragging) {
-              moveViewport(e);
-            }
-        };
-        const handleMouseUp = () => {
-            setIsDragging(false);
-        };
-
-        if (isDragging) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-        }
-
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isDragging, moveViewport]);
-
-    useEffect(() => {
-        const viewport = viewportRef.current;
-        const content = contentRef.current;
-        const minimap = minimapRef.current;
-        const minimapViewport = minimapViewportRef.current;
-
-        if (!viewport || !content || !minimap || !minimapViewport) return;
-
-        const updateMinimap = () => {
-            const contentWidth = content.scrollWidth * zoom;
-            const contentHeight = content.scrollHeight * zoom;
-            const viewportWidth = viewport.offsetWidth;
-            const viewportHeight = viewport.offsetHeight;
-
-            if (contentWidth <= viewportWidth && contentHeight <= viewportHeight) {
-                minimap.style.display = 'none';
-                return;
-            }
-            minimap.style.display = 'block';
-
-            const minimapWidth = minimap.offsetWidth;
-            const scale = minimapWidth / contentWidth;
-            const minimapHeight = contentHeight * scale;
-            minimap.style.height = `${minimapHeight}px`;
-            
-            minimapViewport.style.width = `${viewportWidth * scale}px`;
-            minimapViewport.style.height = `${viewportHeight * scale}px`;
-
-            const onScroll = () => {
-                const scrollTop = viewport.scrollTop;
-                const scrollLeft = viewport.scrollLeft;
-                minimapViewport.style.top = `${scrollTop * scale}px`;
-                minimapViewport.style.left = `${scrollLeft * scale}px`;
-            };
-
-            viewport.addEventListener('scroll', onScroll, { passive: true });
-            onScroll();
-            return () => viewport.removeEventListener('scroll', onScroll);
-        };
-
-        const resizeObserver = new ResizeObserver(updateMinimap);
-        resizeObserver.observe(content);
-        resizeObserver.observe(viewport);
-        updateMinimap();
-
-        return () => resizeObserver.disconnect();
-    }, [roots, contentRef, viewportRef, zoom]);
-
-    return (
-        <div 
-            ref={minimapRef} 
-            className="fixed bottom-4 right-4 bg-card/70 border border-border backdrop-blur-sm rounded-lg shadow-lg w-64 z-50 cursor-pointer"
-            onMouseDown={handleMouseDown}
-        >
-            <div className="absolute top-0 left-0 p-2 scale-[0.08] origin-top-left pointer-events-none">
-                <div className="flex space-x-8">
-                {roots.map(root => (
-                    <MinimapNode key={root.id} employee={root} />
-                ))}
-                </div>
-            </div>
-            <div ref={minimapViewportRef} className="absolute bg-primary/30 border border-primary rounded" style={{ pointerEvents: 'none' }}></div>
-        </div>
-    );
-}
-
 
 function EmployeesChartContent() {
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
@@ -223,11 +107,13 @@ function EmployeesChartContent() {
   const [religionFilter, setReligionFilter] = useState<string[]>([]);
   const [stageFilter, setStageFilter] = useState<string[]>([]);
   
-  const [zoom, setZoom] = useState(1);
+  const [view, setView] = useState({ zoom: 1, x: 40, y: 40 });
+  const [isPanning, setIsPanning] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const lastPointerRef = useRef({ x: 0, y: 0 });
 
   const canViewPage = !isLoadingProfile && profile && (['admin', 'hr', 'director'].includes(profile.role?.toLowerCase() || ''));
 
@@ -352,8 +238,111 @@ function EmployeesChartContent() {
   
   }, [allEmployees, campusFilter, titleFilter, statusFilter, religionFilter, stageFilter]);
   
-  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.1, 2));
-  const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.1, 0.2));
+  const zoomBy = useCallback((factor: number) => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const rect = viewport.getBoundingClientRect();
+    setView(prev => {
+      const zoom = clampZoom(prev.zoom * factor);
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      const contentX = (cx - prev.x) / prev.zoom;
+      const contentY = (cy - prev.y) / prev.zoom;
+      return {
+        zoom,
+        x: cx - contentX * zoom,
+        y: cy - contentY * zoom,
+      };
+    });
+  }, []);
+
+  const fitToScreen = useCallback(() => {
+    const viewport = viewportRef.current;
+    const content = contentRef.current;
+    if (!viewport || !content) return;
+
+    const padding = 48;
+    const contentWidth = Math.max(content.offsetWidth, 1);
+    const contentHeight = Math.max(content.offsetHeight, 1);
+    const scaleX = (viewport.clientWidth - padding * 2) / contentWidth;
+    const scaleY = (viewport.clientHeight - padding * 2) / contentHeight;
+    const zoom = clampZoom(Math.min(scaleX, scaleY, 1));
+
+    setView({
+      zoom,
+      x: (viewport.clientWidth - contentWidth * zoom) / 2,
+      y: (viewport.clientHeight - contentHeight * zoom) / 2,
+    });
+  }, []);
+
+  const hasChart = rootEmployees.length > 0;
+
+  useEffect(() => {
+    if (!hasChart) return;
+    const frame = requestAnimationFrame(() => fitToScreen());
+    return () => cancelAnimationFrame(frame);
+  }, [campusFilter, titleFilter, statusFilter, religionFilter, stageFilter, hasChart, fitToScreen]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || rootEmployees.length === 0) return;
+
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const rect = viewport.getBoundingClientRect();
+      const cursorX = event.clientX - rect.left;
+      const cursorY = event.clientY - rect.top;
+
+      setView(prev => {
+        const isTrackpadPan = !event.ctrlKey && !event.metaKey && Math.abs(event.deltaX) > 0;
+        if (isTrackpadPan) {
+          return {
+            ...prev,
+            x: prev.x - event.deltaX,
+            y: prev.y - event.deltaY,
+          };
+        }
+
+        const intensity = event.ctrlKey || event.metaKey ? 0.01 : 0.0025;
+        const zoom = clampZoom(prev.zoom * Math.exp(-event.deltaY * intensity));
+        const contentX = (cursorX - prev.x) / prev.zoom;
+        const contentY = (cursorY - prev.y) / prev.zoom;
+        return {
+          zoom,
+          x: cursorX - contentX * zoom,
+          y: cursorY - contentY * zoom,
+        };
+      });
+    };
+
+    viewport.addEventListener('wheel', onWheel, { passive: false });
+    return () => viewport.removeEventListener('wheel', onWheel);
+  }, [rootEmployees.length]);
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 && event.button !== 1) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    lastPointerRef.current = { x: event.clientX, y: event.clientY };
+    setIsPanning(true);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isPanning) return;
+    const dx = event.clientX - lastPointerRef.current.x;
+    const dy = event.clientY - lastPointerRef.current.y;
+    lastPointerRef.current = { x: event.clientX, y: event.clientY };
+    setView(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
+  };
+
+  const stopPanning = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setIsPanning(false);
+  };
+
+  const handleZoomIn = () => zoomBy(1.15);
+  const handleZoomOut = () => zoomBy(1 / 1.15);
 
   const handleExportPDF = async () => {
     if (!contentRef.current || rootEmployees.length === 0) {
@@ -368,8 +357,8 @@ function EmployeesChartContent() {
     setIsExporting(true);
     toast({ title: "Generating PDF...", description: "This may take a moment." });
   
-    const originalScale = contentRef.current.style.transform;
-    contentRef.current.style.transform = 'scale(1)';
+    const originalTransform = contentRef.current.style.transform;
+    contentRef.current.style.transform = 'none';
   
     try {
       const canvas = await html2canvas(contentRef.current, {
@@ -398,7 +387,7 @@ function EmployeesChartContent() {
       });
     } finally {
       if (contentRef.current) {
-        contentRef.current.style.transform = originalScale;
+        contentRef.current.style.transform = originalTransform;
       }
       setIsExporting(false);
     }
@@ -441,13 +430,26 @@ function EmployeesChartContent() {
           <CardDescription>
             This chart is generated based on the "Report Line 1" field for each employee. Use filters to view specific structures.
           </CardDescription>
-            <div className="flex items-center gap-2 pt-4">
-                <Button variant="outline" size="icon" onClick={handleZoomOut}><ZoomOut className="h-4 w-4"/></Button>
-                <Button variant="outline" size="icon" onClick={handleZoomIn}><ZoomIn className="h-4 w-4"/></Button>
+            <div className="flex flex-wrap items-center gap-2 pt-4">
+                <Button variant="outline" size="icon" onClick={handleZoomOut} aria-label="Zoom out">
+                  <ZoomOut className="h-4 w-4"/>
+                </Button>
+                <span className="min-w-12 text-center text-sm tabular-nums text-muted-foreground">
+                  {Math.round(view.zoom * 100)}%
+                </span>
+                <Button variant="outline" size="icon" onClick={handleZoomIn} aria-label="Zoom in">
+                  <ZoomIn className="h-4 w-4"/>
+                </Button>
+                <Button variant="outline" size="icon" onClick={fitToScreen} aria-label="Fit to screen">
+                  <Maximize2 className="h-4 w-4"/>
+                </Button>
                 <Button variant="outline" onClick={handleExportPDF} disabled={isExporting}>
                     {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <FileDown className="mr-2 h-4 w-4"/>}
                     Export PDF
                 </Button>
+                <p className="w-full text-xs text-muted-foreground sm:w-auto sm:ml-2">
+                  Drag to move · Scroll to zoom
+                </p>
             </div>
            <Accordion type="single" collapsible className="w-full pt-2">
                 <AccordionItem value="filters">
@@ -475,22 +477,31 @@ function EmployeesChartContent() {
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
             </div>
           ) : rootEmployees.length > 0 ? (
-            <div className="relative">
-              <ScrollArea className="w-full whitespace-nowrap bg-background" viewportRef={viewportRef}>
-                <div 
-                    className="p-4 w-max origin-top-left" 
-                    ref={contentRef}
-                    style={{ transform: `scale(${zoom})` }}
-                >
-                    <div className="flex space-x-8">
-                    {rootEmployees.map(root => (
-                        <EmployeeNode key={root.id} employee={root} />
-                    ))}
-                    </div>
+            <div
+              ref={viewportRef}
+              className={`relative h-[min(70vh,720px)] w-full select-none overflow-hidden rounded-md border bg-muted/30 ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+              style={{ touchAction: 'none' }}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={stopPanning}
+              onPointerCancel={stopPanning}
+              onDoubleClick={fitToScreen}
+              onDragStart={(event) => event.preventDefault()}
+            >
+              <div
+                ref={contentRef}
+                className="absolute left-0 top-0 w-max p-8 will-change-transform"
+                style={{
+                  transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`,
+                  transformOrigin: '0 0',
+                }}
+              >
+                <div className="flex space-x-8">
+                  {rootEmployees.map(root => (
+                    <EmployeeNode key={root.id} employee={root} />
+                  ))}
                 </div>
-                <ScrollBar orientation="horizontal" />
-              </ScrollArea>
-              <Minimap contentRef={contentRef} viewportRef={viewportRef} roots={rootEmployees} zoom={zoom} />
+              </div>
             </div>
           ) : (
             <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
