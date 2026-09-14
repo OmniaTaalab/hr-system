@@ -1,0 +1,2050 @@
+Excel vs Firestore mismatches (Excel has a value, Firestore differs)
+Compared: 220
+People with diffs: 220
+Total field diffs: 527
+
+Diffs by field:
+  role: 216
+  reasonForLeaving: 190
+  reasonNote: 84
+  department: 19
+  nameAr: 14
+  stage: 3
+  religion: 1
+
+6569  Ahmed Ramadan Aly Mohamed AbdElla
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      excessive absence and failure to meet school requirments in supervision and performance
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7996  Hana Hossam SalahEldin Taha
+  role
+    Excel:      Admin Staff
+    Firestore:  Librarian
+  nameAr
+    Excel:      ÙÙØ§ Ø­Ø³Ø§Ù ØµÙØ§Ø­ Ø§ÙØ¯ÙÙ Ø·Ù
+    Firestore:  هنا حسام صلاح الدين طه
+  reasonForLeaving
+    Excel:      Career Growth
+    Firestore:  Other
+  reasonNote
+    Excel:      Career Growth / wanted to be a school counselor / no vacancy.
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7343  Sarah Kamel Mohamed Marzouk AbdelHamid
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Medical - hermaoids
+    Firestore:  Other
+
+6422  Amal AbdelKhalik Abdellatif Kedr
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+  reasonForLeaving
+    Excel:      Request to cancel contract bec she's reloacton abroad to her husband - her case approved
+    Firestore:  Other
+
+7956  Dareen Adel Mohamed Mahmoud Ahmed
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Salary/ Benefit
+    Firestore:  Other
+  reasonNote
+    Excel:      Salary and financial related reasons / Contract cancelation approved by HR and School Director.
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6826  Hadeel Mohamed Mostafa Amin Helal
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+  reasonForLeaving
+    Excel:      Cancel contract - Medical case reports provided and needs a min 6 months for recovery - Approved by HR and Campus Director
+    Firestore:  Other
+
+4074  Haya Mohamed Mohamed Elbarbary
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Family Reasons
+    Firestore:  Personal Reasons
+
+5535  Mennatullah Tarek El sayed Fahmy Khattab
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Salary/ Benefit
+    Firestore:  Other
+  reasonNote
+    Excel:      Low Salary / stress
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+1720  Basma ElNady
+  role
+    Excel:      Admin Staff
+    Firestore:  Head of Global Citizeship
+  reasonForLeaving
+    Excel:      Relocation
+    Firestore:  Other
+  reasonNote
+    Excel:      Traveling to Husband abroad.
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7305  Maha Mohamed Abbas El Shamaa
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Medical case
+    Firestore:  Other
+
+6338  Nermien Abd Rabou Abdel Hakim El Sawy
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Her mother illness - Family Circumstances
+    Firestore:  Other
+
+7951  Rawda Sayed Mohamed Abdul Ghaffar
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+  reasonForLeaving
+    Excel:      Resigned during probation - Family circumstanes and relocation
+    Firestore:  Other
+
+7545  Tasneem Hamdan Mahmoud
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Family Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Relocation to KSA and severe diabetic medical condition. Medical reports confirm inability to continue teaching duties.
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7443  Mai Ismail Mohamed Faek Abdel Aziz
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Personal Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Personal family issues
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7697  Shereen Mahmoud Yehia Mahmoud
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      excessive absence, weak classroom managment and inability to effectivley follow up on student progress
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7744  Nourhan Adel Abd Elrahman Abd Elsamei
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      she has issues with her principal accusing her that sheâs treating her badly - her principal is saying she has very bad class control students don't like her and she has several warnings
+    Firestore:  Other
+
+6866  Fatma El Zahraa Essam El Din Saad El Din Abdel Aziz
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+  reasonForLeaving
+    Excel:      Health Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Employee suffers from Uterus Tumor / Medical reports submitted / Renewal Contract is canceled / approved by Director and HR.
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7110  Omnia Salah AbdelSamiea Abdelrazik
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      Attendance issues and lack of student control
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7523  Sara Saad Ahmed Sobhy
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+
+7979  Lamis Khaled Mahmoud Reda Abbas
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+  nameAr
+    Excel:      ÙÙÙØ³ Ø®Ø§ÙØ¯ ÙØ­ÙÙØ¯ Ø±Ø¶Ø§ Ø¹Ø¨Ø§Ø³
+    Firestore:  لميس خالد محمود رضا عباس
+  reasonForLeaving
+    Excel:      Legal/ Ø§ÙÙØ·Ø§Ø¹
+    Firestore:  Termination
+
+7835  Farah Ahmed Aly Gomaa
+  role
+    Excel:      Teacher
+    Firestore:  Co Teacher
+  nameAr
+    Excel:      ÙØ±Ø­ Ø£Ø­ÙØ¯ Ø¹ÙÙ Ø¬ÙØ¹Ø©
+    Firestore:  فرح أحمد علي جمعة
+  reasonForLeaving
+    Excel:      Family Circumstances
+    Firestore:  Other
+
+7558  Sama Mansour Hussien
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+
+7466  Soha Hassan Diab Ali
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Terminated
+    Firestore:  Other
+
+1304  Alaa Atef Aziz
+  role
+    Excel:      Director
+    Firestore:  Campus Director
+  reasonForLeaving
+    Excel:      Better opportunity abroad
+    Firestore:  Other
+
+8105  Mona Nabil Mohamed Mostafa
+  role
+    Excel:      Teacher
+    Firestore:  Co
+  nameAr
+    Excel:      ÙÙÙ ÙØ¨ÙÙ ÙØ­ÙØ¯ ÙØµØ·ÙÙ
+    Firestore:  منى نبيل محمد مصطفى
+  reasonForLeaving
+    Excel:      Personal Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Candidate is new hire and didn't show up in the new academic year and we tried to contact her ,she is not answering
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7115  Amena Ahmed Ibrahim El Sayed Mahaba
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  nameAr
+    Excel:      Ø§ÙÙÙØ© Ø§Ø­ÙØ¯ Ø§Ø¨Ø±Ø§ÙÙÙ Ø§ÙØ³ÙØ¯ ÙÙØ§Ø¨Ù
+    Firestore:  امينة احمد ابراهيم السيد مهابه
+  reasonForLeaving
+    Excel:      4 Months contract / RELEASED BEFORE END OF CONTRACT. Last date: 15/4/2026
+    Firestore:  Other
+
+6801  Habiba Mohamed Moawad El Geddawy Nasr
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+  reasonForLeaving
+    Excel:      Probation period - she wants to resign to go back to her work i Cairo Air as a fly attendant
+    Firestore:  Personal Reasons
+
+6804  Hossam Mohamed Hanafy Mahmoud Shokry
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Had an new Job at the british council
+    Firestore:  Other
+
+3568  Passant Hassan Abdel Aal
+  role
+    Excel:      Teacher
+    Firestore:  Office Assistant
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Personal Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Personal reasons/will not be able to commit next year Last Working Day 25-Jun-2026
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7406  Abdelrahman Abdellatif Abdelgawad Mabrouk
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      Candidate has weak performance
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7393  Ahmed Mahmoud Mohamed Sayed Ibrahim
+  role
+    Excel:      Academic Staff
+    Firestore:  Coach
+  reasonForLeaving
+    Excel:      Resignation
+    Firestore:  Other
+
+7716  Akram Ayman Fouad Ahmed
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      No show/ Legal
+    Firestore:  Other
+
+7679  Dina AbdelHalim Ibrahim AbouShehata
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+
+7153  Elizabeth Anna Wlodek
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonNote
+    Excel:      Did not wish to renew her contract as a Co teacher. No opportunity for career growth.
+    Firestore:  she want to change career
+
+2368  Hana Khaled Mostafa Fahmy Namy
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+
+7995  Heba Ahmed Alaa Eldin Abd Elaal Zidan Abo Zaid
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  nameAr
+    Excel:      ÙØ¨Ø© Ø£Ø­ÙØ¯ Ø¹ÙØ§Ø¡ Ø§ÙØ¯ÙÙ Ø¹Ø¨Ø¯ Ø§ÙØ¹Ø§Ù Ø²ÙØ¯Ø§Ù Ø£Ø¨Ù Ø²ÙØ¯
+    Firestore:  هبة أحمد علاء الدين عبد العال زيدان أبو زيد
+  reasonForLeaving
+    Excel:      Relocation
+    Firestore:  Other
+  reasonNote
+    Excel:      the candidate very far from work
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7357  Heba Salah El Din Abdelrahman Ahmed
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Termination due to unethical misconduct / not eligible for rehire / hit a student
+    Firestore:  Other
+
+7064  Jana Usama Kamel Abdel Latif
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      Termination lack of responsibility, failure to meet deadlines and excessive absence
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+5421  Logina Gamal Mohamed Samy El Haddad
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+
+7992  Magi Magdi Shukralla Ghattas
+  role
+    Excel:      Admin Staff
+    Firestore:  Office Assitant
+  nameAr
+    Excel:      ÙØ§Ø¬Ù ÙØ¬Ø¯Ù Ø´ÙØ± Ø§ÙÙÙ ØºØ·Ø§Ø³
+    Firestore:  ماجي مجدي شكر الله غطاس
+  reasonForLeaving
+    Excel:      Resignation - approved by her principal based on performance concerns. last working date : 9th June 2026
+    Firestore:  Other
+
+5443  Mariam Amthal
+  role
+    Excel:      Vice Principal
+    Firestore:  Vice Principal/Teacher
+  religion
+    Excel:      Religion
+    Firestore:  (empty)
+  reasonNote
+    Excel:      LEGAL 3 YEARS CONTRACT /Asked for contract cancelation / rejected / reason career shift
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7644  Esraa Mohamed Ramdan Hussien
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+
+5593  May Issa Ismail
+  role
+    Excel:      Director
+    Firestore:  Corporate Director
+  reasonForLeaving
+    Excel:      End of contract
+    Firestore:  Other
+
+7677  Mohamed Ali Ibrahim Ismail
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+
+7671  Mohamed Mosad Mohamed Hassan
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      the candidate is terminated for weak performance
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6398  Mostafa Mohamed Essam Mohamed Kamal El Deen Shaat
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination in June 2026 due to unethical misconduct/ transferred to legal
+    Firestore:  Other
+
+7408  Mohamed Wahid Hefny Bekhit
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Salary
+    Firestore:  Other
+
+6870  Mahmoud Ahmed Mostafa Ahmed Hammam Hassan
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      Termination unprofessional conduct and weak performance
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7280  Nadina Khaled Hamdy Mahmoud Sabry
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+
+7879  Nadine Ahmed Abd Elfattah Ahmed Shehata
+  role
+    Excel:      Teacher
+    Firestore:  Co Teacher
+  reasonForLeaving
+    Excel:      legal/ Sudden No Show
+    Firestore:  Other
+
+7137  Esraa Nader Mohamed Ragab El Samrour
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Family Circumstances sheâll be travelling to her hometown in Kafr El Sheikh
+    Firestore:  Other
+
+7016  Hannah Samir Yehia Khalifa El Sayed
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Medical Case
+    Firestore:  Other
+
+6440  Merna Ahmed Saad Abu El Leil
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Medical condition
+    Firestore:  Other
+
+6856  Aya Mahmoud Abdel Hafez Mohamed
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Her son has recently been diagnosed with a developmental delay
+    Firestore:  Other
+
+7169  Dalia Mohamed Mostafa Ahmed Ghobashy
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      cancelled her contract Medical reason approved
+    Firestore:  Other
+
+5467  Dina Ahmed Mohamed Gamil Hassan
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonNote
+    Excel:      Resignation email 18/8 approved due to Medical case and report
+    Firestore:  Health reasons she has cancer
+
+2251  Heba Allah Safwat
+  role
+    Excel:      Teacher
+    Firestore:  Lab Technician
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Family Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Mother's Illness. Approved contract cancelation by HR and DC.
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7423  Mai Mohamed Mahmoud
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      She will be traveling during summer till september
+    Firestore:  Other
+
+6899  Mariam Mohamed El Sadek AbdelGayed Ibrahim
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      unprofessional and very weak performance
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6530  Moneeb Hassan Taha Hussein Huseein
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Travel abroad
+    Firestore:  Other
+
+7377  Nariman Osama Abdelmoniem Saeed Abdelrahman
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Resignation Approved/ Traveling Abroad
+    Firestore:  Other
+
+7483  Nour Ahmed Said Sayed
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Resigned and didnt abide with staying until a replacement is hired so legal
+    Firestore:  Other
+
+6982  Nour Mahmoud Abdel Aziz Mahmoud
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Better offer as Classroom Teacher outside /they dont want to promote her
+    Firestore:  Other
+
+7544  Nourhan Ahmed Mohamed Mohamed Ahmed
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+
+6413  Nourhan Hassan Youssef Ibrahim
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+  reasonForLeaving
+    Excel:      Cancelled contract - Marriage and relocation to UAE - Approved by documents
+    Firestore:  Other
+
+7426  Ola Mahmoud Mohamed AbdelAal
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Salary
+    Firestore:  Other
+
+7645  Rana Rafik Tawfik Khalil
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+  reasonForLeaving
+    Excel:      Relocation abroad
+    Firestore:  Other
+  reasonNote
+    Excel:      Employee is relocating in KSA / resignation approved
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7414  Sagda Sayed Ahmed Mohamed Sayed Ahmed
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Medical
+    Firestore:  Other
+
+6839  Samar Khalifa Hussein Khalifa
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Health issues/ cant handle more responsibilities
+    Firestore:  Other
+
+6262  Sara Kotb Ibrahim Kotb El Shamy
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Relocation
+    Firestore:  Other
+  reasonNote
+    Excel:      Resignation Accepted - Contract Cancellation - divorced and relocating - Brother Illness - resignation sent 2/8/2026
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7014  Shahd Khaled Mahmoud Mohamed El Basha
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Cancel contract bec of her mother illness - Heart failure and will undergo a 2nd open heart procedure her case approved
+    Firestore:  Other
+
+7082  Waad Ahmed Farouk Shahin Ibrahim
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Salary/ Benefit
+    Firestore:  Other
+  reasonNote
+    Excel:      Low Salary for the candidate
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7017  Yara Mahmoud Mohamed El Sayed
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Family Circumstances - her father and mother are very sick - her mother will undergo a surgery and sheâll have to take care of both of them and sheâs the only daughter
+    Firestore:  Other
+
+7348  AbdelAziz Ahmed Mohamed Farghaly Abdelhamid
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Terminated at LEGAL - Not recommended to rehire - Talking to kids inappropriately sexual jokes with hidden sarcasm and girls went to the principal and told her plus he says to kids that he loved another teacher and talks about his feeling with kid plus he had several previous warnings
+    Firestore:  Other
+
+7538  Abdelrahman Amr Abdelrahman Mohamed
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Health Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      medical - previous back surgery that has complications which will lead to travel to USA for another surgery
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6478  Alaa Tarek Abdelsalam Gharib
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      give birth in june
+    Firestore:  Other
+
+7395  Amany Ahmed Marie Karim
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      Termination/Excessive absence
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6520  Asmaa Mohamed Awad Bashir
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Relocation
+    Firestore:  Other
+  reasonNote
+    Excel:      Getting Married and will relocate
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+8046  aya hatim ibrahem mohamed
+  role
+    Excel:      Academic Staff
+    Firestore:  Activity Teacher
+  reasonNote
+    Excel:      She lives in Giza and the bus was too far from her
+    Firestore:  she lives in giza and the meeting point is too far for her
+
+7477  Dalia Ibrahim Nemr Abo El Sheikh
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Terminated poor subject knoeledge and have received alot of parent complaints
+    Firestore:  Other
+
+6521  Dina Hazem Mohamed AbdelMoniem Hosny
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      (Family and Medical-Choking attacks and will have to go live with her parents outside cairo)
+    Firestore:  Other
+
+7902  Dina Talaat Mounir Ali Hussien
+  nameAr
+    Excel:      Ø¯ÙÙØ§ Ø·ÙØ¹Øª ÙÙÙØ± Ø¹ÙÙ Ø­Ø³ÙÙ
+    Firestore:  دينا طلعت منير على حسين
+
+6549  Eman AbdelMoniem Ahmed Mohamed Manosur
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Moving to 10th of Ramdan due to family emergency
+    Firestore:  Other
+
+7246  Eman Osama Ahmed Mohamed Ali
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Approved Resignation/ Medical ( Pregnancy complications) Last working date: 4 May 2026
+    Firestore:  Other
+
+6996  Habiba Osama Mahmoud Ahmed Emam
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      Termination / Repetitive lateness
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7314  Khadija Hazem Mohamed Yousry Zaki Abdel Rahman
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+  reasonForLeaving
+    Excel:      Relocation
+    Firestore:  Other
+  reasonNote
+    Excel:      Husband's relocation to Assiut, supporting documents provided. Contract Cancelation approved by HR and DC.
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7438  Khaled El Sayed Mokhtar Ahmed El Mahlawy
+  role
+    Excel:      Teacher
+    Firestore:  Coach
+  reasonForLeaving
+    Excel:      due to incidents with his colleagues inappropriate - a girl from HS replaced him and we will replace her
+    Firestore:  Other
+
+7442  Laila Abu Samhadana
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+
+7540  Maha Nasser Ismail
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Family circumstances
+    Firestore:  Other
+
+7953  Mai Mohamed Soliman Hamed
+  role
+    Excel:      Academic Dean
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Transportation Issue/ resignation approved
+    Firestore:  Other
+
+4433  Malak Sherif Ibrahim Mekhamar
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+  reasonForLeaving
+    Excel:      Family Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Her grand mother's has Alzeimer and heart medical condition. A medical report was provided, she's the only Caregiver / campus director approved
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7872  Mariam Mahmoud Ahmed El Gamal
+  role
+    Excel:      Teacher
+    Firestore:  Coach
+  reasonForLeaving
+    Excel:      Relocation abroad
+    Firestore:  Other
+  reasonNote
+    Excel:      Resignation not approved legal action taken due to sudden traveling without proof
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7450  Menna Nasr El Harouny
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Relocation
+    Firestore:  Other
+  reasonNote
+    Excel:      Approved canceled contract - Relocation to Alexandria family residence. Supporting proof of residence submitted
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+3124  Mennatullah Mohsen Ali Youssef Afifi
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  nameAr
+    Excel:      ÙÙØ© Ø§ÙÙÙ ÙØ­Ø³Ù Ø¹ÙÙ ÙÙØ³Ù Ø¹ÙÙÙÙ
+    Firestore:  منة الله محسن علي يوسف عفيفي
+  reasonForLeaving
+    Excel:      Travel to Saudi Arabia with her husband Resigned / last working date 8/8/2025
+    Firestore:  Other
+
+4464  Mina Fahim Antoun Farid Kozman
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Relocation
+    Firestore:  Other
+  reasonNote
+    Excel:      Resignation Accepted - relocate to the United States last Salary 15/8 - Resignation 16/8
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7154  Mohamed Abdel Mohsen Ewis Mostafa
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      he has no control on students
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+5503  Mohamed Abdel Razik Mohamed
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Better Opportunity - Legal
+    Firestore:  Other
+
+6660  Nadine Hamdy Mahmoud Ibrahim Sharkawy
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Terminated and resigned on the same time - due to her poor attendace - attitude and lack of professionalism
+    Firestore:  Other
+
+5814  Noura Mohamed AbdelAziz Abdel Hady
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      Termination / Persistent conflicts, excessive absence
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+4488  Nouran Anwar Ahmed Ibrahim Shokry
+  nameAr
+    Excel:      ÙÙØ±Ø§Ù Ø£ÙÙØ± Ø£Ø­ÙØ¯ Ø£Ø¨Ø±Ø§ÙÙÙ Ø´ÙØ±Ù
+    Firestore:  نوران أنور أحمد أبراهيم شكرى
+  reasonForLeaving
+    Excel:      Maternity
+    Firestore:  Other
+  reasonNote
+    Excel:      She need Bed rest in pregnancy and maternity
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7737  Petra Nady Fawzy Amin Gerges
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      New mom and school timing is not convenient for her plus bus issues
+    Firestore:  Other
+
+3034  Reham Gamal Jilani Sagheer Mohamed
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+
+1335  Damian Charpentier
+  role
+    Excel:      Admin Staff
+    Firestore:  Talent and Development Manager
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Health Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      He wants to leave due to health problems + Family in USA + wellbeing
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+3878  May El Badry
+  role
+    Excel:      Teacher
+    Firestore:  Head of Department/Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      Termination Unprofessional conduct and inappropriate communication style
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7648  Aya Fouad Ahmed Abd El Rahman
+  role
+    Excel:      Admin Staff
+    Firestore:  Office Assistant
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+
+5195  Nourhan Mamdouh Ibrahim Abdel Samad
+  role
+    Excel:      Teacher
+    Firestore:  Associate Academic Dean/Teacher
+  reasonForLeaving
+    Excel:      Family Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      The employee has decided to resign due to personal family circumstances. She is currently living alone with her children while her husband works abroad. As she is unable to balance her childcare responsibilities with her work commitments, she has made the decision to leave her position. Last Working Day: 25-Jun-2026
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7224  Roaa Gaber Abdel Hafez Khedr Malek
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+
+7683  Rona Ehab Mahmoud Saqr
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Approved by DC/ Resignation/Clashes with her principal due to attendance issues - they dont want her and she wants to resign.
+    Firestore:  Other
+
+7231  Anas Yasser Fekry Ameen
+  role
+    Excel:      Admin Staff
+    Firestore:  Data Analyst
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Better Opportunity
+    Firestore:  Other
+
+3823  Bishoy Saad Guindy
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      School doesnt want to renew
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7417  Dina Hossam El Din Nahed Mostafa Fawzy
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+
+7539  Maha Samir Mohamed AbdelAziz El Zokom
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Health Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Resignation approved on 10/8 through email due to medical case and report
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+3035  Nada Ismail
+  role
+    Excel:      Admin Staff
+    Firestore:  Social Worker
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Low salary
+    Firestore:  Other
+
+7422  Nourhan Mohamed Mohamed Ahmed Mohamed Mansour
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+
+7945  Nehad Hassan El Sayed Awad
+  nameAr
+    Excel:      ÙÙØ§Ø¯ Ø­Ø³Ù Ø§ÙØ³ÙØ¯ Ø¹ÙØ¶
+    Firestore:  نهاد حسن السيد عوض
+  reasonForLeaving
+    Excel:      Temporary hire - end of contract
+    Firestore:  Other
+
+7676  Nourhan Reda Ahmed Ahmed El Badry
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Family Circumstances
+    Firestore:  Other
+
+5675  Noha Ahmed Mohamed Ahmed
+  role
+    Excel:      Admin Staff
+    Firestore:  School Doctor
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Terminated
+    Firestore:  Other
+
+8007  Amany Osama Ibrahim Safary
+  role
+    Excel:      Academic Dean
+    Firestore:  Co Teacher
+  stage
+    Excel:      Early Years
+    Firestore:  Early Years/Foundation Stage
+  reasonForLeaving
+    Excel:      Family issues
+    Firestore:  Other
+
+6820  Farah Abdel Hamid Ahmed Fahmy Salouma
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      WorkLoad / Should be 3 teachers instead of 2 / doesnt want to be shared brt. schools
+    Firestore:  Other
+
+6458  Hebatullah Hani AbdelHamid El Wakil
+  role
+    Excel:      Teacher
+    Firestore:  Head of Department/Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      terminate as an HOD/ Doesnt want to be demoted to a teacher
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6424  Karim Omar AbdelMoniem El Shamekh
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      terminated very high level of absenteeism decides to quit every year in the middle of the year
+    Firestore:  Other
+
+7379  Moataz Ashraf Awad Abdo Eid
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Resignation approved by DC/ Governmental employment (Suez Canal) last working day: 19/5/2026
+    Firestore:  Other
+
+7236  Nermeen Tawfik Metwally Tawfik
+  role
+    Excel:      Teacher
+    Firestore:  Control Officer
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Approved resignation/ Pregnancy last working day: 30/4/2026
+    Firestore:  Other
+
+7335  Nouran Reda Mohamed Mahmoud Adam
+  role
+    Excel:      Academic Staff
+    Firestore:  Coach
+  reasonForLeaving
+    Excel:      Resigned
+    Firestore:  Other
+
+7451  Omnia Nabil Mohamed Morgan
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Wants to teach IG/ no longer interested NIS system.
+    Firestore:  Other
+
+7915  Rana Sherif Raafat Mahmoud El Tersawy
+  role
+    Excel:      Teacher
+    Firestore:  Co teacher
+  reasonForLeaving
+    Excel:      she left in the probation period
+    Firestore:  Other
+
+7517  Reham Aly Abo Kassem
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      cancelled her contract - Medical reason
+    Firestore:  Other
+
+7222  Rodaina Mohamed El Sayed Mohamed El Imam
+  role
+    Excel:      Teacher
+    Firestore:  Office Assistant
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Resignation/ Medical family (Mother illness)
+    Firestore:  Other
+
+6024  Samaa Hosny Ahmed El Sayed Mashaal
+  role
+    Excel:      Teacher
+    Firestore:  Head of Department/Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      excessive absence, lack of effective leadership in the department, frequent conflicts and failure to meet deadlines resulting in delays in department progress
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6835  Doaa Mohamed Mostafa Kamel Khairy
+  role
+    Excel:      Admin Staff
+    Firestore:  Office Assistant
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Signed Resignation notice/ Director approved
+    Firestore:  Other
+
+7675  Farah Mostafa Abdelraouf Kamel
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Medical - she has a tumor
+    Firestore:  Other
+
+6743  Nermeen Nader Mohamed Abd Elrazik Abd Elrahman
+  role
+    Excel:      Academic Dean
+    Firestore:  Subject Yeacher
+  reasonForLeaving
+    Excel:      Legal out Jan 2026
+    Firestore:  Other
+
+3176  Shaimaa Gamal Fahmy Mohamed
+  role
+    Excel:      Admin Staff
+    Firestore:  Social Worker
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+
+3235  Soliman Ragab Soliman El Kady
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+
+7745  Sondos salah el din mohamed abd el hameed
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Medical Condition/ heart condition/ resignation approved
+    Firestore:  Other
+
+7328  Ahmed Ragab El Sayed Soliman
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination due to ethical misconduct, not eligible for rehire.
+    Firestore:  Other
+
+7887  Amr El Sayed Abdel Karim El Sayed El Azzazy
+  role
+    Excel:      Teacher
+    Firestore:  Math Teacher
+  reasonForLeaving
+    Excel:      Relocation abroad
+    Firestore:  Other
+  reasonNote
+    Excel:      Travelling to continue PHD
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7076  Yousry Mohamed Yousry Ahmed
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Resignation Approved/ Undertaking the governmental service as a doctor.
+    Firestore:  Other
+
+7367  Ebtihal Mohamed Abdelrahman El Sehity
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Relocation in area we do not have campus in
+    Firestore:  Other
+  reasonNote
+    Excel:      Divorce and relocation
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+2424  Kathleen O'Neil
+  role
+    Excel:      Teacher
+    Firestore:  Vice Principal/Teacher
+  reasonForLeaving
+    Excel:      Retirement
+    Firestore:  Other
+  reasonNote
+    Excel:      End of Service/ didn't want to renew
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6846  Malak El Sayed Ibrahim Mounir Azzouz
+  role
+    Excel:      Principal
+    Firestore:  Associate principal
+  reasonForLeaving
+    Excel:      Pregnancy - Risk pf Abortion
+    Firestore:  Other
+
+7044  Mayar Tarek Mahmoud Abdel Latif
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      Ethical Concerns from the candidate
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+2141  Mohamed Mohsen Ahmed Ibrahim
+  role
+    Excel:      Teacher
+    Firestore:  Head of Department/Teacher
+  reasonForLeaving
+    Excel:      Personal Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      the candidate has personal reasons
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7481  Nariman Sayed Imam Mohamed
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+
+7270  Nehal El Sayed Fadl Farag allah Mohamed
+  role
+    Excel:      Teacher
+    Firestore:  Office Assistant
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Resignation (family issues)/ Transferred to Legal
+    Firestore:  Other
+
+5320  Nourhan Abdallah Mohamed Badda
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Travelling - no supported evidences - started being absent and not attending - legal
+    Firestore:  Other
+
+6399  Rwan Walaa Adel Bibers
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Career Growth
+    Firestore:  Other
+  reasonNote
+    Excel:      SHE WANTS TO BE A TEACHER BUT THEY SAID AFTER DEMO SHE'S NOT READY AT ALL
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+3978  Salma Emad Helmy Mohamed Ibrahim
+  role
+    Excel:      HOD
+    Firestore:  Head of Department/Teacher
+
+2721  Sara Karim Sabry
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+  reasonForLeaving
+    Excel:      Salary/ Benefit
+    Firestore:  Other
+  reasonNote
+    Excel:      Higher salary and better opportunity
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+5811  Shada Magdy Ahmed Mohamed Ali
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Traveling with her husband abroad
+    Firestore:  Other
+
+4449  Sharifa Yasser Kamal Gamei Hashem
+  role
+    Excel:      Teacher
+    Firestore:  Vice Principal/Teacher
+  reasonForLeaving
+    Excel:      Legal - resigned and didnt abide with contract
+    Firestore:  Other
+
+7988  Yasmine Shabaan Ahmed Agamy
+  role
+    Excel:      Teacher
+    Firestore:  Coach
+  nameAr
+    Excel:      ÙØ§Ø³ÙÙÙ Ø´Ø¹Ø¨Ø§Ù Ø£Ø­ÙØ¯ Ø¹Ø¬ÙÙ
+    Firestore:  ياسمين شعبان أحمد عجمى
+  reasonForLeaving
+    Excel:      Canceled contract on the first day of working
+    Firestore:  Other
+
+7472  Jasmin Gharib Mahmoud Abdelkader
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Terminated - Will give birth on june
+    Firestore:  Other
+
+7926  Ahmed Hamdy Sayed Ahmed Ghoniem
+  role
+    Excel:      Vice Principal
+    Firestore:  Subject Tracher
+  nameAr
+    Excel:      Ø£Ø­ÙØ¯ Ø­ÙØ¯Ù Ø³ÙØ¯ Ø§Ø­ÙØ¯ ØºÙÙÙ
+    Firestore:  أحمد حمدي سيد احمد غنيم
+  reasonForLeaving
+    Excel:      Travelled abroad
+    Firestore:  Other
+
+6779  Aya AbdelNasser Khalifa Ali
+  role
+    Excel:      Teacher
+    Firestore:  Head of Department/Teacher
+  reasonForLeaving
+    Excel:      Didnt want to sign her warning and have a bad attitude wanted to terminate her , asked her to join Tagmoaa campus but no Transportation.
+    Firestore:  Other
+
+7260  Mennatullah Aziz Mahmoud Kamel Soliman
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Legal
+    Firestore:  Other
+
+3399  Mohga Essam Hamza
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Relocation
+    Firestore:  Other
+  reasonNote
+    Excel:      Job opportunity in UAE and might Travel.
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6831  Rwayda Wael Mohamed Salah El Deen
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Termination / Last starting date 5 Feb 2026
+    Firestore:  Other
+
+7424  Aya Salah Rabea Morsi
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Terminated - poor subjeck knowledge
+    Firestore:  Other
+
+6842  Doaa Mourad Hassan Mourad
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Her father takes care of her kids/ currenlty his health is not stable
+    Firestore:  Other
+
+5775  Lobna Hossam Saad Mostafa
+  role
+    Excel:      Teacher
+    Firestore:  Office Assistant
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Resignation approved by School Director
+    Firestore:  Other
+
+7942  Maryam Mohamed Sherine Ahmed labib Dorrah
+  role
+    Excel:      Academic Dean
+    Firestore:  Co Teacher
+  reasonForLeaving
+    Excel:      4 month contract
+    Firestore:  Other
+
+6865  Mennatullah Ihab Mohamed Ahmed Abdel Wahab
+  role
+    Excel:      Teacher
+    Firestore:  Head of Department/Teacher
+
+6808  Nada Salah Ali Sanad
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Feels NIS is more of a corporate not a school
+    Firestore:  Other
+
+6641  Yasmine Abu El Ela Mohamed Mahmoud
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+
+7706  Yasmine Samir Mohamed Ali
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      Excessive absence (25+ days) and unable to cope with co-teacher duties
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7659  Alaa Abdel Azim Soliman Beshr Mohamed Amer
+  role
+    Excel:      Teacher
+    Firestore:  School Doctor
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Termination/ school didnt want to renew her conttract/ no show in May and June 2026/ Unable to manage the work of school clinic
+    Firestore:  Other
+
+7261  Farah Wael Fouad Mohamed Nour El Hoda
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Salary/ Benefit
+    Firestore:  Other
+  reasonNote
+    Excel:      Campus director deduction 20 days due her unpunctuality and attendance - her principal talked with her so many times
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7543  Gharam Mohamed Ibrahim
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      not intersted to contuie in teaching
+    Firestore:  Other
+
+7097  Mennatallah Khaled Essam El Din
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Personal Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Employee did not wish to renew as her kid will change schools
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7309  Amany Mohamed Ahmed Hassan
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      School did not renew because of limited contribution to the division and inability to meet school requirements
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+2350  Habiba Mohamed El Sherif Ahmed Ewis
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+
+7963  Hala Mahmoud Ahmed Abdelfattah
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Terminated - violance with students
+    Firestore:  Other
+
+3418  Marwa Mohsen El Kasabgy
+  role
+    Excel:      Teacher
+    Firestore:  Associate Curriculum Developer/Head of Department /Teacher
+  reasonForLeaving
+    Excel:      Personal Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Has been planning to leave for years, tired cant take work anymore.
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6423  Nada Yasser Fathy Sherif
+  role
+    Excel:      Admin Staff
+    Firestore:  Office Assistant
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Relocation
+    Firestore:  Other
+  reasonNote
+    Excel:      Relocation to Alexandria with family. Supporting documents provided.
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7279  Nermin Mohamed El Tayebi
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      decline to renew contract - Medical issue
+    Firestore:  Other
+
+7047  Noha Ahmed Helmy Saad Zaghloul Ahmed Helmy
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Health Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Employee is suffering from a herinatef disc in the back.
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7510  Nourallah Khaled Ahmed El Gendy
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Salary/ Benefit
+    Firestore:  Other
+  reasonNote
+    Excel:      low salary and stress
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7651  Nourhan Ashraf Arafa Ali
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+
+7966  Ola Arafaa Ahmed Ashour
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Terminated
+    Firestore:  Other
+
+7881  Osama Ali Khalil Ali
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+
+6829  Passant Mohamed Abderehim Kadry Abo El Eneen
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Better Opportunity
+    Firestore:  Other
+
+7048  Ramadan Mohamed Mohamed Metwally
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      Termination / concerns regarding the effectiveness of instruction and the consistency and fairness of grading practices
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7440  Youssef Wael Mohamed Ibrahim Shehata
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      Termination / Communication issues with Parents/Staff members, complaints of agressive behavior with students
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7100  Ahmed Mesbah Mohamed Mohamed
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Relocation
+    Firestore:  Other
+  reasonNote
+    Excel:      Relocating To Sharqiyah City
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6821  Samira Yehia Zakareya Ibrahim
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+  reasonForLeaving
+    Excel:      very high level od absenteeism - give birth in sep - terminated
+    Firestore:  Other
+
+3814  Ahmed Mohamed Kamal
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      Termination / poor performance and low effort
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7197  Alaa Mohamed AbdelHakim Mohamed Sorour
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Family Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Moved her kids to GPS and will not need to work at NIS for next year applies at GPS for her kids
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7549  Mariam Mohamed Anwar Elshafie
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      Not up to NIS Standards
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7954  Angham Khalaf Abdallah Soltan
+  role
+    Excel:      Academic Dean
+    Firestore:  Co Teacher
+  stage
+    Excel:      Early Years
+    Firestore:  Early Years/Foundation Stage
+  reasonForLeaving
+    Excel:      Family Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Employee did not renew due to Family Circumstances at home
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6048  Asmaa Hisham Ibrahim Abu Hadima
+  role
+    Excel:      Admin Staff
+    Firestore:  Office Assistant
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonNote
+    Excel:      Seeking better Salary
+    Firestore:  Not satisfied with rasie and salary
+
+5566  Bassant Ashraf Mohamed Awad
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Better Opportunity
+    Firestore:  Other
+  reasonNote
+    Excel:      Career Shift Last Working Day 23-Jun-2026
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6515  Belal Mohamed Ibrahim Gaballah
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Termination immediately he has inappropriate conversations with the girls
+    Firestore:  Other
+
+5667  Hana Wael Ramadan Ahmed Ibrahim
+  role
+    Excel:      Teacher
+    Firestore:  Classroom Teacher
+  reasonForLeaving
+    Excel:      Relocation abroad
+    Firestore:  Other
+  reasonNote
+    Excel:      The employee is travelling abroad
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7211  Hla Mohamed Mohamed Ibrahim Shatat
+  role
+    Excel:      Teacher
+    Firestore:  Discipline Office Associate
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Approved resignation by DC/ Mother Illness
+    Firestore:  Other
+
+3118  Mahmoud Ramadan Mahmoud El Sayed
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      excessive absence and failure to meet school requirments in supervision and performance
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+5314  Mennatullah Ahmed Mohamed Mohamed Rasheed
+  role
+    Excel:      Admin Staff
+    Firestore:  Librarian
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+
+4117  Mohamed El Ameen Abdel Aziz Mohamed
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+
+2945  Mohamed Youssef Ramdan Roza
+  role
+    Excel:      Teacher
+    Firestore:  Activity Teacher
+  reasonForLeaving
+    Excel:      Family Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Resignation Accepted - Father's Medical issue (Level 2 Diabetes) last salary :15/8/2026 resignation sent:20/8/2026
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6067  Nadia Abdelazim Abdelazim Hassan Gabr
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Relocation abroad
+    Firestore:  Other
+  reasonNote
+    Excel:      Husband's work relocation: the family will be moving to Riyadh. Resignation sent: 11/7/2026
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7404  Nelly Mohamed Nagy Saad El Behairy
+  role
+    Excel:      Teacher
+    Firestore:  Office Assistant
+  department
+    Excel:      Non - Academic
+    Firestore:  Non-Academic
+  reasonForLeaving
+    Excel:      Health Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Medical Condition / Operation, document provided. Contract Cancelation approved by HR and DC.
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6721  Nesma Saied El Sayed Soliman
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Relocation
+    Firestore:  Other
+  reasonNote
+    Excel:      Relocation to Alexandria / approved by HR and School Director
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6833  Noura Ezz El Din Hussein Mohamed
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      cancelled her contract Resignation Due to Exceptional Family Circumstances devorced
+    Firestore:  Other
+
+6657  Ragy Waheed Hamdy Ahmed Eska
+  role
+    Excel:      Academic Manager
+    Firestore:  Head of Guidance and Discpline
+  reasonForLeaving
+    Excel:      Relocation abroad
+    Firestore:  Other
+  reasonNote
+    Excel:      Resignation not accepted transferred Legal - Sent Resignation before SD 1 week and the documents he submitted proofs that he travelled from July Last salry 15/8/2026 - Resignation sent: 20/8/2026
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6785  Roaa Hassan Hassan Shaaban El Haddad
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Health Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Contract Canceled approved / medical / Severe Fibromyalgia with severe pain
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+6336  Yara Mohamed Abdel Azim Mohamed Ibrahim El Robeigy
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Pregnancy and risk of abortion
+    Firestore:  Other
+
+6791  Farida Hesham Mohamed Helmy Hegazy
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Maternity
+    Firestore:  Other
+  reasonNote
+    Excel:      Pregnancy and Maternity
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7081  Ingy Khaled Abdel Aziz Soliman Sayed Ahmed
+  role
+    Excel:      Academic Dean
+    Firestore:  Co Teacher
+  stage
+    Excel:      Early Years
+    Firestore:  Early Years/Foundation Stage
+  reasonForLeaving
+    Excel:      Work Environment
+    Firestore:  Other
+  reasonNote
+    Excel:      Bad community as a parent / she'll transefr her kids and leave
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7562  Noha Fathy Ahmed Heraiba
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Work load am not fit for NIS
+    Firestore:  Other
+
+7978  Rana Hossam El Din Abdel aziz Mohamed Gaafer
+  role
+    Excel:      Teacher
+    Firestore:  ICT Teacher
+  nameAr
+    Excel:      Ø±ÙØ§ Ø­Ø³Ø§Ù Ø§ÙØ¯ÙÙ Ø¹Ø¨Ø¯ Ø§ÙØ¹Ø²ÙØ² ÙØ­ÙØ¯ Ø¬Ø¹ÙØ±
+    Firestore:  رنا حسام الدين عبد العزيز محمد جعفر
+  reasonForLeaving
+    Excel:      Resigned after 2 working days/ (ØªÙÙÙÙ)
+    Firestore:  Other
+
+7526  Rania Saeed Mohamed Metwally
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Medical/Pregnant
+    Firestore:  Other
+
+7759  Ruba Ayman Saber Aly Mohamed
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      doesn't like teaching and wants to shift career
+    Firestore:  Other
+
+5183  Sara Ahmed AbdelHalim El Sayed
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Family Reasons
+    Firestore:  Other
+  reasonNote
+    Excel:      Family medical circumstances
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7433  Semnar Eliseo Hizon Andrade
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Work Environment
+    Firestore:  Other
+  reasonNote
+    Excel:      Work Load isnt suitable for him Exit Date:6/10/2025
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7389  Toqa Tamer Roshdy Sayed Ahmed
+  role
+    Excel:      Teacher
+    Firestore:  Coach
+  reasonForLeaving
+    Excel:      Termination
+    Firestore:  Other
+  reasonNote
+    Excel:      excessive absence from the candidate
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+7412  Nourhan Hamdy Yassin Hamam
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Medical reason
+    Firestore:  Other
+
+7817  Fatin Samir Ragheb Nashed
+  role
+    Excel:      Teacher
+    Firestore:  Subject teacher
+  reasonForLeaving
+    Excel:      Resignation/ Work Load and another offer
+    Firestore:  Other
+
+7120  Marina Sobhy yacoub Georgy
+  role
+    Excel:      Teacher
+    Firestore:  Co-Teacher
+  reasonForLeaving
+    Excel:      Better Opportunity
+    Firestore:  Other
+  reasonNote
+    Excel:      Better Job Opportunity or Career Advancement /Ø§ÙØªÙØ¯Ù Ø§ÙÙØ¸ÙÙÙ
+    Firestore:  Bulk deactivation of leftover / inactive employee accounts requested by HR.
+
+3131  Rewan Emad Ali Abady Nour el din
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      End of Contract (4 MONTHS CONTRACT)
+    Firestore:  Other
+
+6840  Zahraa El Islam Moaz Mohamed Hammam
+  role
+    Excel:      Teacher
+    Firestore:  Subject Teacher
+  reasonForLeaving
+    Excel:      Personal Reasons/seems not satisfied with her superiors
+    Firestore:  Other
+
+Skipped (no Employee ID):
+  Osama Mohamed El Sayed Ash
+  Rehab Mohamed Sabry Abdelrahman Nawar
+  Manar Saad Mohamed Ibrahim
+  Mariam Mohamed Samir Zaki Abdel wahab
+  Noha Zakaria Ahmed Daoud ElKasas
+  Noha Mohamed Fouad Reda Ibrahim
+  Ibrahim Amr Ibrahim Mohamed Hashem
+  Ragaa Nahed Abdelkader Abdel rahaman Abo Rokba
+  Sahar Saied Al Hussainy Hamed Ibrahim
+
+Not found in Firestore:
+  5726  Ahmed Mohey El Din Mohamed Saleh
+  5313  Sahar Ahmed Hussien Ahmed Farid
+  202132456789  ola ola
