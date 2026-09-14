@@ -184,28 +184,39 @@ function MyRequestsContent() {
   const [allUserLeaveRequests, setAllUserLeaveRequests] = useState<LeaveRequestEntry[]>([]);
   const [isLoadingLeaveRequests, setIsLoadingLeaveRequests] = useState(false);
   const [employeeGender, setEmployeeGender] = useState<string | null>(null);
+  const [employeePositionClass, setEmployeePositionClass] = useState<string | null>(null);
 
   const [currentMonthDate, setCurrentMonthDate] = useState<Date>(startOfMonth(new Date()));
 
-  // Fetch employee gender directly to ensure accurate maternity leave eligibility
+  // Fetch employee gender / position class for leave-balance rules
   useEffect(() => {
     if (currentEmployee?.gender) {
       setEmployeeGender(currentEmployee.gender);
-    } else if (currentEmployeeId) {
-      getDoc(doc(db, "employee", currentEmployeeId))
-        .then((snap) => {
-          if (snap.exists()) {
-            const data = snap.data();
-            if (data?.gender) {
-              setEmployeeGender(data.gender);
-            }
-          }
-        })
-        .catch((err) => {
-          console.warn("Could not fetch employee gender:", err);
-        });
     }
-  }, [currentEmployee?.gender, currentEmployeeId]);
+    if (currentEmployee?.positionClass) {
+      setEmployeePositionClass(currentEmployee.positionClass);
+    }
+
+    const needsGender = !currentEmployee?.gender;
+    const needsPositionClass = !currentEmployee?.positionClass;
+    if (!currentEmployeeId || (!needsGender && !needsPositionClass)) return;
+
+    getDoc(doc(db, "employee", currentEmployeeId))
+      .then((snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (needsGender && data?.gender) {
+            setEmployeeGender(data.gender);
+          }
+          if (needsPositionClass && data?.positionClass) {
+            setEmployeePositionClass(data.positionClass);
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not fetch employee leave-balance fields:", err);
+      });
+  }, [currentEmployee?.gender, currentEmployee?.positionClass, currentEmployeeId]);
 
   const [specificDayForSnapshot, setSpecificDayForSnapshot] = useState<Date>(new Date());
   const [specificDayWorkHours, setSpecificDayWorkHours] = useState<number | null>(null);
@@ -406,7 +417,7 @@ function MyRequestsContent() {
       const rawEndDate = leave.endDate?.toDate ? leave.endDate.toDate() : new Date(leave.endDate || leave.startDate);
       const typeLower = (leave.leaveType || "").trim().toLowerCase();
 
-      // 1. Early Dismissal & Late Arrival (4 hours / month)
+      // 1. Early Dismissal & Late Arrival (4 hours / month, 8 hours for SLT)
       const isEarlyLate =
         typeLower.includes("early dismissal") ||
         typeLower.includes("late arrival") ||
@@ -525,8 +536,12 @@ function MyRequestsContent() {
     const isFemale = ["female", "f", "أنثى", "انثى"].includes(rawGender);
     const isMale = ["male", "m", "ذكر"].includes(rawGender);
 
+    const positionClass = (employeePositionClass || currentEmployee?.positionClass || "").trim().toLowerCase();
+    const isSLT = positionClass === "slt" || positionClass.includes("slt");
+    const earlyLateAllowedHours = isSLT ? 8 : 4;
+
     const earlyLateTotalUsed = earlyLateApprovedHours + earlyLatePendingHours;
-    const earlyLateRemaining = Math.max(0, 4 - earlyLateTotalUsed);
+    const earlyLateRemaining = Math.max(0, earlyLateAllowedHours - earlyLateTotalUsed);
 
     const emergencyTotalUsed = emergencyApprovedDays + emergencyPendingDays;
     const emergencyRemaining = Math.max(0, 1 - emergencyTotalUsed);
@@ -540,7 +555,8 @@ function MyRequestsContent() {
 
     return {
       earlyLate: {
-        allowedHours: 4,
+        allowedHours: earlyLateAllowedHours,
+        isSLT,
         approvedHours: earlyLateApprovedHours,
         pendingHours: earlyLatePendingHours,
         totalUsedHours: earlyLateTotalUsed,
@@ -581,7 +597,7 @@ function MyRequestsContent() {
         hourTotalHours: maternityHourApprovedHours + maternityHourPendingHours,
       },
     };
-  }, [allUserLeaveRequests, currentMonthDate, academicTerm, employeeGender, currentEmployee?.gender]);
+  }, [allUserLeaveRequests, currentMonthDate, academicTerm, employeeGender, currentEmployee?.gender, employeePositionClass, currentEmployee?.positionClass]);
 
   const handleYearChange = (yearString: string) => {
     const year = parseInt(yearString, 10);
@@ -695,7 +711,7 @@ function MyRequestsContent() {
                         </div>
                       </div>
                       <Badge variant="outline" className="text-[11px] font-semibold whitespace-nowrap bg-muted/50">
-                        4h / month
+                        {leaveBalances.earlyLate.allowedHours}h / month
                       </Badge>
                     </div>
 
@@ -709,15 +725,16 @@ function MyRequestsContent() {
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Allowed: 4 hours in {format(currentMonthDate, "MMMM")}
+                        Allowed: {leaveBalances.earlyLate.allowedHours} hours in {format(currentMonthDate, "MMMM")}
+                        {leaveBalances.earlyLate.isSLT ? " (SLT)" : ""}
                       </p>
                     </div>
 
                     <div className="mt-3">
                       <Progress
-                        value={(leaveBalances.earlyLate.remainingHours / 4) * 100}
+                        value={(leaveBalances.earlyLate.remainingHours / leaveBalances.earlyLate.allowedHours) * 100}
                         className="h-2 bg-muted"
-                        indicatorClassName={getProgressIndicatorColor(leaveBalances.earlyLate.remainingHours, 4)}
+                        indicatorClassName={getProgressIndicatorColor(leaveBalances.earlyLate.remainingHours, leaveBalances.earlyLate.allowedHours)}
                       />
                     </div>
                   </div>
@@ -966,7 +983,7 @@ function MyRequestsContent() {
               <div className="flex items-start sm:items-center gap-2">
                 <Info className="h-4 w-4 text-primary flex-shrink-0 mt-0.5 sm:mt-0" />
                 <span>
-                  <strong>Official Policy Limits:</strong> Early & Late Excuses: 4 hours/month (2h per excuse) • Emergency: 1 day/term • Medical: 7 days/year • Maternity: 120 days (Female).
+                  <strong>Official Policy Limits:</strong> Early & Late Excuses: 4 hours/month (8 hours for SLT, 2h per excuse) • Emergency: 1 day/term • Medical: 7 days/year • Maternity: 120 days (Female).
                 </span>
               </div>
               <div className="text-muted-foreground/90 font-medium whitespace-nowrap self-end sm:self-auto">

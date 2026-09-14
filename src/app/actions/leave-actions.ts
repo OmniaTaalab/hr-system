@@ -109,68 +109,65 @@ export async function submitLeaveRequestAction(
       return { errors: { form: ["Employee record not found."] }, success: false };
     }
 
-    // 📌 Late Arrival & Early Dismissal Logic with 4-hour Monthly Limit
-if (leaveType === "Late Arrival" || leaveType === "Early Dismissal") {
-    
-  const monthStart = startOfMonth(startDate);
-  const monthEnd = endOfMonth(startDate);
-
-  // 🟦 Fetch all existing excuses for the month
-  const q = query(
-    collection(db, "leaveRequests"),
-    where("requestingEmployeeDocId", "==", requestingEmployeeDocId),
-    where("startDate", ">=", Timestamp.fromDate(monthStart)),
-    where("startDate", "<=", Timestamp.fromDate(monthEnd))
-  );
-  
-  const snap = await getDocs(q);
-  
-  // Apply logic locally (safe & fast)
-  const existingRequests = snap.docs.filter((doc) => {
-    const data = doc.data();
-    return (
-      ["Late Arrival", "Early Dismissal"].includes(data.leaveType) &&
-      ["Pending", "Approved"].includes(data.status)
-    );
-  });
-
-  // 🟧 Each excuse = 2 hours
-  const HOURS_PER_REQUEST = 2;
-
-  // 🟩 Calculate total used hours
-  const usedHours = existingRequests.length * HOURS_PER_REQUEST;
-
-  // 🟥 If already used 4 hours → reject completely
-  if (usedHours >= 4) {
-      return {
-          errors: {
-              form: [
-                  "You have already used your 4-hour monthly excuse limit. Late Arrival and Early Dismissal are now disabled."
-              ]
-          },
-          success: false,
-      };
-  }
-
-  // ⚠️ Check if adding new one will exceed 4 hours
-  if (usedHours + HOURS_PER_REQUEST > 4) {
-      return {
-          errors: {
-              form: [
-                  `You only have ${4 - usedHours} hours left this month. You cannot submit another "${leaveType}" request.`
-              ]
-          },
-          success: false,
-      };
-  }
-
-  // 🟩 Otherwise → allow submitting request normally
-}
-
-
-
     const employeeData = employeeSnap.data();
     const employeeName = employeeData.name ?? "Unknown Employee";
+
+    const positionClass = (employeeData.positionClass || "").trim().toLowerCase();
+    const isSLT = positionClass === "slt" || positionClass.includes("slt");
+
+    // Late Arrival & Early Dismissal: 4-hour monthly limit (8 hours for SLT).
+    // Query by employee only (equality) and filter dates in memory so we
+    // don't need a composite Firestore index on requestingEmployeeDocId + startDate.
+    if (leaveType === "Late Arrival" || leaveType === "Early Dismissal") {
+      const monthStart = startOfMonth(startDate);
+      const monthEnd = endOfMonth(startDate);
+
+      const q = query(
+        collection(db, "leaveRequests"),
+        where("requestingEmployeeDocId", "==", requestingEmployeeDocId)
+      );
+
+      const snap = await getDocs(q);
+
+      const existingRequests = snap.docs.filter((docSnap) => {
+        const data = docSnap.data();
+        const requestStart: Date | undefined = data.startDate?.toDate?.();
+        if (!requestStart) return false;
+
+        return (
+          ["Late Arrival", "Early Dismissal"].includes(data.leaveType) &&
+          ["Pending", "Approved"].includes(data.status) &&
+          requestStart >= monthStart &&
+          requestStart <= monthEnd
+        );
+      });
+
+      const HOURS_PER_REQUEST = 2;
+      const MONTHLY_LIMIT = isSLT ? 8 : 4;
+      const usedHours = existingRequests.length * HOURS_PER_REQUEST;
+
+      if (usedHours >= MONTHLY_LIMIT) {
+        return {
+          errors: {
+            form: [
+              `You have already used your ${MONTHLY_LIMIT}-hour monthly excuse limit. Late Arrival and Early Dismissal are now disabled.`,
+            ],
+          },
+          success: false,
+        };
+      }
+
+      if (usedHours + HOURS_PER_REQUEST > MONTHLY_LIMIT) {
+        return {
+          errors: {
+            form: [
+              `You only have ${MONTHLY_LIMIT - usedHours} hours left this month. You cannot submit another "${leaveType}" request.`,
+            ],
+          },
+          success: false,
+        };
+      }
+    }
 
     const lowerLeaveType = leaveType.trim().toLowerCase();
     const isMaternityHour =
