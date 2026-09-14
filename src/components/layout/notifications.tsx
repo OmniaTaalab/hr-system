@@ -17,6 +17,7 @@ import { useUserProfile } from "./app-layout";
 import { db } from "@/lib/firebase/config";
 import { collection, query, onSnapshot, doc, updateDoc, Timestamp, orderBy, arrayUnion } from "firebase/firestore";
 import { formatDistanceToNow } from "date-fns";
+import { toAppPath } from "@/lib/app-url";
 
 interface Notification {
   id: string;
@@ -88,7 +89,8 @@ export function Notifications() {
         console.error("Error updating global notification:", error);
       }
     }
-    if (notification.link) router.push(notification.link);
+    const path = toAppPath(notification.link);
+    if (path) router.push(path);
   };
   
   const handlePersonalNotificationClick = async (notification: Notification) => {
@@ -100,7 +102,8 @@ export function Notifications() {
              console.error("Error updating personal notification:", error);
         }
     }
-    if (notification.link) router.push(notification.link);
+    const path = toAppPath(notification.link);
+    if (path) router.push(path);
   }
 
   const isGlobalNotificationUnread = (notification: Notification): boolean => {

@@ -13,6 +13,7 @@ import { logSystemEvent } from '@/lib/system-log';
 import LeaveRequestNotificationEmail from '@/emails/leave-request-notification';
 import { render } from '@react-email/render';
 import { startOfMonth, endOfMonth } from 'date-fns';
+import { toAbsoluteAppUrl } from '@/lib/app-url';
 
 
 // Calculate working days excluding weekends/holidays
@@ -260,8 +261,8 @@ export async function submitLeaveRequestAction(
       }
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-    const requestLink = `${appUrl}/leave/all-requests/${newRequestRef.id}`;
+    const requestPath = `/leave/all-requests/${newRequestRef.id}`;
+    const requestLink = toAbsoluteAppUrl(requestPath);
     const firstApproverEmail = (employeeData.reportLine1 || employeeData.reportLine2 || '').trim().toLowerCase();
 
     // Send notifications and emails to ALL reporting lines
@@ -293,14 +294,14 @@ export async function submitLeaveRequestAction(
         if (managerUserId) {
           await addDoc(collection(db, `users/${managerUserId}/notifications`), {
             message: notificationMessage,
-            link: requestLink,
+            link: requestPath,
             createdAt: serverTimestamp(),
             isRead: false,
           });
         } else {
           await addDoc(collection(db, "notifications"), {
             message: `${notificationMessage} (Manager: ${managerEmail})`,
-            link: requestLink,
+            link: requestPath,
             createdAt: serverTimestamp(),
             readBy: [],
           });
@@ -337,7 +338,7 @@ export async function submitLeaveRequestAction(
     } else {
       await addDoc(collection(db, "notifications"), {
         message: `New leave request from ${employeeName} (No manager assigned).`,
-        link: `/leave/all-requests/${newRequestRef.id}`,
+        link: requestPath,
         createdAt: serverTimestamp(),
         readBy: [],
       });
@@ -457,13 +458,13 @@ export async function updateLeaveRequestStatusAction(
           const managerDoc = managerSnapshot.docs[0];
           const managerData = managerDoc.data();
           const notificationMessage = `Leave request from ${requestData.employeeName} has been approved by the first manager and is now awaiting your approval.`;
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-          const requestLink = `${appUrl}/leave/all-requests/${requestId}`;
+          const requestPath = `/leave/all-requests/${requestId}`;
+          const requestLink = toAbsoluteAppUrl(requestPath);
           
           if(managerData.userId){
              await addDoc(collection(db, `users/${managerData.userId}/notifications`), {
                 message: notificationMessage,
-                link: requestLink,
+                link: requestPath,
                 createdAt: serverTimestamp(),
                 isRead: false,
             });
@@ -528,11 +529,11 @@ export async function updateLeaveRequestStatusAction(
           const employeeUserEmail = employeeData.email;
 
           const notificationMessage = `Your leave request for ${requestData.leaveType} has been ${finalStatus.toLowerCase()}.`;
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-          const requestLink = `${appUrl}/leave/all-requests/${requestId}`;
+          const requestPath = `/leave/all-requests/${requestId}`;
+          const requestLink = toAbsoluteAppUrl(requestPath);
 
           if (employeeUserId) {
-            await addDoc(collection(db, `users/${employeeUserId}/notifications`), { message: notificationMessage, link: requestLink, createdAt: serverTimestamp(), isRead: false });
+            await addDoc(collection(db, `users/${employeeUserId}/notifications`), { message: notificationMessage, link: requestPath, createdAt: serverTimestamp(), isRead: false });
           }
 
           if (employeeUserEmail) {

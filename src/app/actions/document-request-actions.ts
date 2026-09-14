@@ -20,6 +20,7 @@ import {
 import { render } from "@react-email/components";
 import { DocumentRequestNotificationEmail } from "@/emails/document-request-notification";
 import { logSystemEvent } from "@/lib/system-log";
+import { toAbsoluteAppUrl } from "@/lib/app-url";
 import {
   DOCUMENT_REQUEST_TYPES,
   DOCUMENT_STATUSES,
@@ -152,14 +153,14 @@ export async function submitDocumentRequestAction(
 
     const docRef = await addDoc(collection(db, "documentRequests"), docData);
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const hrQueueLink = `${appUrl}/document-requests?tab=queue&id=${docRef.id}`;
+    const hrQueuePath = `/document-requests?tab=queue&id=${docRef.id}`;
+    const hrQueueLink = toAbsoluteAppUrl(hrQueuePath);
 
     // 1. Send in-app notification to all HR / Admin users
     try {
       await addDoc(collection(db, "notifications"), {
         message: `New Document Request: ${documentType} from ${employeeName} (${requestNumber}).`,
-        link: hrQueueLink,
+        link: hrQueuePath,
         createdAt: serverTimestamp(),
         readBy: [],
       });
@@ -372,8 +373,8 @@ export async function updateDocumentRequestStatusAction(
     await updateDoc(docRef, updatePayload);
 
     // 1. Notify employee via In-App Notification
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const employeeLink = `${appUrl}/document-requests?tab=my&id=${requestId}`;
+    const employeePath = `/document-requests?tab=my&id=${requestId}`;
+    const employeeLink = toAbsoluteAppUrl(employeePath);
 
     const employeeUserId = requestData.userId;
     const employeeEmail = requestData.employeeEmail;
@@ -387,7 +388,7 @@ export async function updateDocumentRequestStatusAction(
       try {
         await addDoc(collection(db, `users/${employeeUserId}/notifications`), {
           message: notifMessage,
-          link: employeeLink,
+          link: employeePath,
           createdAt: serverTimestamp(),
           isRead: false,
         });

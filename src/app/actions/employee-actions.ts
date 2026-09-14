@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { logSystemEvent } from '@/lib/system-log';
 import { render } from '@react-email/render';
 import ProfDevelopmentNotificationEmail from '@/emails/prof-development-notification';
+import { toAbsoluteAppUrl } from '@/lib/app-url';
 
 
 // This file should only contain actions that are safe to be called from the client
@@ -210,10 +211,8 @@ export async function addProfDevelopmentAction(
       const managerSnapshot = await getDocs(managerQuery);
 
 
-      const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-
-      const submissionLink = `${appUrl}/kpis/${employeeData.employeeId}`;
+      const submissionPath = `/kpis/${employeeData.employeeId}`;
+      const submissionLink = toAbsoluteAppUrl(submissionPath);
 
       if (!managerSnapshot.empty) {
         const managerDoc = managerSnapshot.docs[0];
@@ -226,7 +225,7 @@ export async function addProfDevelopmentAction(
         if (managerData.userId) {
           await addDoc(collection(db, `users/${managerData.userId}/notifications`), {
             message: notificationMessage,
-            link: submissionLink,
+            link: submissionPath,
             createdAt: serverTimestamp(),
             isRead: false,
           });
@@ -340,15 +339,15 @@ export async function updateProfDevelopmentStatusAction(
     // --- Notification Logic for Employee ---
     const employeeUserId = employeeData.userId;
     const employeeUserEmail = employeeData.email;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-    const submissionLink = `${appUrl}/profile`;
+    const submissionPath = '/profile';
+    const submissionLink = toAbsoluteAppUrl(submissionPath);
     const notificationMessage = `Your professional development submission has been ${newStatus.toLowerCase()}.`;
 
     // In-app notification for the employee
     if (employeeUserId) {
         await addDoc(collection(db, `users/${employeeUserId}/notifications`), {
             message: notificationMessage,
-            link: submissionLink,
+            link: submissionPath,
             createdAt: serverTimestamp(),
             isRead: false,
         });
@@ -444,12 +443,13 @@ export async function updateProfDevelopmentAction(
               const managerData = managerSnapshot.docs[0].data();
               const managerUserId = managerData.userId;
               const managerEmail = managerData.email;
-              const submissionLink = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/kpis/${employeeData.employeeId}`;
+              const submissionPath = `/kpis/${employeeData.employeeId}`;
+              const submissionLink = toAbsoluteAppUrl(submissionPath);
 
               if (managerUserId) {
                   await addDoc(collection(db, `users/${managerUserId}/notifications`), {
                       message: `A professional development entry from ${employeeData.name} has been updated and needs your review.`,
-                      link: submissionLink,
+                      link: submissionPath,
                       createdAt: serverTimestamp(),
                       isRead: false,
                   });
