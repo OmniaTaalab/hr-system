@@ -307,10 +307,12 @@ function LeaveRequestForm() {
         </div>
 
         {/* Dates */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="flex flex-row items-start gap-4">
           {/* Start Date */}
-          <div className="space-y-2">
-            <Label>Start Date</Label>
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex min-h-5 items-center">
+              <Label>Start Date</Label>
+            </div>
             <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -344,8 +346,8 @@ function LeaveRequestForm() {
           </div>
 
           {/* End Date */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex min-h-5 items-center justify-between gap-2">
               <Label>End Date</Label>
               {isMaternityHour && (
                 <span className="text-xs font-semibold text-sky-700 bg-sky-100 dark:bg-sky-900/40 dark:text-sky-300 px-2 py-0.5 rounded flex items-center gap-1">
