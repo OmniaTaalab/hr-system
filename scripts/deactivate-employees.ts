@@ -16,7 +16,7 @@ const ACTOR_EMAIL = "hr-bulk-script@system";
 const ACTOR_ROLE = "hr";
 
 /** Employee ID + expected name. Script never touches anyone outside this list. */
-const TARGETS: Array<[string, string]> = [
+export const TARGETS: Array<[string, string]> = [
   ["1304", "Alaa Atef Aziz"],
   ["1335", "Damian Charpentier"],
   ["1720", "Basma ElNady"],
@@ -552,9 +552,12 @@ async function main() {
   }
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+const isDirectRun = process.argv[1]?.replace(/\\/g, "/").includes("deactivate-employees");
+if (isDirectRun) {
+  main()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+}
