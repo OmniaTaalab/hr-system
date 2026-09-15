@@ -65,6 +65,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import * as XLSX from 'xlsx';
 import { MultiSelectFilter, type OptionType } from "@/components/multi-select";
 import type { BatchCreateEmployeesState } from "@/lib/firebase/admin-actions";
+import { countDigits, sanitizeEmployeeIdInput, validateOptionalFourDigitEmployeeId } from "@/lib/employee-id";
 
 
 export interface EmployeeFile {
@@ -224,8 +225,23 @@ function AddEmployeeFormContent({
   const [stage, setStage] = useState<string | undefined>(undefined);
   const [positionClass, setPositionClass] = useState<string | undefined>(undefined);
   const [reportLineCount, setReportLineCount] = useState(2);
+  const [typedEmployeeId, setTypedEmployeeId] = useState("");
+  const [employeeIdError, setEmployeeIdError] = useState<string | null>(null);
+  const [isAddSubmitting, setIsAddSubmitting] = useState(false);
   const addFormRef = useRef<HTMLFormElement>(null);
   const lastHandledAddStateRef = useRef<CreateEmployeeState | null>(null);
+
+  const applyEmployeeIdInput = (raw: string, options?: { fromPaste?: boolean; originalDigitCount?: number }) => {
+    if (options?.fromPaste && (options.originalDigitCount ?? 0) > 4) {
+      setEmployeeIdError("Employee ID must be exactly 4 digits (1000-9999).");
+      return;
+    }
+    const nextValue = sanitizeEmployeeIdInput(raw);
+    setTypedEmployeeId(nextValue);
+    if (nextValue.length === 0 || nextValue.length === 4) {
+      setEmployeeIdError(validateOptionalFourDigitEmployeeId(nextValue).error ?? null);
+    }
+  };
 
   useEffect(() => {
     if (lastHandledAddStateRef.current === addState) return;
@@ -236,6 +252,13 @@ function AddEmployeeFormContent({
         employeeId: addState.employeeId,
         name: addState.employeeName || "",
       });
+      return;
+    }
+
+    setIsAddSubmitting(false);
+
+    if (addState.errors?.employeeId) {
+      setEmployeeIdError(addState.errors.employeeId[0] || "This Employee ID is already in use.");
       return;
     }
 
@@ -261,6 +284,20 @@ function AddEmployeeFormContent({
         ref={addFormRef}
         action={addAction}
         className="flex flex-col overflow-hidden"
+        onSubmit={(event) => {
+          if (isAddPending || isAddSubmitting) {
+            event.preventDefault();
+            return;
+          }
+          const error = validateOptionalFourDigitEmployeeId(typedEmployeeId).error ?? null;
+          if (error) {
+            event.preventDefault();
+            setEmployeeIdError(error);
+            return;
+          }
+          setEmployeeIdError(null);
+          setIsAddSubmitting(true);
+        }}
       >
         <input type="hidden" name="actorId" value={profile?.id ?? ''} />
         <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
@@ -335,14 +372,40 @@ function AddEmployeeFormContent({
                     <Label htmlFor="add-employeeId">Employee ID</Label>
                     <Input
                       id="add-employeeId"
-                      value="Assigned automatically"
-                      disabled
-                      readOnly
-                      className="bg-muted"
+                      name="employeeId"
+                      value={typedEmployeeId}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      spellCheck={false}
+                      maxLength={4}
+                      placeholder="Leave empty to auto-generate"
+                      aria-invalid={Boolean(employeeIdError || addState?.errors?.employeeId)}
+                      onChange={(event) => applyEmployeeIdInput(event.target.value)}
+                      onBlur={() => {
+                        setEmployeeIdError(validateOptionalFourDigitEmployeeId(typedEmployeeId).error ?? null);
+                      }}
+                      onPaste={(event) => {
+                        const pasted = event.clipboardData.getData("text");
+                        event.preventDefault();
+                        applyEmployeeIdInput(pasted, {
+                          fromPaste: true,
+                          originalDigitCount: countDigits(pasted),
+                        });
+                      }}
+                      onKeyDown={(event) => {
+                        if (["e", "E", "+", "-", ".", " "].includes(event.key)) {
+                          event.preventDefault();
+                        }
+                      }}
                     />
                     <p className="text-xs text-muted-foreground">
-                      A unique 4-digit ID is generated when you add this employee.
+                      Type a 4-digit ID (1000-9999), or leave empty to generate one automatically.
                     </p>
+                    {(employeeIdError || addState?.errors?.employeeId) && (
+                      <p className="text-sm text-destructive">
+                        {employeeIdError || addState.errors?.employeeId?.join(", ")}
+                      </p>
+                    )}
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="add-nisEmail">NIS Email *</Label>
@@ -450,8 +513,8 @@ function AddEmployeeFormContent({
         </ScrollArea>
         <DialogFooter className="pt-4 flex-shrink-0 border-t">
           <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-          <Button type="submit" disabled={isAddPending}>
-              {isAddPending ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adding...</>) : "Add Employee"}
+          <Button type="submit" disabled={isAddPending || isAddSubmitting}>
+              {isAddPending || isAddSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adding...</>) : "Add Employee"}
           </Button>
         </DialogFooter>
       </form>

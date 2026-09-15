@@ -6,9 +6,16 @@ import { db } from '@/lib/firebase/config';
 import { adminAuth as adminAuthSrv, adminDb } from '@/lib/firebase/admin-config';
 import { collection, addDoc, doc, updateDoc, serverTimestamp, Timestamp, query, where, getDocs, limit, deleteDoc, getDoc, writeBatch, orderBy } from 'firebase/firestore';
 import { logSystemEvent } from '../system-log';
-
-const MIN_FOUR_DIGIT_ID = 1000;
-const MAX_FOUR_DIGIT_ID = 9999;
+import {
+  MAX_FOUR_DIGIT_EMPLOYEE_ID,
+  MIN_FOUR_DIGIT_EMPLOYEE_ID,
+  chooseCreateEmployeeId,
+  isValidFourDigitCounter,
+  maxUsedFourDigitId,
+  nextFreeFourDigitId,
+  sameEmployeeId,
+  toNumericEmployeeId,
+} from '@/lib/employee-id';
 
 const EMPLOYEE_ID_COUNTER_REF = () => {
   if (!adminDb) {
@@ -17,14 +24,17 @@ const EMPLOYEE_ID_COUNTER_REF = () => {
   return adminDb.collection("counters").doc("employeeId");
 };
 
-function toNumericEmployeeId(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  const numericId = Number(String(value).trim());
-  return Number.isFinite(numericId) ? numericId : null;
-}
+const EMPLOYEE_ID_CLAIM_REF = (employeeId: string) => {
+  if (!adminDb) {
+    throw new Error("Firebase Admin SDK is not configured.");
+  }
+  return adminDb.collection("employeeIdClaims").doc(employeeId);
+};
 
-function isValidFourDigitCounter(lastId: number): boolean {
-  return Number.isFinite(lastId) && lastId >= MIN_FOUR_DIGIT_ID - 1 && lastId <= MAX_FOUR_DIGIT_ID;
+function isAlreadyExistsError(error: unknown): boolean {
+  const code = (error as { code?: number | string } | undefined)?.code;
+  const message = (error as { message?: string } | undefined)?.message || "";
+  return code === 6 || code === "already-exists" || /ALREADY_EXISTS/i.test(message);
 }
 
 async function loadUsedNumericEmployeeIds(): Promise<Set<number>> {
@@ -43,48 +53,85 @@ async function loadUsedNumericEmployeeIds(): Promise<Set<number>> {
   return used;
 }
 
-function maxUsedFourDigitId(used: Set<number>): number {
-  let max = MIN_FOUR_DIGIT_ID - 1;
-  for (const id of used) {
-    if (id >= MIN_FOUR_DIGIT_ID && id <= MAX_FOUR_DIGIT_ID && id > max) {
-      max = id;
-    }
-  }
-  return max;
-}
-
-function nextFreeFourDigitId(used: Set<number>, startAfter: number): number | null {
-  const start = Math.min(Math.max(startAfter + 1, MIN_FOUR_DIGIT_ID), MAX_FOUR_DIGIT_ID + 1);
-
-  for (let id = start; id <= MAX_FOUR_DIGIT_ID; id++) {
-    if (!used.has(id)) return id;
-  }
-  for (let id = MIN_FOUR_DIGIT_ID; id < start; id++) {
-    if (!used.has(id)) return id;
-  }
-  return null;
-}
-
-async function isEmployeeIdTaken(employeeId: string): Promise<boolean> {
+async function isEmployeeIdTaken(employeeId: string, used?: Set<number>): Promise<boolean> {
   if (!adminDb) {
     throw new Error("Firebase Admin SDK is not configured.");
   }
+
+  const numericId = toNumericEmployeeId(employeeId);
+  const usedIds = used ?? await loadUsedNumericEmployeeIds();
+  if (numericId !== null && usedIds.has(numericId)) return true;
 
   const employeeCollection = adminDb.collection("employee");
   const asString = await employeeCollection.where("employeeId", "==", employeeId).limit(1).get();
   if (!asString.empty) return true;
 
-  const numericId = toNumericEmployeeId(employeeId);
   if (numericId !== null) {
     const asNumber = await employeeCollection.where("employeeId", "==", numericId).limit(1).get();
     if (!asNumber.empty) return true;
+    const canonical = String(numericId);
+    if (canonical !== employeeId) {
+      const asCanonical = await employeeCollection.where("employeeId", "==", canonical).limit(1).get();
+      if (!asCanonical.empty) return true;
+    }
   }
+
+  const claimSnap = await EMPLOYEE_ID_CLAIM_REF(employeeId).get();
+  if (claimSnap.exists) return true;
+  if (numericId !== null && String(numericId) !== employeeId) {
+    const canonicalClaim = await EMPLOYEE_ID_CLAIM_REF(String(numericId)).get();
+    if (canonicalClaim.exists) return true;
+  }
+
   return false;
 }
 
-async function allocateUniqueEmployeeId(): Promise<string> {
-  const used = await loadUsedNumericEmployeeIds();
+async function isEmployeeIdTakenByOther(employeeId: string, currentDocId: string): Promise<boolean> {
+  if (!adminDb) {
+    throw new Error("Firebase Admin SDK is not configured.");
+  }
 
+  const numericId = toNumericEmployeeId(employeeId);
+  const employeeCollection = adminDb.collection("employee");
+  const snapshots = [
+    await employeeCollection.where("employeeId", "==", employeeId).get(),
+  ];
+  if (numericId !== null) {
+    snapshots.push(await employeeCollection.where("employeeId", "==", numericId).get());
+    const canonical = String(numericId);
+    if (canonical !== employeeId) {
+      snapshots.push(await employeeCollection.where("employeeId", "==", canonical).get());
+    }
+  }
+
+  return snapshots.some((snap) => snap.docs.some((employeeDoc) => employeeDoc.id !== currentDocId));
+}
+
+async function claimEmployeeId(employeeId: string): Promise<boolean> {
+  try {
+    await EMPLOYEE_ID_CLAIM_REF(employeeId).create({
+      employeeId,
+      claimedAt: new Date(),
+    });
+    return true;
+  } catch (error) {
+    if (isAlreadyExistsError(error)) return false;
+    throw error;
+  }
+}
+
+async function releaseEmployeeIdClaim(employeeId: string | null | undefined): Promise<void> {
+  const numericId = toNumericEmployeeId(employeeId);
+  const claimId = numericId !== null ? String(numericId) : String(employeeId ?? "").trim();
+  if (!claimId) return;
+  try {
+    await EMPLOYEE_ID_CLAIM_REF(claimId).delete();
+  } catch {
+    // Claim may not exist for older records.
+  }
+}
+
+async function allocateUniqueEmployeeId(used: Set<number>): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt++) {
     const employeeId = await adminDb!.runTransaction(async (tx) => {
       const counterRef = EMPLOYEE_ID_COUNTER_REF();
@@ -101,7 +148,7 @@ async function allocateUniqueEmployeeId(): Promise<string> {
       return String(next);
     });
 
-    if (!(await isEmployeeIdTaken(employeeId))) {
+    if (!(await isEmployeeIdTaken(employeeId, used))) {
       return employeeId;
     }
 
@@ -109,6 +156,55 @@ async function allocateUniqueEmployeeId(): Promise<string> {
   }
 
   throw new Error("Could not allocate a unique 4-digit Employee ID. Please try again.");
+}
+
+async function resolveCreateEmployeeId(typedEmployeeId: string | undefined): Promise<
+  | { employeeId: string; claimed: true }
+  | { error: string; field: "employeeId" | "form" }
+> {
+  const used = await loadUsedNumericEmployeeIds();
+  const choice = chooseCreateEmployeeId(typedEmployeeId, used);
+
+  if (choice.action === "reject") {
+    return { error: choice.error, field: "employeeId" };
+  }
+
+  if (choice.action === "use") {
+    if (await isEmployeeIdTaken(choice.employeeId, used)) {
+      return { error: "This Employee ID is already in use.", field: "employeeId" };
+    }
+    const claimed = await claimEmployeeId(choice.employeeId);
+    if (!claimed) {
+      return { error: "This Employee ID is already in use.", field: "employeeId" };
+    }
+    return { employeeId: choice.employeeId, claimed: true };
+  }
+
+  for (let attempt = 0; attempt < 20; attempt++) {
+    let employeeId: string;
+    try {
+      employeeId = await allocateUniqueEmployeeId(used);
+    } catch (error: any) {
+      return {
+        error: error?.message || "Could not assign a unique 4-digit Employee ID. Please try again.",
+        field: "form",
+      };
+    }
+    if (!/^\d{4}$/.test(employeeId) || Number(employeeId) < MIN_FOUR_DIGIT_EMPLOYEE_ID || Number(employeeId) > MAX_FOUR_DIGIT_EMPLOYEE_ID) {
+      used.add(Number(employeeId));
+      continue;
+    }
+    const claimed = await claimEmployeeId(employeeId);
+    if (claimed) {
+      return { employeeId, claimed: true };
+    }
+    used.add(Number(employeeId));
+  }
+
+  return {
+    error: "Could not assign a unique 4-digit Employee ID. Please try again.",
+    field: "form",
+  };
 }
 
 // Helper for date string validation (MM/DD/YYYY)
@@ -135,7 +231,7 @@ const CreateEmployeeFormSchema = z.object({
   lastName: z.string().optional(),
   nisEmail: z.string().email({ message: "A valid NIS email is required." }).transform((val) => val.replace(/\s/g, '').toLowerCase()),
   employeeId: z.preprocess(
-    (val) => (val === "" || val === null || val === undefined ? undefined : String(val)),
+    (val) => (val === "" || val === null || val === undefined ? undefined : String(val).trim()),
     z.string().optional()
   ),
   gender: z.enum(["Male", "Female", "Other"]).optional(),
@@ -202,9 +298,11 @@ export async function createEmployeeAction(
   }
 
   const {
-    firstName, lastName, nisEmail, employeeId: _ignoredClientId, gender, role,
+    firstName, lastName, nisEmail, employeeId: typedEmployeeId, gender, role,
     actorId, actorEmail, actorRole, ...otherData
   } = validatedFields.data;
+
+  let claimedEmployeeId: string | null = null;
 
   try {
     const employeeCollection = collection(db, "employee");
@@ -215,14 +313,17 @@ export async function createEmployeeAction(
       return { success: false, errors: { nisEmail: ["This email is already in use."] } };
     }
 
-    const employeeId = await allocateUniqueEmployeeId();
-    if (!/^\d{4}$/.test(employeeId) || await isEmployeeIdTaken(employeeId)) {
+    const resolvedId = await resolveCreateEmployeeId(typedEmployeeId);
+    if ("error" in resolvedId) {
       return {
         success: false,
-        message: "Could not assign a unique 4-digit Employee ID. Please try again.",
-        errors: { form: ["Could not assign a unique 4-digit Employee ID. Please try again."] },
+        message: resolvedId.field === "form" ? resolvedId.error : undefined,
+        errors: { [resolvedId.field]: [resolvedId.error] },
       };
     }
+
+    claimedEmployeeId = resolvedId.employeeId;
+    const employeeId = resolvedId.employeeId;
     const fullName = `${firstName || ''} ${lastName || ''}`.trim();
     
     const newEmployeeDoc = {
@@ -282,6 +383,9 @@ export async function createEmployeeAction(
       message: `Employee "${newEmployeeDoc.name}" created successfully.`,
     };
   } catch (error: any) {
+    if (claimedEmployeeId) {
+      await releaseEmployeeIdClaim(claimedEmployeeId);
+    }
     return { success: false, message: error.message, errors: { form: [error.message] } };
   }
 }
@@ -311,17 +415,40 @@ export async function updateEmployeeAction(
   }
 
   const { firstName, lastName, nisEmail, employeeId, gender, role, ...otherData } = validatedFields.data;
+  let newlyClaimedId: string | null = null;
 
   try {
     const employeeRef = doc(db, "employee", employeeDocId);
     const oldSnap = await getDoc(employeeRef);
     const oldData = oldSnap.data();
+    const nextEmployeeId = employeeId || oldData?.employeeId || null;
+    if (nextEmployeeId && !sameEmployeeId(nextEmployeeId, oldData?.employeeId)) {
+      if (await isEmployeeIdTakenByOther(String(nextEmployeeId), employeeDocId)) {
+        return {
+          success: false,
+          errors: { employeeId: ["This Employee ID is already in use."] },
+          message: "This Employee ID is already in use.",
+        };
+      }
+      const nextNumeric = toNumericEmployeeId(nextEmployeeId);
+      if (nextNumeric !== null && nextNumeric >= MIN_FOUR_DIGIT_EMPLOYEE_ID && nextNumeric <= MAX_FOUR_DIGIT_EMPLOYEE_ID) {
+        const claimed = await claimEmployeeId(String(nextNumeric));
+        if (!claimed) {
+          return {
+            success: false,
+            errors: { employeeId: ["This Employee ID is already in use."] },
+            message: "This Employee ID is already in use.",
+          };
+        }
+        newlyClaimedId = String(nextNumeric);
+      }
+    }
 
     const fullName = `${firstName || ''} ${lastName || ''}`.trim();
     
     // Ensure no field is 'undefined' as Firestore updateDoc doesn't support it
     const updateData: any = {
-      employeeId: employeeId || oldData?.employeeId || null,
+      employeeId: nextEmployeeId,
       name: fullName,
       firstName: firstName || null,
       lastName: lastName || null,
@@ -359,6 +486,9 @@ export async function updateEmployeeAction(
     };
 
     await updateDoc(employeeRef, updateData);
+    if (newlyClaimedId) {
+      await releaseEmployeeIdClaim(oldData?.employeeId);
+    }
 
     await logSystemEvent("Update Employee", {
       actorId, actorEmail, actorRole,
@@ -370,6 +500,9 @@ export async function updateEmployeeAction(
     revalidatePath("/employees");
     return { success: true, message: "Employee updated successfully." };
   } catch (error: any) {
+    if (newlyClaimedId) {
+      await releaseEmployeeIdClaim(newlyClaimedId);
+    }
     return { success: false, message: error.message };
   }
 }
@@ -398,6 +531,7 @@ export async function deleteEmployeeAction(
     const data = snap.data();
 
     await deleteDoc(employeeRef);
+    await releaseEmployeeIdClaim(data.employeeId);
 
     await logSystemEvent("Delete Employee", {
       actorId, actorEmail, actorRole,
