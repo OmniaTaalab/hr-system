@@ -446,8 +446,19 @@ function EmployeeProfileContent() {
     const userRole = currentUserProfile.role?.toLowerCase();
     const userEmail = currentUserProfile.email;
   
-    if (userRole === "admin" || userRole === "hr" || userRole === "director" || currentUserProfile.id === employee.id) {
-      return true;
+if (
+  userRole === "admin" ||
+  userRole === "hr" ||
+  userRole === "director" ||
+  userRole === "human resource director" ||
+  userRole === "human resource director international schools" ||
+  userRole === "personnal director" ||
+  userRole === "recruitment and onbording manager" ||
+  userRole === "human resource executive" ||
+  userRole === "recruitment and onboarding executive" ||
+  userRole === "personnel executive" ||
+  currentUserProfile.id === employee.id
+) {      return true;
     }
   
     if (userEmail && (employee.reportLine1 === userEmail || employee.reportLine2 === userEmail || employee.reportLine3 === userEmail || employee.reportLine4 === userEmail || employee.reportLine5 === userEmail || employee.reportLine6 === userEmail)) {

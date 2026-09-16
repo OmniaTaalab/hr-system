@@ -173,7 +173,15 @@ export async function submitDocumentRequestAction(
       // Find HR users to email
       const hrQuery = query(
         collection(db, "employee"),
-        where("role", "in", ["hr", "admin"]),
+        where("role", "in", [  'admin',
+  'hr',
+  'human resource director',
+  'human resource director international schools',
+  'personnal director',
+  'recruitment and onbording manager',
+  'human resource executive',
+  'recruitment and onboarding executive',
+  'personnel executive',]),
         limit(5)
       );
       const hrSnapshot = await getDocs(hrQuery);

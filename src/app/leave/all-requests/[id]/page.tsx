@@ -153,7 +153,19 @@ function LeaveRequestDetailContent() {
   const canTakeAction = useMemo(() => {
     if (!profile || !request) return false;
     const userRole = profile.role?.toLowerCase();
-    if (userRole === 'admin' || userRole === 'hr') return true; // HR/Admin can always action
+    if (
+  userRole === "admin" ||
+  userRole === "hr" ||
+  userRole === "director" ||
+  userRole === "human resource director" ||
+  userRole === "human resource director international schools" ||
+  userRole === "personnal director" ||
+  userRole === "recruitment and onbording manager" ||
+  userRole === "human resource executive" ||
+  userRole === "recruitment and onboarding executive" ||
+  userRole === "personnel executive" ||
+  currentUserProfile.id === employee.id
+) return true; // HR/Admin can always action
     if (
       profile.email &&
       request.currentApprover &&

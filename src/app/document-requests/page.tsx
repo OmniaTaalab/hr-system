@@ -18,8 +18,18 @@ function DocumentRequestsContent() {
   const { profile, user } = useUserProfile();
 
   const userRole = profile?.role?.toLowerCase();
-  const isPrivilegedUser = userRole === "admin" || userRole === "hr" || userRole === "director";
-
+const isPrivilegedUser =
+  userRole === "admin" ||
+  userRole === "hr" ||
+  userRole === "director" ||
+  userRole === "human resource director" ||
+  userRole === "human resource director international schools" ||
+  userRole === "personnal director" ||
+  userRole === "recruitment and onbording manager" ||
+  userRole === "human resource executive" ||
+  userRole === "recruitment and onboarding executive" ||
+  userRole === "personnel executive";
+  
   const paramTab = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<string>(
     paramTab || (isPrivilegedUser ? "queue" : "submit")

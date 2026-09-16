@@ -149,8 +149,17 @@ function AllLeaveRequestsContent() {
 
     setIsLoading(true);
     const userRole = profile?.role?.toLowerCase();
-    const isPrivileged = userRole === "admin" || userRole === "hr";
-
+const isPrivileged =
+  userRole === "admin" ||
+  userRole === "hr" ||
+  userRole === "director" ||
+  userRole === "human resource director" ||
+  userRole === "human resource director international schools" ||
+  userRole === "personnal director" ||
+  userRole === "recruitment and onbording manager" ||
+  userRole === "human resource executive" ||
+  userRole === "recruitment and onboarding executive" ||
+  userRole === "personnel executive";
     let finalQuery;
 
     try {

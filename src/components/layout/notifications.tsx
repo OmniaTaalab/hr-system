@@ -43,8 +43,17 @@ export function Notifications() {
     
     setIsLoading(true);
     const userRole = profile?.role?.toLowerCase();
-    const isPrivilegedUser = userRole === 'admin' || userRole === 'hr';
-    const unsubscribes: (() => void)[] = [];
+const isPrivilegedUser =
+  userRole === 'admin' ||
+  userRole === 'hr' ||
+  userRole === 'human resource director' ||
+  userRole === 'human resource director international schools' ||
+  userRole === 'personnal director' ||
+  userRole === 'recruitment and onbording manager' ||
+  userRole === 'human resource executive' ||
+  userRole === 'recruitment and onboarding executive' ||
+  userRole === 'personnel executive';
+      const unsubscribes: (() => void)[] = [];
 
     // 1. Fetch global notifications only for privileged users (admin/hr)
     if (isPrivilegedUser) {

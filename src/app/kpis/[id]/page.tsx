@@ -556,7 +556,16 @@ function KpiDashboardContent() {
     if (isLoadingCurrentUser || !currentUserProfile || !employee) return false;
     if (currentUserProfile.id === employee.id) return true;
     const userRole = currentUserProfile.role?.toLowerCase();
-    if (userRole === 'admin' || userRole === 'hr') return true;
+if (
+  userRole === 'hr' ||
+  userRole === 'human resource director' ||
+  userRole === 'human resource director international schools' ||
+  userRole === 'personnal director' ||
+  userRole === 'recruitment and onbording manager' ||
+  userRole === 'human resource executive' ||
+  userRole === 'recruitment and onboarding executive' ||
+  userRole === 'personnel executive'
+) return true;
     if (employee.reportLine1 === currentUserProfile.email) return true;
     if (employee.reportLine2 === currentUserProfile.email) return true;
     return false;

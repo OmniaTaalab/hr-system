@@ -77,8 +77,18 @@ function AttendanceLogsContent() {
 
   const isPrivileged = useMemo(() => {
       const role = profile?.role?.toLowerCase();
-      return role === 'admin' || role === 'hr' || role === 'director';
-  }, [profile?.role]);
+return (
+  role === 'admin' ||
+  role === 'hr' ||
+  role === 'director' ||
+  role === 'human resource director' ||
+  role === 'human resource director international schools' ||
+  role === 'personnal director' ||
+  role === 'recruitment and onbording manager' ||
+  role === 'human resource executive' ||
+  role === 'recruitment and onboarding executive' ||
+  role === 'personnel executive'
+);  }, [profile?.role]);
 
   // Check access and fetch subordinates if necessary
   useEffect(() => {

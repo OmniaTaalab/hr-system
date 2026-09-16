@@ -43,8 +43,18 @@ export function Header() {
   
   const displayName = profile?.name || user?.displayName;
   const photoURL = profile?.photoURL || user?.photoURL;
-  const canViewSettings = profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr';
+const role = profile?.role?.trim().toLowerCase();
 
+const canViewSettings =
+  role === 'admin' ||
+  role === 'hr' ||
+  role === 'human resource director' ||
+  role === 'human resource director international schools' ||
+  role === 'personnal director' ||
+  role === 'recruitment and onbording manager' ||
+  role === 'human resource executive' ||
+  role === 'recruitment and onboarding executive' ||
+  role === 'personnel executive';
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between sm:justify-end px-4 sm:px-8">

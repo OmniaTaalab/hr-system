@@ -30,8 +30,16 @@ export default function SettingsPageWrapper({ children }: { children: React.Reac
   }
 
   const userRole = profile?.role?.toLowerCase();
-  const canViewSettings = userRole === 'admin' || userRole === 'hr';
-
+const canViewSettings =
+  userRole === 'admin' ||
+  userRole === 'hr' ||
+  userRole === 'human resource director' ||
+  userRole === 'human resource director international schools' ||
+  userRole === 'personnal director' ||
+  userRole === 'recruitment and onbording manager' ||
+  userRole === 'human resource executive' ||
+  userRole === 'recruitment and onboarding executive' ||
+  userRole === 'personnel executive';
   if (!canViewSettings) {
     // We check in a useEffect to avoid server-side render issues with router.
     React.useEffect(() => {

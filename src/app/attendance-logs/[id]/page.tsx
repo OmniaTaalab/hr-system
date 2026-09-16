@@ -54,8 +54,19 @@ function UserAttendanceLogContent() {
         const userRole = profile.role?.toLowerCase();
         
         // Admins, HR and Director see everyone
-        if (userRole === 'admin' || userRole === 'hr' || userRole === 'director') {
-            setCheckingAccess(false);
+if (
+  userRole === 'admin' ||
+  userRole === 'hr' ||
+  userRole === 'director' ||
+  userRole === 'human resource director' ||
+  userRole === 'human resource director international schools' ||
+  userRole === 'personnal director' ||
+  userRole === 'recruitment and onbording manager' ||
+  userRole === 'human resource executive' ||
+  userRole === 'recruitment and onboarding executive' ||
+  userRole === 'personnel executive'
+) {      
+          setCheckingAccess(false);
             return;
         }
 

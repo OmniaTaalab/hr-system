@@ -866,8 +866,18 @@ function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: 
 
     const isHR = useMemo(() => {
         const role = profile?.role?.toLowerCase();
-        return role === 'admin' || role === 'hr';
-    }, [profile]);
+return (
+  role === 'admin' ||
+  role === 'hr' ||
+  role === 'director' ||
+  role === 'human resource director' ||
+  role === 'human resource director international schools' ||
+  role === 'personnal director' ||
+  role === 'recruitment and onbording manager' ||
+  role === 'human resource executive' ||
+  role === 'recruitment and onboarding executive' ||
+  role === 'personnel executive'
+);    }, [profile]);
 
     useEffect(() => {
         if (!open) {
@@ -1129,7 +1139,17 @@ export default function EmployeeManagementContent() {
 
   const userRole = profile?.role?.toLowerCase();
   const isPrivileged = useMemo(() => {
-    return userRole === 'admin' || userRole === 'hr';
+return (
+  userRole === 'admin' ||
+  userRole === 'hr' ||
+  userRole === 'human resource director' ||
+  userRole === 'human resource director international schools' ||
+  userRole === 'personnal director' ||
+  userRole === 'recruitment and onbording manager' ||
+  userRole === 'human resource executive' ||
+  userRole === 'recruitment and onboarding executive' ||
+  userRole === 'personnel executive'
+);
   }, [userRole]);
 
   useEffect(() => {
@@ -1465,8 +1485,17 @@ export default function EmployeeManagementContent() {
   const canManageEmployee = useCallback((employee: Employee) => {
     if (!profile) return false;
     const role = profile.role?.toLowerCase();
-    if (role === 'admin' || role === 'hr') return true;
-    if (employee.reportLine1 === profile.email) return true;
+if (
+  role === 'admin' ||
+  role === 'hr' ||
+  role === 'human resource director' ||
+  role === 'human resource director international schools' ||
+  role === 'personnal director' ||
+  role === 'recruitment and onbording manager' ||
+  role === 'human resource executive' ||
+  role === 'recruitment and onboarding executive' ||
+  role === 'personnel executive'
+) return true;    if (employee.reportLine1 === profile.email) return true;
     return false;
   }, [profile]);
 
@@ -1679,8 +1708,17 @@ export default function EmployeeManagementContent() {
                             </Button>
                           </>
                         )}
-                        {(userRole === 'admin' || userRole === 'hr') && (
-                          <Dialog
+{(
+  userRole === 'admin' ||
+  userRole === 'hr' ||
+  userRole === 'human resource director' ||
+  userRole === 'human resource director international schools' ||
+  userRole === 'personnal director' ||
+  userRole === 'recruitment and onbording manager' ||
+  userRole === 'human resource executive' ||
+  userRole === 'recruitment and onboarding executive' ||
+  userRole === 'personnel executive'
+) && (                          <Dialog
                             open={isAddDialogOpen}
                             onOpenChange={(open) => {
                               setIsAddDialogOpen(open);
@@ -1821,8 +1859,17 @@ export default function EmployeeManagementContent() {
                 <TableHead>Stage</TableHead>
                 <TableHead>Campus</TableHead>
                 <TableHead>Status</TableHead>
-                {(userRole === 'admin' || userRole === 'hr') && (
-                  <TableHead className="text-right">Actions</TableHead>
+{(
+  userRole === 'admin' ||
+  userRole === 'hr' ||
+  userRole === 'human resource director' ||
+  userRole === 'human resource director international schools' ||
+  userRole === 'personnal director' ||
+  userRole === 'recruitment and onbording manager' ||
+  userRole === 'human resource executive' ||
+  userRole === 'recruitment and onboarding executive' ||
+  userRole === 'personnel executive'
+) && (                  <TableHead className="text-right">Actions</TableHead>
                 )}
               </TableRow>
             </TableHeader>
@@ -1858,8 +1905,17 @@ export default function EmployeeManagementContent() {
                         {employee.isDuplicate ? 'Duplicate' : (employee.status === 'deactivated' ? 'Deactivated' : 'Active')}
                       </Badge>
                     </TableCell>
-                      {(userRole === 'admin' || userRole === 'hr') && (
-                        <TableCell className="text-right">
+{(
+  userRole === 'admin' ||
+  userRole === 'hr' ||
+  userRole === 'human resource director' ||
+  userRole === 'human resource director international schools' ||
+  userRole === 'personnal director' ||
+  userRole === 'recruitment and onbording manager' ||
+  userRole === 'human resource executive' ||
+  userRole === 'recruitment and onboarding executive' ||
+  userRole === 'personnel executive'
+) && (                        <TableCell className="text-right">
                           {canManageEmployee(employee) && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>

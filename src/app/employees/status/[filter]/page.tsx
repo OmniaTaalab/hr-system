@@ -103,10 +103,19 @@ function EmployeeStatusContent() {
   const { campuses, isLoading: isLoadingLists } = useOrganizationLists();
 
 
-  const canViewPage =
-    !profileLoading &&
-    profile &&
-    ["admin", "hr"].includes((profile.role || "").toLowerCase());
+const canViewPage =
+  !isLoadingProfile &&
+  profile &&
+  (
+    profile.role?.toLowerCase() === 'hr' ||
+    profile.role?.toLowerCase() === 'human resource director' ||
+    profile.role?.toLowerCase() === 'human resource director international schools' ||
+    profile.role?.toLowerCase() === 'personnal director' ||
+    profile.role?.toLowerCase() === 'recruitment and onbording manager' ||
+    profile.role?.toLowerCase() === 'human resource executive' ||
+    profile.role?.toLowerCase() === 'recruitment and onboarding executive' ||
+    profile.role?.toLowerCase() === 'personnel executive'
+  );
 
   useEffect(() => {
     if (profileLoading) return;

@@ -76,10 +76,18 @@ export function SidebarNav() {
       });
     }
 
-    const userRole = profile.role?.toLowerCase();
-    const isPrivilegedUser = userRole === "admin" || userRole === "hr";
-    const isDirector = userRole === "director";
+    const userRole = profile.role?.trim().toLowerCase();
 
+const isPrivilegedUser =
+  userRole === 'admin' ||
+  userRole === 'hr' ||
+  userRole === 'human resource director' ||
+  userRole === 'human resource director international schools' ||
+  userRole === 'personnal director' ||
+  userRole === 'recruitment and onbording manager' ||
+  userRole === 'human resource executive' ||
+  userRole === 'recruitment and onboarding executive' ||
+  userRole === 'personnel executive';
     return siteConfig.navItems.filter((item) => {
       // 1. Organization Chart - Restricted to HR, Director, or Admin
       if (item.href === '/employees-chart') {

@@ -43,8 +43,23 @@ function SystemErrorsContent() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   // Security check: Only HR can view this screen
-  const canViewPage = !isLoadingProfile && profile && profile.role?.toLowerCase() === 'hr';
+// Security check: Only HR roles can view this screen
+const allowedRoles = [
+  'hr',
+  'human resource director',
+  'human resource director international schools',
+  'personnal director',
+  'recruitment and onbording manager',
+  'human resource executive',
+  'recruitment and onboarding executive',
+  'personnel executive',
+];
 
+const canViewPage =
+  !isLoadingProfile &&
+  !!profile &&
+  allowedRoles.includes(profile.role?.trim().toLowerCase() ?? '');
+  
   const fetchLogs = useCallback(async (page: 'first' | 'next' | 'prev' = 'first') => {
     if (!canViewPage) {
         setIsLoading(false);

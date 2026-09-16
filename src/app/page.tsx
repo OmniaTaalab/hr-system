@@ -279,8 +279,17 @@ function DashboardPageContent() {
   const isPrivilegedUser = useMemo(() => {
       if (isLoadingProfile || !profile) return false;
       const userRole = profile.role?.toLowerCase();
-      return userRole === 'admin' || userRole === 'hr';
-  }, [profile, isLoadingProfile]);
+return (
+  userRole === 'admin' ||
+  userRole === 'hr' ||
+  userRole === 'human resource director' ||
+  userRole === 'human resource director international schools' ||
+  userRole === 'personnal director' ||
+  userRole === 'recruitment and onbording manager' ||
+  userRole === 'human resource executive' ||
+  userRole === 'recruitment and onboarding executive' ||
+  userRole === 'personnel executive'
+);  }, [profile, isLoadingProfile]);
   
   useEffect(() => {
     if (isLoadingProfile) return;

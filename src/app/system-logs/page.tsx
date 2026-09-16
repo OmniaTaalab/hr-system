@@ -60,8 +60,19 @@ function SystemLogContent() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [actionFilter, setActionFilter] = useState("All");
 
-  const canViewPage = !isLoadingProfile && profile && profile.role?.toLowerCase() === 'hr';
-  
+const canViewPage =
+  !isLoadingProfile &&
+  profile &&
+  (
+    profile.role?.toLowerCase() === 'hr' ||
+    profile.role?.toLowerCase() === 'human resource director' ||
+    profile.role?.toLowerCase() === 'human resource director international schools' ||
+    profile.role?.toLowerCase() === 'personnal director' ||
+    profile.role?.toLowerCase() === 'recruitment and onbording manager' ||
+    profile.role?.toLowerCase() === 'human resource executive' ||
+    profile.role?.toLowerCase() === 'recruitment and onboarding executive' ||
+    profile.role?.toLowerCase() === 'personnel executive'
+  );  
   const isDateFiltered = !!selectedDate;
   const isActionFiltered = actionFilter !== "All";
 

@@ -415,8 +415,23 @@ export async function updateLeaveRequestStatusAction(
     const approverEmailClean = approverEmail.trim().toLowerCase();
     const currentApproverClean = (requestData.currentApprover || '').trim().toLowerCase();
     const isCurrentApprover = currentApproverClean.length > 0 && approverEmailClean === currentApproverClean;
-    const isPrivileged = actorRole?.toLowerCase() === 'admin' || actorRole?.toLowerCase() === 'hr';
+const userRole = profile.role?.trim().toLowerCase();
 
+const privilegedRoles = [
+  'admin',
+  'hr',
+  'human resource director',
+  'human resource director international schools',
+  'personnal director',
+  'recruitment and onbording manager',
+  'human resource executive',
+  'recruitment and onboarding executive',
+  'personnel executive',
+];
+
+const isPrivileged= privilegedRoles.includes(userRole ?? '');
+
+const isDirector = userRole === 'director';
     if (!isCurrentApprover && !isPrivileged) {
         return {
           message: "Something went wrong",

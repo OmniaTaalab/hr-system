@@ -208,8 +208,23 @@ function ApplicationsTable() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   
-  const canViewPage = !isLoadingProfile && profile && (profile.role.toLowerCase() === 'admin' || profile.role.toLowerCase() === 'hr');
+const allowedRoles = [
+  'admin',
+  'hr',
+  'human resource director',
+  'human resource director international schools',
+  'personnal director',
+  'recruitment and onbording manager',
+  'human resource executive',
+  'recruitment and onboarding executive',
+  'personnel executive',
+];
 
+const canViewPage =
+  !isLoadingProfile &&
+  profile &&
+  allowedRoles.includes(profile.role?.trim().toLowerCase());
+  
   useEffect(() => {
     if (isLoadingProfile) return;
     if (!canViewPage) {

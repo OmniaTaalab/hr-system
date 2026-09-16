@@ -112,7 +112,18 @@ function AnnualPayrollReportContent() {
   // Role check and redirect
   useEffect(() => {
     if (!loading) {
-      const canViewReport = profile?.role?.toLowerCase() === 'admin' || profile?.role?.toLowerCase() === 'hr';
+const role = profile?.role?.trim().toLowerCase();
+
+const canViewReport =
+  role === 'admin' ||
+  role === 'hr' ||
+  role === 'human resource director' ||
+  role === 'human resource director international schools' ||
+  role === 'personnal director' ||
+  role === 'recruitment and onbording manager' ||
+  role === 'human resource executive' ||
+  role === 'recruitment and onboarding executive' ||
+  role === 'personnel executive';  
       if (!canViewReport) {
         router.replace('/');
       }

@@ -341,8 +341,20 @@ function EmployeesChartContent() {
   const lastPointerRef = useRef({ x: 0, y: 0 });
   const dragDistanceRef = useRef(0);
 
-  const canViewPage = !isLoadingProfile && profile && (['admin', 'hr', 'director'].includes(profile.role?.toLowerCase() || ''));
-
+const canViewPage =
+  !isLoadingProfile &&
+  profile &&
+  (
+    profile.role?.toLowerCase() === 'hr' ||
+    profile.role?.toLowerCase() === 'director'
+    profile.role?.toLowerCase() === 'human resource director' ||
+    profile.role?.toLowerCase() === 'human resource director international schools' ||
+    profile.role?.toLowerCase() === 'personnal director' ||
+    profile.role?.toLowerCase() === 'recruitment and onbording manager' ||
+    profile.role?.toLowerCase() === 'human resource executive' ||
+    profile.role?.toLowerCase() === 'recruitment and onboarding executive' ||
+    profile.role?.toLowerCase() === 'personnel executive'
+  );
   useEffect(() => {
     if (isLoadingProfile) return;
 
