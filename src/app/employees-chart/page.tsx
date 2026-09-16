@@ -346,7 +346,7 @@ const canViewPage =
   profile &&
   (
     profile.role?.toLowerCase() === 'hr' ||
-    profile.role?.toLowerCase() === 'director'
+    profile.role?.toLowerCase() === 'director'||
     profile.role?.toLowerCase() === 'human resource director' ||
     profile.role?.toLowerCase() === 'human resource director international schools' ||
     profile.role?.toLowerCase() === 'personnal director' ||
