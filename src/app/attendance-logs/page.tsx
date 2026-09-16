@@ -57,6 +57,8 @@ function AttendanceLogsContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
 
+  const firstVisibleRef = React.useRef<DocumentSnapshot | null>(null);
+  const lastVisibleRef = React.useRef<DocumentSnapshot | null>(null);
   const [firstVisible, setFirstVisible] = useState<DocumentSnapshot | null>(null);
   const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -76,7 +78,7 @@ function AttendanceLogsContent() {
   const isPrivileged = useMemo(() => {
       const role = profile?.role?.toLowerCase();
       return role === 'admin' || role === 'hr' || role === 'director';
-  }, [profile]);
+  }, [profile?.role]);
 
   // Check access and fetch subordinates if necessary
   useEffect(() => {
@@ -118,7 +120,7 @@ function AttendanceLogsContent() {
     };
 
     checkAccess();
-  }, [profile, isLoadingProfile, isPrivileged, router]);
+  }, [profile?.email, isLoadingProfile, isPrivileged, router]);
 
   const canViewPage = !isLoadingProfile && !checkingAccess;
 
@@ -169,6 +171,7 @@ function AttendanceLogsContent() {
         }
     }, [correctionState, toast]);
 
+  const subordinateIdsKey = useMemo(() => subordinateIds.join(','), [subordinateIds]);
 
   const fetchLogs = useCallback(async (page: 'first' | 'next' | 'prev' = 'first') => {
     setIsLoading(true);
@@ -177,7 +180,7 @@ function AttendanceLogsContent() {
       let queryConstraints: QueryConstraint[] = [];
       
       const isFiltered = machineFilter !== "All" || !!selectedDate || (!isPrivileged && subordinateIds.length > 0);
-      const shouldPaginate = !isFiltered && !searchTerm;
+      const shouldPaginate = !isFiltered;
 
       // Only add orderBy if not combining with multiple filters to avoid index requirements
       if (!isFiltered) {
@@ -206,10 +209,10 @@ function AttendanceLogsContent() {
       if (shouldPaginate) {
         if (page === 'first') {
             queryConstraints.push(limit(PAGE_SIZE));
-        } else if (page === 'next' && lastVisible) {
-            queryConstraints.push(startAfter(lastVisible), limit(PAGE_SIZE));
-        } else if (page === 'prev' && firstVisible) {
-            queryConstraints.push(endBefore(firstVisible), limitToLast(PAGE_SIZE));
+        } else if (page === 'next' && lastVisibleRef.current) {
+            queryConstraints.push(startAfter(lastVisibleRef.current), limit(PAGE_SIZE));
+        } else if (page === 'prev' && firstVisibleRef.current) {
+            queryConstraints.push(endBefore(firstVisibleRef.current), limitToLast(PAGE_SIZE));
         } else {
              queryConstraints.push(limit(PAGE_SIZE));
         }
@@ -227,10 +230,18 @@ function AttendanceLogsContent() {
       setAllLogs(logsData);
 
       if (shouldPaginate && !documentSnapshots.empty) {
-          setFirstVisible(documentSnapshots.docs[0]);
-          setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
+          const first = documentSnapshots.docs[0];
+          const last = documentSnapshots.docs[documentSnapshots.docs.length - 1];
+          firstVisibleRef.current = first;
+          lastVisibleRef.current = last;
+          setFirstVisible(first);
+          setLastVisible(last);
           setIsLastPage(documentSnapshots.docs.length < PAGE_SIZE);
       } else {
+          firstVisibleRef.current = null;
+          lastVisibleRef.current = null;
+          setFirstVisible(null);
+          setLastVisible(null);
           setIsLastPage(true);
       }
 
@@ -245,11 +256,13 @@ function AttendanceLogsContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDate, machineFilter, toast, lastVisible, firstVisible, isPrivileged, subordinateIds, searchTerm]);
+  }, [selectedDate, machineFilter, toast, isPrivileged, subordinateIdsKey, subordinateIds]);
 
   useEffect(() => {
     if (!canViewPage) return;
     setCurrentPage(1);
+    firstVisibleRef.current = null;
+    lastVisibleRef.current = null;
     setFirstVisible(null);
     setLastVisible(null);
     fetchLogs('first');
