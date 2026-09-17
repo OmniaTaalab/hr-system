@@ -152,18 +152,19 @@ function KpisContent() {
     const isPrivilegedUser = useMemo(() => {
         if (!profile) return false;
         const userRole = profile.role?.toLowerCase();
-return (
-  role === 'admin' ||
-  role === 'hr' ||
-  role === 'director' ||
-  role === 'human resource director' ||
-  role === 'human resource director international schools' ||
-  role === 'personnal director' ||
-  role === 'recruitment and onbording manager' ||
-  role === 'human resource executive' ||
-  role === 'recruitment and onboarding executive' ||
-  role === 'personnel executive'
-);    }, [profile]);
+        return (
+          userRole === 'admin' ||
+          userRole === 'hr' ||
+          userRole === 'director' ||
+          userRole === 'human resource director' ||
+          userRole === 'human resource director international schools' ||
+          userRole === 'personnal director' ||
+          userRole === 'recruitment and onbording manager' ||
+          userRole === 'human resource executive' ||
+          userRole === 'recruitment and onboarding executive' ||
+          userRole === 'personnel executive'
+        );
+    }, [profile]);
     
     const fetchData = useCallback(async (direction: 'next' | 'prev' | 'first' = 'first') => {
         setIsLoadingData(true);

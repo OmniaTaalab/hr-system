@@ -341,20 +341,23 @@ function EmployeesChartContent() {
   const lastPointerRef = useRef({ x: 0, y: 0 });
   const dragDistanceRef = useRef(0);
 
-const canViewPage =
-  !isLoadingProfile &&
-  profile &&
-  (
-    profile.role?.toLowerCase() === 'hr' ||
-    profile.role?.toLowerCase() === 'director'||
-    profile.role?.toLowerCase() === 'human resource director' ||
-    profile.role?.toLowerCase() === 'human resource director international schools' ||
-    profile.role?.toLowerCase() === 'personnal director' ||
-    profile.role?.toLowerCase() === 'recruitment and onbording manager' ||
-    profile.role?.toLowerCase() === 'human resource executive' ||
-    profile.role?.toLowerCase() === 'recruitment and onboarding executive' ||
-    profile.role?.toLowerCase() === 'personnel executive'
-  );
+  const allowedRoles = [
+    'admin',
+    'hr',
+    'director',
+    'human resource director',
+    'human resource director international schools',
+    'personnal director',
+    'recruitment and onbording manager',
+    'human resource executive',
+    'recruitment and onboarding executive',
+    'personnel executive'
+  ];
+
+  const canViewPage =
+    !isLoadingProfile &&
+    !!profile &&
+    allowedRoles.includes(profile.role?.trim().toLowerCase() ?? '');
   useEffect(() => {
     if (isLoadingProfile) return;
 

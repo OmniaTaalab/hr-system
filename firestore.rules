@@ -7,8 +7,14 @@ service cloud.firestore {
     // Helper function to check if a user is an admin or has HR role
     function isAdmin(userId) {
       let userRole = get(/databases/$(database)/documents/employee/$(userId)).data.role;
-      return userRole == 'admin' || userRole == 'hr' || userRole == 'Human Resource Director' || userRole == 'Human Resource Director International Schools' 
-      || userRole == 'Personnal Director'|| userRole == 'Human Resource Executive'|| userRole == 'Personnel Executive';
+      return userRole == 'admin' || userRole == 'hr' || userRole == 'director'
+      || userRole == 'Human Resource Director' || userRole == 'human resource director'
+      || userRole == 'Human Resource Director International Schools' || userRole == 'human resource director international schools'
+      || userRole == 'Personnal Director' || userRole == 'personnal director'
+      || userRole == 'Recruitment and Onboarding Manager' || userRole == 'recruitment and onbording manager' || userRole == 'recruitment and onboarding manager'
+      || userRole == 'Human Resource Executive' || userRole == 'human resource executive'
+      || userRole == 'Recruitment and Onboarding Executive' || userRole == 'recruitment and onboarding executive'
+      || userRole == 'Personnel Executive' || userRole == 'personnel executive';
     }
     
     // Employee collection:
