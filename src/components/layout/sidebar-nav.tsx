@@ -76,7 +76,7 @@ export function SidebarNav() {
       });
     }
 
-    const userRole = profile.role?.trim().toLowerCase();
+const userRole = profile.role?.trim().toLowerCase();
 
 const isPrivilegedUser =
   userRole === 'admin' ||
@@ -88,6 +88,8 @@ const isPrivilegedUser =
   userRole === 'human resource executive' ||
   userRole === 'recruitment and onboarding executive' ||
   userRole === 'personnel executive';
+
+const isDirector = userRole === 'director';
     return siteConfig.navItems.filter((item) => {
       // 1. Organization Chart - Restricted to HR, Director, or Admin
       if (item.href === '/employees-chart') {
