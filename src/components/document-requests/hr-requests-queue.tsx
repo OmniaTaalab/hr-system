@@ -516,24 +516,13 @@ export function HrRequestsQueue() {
                       <TableCell>{getStatusBadge(req.status)}</TableCell>
 
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenDocPreview(req)}
-                            title="Preview official letter"
-                            className="h-8 px-2 text-xs"
-                          >
-                            <Printer className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => handleOpenReview(req)}
-                            className="h-8 px-3 text-xs font-semibold"
-                          >
-                            Review
-                          </Button>
-                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleOpenReview(req)}
+                          className="h-8 px-3 text-xs font-semibold"
+                        >
+                          Review
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );

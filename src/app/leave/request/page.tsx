@@ -42,15 +42,50 @@ function LeaveRequestForm() {
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [selectedLeaveType, setSelectedLeaveType] = useState<string>("");
 
+  const rawGender = (profile?.gender || "").trim().toLowerCase();
+  const isMale = ["male", "m", "ذكر"].includes(rawGender);
+
+  const isMaternityLeaveType = (typeName: string) => {
+    if (!typeName) return false;
+    const lower = typeName.trim().toLowerCase();
+    return (
+      lower.includes("maternity") ||
+      lower.includes("maternal") ||
+      lower.includes("وضع") ||
+      lower.includes("أمومة") ||
+      lower.includes("امومة") ||
+      lower.includes("ولادة") ||
+      lower.includes("رضاعة") ||
+      lower.includes("رعاية طفل") ||
+      lower.includes("رعايه طفل")
+    );
+  };
+
+  const availableLeaveTypes = leaveTypes.filter((type) => {
+    if (isMale && isMaternityLeaveType(type.name)) {
+      return false;
+    }
+    return true;
+  });
+
   const lowerSelectedType = selectedLeaveType.trim().toLowerCase();
   const isMaternityHour =
-    lowerSelectedType.includes("hour") ||
-    lowerSelectedType.includes("ساعة") ||
-    lowerSelectedType.includes("ساعه") ||
-    lowerSelectedType.includes("رضاعة") ||
-    lowerSelectedType.includes("رعاية");
+    !isMale &&
+    (lowerSelectedType.includes("hour") ||
+      lowerSelectedType.includes("ساعة") ||
+      lowerSelectedType.includes("ساعه") ||
+      lowerSelectedType.includes("رضاعة") ||
+      lowerSelectedType.includes("رعاية"));
 
-  const isFullMaternity = !isMaternityHour && lowerSelectedType.includes("maternity");
+  const isFullMaternity =
+    !isMale &&
+    !isMaternityHour &&
+    (lowerSelectedType.includes("maternity") ||
+      lowerSelectedType.includes("maternal") ||
+      lowerSelectedType.includes("وضع") ||
+      lowerSelectedType.includes("أمومة") ||
+      lowerSelectedType.includes("امومة") ||
+      lowerSelectedType.includes("ولادة"));
 
   const calculateMaternityEndDate = (start: Date): Date => {
     const end = new Date(start);
@@ -59,6 +94,14 @@ function LeaveRequestForm() {
   };
 
   const handleLeaveTypeChange = (val: string) => {
+    if (isMale && isMaternityLeaveType(val)) {
+      toast({
+        variant: "destructive",
+        title: "Ineligible Leave Type",
+        description: "Maternity Leave and Maternity Hour requests are only available for female employees.",
+      });
+      return;
+    }
     setSelectedLeaveType(val);
     const lower = val.trim().toLowerCase();
     const isHour =
@@ -67,7 +110,7 @@ function LeaveRequestForm() {
       lower.includes("ساعه") ||
       lower.includes("رضاعة") ||
       lower.includes("رعاية");
-    const isFull = !isHour && lower.includes("maternity");
+    const isFull = !isHour && (lower.includes("maternity") || lower.includes("وضع") || lower.includes("أمومة") || lower.includes("امومة") || lower.includes("ولادة"));
 
     if (isFull && startDate) {
       setEndDate(calculateMaternityEndDate(startDate));
@@ -166,6 +209,16 @@ function LeaveRequestForm() {
   
     setIsSubmittingFile(true);
   
+    if (isMale && (isMaternityLeaveType(selectedLeaveType) || isFullMaternity || isMaternityHour)) {
+      toast({
+        variant: "destructive",
+        title: "Ineligible Leave Type",
+        description: "Male employees cannot submit Maternity Leave or Maternity Hour requests.",
+      });
+      setIsSubmittingFile(false);
+      return;
+    }
+
     const formData = new FormData(currentForm);
   
     if (selectedLeaveType) {
@@ -265,12 +318,12 @@ function LeaveRequestForm() {
             </SelectTrigger>
 
             <SelectContent>
-              {leaveTypes.map((type) => (
+              {availableLeaveTypes.map((type) => (
                 <SelectItem key={type.id} value={type.name}>
                   {type.name}
                 </SelectItem>
               ))}
-              {!leaveTypes.some((t) => t.name.trim().toLowerCase().includes("maternity")) && (
+              {!isMale && !leaveTypes.some((t) => isMaternityLeaveType(t.name)) && (
                 <SelectItem value="Maternity Leave">Maternity Leave</SelectItem>
               )}
             </SelectContent>

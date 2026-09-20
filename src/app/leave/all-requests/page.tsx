@@ -36,7 +36,7 @@ import {
   FileDown,
   Eye,
 } from "lucide-react";
-import React, { useState, useEffect, useMemo, useActionState, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useActionState, useCallback, Suspense } from "react";
 import { format } from "date-fns";
 import { db } from "@/lib/firebase/config";
 import {
@@ -53,7 +53,7 @@ import {
   type DeleteLeaveRequestState,
 } from "@/app/actions/leave-actions";
 import * as XLSX from "xlsx";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
 
@@ -122,10 +122,30 @@ function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
 function AllLeaveRequestsContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlStatus = searchParams.get("status");
+  const initialStatus =
+    urlStatus === "Pending" ||
+    urlStatus === "Approved" ||
+    urlStatus === "Rejected" ||
+    urlStatus === "MyPending"
+      ? urlStatus
+      : "All";
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "All" | "Pending" | "Approved" | "Rejected" | "MyPending"
-  >("All");
+  >(initialStatus);
+
+  useEffect(() => {
+    const s = searchParams.get("status");
+    if (s === "Pending" || s === "Approved" || s === "Rejected" || s === "MyPending") {
+      setStatusFilter(s);
+    } else if (s === "All") {
+      setStatusFilter("All");
+    }
+  }, [searchParams]);
+
   const [campusFilter, setCampusFilter] = useState<string>("All");
   const [stageFilter, setStageFilter] = useState<string>("All");
   const [leaveTypeFilter, setLeaveTypeFilter] = useState<string>("All");
@@ -362,7 +382,15 @@ const isPrivileged =
 
       {/* Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Card>
+        <Card
+          onClick={() => setStatusFilter(statusFilter === "Pending" ? "All" : "Pending")}
+          className={cn(
+            "cursor-pointer transition-all duration-200 hover:shadow-md hover:border-yellow-500/60 select-none",
+            statusFilter === "Pending"
+              ? "ring-2 ring-yellow-500 border-yellow-500 bg-yellow-50/60 dark:bg-yellow-950/30"
+              : "hover:bg-muted/30"
+          )}
+        >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">
               Pending Requests
@@ -377,9 +405,24 @@ const isPrivileged =
                 requestCounts.pending
               )}
             </div>
+            <p className="text-xs text-muted-foreground mt-1.5 flex items-center justify-between">
+              <span>{statusFilter === "Pending" ? "● Active Filter" : "Click to view pending"}</span>
+              {statusFilter === "Pending" && (
+                <span className="text-xs font-semibold text-yellow-600 dark:text-yellow-400">Click to reset</span>
+              )}
+            </p>
           </CardContent>
         </Card>
-        <Card>
+
+        <Card
+          onClick={() => setStatusFilter(statusFilter === "Approved" ? "All" : "Approved")}
+          className={cn(
+            "cursor-pointer transition-all duration-200 hover:shadow-md hover:border-green-500/60 select-none",
+            statusFilter === "Approved"
+              ? "ring-2 ring-green-500 border-green-500 bg-green-50/60 dark:bg-green-950/30"
+              : "hover:bg-muted/30"
+          )}
+        >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">
               Approved Requests
@@ -394,9 +437,24 @@ const isPrivileged =
                 requestCounts.approved
               )}
             </div>
+            <p className="text-xs text-muted-foreground mt-1.5 flex items-center justify-between">
+              <span>{statusFilter === "Approved" ? "● Active Filter" : "Click to view approved"}</span>
+              {statusFilter === "Approved" && (
+                <span className="text-xs font-semibold text-green-600 dark:text-green-400">Click to reset</span>
+              )}
+            </p>
           </CardContent>
         </Card>
-        <Card>
+
+        <Card
+          onClick={() => setStatusFilter(statusFilter === "Rejected" ? "All" : "Rejected")}
+          className={cn(
+            "cursor-pointer transition-all duration-200 hover:shadow-md hover:border-red-500/60 select-none",
+            statusFilter === "Rejected"
+              ? "ring-2 ring-red-500 border-red-500 bg-red-50/60 dark:bg-red-950/30"
+              : "hover:bg-muted/30"
+          )}
+        >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">
               Rejected Requests
@@ -411,6 +469,12 @@ const isPrivileged =
                 requestCounts.rejected
               )}
             </div>
+            <p className="text-xs text-muted-foreground mt-1.5 flex items-center justify-between">
+              <span>{statusFilter === "Rejected" ? "● Active Filter" : "Click to view rejected"}</span>
+              {statusFilter === "Rejected" && (
+                <span className="text-xs font-semibold text-red-600 dark:text-red-400">Click to reset</span>
+              )}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -604,7 +668,9 @@ const isPrivileged =
 export default function AllLeaveRequestsPage() {
   return (
     <AppLayout>
-      <AllLeaveRequestsContent />
+      <Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+        <AllLeaveRequestsContent />
+      </Suspense>
     </AppLayout>
   );
 }

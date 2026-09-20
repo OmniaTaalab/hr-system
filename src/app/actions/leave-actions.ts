@@ -112,7 +112,11 @@ export async function submitLeaveRequestAction(
 
     const employeeData = employeeSnap.data();
     const employeeName = employeeData.name ?? "Unknown Employee";
-
+const employeeEmail = (
+  employeeData.nisEmail ||
+  employeeData.email ||
+  ""
+).trim();
     const positionClass = (employeeData.positionClass || "").trim().toLowerCase();
     const isSLT = positionClass === "slt" || positionClass.includes("slt");
 
@@ -170,6 +174,9 @@ export async function submitLeaveRequestAction(
       }
     }
 
+    const rawGender = (employeeData.gender || "").trim().toLowerCase();
+    const isMale = ["male", "m", "ذكر"].includes(rawGender);
+
     const lowerLeaveType = leaveType.trim().toLowerCase();
     const isMaternityHour =
       lowerLeaveType.includes("hour") ||
@@ -182,7 +189,36 @@ export async function submitLeaveRequestAction(
 
     const isFullMaternity =
       !isMaternityHour &&
-      lowerLeaveType.includes("maternity");
+      (lowerLeaveType.includes("maternity") ||
+       lowerLeaveType.includes("maternal") ||
+       lowerLeaveType.includes("وضع") ||
+       lowerLeaveType.includes("أمومة") ||
+       lowerLeaveType.includes("امومة") ||
+       lowerLeaveType.includes("ولادة"));
+
+    const isAnyMaternity =
+      isFullMaternity ||
+      isMaternityHour ||
+      lowerLeaveType.includes("maternity") ||
+      lowerLeaveType.includes("maternal") ||
+      lowerLeaveType.includes("وضع") ||
+      lowerLeaveType.includes("أمومة") ||
+      lowerLeaveType.includes("امومة") ||
+      lowerLeaveType.includes("ولادة") ||
+      lowerLeaveType.includes("رضاعة") ||
+      lowerLeaveType.includes("رعاية طفل") ||
+      lowerLeaveType.includes("رعايه طفل");
+
+    if (isMale && isAnyMaternity) {
+      return {
+        errors: {
+          leaveType: ["Maternity Leave and Maternity Hour requests are only available for female employees."],
+          form: ["Male employees cannot submit Maternity Leave or Maternity Hour requests."],
+        },
+        message: "Male employees cannot submit Maternity Leave or Maternity Hour requests.",
+        success: false,
+      };
+    }
 
     let effectiveEndDate = endDate;
     if (isFullMaternity) {
@@ -200,6 +236,7 @@ export async function submitLeaveRequestAction(
     const newRequestRef = await addDoc(collection(db, "leaveRequests"), {
       requestingEmployeeDocId,
       employeeName,
+      employeeEmail: employeeEmail || employeeData.email || "",
       employeeStage: employeeData.stage ?? null,
       employeeCampus: employeeData.campus ?? null,
       reportLine1: employeeData.reportLine1 ?? null,
@@ -322,14 +359,18 @@ export async function submitLeaveRequestAction(
               })
             );
             await addDoc(collection(db, "mail"), {
-              to: targetEmail,
-              message: {
-                subject: `New Leave Request from ${employeeName}`,
-                html: emailHtml,
-              },
-              status: "pending",
-              createdAt: serverTimestamp(),
-            });
+  to: targetEmail,
+
+  ...(employeeEmail ? { replyTo: employeeEmail } : {}),
+
+  message: {
+    subject: `New Leave Request from ${employeeName}`,
+    html: emailHtml,
+  },
+
+  status: "pending",
+  createdAt: serverTimestamp(),
+});
           } catch (emailErr) {
             console.error(`Failed to send email to ${targetEmail}:`, emailErr);
           }
@@ -486,10 +527,49 @@ export async function updateLeaveRequestStatusAction(
             });
           }
           const targetEmail = managerData.email || requestData.reportLine2.trim();
-          if(targetEmail){
+          if (targetEmail) {
             try {
-              const emailHtml = render(LeaveRequestNotificationEmail({ managerName: managerData.name || "Manager", employeeName: requestData.employeeName, leaveType: requestData.leaveType, startDate: requestData.startDate?.toDate ? requestData.startDate.toDate().toLocaleDateString() : '', endDate: requestData.endDate?.toDate ? requestData.endDate.toDate().toLocaleDateString() : '', reason: "This request has been approved by the first manager and is now awaiting your final approval.", leaveRequestLink: requestLink }));
-              await addDoc(collection(db, "mail"), { to: targetEmail, message: { subject: `Leave Request Awaiting Your Approval: ${requestData.employeeName}`, html: emailHtml }, status: "pending", createdAt: serverTimestamp() });
+              const reqEmployeeName = requestData.employeeName || "Employee";
+              let reqEmployeeEmail = (requestData.employeeEmail || "").trim();
+              if (!reqEmployeeEmail && requestData.requestingEmployeeDocId) {
+                try {
+                  const empDoc = await getDoc(doc(db, "employee", requestData.requestingEmployeeDocId));
+                  if (empDoc.exists()) {
+                    const eData = empDoc.data();
+                    reqEmployeeEmail = (eData.nisEmail || eData.email || "").trim();
+                  }
+                } catch {
+                  // ignore
+                }
+              }
+
+              const emailHtml = render(
+                LeaveRequestNotificationEmail({
+                  managerName: managerData.name || "Manager",
+                  employeeName: reqEmployeeName,
+                  leaveType: requestData.leaveType,
+                  startDate: requestData.startDate?.toDate ? requestData.startDate.toDate().toLocaleDateString() : '',
+                  endDate: requestData.endDate?.toDate ? requestData.endDate.toDate().toLocaleDateString() : '',
+                  reason: "This request has been approved by the first manager and is now awaiting your final approval.",
+                  leaveRequestLink: requestLink,
+                })
+              );
+
+              await addDoc(collection(db, "mail"), {
+                to: targetEmail,
+                ...(reqEmployeeEmail
+                  ? {
+                      from: `${reqEmployeeName} <${reqEmployeeEmail}>`,
+                      replyTo: reqEmployeeEmail,
+                    }
+                  : {}),
+                message: {
+                  subject: `Leave Request Awaiting Your Approval: ${reqEmployeeName}`,
+                  html: emailHtml,
+                },
+                status: "pending",
+                createdAt: serverTimestamp(),
+              });
             } catch (emailErr) {
               console.error(`Failed to send approval email to manager ${targetEmail}:`, emailErr);
             }
@@ -644,8 +724,49 @@ export async function editLeaveRequestAction(
       lowerLeaveType.includes("رضاعة") ||
       lowerLeaveType.includes("رعاية");
 
-    const isFullMaternity = !isMaternityHour && lowerLeaveType.includes("maternity");
+    const isFullMaternity =
+      !isMaternityHour &&
+      (lowerLeaveType.includes("maternity") ||
+       lowerLeaveType.includes("maternal") ||
+       lowerLeaveType.includes("وضع") ||
+       lowerLeaveType.includes("أمومة") ||
+       lowerLeaveType.includes("امومة") ||
+       lowerLeaveType.includes("ولادة"));
 
+    const isAnyMaternity =
+      isFullMaternity ||
+      isMaternityHour ||
+      lowerLeaveType.includes("maternity") ||
+      lowerLeaveType.includes("maternal") ||
+      lowerLeaveType.includes("وضع") ||
+      lowerLeaveType.includes("أمومة") ||
+      lowerLeaveType.includes("امومة") ||
+      lowerLeaveType.includes("ولادة") ||
+      lowerLeaveType.includes("رضاعة") ||
+      lowerLeaveType.includes("رعاية طفل") ||
+      lowerLeaveType.includes("رعايه طفل");
+
+    const requestRef = doc(db, "leaveRequests", requestId);
+    const existingReqSnap = await getDoc(requestRef);
+    if (!existingReqSnap.exists()) {
+      return { errors: { form: ["Leave request not found."] }, success: false };
+    }
+    const existingReqData = existingReqSnap.data();
+    if (existingReqData?.requestingEmployeeDocId) {
+      const empSnap = await getDoc(doc(db, "employee", existingReqData.requestingEmployeeDocId));
+      if (empSnap.exists()) {
+        const empData = empSnap.data();
+        const rawGender = (empData.gender || "").trim().toLowerCase();
+        const isMale = ["male", "m", "ذكر"].includes(rawGender);
+        if (isMale && isAnyMaternity) {
+          return {
+            errors: { form: ["Male employees cannot have Maternity Leave or Maternity Hour requests."] },
+            message: "Male employees cannot have Maternity Leave or Maternity Hour requests.",
+            success: false,
+          };
+        }
+      }
+    }
     let effectiveEndDate = endDate;
     if (isFullMaternity) {
       const computedEnd = new Date(startDate);
@@ -658,7 +779,6 @@ export async function editLeaveRequestAction(
     const hoursPerDay = isMaternityHour ? 1 : null;
     const durationHours = isMaternityHour ? workingDays * 1 : null;
 
-    const requestRef = doc(db, "leaveRequests", requestId);
     await updateDoc(requestRef, {
       leaveType,
       startDate: Timestamp.fromDate(startDate),

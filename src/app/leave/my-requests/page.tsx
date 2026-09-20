@@ -15,7 +15,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { iconMap } from "@/components/icon-map";
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { format, differenceInCalendarDays, startOfMonth, endOfMonth, max, min, getYear, getMonth, setYear, setMonth, isValid, startOfDay as dateFnsStartOfDay, endOfDay as dateFnsEndOfDay, startOfYear, endOfYear } from "date-fns";
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, where, Timestamp, orderBy, DocumentData, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -26,6 +26,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { useSearchParams } from "next/navigation";
 
 interface AttendanceRecord {
   id: string;
@@ -179,7 +180,24 @@ function getProgressIndicatorColor(remaining: number, total: number): string {
 function MyRequestsContent() {
   const { profile: currentEmployee } = useUserProfile();
   const currentEmployeeId = currentEmployee?.id;
+  const searchParams = useSearchParams();
+  const urlStatus = searchParams.get("status");
+  const initialStatus =
+    urlStatus === "Pending" || urlStatus === "Approved" || urlStatus === "Rejected"
+      ? urlStatus
+      : "All";
   
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Approved" | "Rejected">(initialStatus);
+
+  useEffect(() => {
+    const s = searchParams.get("status");
+    if (s === "Pending" || s === "Approved" || s === "Rejected") {
+      setStatusFilter(s);
+    } else if (s === "All") {
+      setStatusFilter("All");
+    }
+  }, [searchParams]);
+
   const [employeeLeaveRequests, setEmployeeLeaveRequests] = useState<LeaveRequestEntry[]>([]);
   const [allUserLeaveRequests, setAllUserLeaveRequests] = useState<LeaveRequestEntry[]>([]);
   const [isLoadingLeaveRequests, setIsLoadingLeaveRequests] = useState(false);
@@ -1137,75 +1155,164 @@ function MyRequestsContent() {
                 </CardContent>
             </Card>
 
-            <Card className="shadow-lg mt-8">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <iconMap.Eye className="mr-2 h-5 w-5 text-primary" />
-                  Leave Requests for {currentEmployee.name} ({format(currentMonthDate, "MMMM yyyy")})
-                </CardTitle>
-                <CardDescription>
-                  Leave requests overlapping with the selected month.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoadingLeaveRequests ? (
-                  <div className="flex justify-center items-center h-40">
-                    <iconMap.Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
-                ) : employeeLeaveRequests.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Leave Type</TableHead>
-                        <TableHead>Start Date</TableHead>
-                        <TableHead>End Date</TableHead>
-                        <TableHead>Days in Month</TableHead>
-                        <TableHead>Reason</TableHead>
-                        <TableHead>Submitted On</TableHead>
-                        <TableHead>Manager Notes</TableHead>
-                        <TableHead className="text-right">Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {employeeLeaveRequests.map((request) => {
-                        const startDate = request.startDate.toDate();
-                        const endDate = request.endDate.toDate();
-                        const daysInSelectedMonth = calculateLeaveDaysInMonth(startDate, endDate, startOfMonth(currentMonthDate), endOfMonth(currentMonthDate));
-                        const isMaternityHour =
-                          (request as any).hoursPerDay === 1 ||
-                          (request as any).isHourly === true ||
-                          (request.leaveType || "").toLowerCase().includes("hour") ||
-                          (request.leaveType || "").toLowerCase().includes("ساعة") ||
-                          (request.leaveType || "").toLowerCase().includes("ساعه") ||
-                          (request.leaveType || "").toLowerCase().includes("رضاعة") ||
-                          (request.leaveType || "").toLowerCase().includes("رعاية");
+            {/* Leave Requests Table */}
+            {(() => {
+              const displayedLeaveRequests =
+                statusFilter === "All"
+                  ? employeeLeaveRequests
+                  : employeeLeaveRequests.filter((req) => req.status === statusFilter);
 
-                        return (
-                          <TableRow key={request.id}>
-                            <TableCell>{request.leaveType}</TableCell>
-                            <TableCell>{request.startDate ? format(startDate, "PPP") : "-"}</TableCell>
-                            <TableCell>{request.endDate ? format(endDate, "PPP") : "-"}</TableCell>
-                            <TableCell>
-                              {isMaternityHour
-                                ? `${daysInSelectedMonth > 0 ? daysInSelectedMonth : (request.numberOfDays ?? 1)}d (1h/d)`
-                                : (daysInSelectedMonth > 0 ? daysInSelectedMonth : "-")}
-                            </TableCell>
-                            <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
-                            <TableCell>{request.submittedAt ? format(request.submittedAt.toDate(), "PPP p") : "-"}</TableCell>
-                            <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>
-                            <TableCell className="text-right">
-                              <LeaveStatusBadge status={request.status} />
-                            </TableCell>
+              const pendingCount = employeeLeaveRequests.filter((r) => r.status === "Pending").length;
+              const approvedCount = employeeLeaveRequests.filter((r) => r.status === "Approved").length;
+              const rejectedCount = employeeLeaveRequests.filter((r) => r.status === "Rejected").length;
+
+              return (
+                <Card className="shadow-lg mt-8">
+                  <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                      <CardTitle className="flex items-center">
+                        <iconMap.Eye className="mr-2 h-5 w-5 text-primary" />
+                        Leave Requests for {currentEmployee?.name} ({format(currentMonthDate, "MMMM yyyy")})
+                      </CardTitle>
+                      <CardDescription>
+                        {statusFilter === "All"
+                          ? "Showing all leave requests overlapping with the selected month."
+                          : `Filtered by status: Showing ${statusFilter} requests only.`}
+                      </CardDescription>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center rounded-lg border bg-muted/40 p-1 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setStatusFilter("All")}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md font-medium transition-all",
+                            statusFilter === "All"
+                              ? "bg-background text-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          All ({employeeLeaveRequests.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStatusFilter("Pending")}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md font-medium transition-all flex items-center gap-1",
+                            statusFilter === "Pending"
+                              ? "bg-yellow-100 text-yellow-900 dark:bg-yellow-950 dark:text-yellow-200 shadow-sm font-semibold"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
+                          Pending ({pendingCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStatusFilter("Approved")}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md font-medium transition-all flex items-center gap-1",
+                            statusFilter === "Approved"
+                              ? "bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200 shadow-sm font-semibold"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                          Approved ({approvedCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStatusFilter("Rejected")}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md font-medium transition-all flex items-center gap-1",
+                            statusFilter === "Rejected"
+                              ? "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200 shadow-sm font-semibold"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                          Rejected ({rejectedCount})
+                        </button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoadingLeaveRequests ? (
+                      <div className="flex justify-center items-center h-40">
+                        <iconMap.Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      </div>
+                    ) : displayedLeaveRequests.length > 0 ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Leave Type</TableHead>
+                            <TableHead>Start Date</TableHead>
+                            <TableHead>End Date</TableHead>
+                            <TableHead>Days in Month</TableHead>
+                            <TableHead>Reason</TableHead>
+                            <TableHead>Submitted On</TableHead>
+                            <TableHead>Manager Notes</TableHead>
+                            <TableHead className="text-right">Status</TableHead>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <p className="text-center text-muted-foreground py-4">No leave requests found for {currentEmployee?.name} overlapping with {format(currentMonthDate, "MMMM yyyy")}.</p>
-                )} 
-              </CardContent>
-            </Card>
+                        </TableHeader>
+                        <TableBody>
+                          {displayedLeaveRequests.map((request) => {
+                            const startDate = request.startDate.toDate();
+                            const endDate = request.endDate.toDate();
+                            const daysInSelectedMonth = calculateLeaveDaysInMonth(startDate, endDate, startOfMonth(currentMonthDate), endOfMonth(currentMonthDate));
+                            const isMaternityHour =
+                              (request as any).hoursPerDay === 1 ||
+                              (request as any).isHourly === true ||
+                              (request.leaveType || "").toLowerCase().includes("hour") ||
+                              (request.leaveType || "").toLowerCase().includes("ساعة") ||
+                              (request.leaveType || "").toLowerCase().includes("ساعه") ||
+                              (request.leaveType || "").toLowerCase().includes("رضاعة") ||
+                              (request.leaveType || "").toLowerCase().includes("رعاية");
+
+                            return (
+                              <TableRow key={request.id}>
+                                <TableCell>{request.leaveType}</TableCell>
+                                <TableCell>{request.startDate ? format(startDate, "PPP") : "-"}</TableCell>
+                                <TableCell>{request.endDate ? format(endDate, "PPP") : "-"}</TableCell>
+                                <TableCell>
+                                  {isMaternityHour
+                                    ? `${daysInSelectedMonth > 0 ? daysInSelectedMonth : (request.numberOfDays ?? 1)}d (1h/d)`
+                                    : (daysInSelectedMonth > 0 ? daysInSelectedMonth : "-")}
+                                </TableCell>
+                                <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
+                                <TableCell>{request.submittedAt ? format(request.submittedAt.toDate(), "PPP p") : "-"}</TableCell>
+                                <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>
+                                <TableCell className="text-right">
+                                  <LeaveStatusBadge status={request.status} />
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <div className="text-center py-6 space-y-2">
+                        <p className="text-muted-foreground">
+                          {statusFilter !== "All"
+                            ? `No ${statusFilter.toLowerCase()} leave requests found for ${currentEmployee?.name} in ${format(currentMonthDate, "MMMM yyyy")}.`
+                            : `No leave requests found for ${currentEmployee?.name} overlapping with ${format(currentMonthDate, "MMMM yyyy")}.`}
+                        </p>
+                        {statusFilter !== "All" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setStatusFilter("All")}
+                          >
+                            View All Leave Requests ({employeeLeaveRequests.length})
+                          </Button>
+                        )}
+                      </div>
+                    )} 
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </>
       </div>
   );
@@ -1214,7 +1321,9 @@ function MyRequestsContent() {
 export default function ViewEmployeeLeaveAndWorkSummaryPage() {
   return (
     <AppLayout>
-      <MyRequestsContent />
+      <Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+        <MyRequestsContent />
+      </Suspense>
     </AppLayout>
   );
 }

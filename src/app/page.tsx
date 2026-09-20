@@ -732,7 +732,7 @@ return (
       iconName: "Hourglass",
       statistic: pendingLeaveRequests ?? 0,
       isLoadingStatistic: isLoadingPendingLeaves,
-      href: isPrivilegedUser ? "/leave/all-requests" : "/leave/my-requests",
+      href: isPrivilegedUser ? "/leave/all-requests?status=Pending" : "/leave/my-requests?status=Pending",
       linkText: "Review Requests",
     },
     {
@@ -740,7 +740,7 @@ return (
       iconName: "ShieldCheck",
       statistic: approvedLeaveRequests ?? 0,
       isLoadingStatistic: isLoadingApprovedLeaves,
-      href: isPrivilegedUser ? "/leave/all-requests" : "/leave/my-requests",
+      href: isPrivilegedUser ? "/leave/all-requests?status=Approved" : "/leave/my-requests?status=Approved",
       linkText: "View Approved",
     },
     {
@@ -748,7 +748,7 @@ return (
       iconName: "ShieldX",
       statistic: rejectedLeaveRequests ?? 0,
       isLoadingStatistic: isLoadingRejectedLeaves,
-      href: isPrivilegedUser ? "/leave/all-requests" : "/leave/my-requests",
+      href: isPrivilegedUser ? "/leave/all-requests?status=Rejected" : "/leave/my-requests?status=Rejected",
       linkText: "View Rejected",
     },
     ...(!isPrivilegedUser && profile ? [

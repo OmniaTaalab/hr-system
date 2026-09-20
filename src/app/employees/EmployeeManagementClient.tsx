@@ -28,7 +28,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Label } from "@/components/ui/label";
 import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall, UserRoundCheck, X, Plus, CheckCircle2, Copy } from "lucide-react";
-import React, { useState, useEffect, useMemo, useActionState, useRef, useCallback, useTransition, Suspense } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useActionState,
+  useRef,
+  useCallback,
+  Suspense,
+  startTransition,
+} from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
   createEmployeeAction, type CreateEmployeeState,
@@ -221,13 +230,14 @@ function AddEmployeeFormContent({
   const { roles, stage: stages, systems, campuses, positionClasses, isLoading: isLoadingLists } = useOrganizationLists();
   const [gender, setGender] = useState("");
   const [role, setRole] = useState("");
-  const [campus, setCampus] = useState<string | undefined>(undefined);
-  const [stage, setStage] = useState<string | undefined>(undefined);
-  const [positionClass, setPositionClass] = useState<string | undefined>(undefined);
+const [campus, setCampus] = useState("");
+const [stage, setStage] = useState("");
+const [positionClass, setPositionClass] = useState("");
   const [reportLineCount, setReportLineCount] = useState(2);
   const [typedEmployeeId, setTypedEmployeeId] = useState("");
   const [employeeIdError, setEmployeeIdError] = useState<string | null>(null);
   const [isAddSubmitting, setIsAddSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const addFormRef = useRef<HTMLFormElement>(null);
   const lastHandledAddStateRef = useRef<CreateEmployeeState | null>(null);
 
@@ -243,6 +253,50 @@ function AddEmployeeFormContent({
     }
   };
 
+
+const clearFieldError = (field: string) => {
+  setFieldErrors((prev) => {
+    if (!prev[field]) return prev;
+
+    const next = { ...prev };
+    delete next[field];
+    return next;
+  });
+};
+
+const validateAddEmployeeForm = (form: HTMLFormElement) => {
+  const formData = new FormData(form);
+
+  const errors: Record<string, string> = {};
+
+  const requiredFields: Record<string, string> = {
+    firstName: "First Name is required",
+    lastName: "Last Name is required",
+    nisEmail: "NIS Email is required",
+    gender: "Gender is required",
+    role: "Role is required",
+    campus: "Campus is required",
+    stage: "Stage is required",
+  };
+
+  Object.entries(requiredFields).forEach(([field, message]) => {
+    let value = "";
+
+    if (field === "gender") value = gender;
+    else if (field === "role") value = role;
+    else if (field === "campus") value = campus || "";
+    else if (field === "stage") value = stage || "";
+    else value = String(formData.get(field) || "").trim();
+
+    if (!value) {
+      errors[field] = message;
+    }
+  });
+
+  setFieldErrors(errors);
+
+  return errors;
+};
   useEffect(() => {
     if (lastHandledAddStateRef.current === addState) return;
     lastHandledAddStateRef.current = addState;
@@ -280,25 +334,64 @@ function AddEmployeeFormContent({
           Fill in the employee's details below. Fields marked with * are required.
         </DialogDescription>
       </DialogHeader>
-       <form
-        ref={addFormRef}
-        action={addAction}
-        className="flex flex-col overflow-hidden"
-        onSubmit={(event) => {
-          if (isAddPending || isAddSubmitting) {
-            event.preventDefault();
-            return;
-          }
-          const error = validateOptionalFourDigitEmployeeId(typedEmployeeId).error ?? null;
-          if (error) {
-            event.preventDefault();
-            setEmployeeIdError(error);
-            return;
-          }
-          setEmployeeIdError(null);
-          setIsAddSubmitting(true);
-        }}
-      >
+   <form
+  ref={addFormRef}
+  action={addAction}
+  noValidate
+  className="flex flex-col overflow-hidden"
+  onSubmit={(event) => {
+    if (isAddPending || isAddSubmitting) {
+      event.preventDefault();
+      return;
+    }
+
+    const form = event.currentTarget;
+
+    // Check missing required fields
+    const errors = validateAddEmployeeForm(form);
+
+    if (Object.keys(errors).length > 0) {
+      event.preventDefault();
+
+      const firstErrorField = Object.keys(errors)[0];
+
+      const field =
+        form.querySelector(`[data-field="${firstErrorField}"]`) ||
+        form.querySelector(`[name="${firstErrorField}"]`);
+
+      if (field instanceof HTMLElement) {
+        field.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+
+        setTimeout(() => {
+          field.focus();
+        }, 300);
+      }
+
+      return;
+    }
+
+    // Employee ID validation
+    const employeeIdValidation =
+      validateOptionalFourDigitEmployeeId(typedEmployeeId).error ?? null;
+
+    if (employeeIdValidation) {
+      event.preventDefault();
+      setEmployeeIdError(employeeIdValidation);
+      return;
+    }
+
+    setEmployeeIdError(null);
+    setIsAddSubmitting(true);
+
+    // مهم:
+    // متعمليش preventDefault هنا
+    // ومتستدعيش addAction يدويًا
+    // action={addAction} هيعمل submit بنفسه
+  }}
+>
         <input type="hidden" name="actorId" value={profile?.id ?? ''} />
         <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
         <input type="hidden" name="actorRole" value={profile?.role ?? ''} />
@@ -311,16 +404,58 @@ function AddEmployeeFormContent({
             <h3 className="text-lg font-semibold flex items-center"><UserCircle2 className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                  <Label htmlFor="add-firstName">First Name</Label>
-                  <Input id="add-firstName" name="firstName" />
-                  {addState?.errors?.firstName && <p className="text-sm text-destructive">{addState.errors.firstName.join(', ')}</p>}
-              </div>
-              <div className="space-y-2">
-                  <Label htmlFor="add-lastName">Last Name</Label>
-                  <Input id="add-lastName" name="lastName" />
-                  {addState?.errors?.lastName && <p className="text-sm text-destructive">{addState.errors.lastName.join(', ')}</p>}
-              </div>
+            <div className="space-y-2">
+  <Label
+    htmlFor="add-firstName"
+    className={fieldErrors.firstName ? "text-destructive" : ""}
+  >
+    First Name *
+  </Label>
+
+  <Input
+    id="add-firstName"
+    name="firstName"
+    data-field="firstName"
+    className={
+      fieldErrors.firstName
+        ? "border-destructive border-2 focus-visible:ring-destructive"
+        : ""
+    }
+    onChange={() => clearFieldError("firstName")}
+  />
+
+  {fieldErrors.firstName && (
+    <p className="text-sm text-destructive">
+      {fieldErrors.firstName}
+    </p>
+  )}
+</div>
+             <div className="space-y-2">
+  <Label
+    htmlFor="add-lastName"
+    className={fieldErrors.lastName ? "text-destructive" : ""}
+  >
+    Last Name *
+  </Label>
+
+  <Input
+    id="add-lastName"
+    name="lastName"
+    data-field="lastName"
+    className={
+      fieldErrors.lastName
+        ? "border-destructive border-2 focus-visible:ring-destructive"
+        : ""
+    }
+    onChange={() => clearFieldError("lastName")}
+  />
+
+  {fieldErrors.lastName && (
+    <p className="text-sm text-destructive">
+      {fieldErrors.lastName}
+    </p>
+  )}
+</div>
             </div>
              <div className="space-y-2">
                 <Label htmlFor="add-nameAr">Full Name (Arabic)</Label>
@@ -336,17 +471,42 @@ function AddEmployeeFormContent({
                 {addState?.errors?.phone && <p className="text-sm text-destructive">{addState.errors.phone.join(', ')}</p>}
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label>Gender</Label>
-                    <Select name="gender" value={gender} onValueChange={setGender}>
-                        <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="Male">Male</SelectItem>
-                            <SelectItem value="Female">Female</SelectItem>
-                        </SelectContent>
-                    </Select>
-                     {addState?.errors?.gender && <p className="text-sm text-destructive">{addState.errors.gender.join(', ')}</p>}
-                </div>
+       <div className="space-y-2">
+  <Label className={fieldErrors.gender ? "text-destructive" : ""}>
+    Gender *
+  </Label>
+
+  <Select
+    name="gender"
+    value={gender}
+    onValueChange={(value) => {
+      setGender(value);
+      clearFieldError("gender");
+    }}
+  >
+    <SelectTrigger
+      data-field="gender"
+      className={
+        fieldErrors.gender
+          ? "border-destructive border-2 focus:ring-destructive"
+          : ""
+      }
+    >
+      <SelectValue placeholder="Select Gender" />
+    </SelectTrigger>
+
+    <SelectContent>
+      <SelectItem value="Male">Male</SelectItem>
+      <SelectItem value="Female">Female</SelectItem>
+    </SelectContent>
+  </Select>
+
+  {fieldErrors.gender && (
+    <p className="text-sm text-destructive">
+      {fieldErrors.gender}
+    </p>
+  )}
+</div>
                  <div className="space-y-2">
                     <Label htmlFor="add-dateOfBirth">Date of Birth (MM/DD/YYYY)</Label>
                     <Input id="add-dateOfBirth" name="dateOfBirth" placeholder="MM/DD/YYYY" />
@@ -408,10 +568,32 @@ function AddEmployeeFormContent({
                     )}
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="add-nisEmail">NIS Email *</Label>
-                    <Input id="add-nisEmail" name="nisEmail" type="email" required />
-                    {addState?.errors?.nisEmail && <p className="text-sm text-destructive">{addState.errors.nisEmail.join(', ')}</p>}
-                </div>
+  <Label
+    htmlFor="add-nisEmail"
+    className={fieldErrors.nisEmail ? "text-destructive" : ""}
+  >
+    NIS Email *
+  </Label>
+
+  <Input
+    id="add-nisEmail"
+    name="nisEmail"
+    type="email"
+    data-field="nisEmail"
+    className={
+      fieldErrors.nisEmail
+        ? "border-destructive border-2 focus-visible:ring-destructive"
+        : ""
+    }
+    onChange={() => clearFieldError("nisEmail")}
+  />
+
+  {fieldErrors.nisEmail && (
+    <p className="text-sm text-destructive">
+      {fieldErrors.nisEmail}
+    </p>
+  )}
+</div>
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="space-y-2">
@@ -424,14 +606,48 @@ function AddEmployeeFormContent({
                 </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div className="space-y-2">
-                    <Label>Role</Label>
-                    <Select name="role" value={role} onValueChange={setRole} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
-                        <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                     {addState?.errors?.role && <p className="text-sm text-destructive">{addState.errors.role.join(', ')}</p>}
-                </div>
+               <div className="space-y-2">
+  <Label className={fieldErrors.role ? "text-destructive" : ""}>
+    Role *
+  </Label>
+
+  <Select
+    name="role"
+    value={role}
+    onValueChange={(value) => {
+      setRole(value);
+      clearFieldError("role");
+    }}
+    disabled={isLoadingLists}
+  >
+    <SelectTrigger
+      data-field="role"
+      className={
+        fieldErrors.role
+          ? "border-destructive border-2 focus:ring-destructive"
+          : ""
+      }
+    >
+      <SelectValue
+        placeholder={isLoadingLists ? "Loading..." : "Select Role"}
+      />
+    </SelectTrigger>
+
+    <SelectContent>
+      {roles.map((r) => (
+        <SelectItem key={r.id} value={r.name}>
+          {r.name}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+
+  {fieldErrors.role && (
+    <p className="text-sm text-destructive">
+      {fieldErrors.role}
+    </p>
+  )}
+</div>
                 <div className="space-y-2">
                     <Label>Position class</Label>
                     <Select name="positionClass" value={positionClass} onValueChange={setPositionClass} disabled={isLoadingLists}>
@@ -441,13 +657,46 @@ function AddEmployeeFormContent({
                 </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div className="space-y-2">
-                    <Label>Campus</Label>
-                    <Select name="campus" value={campus} onValueChange={setCampus} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder="Select Campus" /></SelectTrigger>
-                        <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                </div>
+               <div className="space-y-2">
+  <Label className={fieldErrors.campus ? "text-destructive" : ""}>
+    Campus *
+  </Label>
+
+  <Select
+    name="campus"
+    value={campus}
+    onValueChange={(value) => {
+      setCampus(value);
+      clearFieldError("campus");
+    }}
+    disabled={isLoadingLists}
+  >
+    <SelectTrigger
+      data-field="campus"
+      className={
+        fieldErrors.campus
+          ? "border-destructive border-2 focus:ring-destructive"
+          : ""
+      }
+    >
+      <SelectValue placeholder="Select Campus" />
+    </SelectTrigger>
+
+    <SelectContent>
+      {campuses.map((c) => (
+        <SelectItem key={c.id} value={c.name}>
+          {c.name}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+
+  {fieldErrors.campus && (
+    <p className="text-sm text-destructive">
+      {fieldErrors.campus}
+    </p>
+  )}
+</div>
                  <div className="space-y-2">
                     <Label>Stage</Label>
                     <Select name="stage" value={stage} onValueChange={setStage} disabled={isLoadingLists}>
@@ -547,24 +796,6 @@ export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Emp
     return 2;
   });
 
-  useEffect(() => {
-    if (!serverState) return;
-    
-    if (serverState.success) {
-      toast({
-        title: "Employee Updated",
-        description: serverState.message,
-      });
-      onSuccess();
-    } else if (serverState.message) {
-        toast({
-          variant: "destructive",
-          title: "Update Failed",
-          description: serverState.message,
-        });
-        setFormClientError(serverState.message);
-    }
-  }, [serverState, toast, onSuccess]);
   
   const dobFormatted = employee.dateOfBirth ? format(safeToDate(employee.dateOfBirth)!, "MM/dd/yyyy") : "";
   const joiningFormatted = employee.joiningDate ? format(safeToDate(employee.joiningDate)!, "MM/dd/yyyy") : "";
@@ -1135,7 +1366,6 @@ export default function EmployeeManagementContent() {
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false);
   
   const [activateState, activateAction, isActivatePending] = useActionState(activateEmployeeAction, initialActivateState);
-  const [isActivateTransitionPending, startActivateTransition] = useTransition();
 
   const userRole = profile?.role?.toLowerCase();
   const isPrivileged = useMemo(() => {
