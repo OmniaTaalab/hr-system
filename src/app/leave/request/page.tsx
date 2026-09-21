@@ -225,16 +225,26 @@ function LeaveRequestForm() {
       formData.set("leaveType", selectedLeaveType);
     }
 
-    // Dates
-    if (startDate) formData.set("startDate", startDate.toISOString());
-    if (endDate) {
-      formData.set("endDate", endDate.toISOString());
-    } else if (isFullMaternity && startDate) {
-      const autoEnd = calculateMaternityEndDate(startDate);
-      formData.set("endDate", autoEnd.toISOString());
-    } else if (startDate) {
-      formData.set("endDate", startDate.toISOString());
-    }
+   // Dates - send date only, without timezone conversion
+if (startDate) {
+  formData.set("startDate", format(startDate, "yyyy-MM-dd"));
+}
+
+if (endDate) {
+  formData.set("endDate", format(endDate, "yyyy-MM-dd"));
+} else if (isFullMaternity && startDate) {
+  const autoEnd = calculateMaternityEndDate(startDate);
+
+  formData.set(
+    "endDate",
+    format(autoEnd, "yyyy-MM-dd")
+  );
+} else if (startDate) {
+  formData.set(
+    "endDate",
+    format(startDate, "yyyy-MM-dd")
+  );
+}
 
     if (isMaternityHour) {
       formData.set("hoursPerDay", "1");

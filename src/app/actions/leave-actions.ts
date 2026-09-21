@@ -14,7 +14,7 @@ import LeaveRequestNotificationEmail from '@/emails/leave-request-notification';
 import { render } from '@react-email/render';
 import { startOfMonth, endOfMonth } from 'date-fns';
 import { toAbsoluteAppUrl } from '@/lib/app-url';
-
+import { format } from "date-fns";
 
 // Calculate working days excluding weekends/holidays
 async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<number> {
@@ -352,8 +352,8 @@ const employeeEmail = (
                 managerName,
                 employeeName,
                 leaveType,
-                startDate: startDate.toLocaleDateString(),
-                endDate: effectiveEndDate.toLocaleDateString(),
+                startDate: format(startDate, "MM/dd/yyyy"),
+                endDate: format(effectiveEndDate, "MM/dd/yyyy"),
                 reason,
                 leaveRequestLink: requestLink,
               })
