@@ -2439,30 +2439,34 @@ if (
       return;
     }
     
-    const dataToExport = filteredEmployees.map(emp => {
-        const dob = safeToDate(emp.dateOfBirth);
-        const joined = safeToDate(emp.joiningDate);
+  const dataToExport = filteredEmployees.map(emp => { 
+    const dob = safeToDate(emp.dateOfBirth); 
+    const joined = safeToDate(emp.joiningDate);
+    const deactivationDate = safeToDate(emp.leavingDate);
         return {
             'Employee ID': emp.employeeId,
             'Name': emp.name,
-            'Title': emp.title,
-            'Position Class': emp.positionClass || '-',
-            'Role': emp.role,
+            'NameAr':emp.nameAr,
             'childrenAtNIS': emp.childrenAtNIS,
+            'NIS Email': emp.nisEmail,
+            'Title': emp.title,
+            'Role': emp.role,
+            'Position Class': emp.positionClass || '-',
             'Department': emp.department,
             'Campus': emp.campus,
             'Stage': emp.stage,
+           'Status': emp.status === 'deactivated' ? 'Deactivated' : 'Active',
             'Subject': emp.subject,
-            'NIS Email': emp.email,
             'Personal Email': emp.personalEmail,
             'Phone': emp.phone,
-            'NameAr':emp.nameAr,
-            'Date of Birth': dob ? format(dob, 'yyyy-MM-dd') : '-',
+               'Date of Birth': dob ? format(dob, 'yyyy-MM-dd') : '-',
             'Joining Date': joined ? format(joined, 'yyyy-MM-dd') : '-',
             'Gender': emp.gender,
-            'National ID': emp.nationalId,
+            'National ID': emp.nationalId,         
             'Religion': emp.religion,
-            'Status': emp.status === 'deactivated' ? 'Deactivated' : 'Active',
+                 'Emergency Contact Name': emp.emergencyContact?.name,
+            'Emergency Contact Relationship': emp.emergencyContact?.relationship,
+            'Emergency Contact Number': emp.emergencyContact?.number,
             'Report Line 1': emp.reportLine1,
             'Report Line 2': emp.reportLine2,
             'Report Line 3': emp.reportLine3,
@@ -2470,10 +2474,12 @@ if (
             'Report Line 5': emp.reportLine5,
             'Report Line 6': emp.reportLine6,
             'Reason For Leaving': emp.status === 'deactivated' ? emp.reasonForLeaving : '-',
+            'Deactivation Date':
+    emp.status === 'deactivated' && deactivationDate
+        ? format(deactivationDate, 'yyyy-MM-dd')
+        : '-',
             'Reason Note': emp.status === 'deactivated' ? emp.reasonNote : '-',
-            'Emergency Contact Name': emp.emergencyContact?.name,
-            'Emergency Contact Relationship': emp.emergencyContact?.relationship,
-            'Emergency Contact Number': emp.emergencyContact?.number,
+       
         };
     });
 
@@ -2490,11 +2496,11 @@ if (
 
   const handleDownloadTemplate = () => {
     const headers = [
-      "Employee ID", "Name", "NameAr", "childrenAtNIS", "NIS Email", "Title", "Position Class",
+      "Employee ID", "Name", "NameAr", "childrenAtNIS", "NIS Email", "Title","Role" , "Position Class",
       "Department", "Campus", "Stage", "Status", "Subject", "personal Email",
       "Phone", "Date Of Birth", "joining Date", "Gender", "National ID", "Religion",
       "Emergency Contact Name", "Emergency Contact Relationship", "Emergency Contact Number",
-      "ReportLine1", "ReportLine2", "ReportLine3", "ReportLine4", "ReportLine5", "ReportLine6"
+      "ReportLine1", "ReportLine2", "ReportLine3", "ReportLine4", "ReportLine5", "ReportLine6","Reason For Leaving","Deactivation Date","Reason Note"
     ];
     const worksheet = XLSX.utils.aoa_to_sheet([headers]);
     const workbook = XLSX.utils.book_new();
