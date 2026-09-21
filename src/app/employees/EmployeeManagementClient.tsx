@@ -774,320 +774,944 @@ const validateAddEmployeeForm = (form: HTMLFormElement) => {
 
 
 // Internal component for Edit Employee Form content
-export function EditEmployeeFormContent({ employee, onSuccess }: { employee: Employee; onSuccess: () => void }) {
+export function EditEmployeeFormContent({
+  employee,
+  onSuccess,
+}: {
+  employee: Employee;
+  onSuccess: () => void;
+}) {
   const { toast } = useToast();
   const { profile } = useUserProfile();
-  const [serverState, formAction, isPending] = useActionState(updateEmployeeAction, initialEditEmployeeState);
-  const { roles, stage: stages, systems, campuses, subjects, positionClasses, isLoading: isLoadingLists } = useOrganizationLists();
+
+  const [serverState, formAction, isPending] = useActionState(
+    updateEmployeeAction,
+    initialEditEmployeeState
+  );
+
+  const {
+    roles,
+    stage: stages,
+    systems,
+    campuses,
+    subjects,
+    positionClasses,
+    isLoading: isLoadingLists,
+  } = useOrganizationLists();
+
   const [formClientError, setFormClientError] = useState<string | null>(null);
 
-  // State for controlled components
-  const [role, setRole] = useState(employee.role || '');
-  const [system, setSystem] = useState(employee.system || '');
-  const [campus, setCampus] = useState(employee.campus || '');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const lastHandledEditStateRef =
+    useRef<UpdateEmployeeState | null>(null);
+
+  // Controlled fields
+  const [role, setRole] = useState(employee.role || "");
+  const [system, setSystem] = useState(employee.system || "");
+  const [campus, setCampus] = useState(employee.campus || "");
   const [gender, setGender] = useState(employee.gender || "");
   const [stage, setStage] = useState(employee.stage || "");
-  const [positionClass, setPositionClass] = useState(employee.positionClass || '');
-  const [childrenAtNIS, setChildrenAtNIS] = useState<'Yes' | 'No'>(employee.childrenAtNIS || 'No');
+  const [positionClass, setPositionClass] = useState(
+    employee.positionClass || ""
+  );
+
+  const [childrenAtNIS, setChildrenAtNIS] = useState<"Yes" | "No">(
+    employee.childrenAtNIS || "No"
+  );
+
   const [reportLineCount, setReportLineCount] = useState(() => {
     if (employee.reportLine6) return 6;
     if (employee.reportLine5) return 5;
     if (employee.reportLine4) return 4;
     if (employee.reportLine3) return 3;
+
     return 2;
   });
 
-  
-  const dobFormatted = employee.dateOfBirth ? format(safeToDate(employee.dateOfBirth)!, "MM/dd/yyyy") : "";
-  const joiningFormatted = employee.joiningDate ? format(safeToDate(employee.joiningDate)!, "MM/dd/yyyy") : "";
-  const leavingFormatted = employee.leavingDate ? format(safeToDate(employee.leavingDate)!, "MM/dd/yyyy") : "";
+  const clearFieldError = (field: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+
+      const next = { ...prev };
+      delete next[field];
+
+      return next;
+    });
+  };
+
+  // Handle response from updateEmployeeAction
+  useEffect(() => {
+    if (lastHandledEditStateRef.current === serverState) return;
+
+    lastHandledEditStateRef.current = serverState;
+
+    // Backend validation error for NIS Email
+    if (serverState.errors?.nisEmail?.length) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        nisEmail:
+          serverState.errors?.nisEmail?.[0] ||
+          "NIS Email is required.",
+      }));
+
+      return;
+    }
+
+    // Successful update
+    if (serverState.success) {
+      toast({
+        title: "Employee Updated",
+        description:
+          serverState.message ||
+          "Employee updated successfully.",
+      });
+
+      setFieldErrors({});
+      setFormClientError(null);
+
+      onSuccess();
+
+      return;
+    }
+
+    // Other backend errors
+    if (serverState.message && !serverState.success) {
+      const errorMessage =
+        serverState.errors?.form?.join(", ") ||
+        serverState.message;
+
+      setFormClientError(errorMessage);
+
+      toast({
+        title: "Update Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
+  }, [serverState, toast, onSuccess]);
+
+  const dobFormatted = employee.dateOfBirth
+    ? format(safeToDate(employee.dateOfBirth)!, "MM/dd/yyyy")
+    : "";
+
+  const joiningFormatted = employee.joiningDate
+    ? format(safeToDate(employee.joiningDate)!, "MM/dd/yyyy")
+    : "";
+
+  const leavingFormatted = employee.leavingDate
+    ? format(safeToDate(employee.leavingDate)!, "MM/dd/yyyy")
+    : "";
 
   return (
     <>
       <AlertDialogHeader>
-        <AlertDialogTitle>Edit Employee: {employee.name}</AlertDialogTitle>
+        <AlertDialogTitle>
+          Edit Employee: {employee.name}
+        </AlertDialogTitle>
+
         <AlertDialogDescription>
-          Update the details for {employee.name}. Photo and documents are updated here.
+          Update the details for {employee.name}. Photo and documents
+          are updated here.
         </AlertDialogDescription>
       </AlertDialogHeader>
+
       <form
         id="edit-employee-form"
         action={formAction}
+        noValidate
         className="flex flex-col overflow-hidden"
+        onSubmit={(event) => {
+          if (isPending) {
+            event.preventDefault();
+            return;
+          }
+
+          const form = event.currentTarget;
+
+          const formData = new FormData(form);
+
+          const nisEmail = String(
+            formData.get("nisEmail") || ""
+          ).trim();
+
+          /*
+           * IMPORTANT:
+           * لو الـ NIS Email فاضي:
+           *
+           * - منبعتش الفورم
+           * - منقفلش الـ dialog
+           * - منمسحش أي قيمة اتغيرت
+           * - نعلم NIS Email بالأحمر فقط
+           */
+          if (!nisEmail) {
+            event.preventDefault();
+
+            setFieldErrors((prev) => ({
+              ...prev,
+              nisEmail: "NIS Email is required.",
+            }));
+
+            const field =
+              form.querySelector(
+                '[data-field="nisEmail"]'
+              ) ||
+              form.querySelector('[name="nisEmail"]');
+
+            if (field instanceof HTMLElement) {
+              field.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+
+              window.setTimeout(() => {
+                field.focus();
+              }, 250);
+            }
+
+            return;
+          }
+
+          clearFieldError("nisEmail");
+
+          setFormClientError(null);
+
+          /*
+           * مهم:
+           * هنا منعملش preventDefault
+           *
+           * action={formAction}
+           * هيبعت كل البيانات المعدلة للسيرفر.
+           */
+        }}
       >
-        <input type="hidden" name="employeeDocId" defaultValue={employee.id} />
-        <input type="hidden" name="actorId" value={profile?.id ?? ''} />
-        <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
-        <input type="hidden" name="actorRole" value={profile?.role ?? ''} />
-        {/* Hidden inputs for controlled Selects */}
+        <input
+          type="hidden"
+          name="employeeDocId"
+          value={employee.id}
+        />
+
+        <input
+          type="hidden"
+          name="actorId"
+          value={profile?.id ?? ""}
+        />
+
+        <input
+          type="hidden"
+          name="actorEmail"
+          value={profile?.email ?? ""}
+        />
+
+        <input
+          type="hidden"
+          name="actorRole"
+          value={profile?.role ?? ""}
+        />
+
+        {/* Controlled Select values */}
         <input type="hidden" name="role" value={role} />
-        <input type="hidden" name="system" value={system || ''} />
-        <input type="hidden" name="campus" value={campus || ''} />
-        <input type="hidden" name="gender" value={gender || ''} />
-        <input type="hidden" name="stage" value={stage || ''} />
-        <input type="hidden" name="childrenAtNIS" value={childrenAtNIS} />
-        <input type="hidden" name="positionClass" value={positionClass || ''} />
-        
+        <input type="hidden" name="system" value={system} />
+        <input type="hidden" name="campus" value={campus} />
+        <input type="hidden" name="gender" value={gender} />
+        <input type="hidden" name="stage" value={stage} />
+
+        <input
+          type="hidden"
+          name="childrenAtNIS"
+          value={childrenAtNIS}
+        />
+
+        <input
+          type="hidden"
+          name="positionClass"
+          value={positionClass}
+        />
+
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
+            {/* Photo */}
+
             <div className="space-y-2">
               <Label>Employee Photo</Label>
-              <ImageUploader 
-                employeeId={employee.id} 
+
+              <ImageUploader
+                employeeId={employee.id}
                 employeeName={employee.name}
-                currentPhotoUrl={employee.photoURL} 
+                currentPhotoUrl={employee.photoURL}
               />
-              <p className="text-xs text-muted-foreground">Upload a square image. Max 5MB. Photo updates are saved immediately.</p>
+
+              <p className="text-xs text-muted-foreground">
+                Upload a square image. Max 5MB. Photo updates are saved
+                immediately.
+              </p>
             </div>
-            
+
             <Separator />
-             <h3 className="text-lg font-semibold flex items-center"><UserCircle2 className="mr-2 h-5 w-5 text-primary" />Personal Information</h3>
-            
+
+            {/* Personal Information */}
+
+            <h3 className="text-lg font-semibold flex items-center">
+              <UserCircle2 className="mr-2 h-5 w-5 text-primary" />
+              Personal Information
+            </h3>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="edit-firstName">First Name</Label>
-                    <Input id="edit-firstName" name="firstName" defaultValue={employee.firstName || (typeof employee.name === 'string' ? employee.name.split(' ')[0] : '') || ''}  />
-                    {serverState?.errors?.firstName && <p className="text-sm text-destructive">{serverState.errors.firstName.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="edit-lastName">Last Name</Label>
-                    <Input id="edit-lastName" name="lastName" defaultValue={employee.lastName || (typeof employee.name === 'string' ? employee.name.split(' ').slice(1).join(' ') : '') || ''}  />
-                    {serverState?.errors?.lastName && <p className="text-sm text-destructive">{serverState.errors.lastName.join(', ')}</p>}
-                </div>
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="edit-name-ar">Full Name (Arabic)</Label>
-                <Input id="edit-name-ar" name="nameAr" defaultValue={employee.nameAr || ''} dir="rtl" />
-                {serverState?.errors?.nameAr && <p className="text-sm text-destructive">{serverState.errors.nameAr.join(', ')}</p>}
+              <div className="space-y-2">
+                <Label htmlFor="edit-firstName">
+                  First Name
+                </Label>
+
+                <Input
+                  id="edit-firstName"
+                  name="firstName"
+                  defaultValue={
+                    employee.firstName ||
+                    (typeof employee.name === "string"
+                      ? employee.name.split(" ")[0]
+                      : "") ||
+                    ""
+                  }
+                />
+
+                {serverState?.errors?.firstName && (
+                  <p className="text-sm text-destructive">
+                    {serverState.errors.firstName.join(", ")}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-lastName">
+                  Last Name
+                </Label>
+
+                <Input
+                  id="edit-lastName"
+                  name="lastName"
+                  defaultValue={
+                    employee.lastName ||
+                    (typeof employee.name === "string"
+                      ? employee.name
+                          .split(" ")
+                          .slice(1)
+                          .join(" ")
+                      : "") ||
+                    ""
+                  }
+                />
+
+                {serverState?.errors?.lastName && (
+                  <p className="text-sm text-destructive">
+                    {serverState.errors.lastName.join(", ")}
+                  </p>
+                )}
+              </div>
             </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div className="space-y-2">
-                  <Label htmlFor="edit-personalEmail">Personal Email</Label>
-                  <Input id="edit-personalEmail" name="personalEmail" type="email" defaultValue={employee.personalEmail || ''} />
-                  {serverState?.errors?.personalEmail && <p className="text-sm text-destructive">{serverState.errors.personalEmail.join(', ')}</p>}
-                </div>
-                 <div className="space-y-2">
-                  <Label htmlFor="edit-phone">Personal Phone</Label>
-                  <Input id="edit-phone" name="phone" defaultValue={employee.phone} placeholder="Numbers only" />
-                  {serverState?.errors?.phone && <p className="text-sm text-destructive">{serverState.errors.phone.join(', ')}</p>}
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-name-ar">
+                Full Name (Arabic)
+              </Label>
+
+              <Input
+                id="edit-name-ar"
+                name="nameAr"
+                defaultValue={employee.nameAr || ""}
+                dir="rtl"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-personalEmail">
+                  Personal Email
+                </Label>
+
+                <Input
+                  id="edit-personalEmail"
+                  name="personalEmail"
+                  type="email"
+                  defaultValue={employee.personalEmail || ""}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-phone">
+                  Personal Phone
+                </Label>
+
+                <Input
+                  id="edit-phone"
+                  name="phone"
+                  defaultValue={employee.phone || ""}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
-                <h4 className="font-medium flex items-center text-sm"><PhoneCall className="mr-2 h-4 w-4"/>Emergency Contact</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-md">
-                     <div className="space-y-2">
-                        <Label htmlFor="edit-emergencyContactName">Name</Label>
-                        <Input id="edit-emergencyContactName" name="emergencyContactName" defaultValue={employee.emergencyContact?.name || ''} />
-                     </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="edit-emergencyContactRelationship">Relationship</Label>
-                        <Input id="edit-emergencyContactRelationship" name="emergencyContactRelationship" defaultValue={employee.emergencyContact?.relationship || ''} />
-                     </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="edit-emergencyContactNumber">Number</Label>
-                        <Input id="edit-emergencyContactNumber" name="emergencyContactNumber" defaultValue={employee.emergencyContact?.number || ''} />
-                     </div>
-                </div>
-            </div>
-            
-             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="edit-dateOfBirth">Date of Birth (MM/DD/YYYY)</Label>
-                    <Input id="edit-dateOfBirth" name="dateOfBirth" defaultValue={dobFormatted} placeholder="MM/DD/YYYY" />
-                    {serverState?.errors?.dateOfBirth && <p className="text-sm text-destructive">{serverState.errors.dateOfBirth.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="edit-gender">Gender</Label>
-                    <Select value={gender} onValueChange={setGender}>
-                        <SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="Male">Male</SelectItem>
-                            <SelectItem value="Female">Female</SelectItem>
-                            <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    {serverState?.errors?.gender && <p className="text-sm text-destructive">{serverState.errors.gender.join(', ')}</p>}
-                </div>
+              <h4 className="font-medium flex items-center text-sm">
+                <PhoneCall className="mr-2 h-4 w-4" />
+                Emergency Contact
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-md">
+                <Input
+                  name="emergencyContactName"
+                  placeholder="Name"
+                  defaultValue={
+                    employee.emergencyContact?.name || ""
+                  }
+                />
+
+                <Input
+                  name="emergencyContactRelationship"
+                  placeholder="Relationship"
+                  defaultValue={
+                    employee.emergencyContact?.relationship ||
+                    ""
+                  }
+                />
+
+                <Input
+                  name="emergencyContactNumber"
+                  placeholder="Number"
+                  defaultValue={
+                    employee.emergencyContact?.number || ""
+                  }
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-                 <div className="space-y-2">
-                    <Label htmlFor="edit-nationalId">National ID</Label>
-                    <Input id="edit-nationalId" name="nationalId" defaultValue={employee.nationalId} />
-                    {serverState?.errors?.nationalId && <p className="text-sm text-destructive">{serverState.errors.nationalId.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="edit-religion">Religion</Label>
-                    <Input id="edit-religion" name="religion" defaultValue={employee.religion} />
-                    {serverState?.errors?.religion && <p className="text-sm text-destructive">{serverState.errors.religion.join(', ')}</p>}
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-dateOfBirth">
+                  Date of Birth (MM/DD/YYYY)
+                </Label>
+
+                <Input
+                  id="edit-dateOfBirth"
+                  name="dateOfBirth"
+                  defaultValue={dobFormatted}
+                  placeholder="MM/DD/YYYY"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Gender</Label>
+
+                <Select
+                  value={gender}
+                  onValueChange={setGender}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Gender" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    <SelectItem value="Male">
+                      Male
+                    </SelectItem>
+
+                    <SelectItem value="Female">
+                      Female
+                    </SelectItem>
+
+                    <SelectItem value="Other">
+                      Other
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-             <div className="space-y-2">
-                <Label>Do they have children enrolled at NIS?</Label>
-                <RadioGroup name="childrenAtNIS" value={childrenAtNIS} onValueChange={(val) => setChildrenAtNIS(val as 'Yes' | 'No')} className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="Yes" id="edit-children-yes" />
-                        <Label htmlFor="edit-children-yes">Yes</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="No" id="edit-children-no" />
-                        <Label htmlFor="edit-children-no">No</Label>
-                    </div>
-                </RadioGroup>
-                {serverState?.errors?.childrenAtNIS && <p className="text-sm text-destructive">{serverState.errors.childrenAtNIS.join(', ')}</p>}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-nationalId">
+                  National ID
+                </Label>
+
+                <Input
+                  id="edit-nationalId"
+                  name="nationalId"
+                  defaultValue={employee.nationalId || ""}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-religion">
+                  Religion
+                </Label>
+
+                <Input
+                  id="edit-religion"
+                  name="religion"
+                  defaultValue={employee.religion || ""}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>
+                Do they have children enrolled at NIS?
+              </Label>
+
+              <RadioGroup
+                value={childrenAtNIS}
+                onValueChange={(val) =>
+                  setChildrenAtNIS(val as "Yes" | "No")
+                }
+                className="flex items-center space-x-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem
+                    value="Yes"
+                    id="edit-children-yes"
+                  />
+
+                  <Label htmlFor="edit-children-yes">
+                    Yes
+                  </Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem
+                    value="No"
+                    id="edit-children-no"
+                  />
+
+                  <Label htmlFor="edit-children-no">
+                    No
+                  </Label>
+                </div>
+              </RadioGroup>
             </div>
 
             <Separator />
-            <h3 className="text-lg font-semibold flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" />Work Information</h3>
-            
+
+            {/* Work Information */}
+
+            <h3 className="text-lg font-semibold flex items-center">
+              <Briefcase className="mr-2 h-5 w-5 text-primary" />
+              Work Information
+            </h3>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-employeeId">Employee ID</Label>
-                  <Input id="edit-employeeId" name="employeeId" defaultValue={employee.employeeId} />
-                  {serverState?.errors?.employeeId && <p className="text-sm text-destructive">{serverState.errors.employeeId.join(', ')}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-email">NIS Email</Label>
-                  <Input id="edit-email" name="nisEmail" type="email" defaultValue={employee.nisEmail}  />
-                  {serverState?.errors?.nisEmail && <p className="text-sm text-destructive">{serverState.errors.nisEmail.join(', ')}</p>}
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-employeeId">
+                  Employee ID
+                </Label>
+
+                <Input
+                  id="edit-employeeId"
+                  name="employeeId"
+                  defaultValue={employee.employeeId || ""}
+                />
+
+                {serverState?.errors?.employeeId && (
+                  <p className="text-sm text-destructive">
+                    {serverState.errors.employeeId.join(", ")}
+                  </p>
+                )}
+              </div>
+
+              {/* NIS EMAIL */}
+
+              <div className="space-y-2">
+                <Label
+                  htmlFor="edit-email"
+                  className={
+                    fieldErrors.nisEmail
+                      ? "text-destructive"
+                      : ""
+                  }
+                >
+                  NIS Email *
+                </Label>
+
+                <Input
+                  id="edit-email"
+                  name="nisEmail"
+                  type="email"
+                  data-field="nisEmail"
+                  defaultValue={employee.nisEmail || ""}
+                  aria-invalid={Boolean(
+                    fieldErrors.nisEmail
+                  )}
+                  className={
+                    fieldErrors.nisEmail
+                      ? "border-destructive border-2 focus-visible:ring-destructive"
+                      : ""
+                  }
+                  onChange={() =>
+                    clearFieldError("nisEmail")
+                  }
+                />
+
+                {fieldErrors.nisEmail && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.nisEmail}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               <div className="space-y-2">
-                  <Label htmlFor="edit-department">Department</Label>
-                  <Input id="edit-department" name="department" defaultValue={employee.department} />
-                  {serverState?.errors?.department && <p className="text-sm text-destructive">{serverState.errors.department.join(', ')}</p>}
-              </div>
               <div className="space-y-2">
-                  <Label>Role</Label>
-                  <Select value={role} onValueChange={setRole} disabled={isLoadingLists}>
-                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Role"} /></SelectTrigger>
-                      <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {serverState?.errors?.role && <p className="text-sm text-destructive">{serverState.errors.role.join(', ')}</p>}
+                <Label htmlFor="edit-department">
+                  Department
+                </Label>
+
+                <Input
+                  id="edit-department"
+                  name="department"
+                  defaultValue={employee.department || ""}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Role</Label>
+
+                <Select
+                  value={role}
+                  onValueChange={setRole}
+                  disabled={isLoadingLists}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        isLoadingLists
+                          ? "Loading..."
+                          : "Select Role"
+                      }
+                    />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {roles.map((r) => (
+                      <SelectItem
+                        key={r.id}
+                        value={r.name}
+                      >
+                        {r.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                  <Label>Stage</Label>
-                  <Select value={stage} onValueChange={setStage} disabled={isLoadingLists}>
-                      <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Stage"} /></SelectTrigger>
-                      <SelectContent>{stages.map(g => <SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {serverState?.errors?.stage && <p className="text-sm text-destructive">{serverState.errors.stage.join(', ')}</p>}
+                <Label>Stage</Label>
+
+                <Select
+                  value={stage}
+                  onValueChange={setStage}
+                  disabled={isLoadingLists}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Stage" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {stages.map((g) => (
+                      <SelectItem
+                        key={g.id}
+                        value={g.name}
+                      >
+                        {g.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-               <div className="space-y-2">
-                    <Label htmlFor="edit-subject">Subject</Label>
-                    <Input id="edit-subject" name="subject" defaultValue={employee.subject || ''} />
-                    {serverState?.errors?.subject && <p className="text-sm text-destructive">{serverState.errors.subject.join(', ')}</p>}
-                </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-subject">
+                  Subject
+                </Label>
+
+                <Input
+                  id="edit-subject"
+                  name="subject"
+                  defaultValue={employee.subject || ""}
+                />
+              </div>
             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div className="space-y-2">
-                   <Label>Campus</Label>
-                    <Select value={campus} onValueChange={setCampus} disabled={isLoadingLists}>
-                       <SelectTrigger><SelectValue placeholder="Select Campus" /></SelectTrigger>
-                       <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
-                   </Select>
-                   {serverState?.errors?.campus && <p className="text-sm text-destructive">{serverState.errors.campus.join(', ')}</p>}
-               </div>
-               <div className="space-y-2">
-                   <Label>Position class</Label>
-                   <Select value={positionClass} onValueChange={setPositionClass} disabled={isLoadingLists}>
-                       <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Position class"} /></SelectTrigger>
-                       <SelectContent>{positionClasses?.map(pc => <SelectItem key={pc.id} value={pc.name}>{pc.name}</SelectItem>)}</SelectContent>
-                   </Select>
-               </div>
-             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label>System</Label>
-                    <Select value={system} onValueChange={setSystem} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger>
-                        <SelectContent>{systems.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                    {serverState?.errors?.system && <p className="text-sm text-destructive">{serverState.errors.system.join(', ')}</p>}
-                </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="edit-title">Title</Label>
-                    <Input id="edit-title" name="title" defaultValue={employee.title || ''} />
-                    {serverState?.errors?.title && <p className="text-sm text-destructive">{serverState.errors.title.join(', ')}</p>}
-                </div>
+              <div className="space-y-2">
+                <Label>Campus</Label>
+
+                <Select
+                  value={campus}
+                  onValueChange={setCampus}
+                  disabled={isLoadingLists}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Campus" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {campuses.map((c) => (
+                      <SelectItem
+                        key={c.id}
+                        value={c.name}
+                      >
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Position class</Label>
+
+                <Select
+                  value={positionClass}
+                  onValueChange={setPositionClass}
+                  disabled={isLoadingLists}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        isLoadingLists
+                          ? "Loading..."
+                          : "Select Position class"
+                      }
+                    />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {positionClasses?.map((pc) => (
+                      <SelectItem
+                        key={pc.id}
+                        value={pc.name}
+                      >
+                        {pc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>System</Label>
+
+                <Select
+                  value={system}
+                  onValueChange={setSystem}
+                  disabled={isLoadingLists}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select System" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {systems.map((s) => (
+                      <SelectItem
+                        key={s.id}
+                        value={s.name}
+                      >
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-title">
+                  Title
+                </Label>
+
+                <Input
+                  id="edit-title"
+                  name="title"
+                  defaultValue={employee.title || ""}
+                />
+              </div>
+            </div>
+
+            {/* Reporting Lines */}
+
             <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold flex items-center"><Users className="mr-2 h-5 w-5 text-primary" />Reporting Lines</h3>
-                <div className="flex items-center gap-2">
-                    {reportLineCount > 2 && (
-                        <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setReportLineCount(prev => prev - 1)}>
-                            <Trash2 className="h-4 w-4 mr-1" /> Remove
-                        </Button>
-                    )}
-                    {reportLineCount < 6 && (
-                        <Button type="button" variant="ghost" size="sm" onClick={() => reportLineCount < 6 && setReportLineCount(prev => prev + 1)}>
-                            <Plus className="h-4 w-4 mr-1" /> Add
-                        </Button>
-                    )}
-                </div>
+              <h3 className="text-lg font-semibold flex items-center">
+                <Users className="mr-2 h-5 w-5 text-primary" />
+                Reporting Lines
+              </h3>
+
+              <div className="flex items-center gap-2">
+                {reportLineCount > 2 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive"
+                    onClick={() =>
+                      setReportLineCount(
+                        (prev) => prev - 1
+                      )
+                    }
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Remove
+                  </Button>
+                )}
+
+                {reportLineCount < 6 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setReportLineCount(
+                        (prev) => prev + 1
+                      )
+                    }
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add
+                  </Button>
+                )}
+              </div>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input name="reportLine1" defaultValue={employee.reportLine1} placeholder="Report Line 1" />
-                <Input name="reportLine2" defaultValue={employee.reportLine2} placeholder="Report Line 2" />
-                {reportLineCount >= 3 && <Input name="reportLine3" defaultValue={employee.reportLine3} placeholder="Report Line 3" />}
-                {reportLineCount >= 4 && <Input name="reportLine4" defaultValue={employee.reportLine4} placeholder="Report Line 4" />}
-                {reportLineCount >= 5 && <Input name="reportLine5" defaultValue={employee.reportLine5} placeholder="Report Line 5" />}
-                {reportLineCount >= 6 && <Input name="reportLine6" defaultValue={employee.reportLine6} placeholder="Report Line 6" />}
+              <Input
+                name="reportLine1"
+                defaultValue={employee.reportLine1 || ""}
+                placeholder="Report Line 1"
+              />
+
+              <Input
+                name="reportLine2"
+                defaultValue={employee.reportLine2 || ""}
+                placeholder="Report Line 2"
+              />
+
+              {reportLineCount >= 3 && (
+                <Input
+                  name="reportLine3"
+                  defaultValue={employee.reportLine3 || ""}
+                  placeholder="Report Line 3"
+                />
+              )}
+
+              {reportLineCount >= 4 && (
+                <Input
+                  name="reportLine4"
+                  defaultValue={employee.reportLine4 || ""}
+                  placeholder="Report Line 4"
+                />
+              )}
+
+              {reportLineCount >= 5 && (
+                <Input
+                  name="reportLine5"
+                  defaultValue={employee.reportLine5 || ""}
+                  placeholder="Report Line 5"
+                />
+              )}
+
+              {reportLineCount >= 6 && (
+                <Input
+                  name="reportLine6"
+                  defaultValue={employee.reportLine6 || ""}
+                  placeholder="Report Line 6"
+                />
+              )}
             </div>
-           
-             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="edit-hourlyRate">Hourly Rate (Optional)</Label>
-                    <Input id="edit-hourlyRate" name="hourlyRate" type="number" step="0.01" defaultValue={employee.hourlyRate || 0} placeholder="e.g., 25.50" />
-                    {serverState?.errors?.hourlyRate && <p className="text-sm text-destructive">{serverState.errors.hourlyRate.join(', ')}</p>}
-                </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="edit-joiningDate">Joining Date (MM/DD/YYYY)</Label>
-                    <Input id="edit-joiningDate" name="joiningDate" defaultValue={joiningFormatted} placeholder="MM/DD/YYYY" />
-                    {serverState?.errors?.joiningDate && <p className="text-sm text-destructive">{serverState.errors.joiningDate.join(', ')}</p>}
-                </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-hourlyRate">
+                  Hourly Rate (Optional)
+                </Label>
+
+                <Input
+                  id="edit-hourlyRate"
+                  name="hourlyRate"
+                  type="number"
+                  step="0.01"
+                  defaultValue={employee.hourlyRate ?? 0}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-joiningDate">
+                  Joining Date (MM/DD/YYYY)
+                </Label>
+
+                <Input
+                  id="edit-joiningDate"
+                  name="joiningDate"
+                  defaultValue={joiningFormatted}
+                  placeholder="MM/DD/YYYY"
+                />
+              </div>
             </div>
+
             <div className="space-y-2">
-                <Label htmlFor="edit-leavingDate">Leaving Date (Optional - MM/DD/YYYY)</Label>
-                <Input id="edit-leavingDate" name="leavingDate" defaultValue={leavingFormatted} placeholder="MM/DD/YYYY" />
-                {serverState?.errors?.leavingDate && <p className="text-sm text-destructive">{serverState.errors.leavingDate.join(', ')}</p>}
+              <Label htmlFor="edit-leavingDate">
+                Leaving Date (Optional - MM/DD/YYYY)
+              </Label>
+
+              <Input
+                id="edit-leavingDate"
+                name="leavingDate"
+                defaultValue={leavingFormatted}
+                placeholder="MM/DD/YYYY"
+              />
             </div>
 
             <EmployeeFileManager employee={employee} />
-            
-            {(serverState?.errors?.form) && (
+
+            {formClientError && (
               <div className="flex items-center p-2 text-sm text-destructive bg-destructive/10 rounded-md">
                 <AlertCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-                <span>{formClientError || serverState?.errors?.form?.join(', ')}</span>
+
+                <span>{formClientError}</span>
               </div>
             )}
           </div>
         </ScrollArea>
+
         <AlertDialogFooter className="pt-4 flex-shrink-0 border-t">
-          <AlertDialogCancel type="button" onClick={() => { onSuccess(); setFormClientError(null); }}>Cancel</AlertDialogCancel>
-          <Button type="submit" form="edit-employee-form" disabled={isPending}>
-              {isPending ? (
-                  <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                  </>
-              ) : "Save Changes"}
+          <AlertDialogCancel
+            type="button"
+            onClick={() => {
+              setFormClientError(null);
+              setFieldErrors({});
+              onSuccess();
+            }}
+          >
+            Cancel
+          </AlertDialogCancel>
+
+          <Button
+            type="submit"
+            form="edit-employee-form"
+            disabled={isPending}
+          >
+            {isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Changes"
+            )}
           </Button>
         </AlertDialogFooter>
       </form>
     </>
   );
 }
-
 // New Component for Deactivating an Employee
 function DeactivateEmployeeDialog({ employee, open, onOpenChange }: { employee: Employee | null; open: boolean; onOpenChange: (open: boolean) => void; }) {
     const { toast } = useToast();
