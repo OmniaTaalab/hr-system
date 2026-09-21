@@ -503,7 +503,17 @@ export async function updateEmployeeAction(
     if (newlyClaimedId) {
       await releaseEmployeeIdClaim(newlyClaimedId);
     }
-    return { success: false, message: error.message };
+
+    const errorMessage =
+      error?.message || "Failed to update employee. Please try again.";
+
+    console.error("Update employee error:", error);
+
+    return {
+      success: false,
+      message: errorMessage,
+      errors: { form: [errorMessage] },
+    };
   }
 }
 
@@ -763,3 +773,4 @@ export type BatchCreateEmployeesState = { success: boolean; message: string | nu
 export async function batchCreateEmployeesAction(prevState: BatchCreateEmployeesState, formData: FormData): Promise<BatchCreateEmployeesState> {
     return { success: true, message: "Batch creation process initialized.", errors: {} };
 }
+

@@ -35,6 +35,7 @@ import React, {
   useActionState,
   useRef,
   useCallback,
+  useTransition,
   Suspense,
   startTransition,
 } from "react";
@@ -1302,31 +1303,42 @@ export default function EmployeeManagementContent() {
       setCurrentPage(1);
   };
   
-  // URL update effect
+  // Keep the filters in the URL without triggering a Next.js navigation
+  // on every keypress in the search box.
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (searchTerm) params.set('q', searchTerm);
-    statusFilters.forEach(s => params.append('status', s));
-    campusFilters.forEach(c => params.append('campus', c));
-    titleFilters.forEach(t => params.append('title', t));
-    stageFilters.forEach(s => params.append('stage', s));
-    subjectFilters.forEach(s => params.append('subject', s));
-    genderFilters.forEach(g => params.append('gender', g));
-    religionFilters.forEach(r => params.append('religion', r));
-    reportLineFilters.forEach(r => params.append('reportLine', r));
-    if (dobStartYear) params.set('dobStart', dobStartYear);
-    if (dobEndYear) params.set('dobEnd', dobEndYear);
-    if (joiningStartYear) params.set('joinStart', joiningStartYear);
-    if (joiningEndYear) params.set('joinEnd', joiningEndYear);
-    if (currentPage > 1) params.set('page', currentPage.toString());
+    const timeoutId = window.setTimeout(() => {
+      const params = new URLSearchParams();
 
-    // Using push to update the URL.
-    router.push(`${pathname}?${params.toString()}`);
+      const normalizedSearch = searchTerm.trim();
+      if (normalizedSearch) params.set('q', normalizedSearch);
+
+      statusFilters.forEach(s => params.append('status', s));
+      campusFilters.forEach(c => params.append('campus', c));
+      titleFilters.forEach(t => params.append('title', t));
+      stageFilters.forEach(s => params.append('stage', s));
+      subjectFilters.forEach(s => params.append('subject', s));
+      genderFilters.forEach(g => params.append('gender', g));
+      religionFilters.forEach(r => params.append('religion', r));
+      reportLineFilters.forEach(r => params.append('reportLine', r));
+
+      if (dobStartYear) params.set('dobStart', dobStartYear);
+      if (dobEndYear) params.set('dobEnd', dobEndYear);
+      if (joiningStartYear) params.set('joinStart', joiningStartYear);
+      if (joiningEndYear) params.set('joinEnd', joiningEndYear);
+      if (currentPage > 1) params.set('page', currentPage.toString());
+
+      const queryString = params.toString();
+      const nextUrl = queryString ? `${pathname}?${queryString}` : pathname;
+
+      window.history.replaceState(null, "", nextUrl);
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
   }, [
     searchTerm, statusFilters, campusFilters, titleFilters, stageFilters,
     subjectFilters, genderFilters, religionFilters, reportLineFilters,
     dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, currentPage,
-    router, pathname
+    pathname
   ]);
 
 
@@ -1366,6 +1378,7 @@ export default function EmployeeManagementContent() {
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false);
   
   const [activateState, activateAction, isActivatePending] = useActionState(activateEmployeeAction, initialActivateState);
+  const [isActivateTransitionPending, startActivateTransition] = useTransition();
 
   const userRole = profile?.role?.toLowerCase();
   const isPrivileged = useMemo(() => {
@@ -1642,8 +1655,8 @@ return (
       });
     }
     
-    const lowercasedFilter = searchTerm.toLowerCase();
-    if (searchTerm.trim()) {
+    const lowercasedFilter = searchTerm.trim().toLowerCase();
+    if (lowercasedFilter) {
       listToFilter = listToFilter.filter(employee => {
           const searchableFields = [
               employee.name,
@@ -2193,7 +2206,11 @@ if (
                                   </DropdownMenuPortal>
                                 </DropdownMenuSub>
 
-                                <DropdownMenuItem onSelect={() => openEditDialog(employee)}>
+                                <DropdownMenuItem
+                                  onSelect={() => {
+                                    window.setTimeout(() => openEditDialog(employee), 0);
+                                  }}
+                                >
                                   <Edit3 className="mr-2 h-4 w-4" />
                                   Edit Employee
                                 </DropdownMenuItem>
