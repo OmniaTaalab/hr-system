@@ -3,7 +3,19 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    const { apiToken, ...employeeData } = await request.json();
+    const rawBody = await request.text();
+    if (!rawBody || !rawBody.trim()) {
+      return NextResponse.json({ message: "Request body is empty." }, { status: 400 });
+    }
+
+    let bodyData: any;
+    try {
+      bodyData = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ message: "Invalid JSON in request body." }, { status: 400 });
+    }
+
+    const { apiToken, ...employeeData } = bodyData;
 
     if (!apiToken) {
       return NextResponse.json({ message: "API token is missing." }, { status: 401 });
