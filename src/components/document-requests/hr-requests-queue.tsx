@@ -725,20 +725,6 @@ export function HrRequestsQueue() {
 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      setIsReviewModalOpen(false);
-                      handleOpenDocPreview(selectedRequest);
-                    }}
-                    className="gap-1.5"
-                  >
-                    <Printer className="h-4 w-4" />
-                    Preview Document
-                  </Button>
-
-                  <Button
                     type="submit"
                     disabled={isPending || (actionStatus === "Rejected" && !rejectionReason.trim())}
                     className={`gap-1.5 ${

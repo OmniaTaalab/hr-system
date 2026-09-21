@@ -329,20 +329,6 @@ export function MyRequestsView() {
                         </span>
                       </div>
                     </div>
-
-                    {/* Download / View Button */}
-                    <div className="flex items-center gap-2">
-                      {canDownload && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleOpenDoc(req)}
-                          className="gap-1.5 shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
-                        >
-                          <Printer className="h-3.5 w-3.5" />
-                          View / Print Document
-                        </Button>
-                      )}
-                    </div>
                   </div>
                 </CardHeader>
 
