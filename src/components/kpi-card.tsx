@@ -145,7 +145,7 @@ export function KpiCard({ title, kpiType, employeeDocId, canEdit }: KpiCardProps
                             variant={"outline"}
                             className={cn("w-[240px] pl-3 text-left font-normal col-span-3", !selectedDate && "text-muted-foreground")}
                           >
-                            {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                            {selectedDate ? format(selectedDate, "MM/dd/yyyy") : <span>Pick a date</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </PopoverTrigger>
@@ -194,7 +194,7 @@ export function KpiCard({ title, kpiType, employeeDocId, canEdit }: KpiCardProps
             <TableBody>
               {data.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell>{format(item.date.toDate(), 'PPP')}</TableCell>
+                  <TableCell>{format(item.date.toDate(), 'MM/dd/yyyy')}</TableCell>
                   <TableCell>{kpiType === 'appraisal' ? `${item.points.toFixed(1)} / 10` : `${item.points} / 4`}</TableCell>
                   <TableCell>{item.actorName || '-'}</TableCell>
                 </TableRow>

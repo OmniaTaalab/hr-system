@@ -316,8 +316,8 @@ const isPrivileged =
             item.employeeStage.toLowerCase().includes(lower)) ||
           item.reason.toLowerCase().includes(lower) ||
           item.status.toLowerCase().includes(lower) ||
-          format(item.startDate.toDate(), "PPP").toLowerCase().includes(lower) ||
-          format(item.endDate.toDate(), "PPP").toLowerCase().includes(lower)
+          format(item.startDate.toDate(), "MM/dd/yyyy").toLowerCase().includes(lower) ||
+          format(item.endDate.toDate(), "MM/dd/yyyy").toLowerCase().includes(lower)
         );
       });
     }
@@ -623,8 +623,8 @@ const isPrivileged =
                           {r.employeeName}
                         </TableCell>
                         <TableCell>{r.leaveType}</TableCell>
-                        <TableCell>{format(r.startDate.toDate(), "PPP")}</TableCell>
-                        <TableCell>{format(r.endDate.toDate(), "PPP")}</TableCell>
+                        <TableCell>{format(r.startDate.toDate(), "MM/dd/yyyy")}</TableCell>
+                        <TableCell>{format(r.endDate.toDate(), "MM/dd/yyyy")}</TableCell>
                         <TableCell>
                           {(r as any).hoursPerDay === 1 ||
                           (r as any).isHourly ||

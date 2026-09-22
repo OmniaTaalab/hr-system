@@ -385,7 +385,7 @@ if (endDate) {
                     !startDate && "text-muted-foreground"
                   )}
                 >
-                  {startDate ? format(startDate, "PPP") : "Pick a date"}
+                  {startDate ? format(startDate, "MM/dd/yyyy") : "Pick a date"}
                   <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -433,7 +433,7 @@ if (endDate) {
               >
                 <span>
                   {startDate && endDate
-                    ? `${format(endDate, "PPP")} (120 Days)`
+                    ? `${format(endDate, "MM/dd/yyyy")} (120 Days)`
                     : "Select start date to calculate (120 days)"}
                 </span>
                 <CalendarIcon className="h-4 w-4 opacity-50" />
@@ -448,7 +448,7 @@ if (endDate) {
                       !endDate && "text-muted-foreground"
                     )}
                   >
-                    {endDate ? format(endDate, "PPP") : "Pick a date"}
+                    {endDate ? format(endDate, "MM/dd/yyyy") : "Pick a date"}
                     <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                   </Button>
                 </PopoverTrigger>
@@ -473,8 +473,8 @@ if (endDate) {
             {isMaternityHour && startDate && (
               <p className="text-xs text-muted-foreground">
                 {endDate && endDate > startDate
-                  ? `Calculates 1 hour off per working day from ${format(startDate, "PP")} to ${format(endDate, "PP")}.`
-                  : `Calculates 1 hour off on ${format(startDate, "PP")}.`}
+                  ? `Calculates 1 hour off per working day from ${format(startDate, "MM/dd/yyyy")} to ${format(endDate, "MM/dd/yyyy")}.`
+                  : `Calculates 1 hour off on ${format(startDate, "MM/dd/yyyy")}.`}
               </p>
             )}
 

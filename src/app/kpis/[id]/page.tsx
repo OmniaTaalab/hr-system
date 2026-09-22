@@ -225,7 +225,7 @@ function UpdateProfDevelopmentDialog({ isOpen, onOpenChange, submission, employe
                         </div>
                         <div className="space-y-2">
                             <Label>Date</Label>
-                            <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{date ? format(date, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent></Popover>
+                            <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{date ? format(date, "MM/dd/yyyy") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent></Popover>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="attachmentFile">New Attachment (Optional)</Label>
@@ -378,7 +378,7 @@ function KpiCard({
                             variant={"outline"}
                             className={cn("w-[240px] pl-3 text-left font-normal col-span-3", !selectedDate && "text-muted-foreground")}
                           >
-                            {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                            {selectedDate ? format(selectedDate, "MM/dd/yyyy") : <span>Pick a date</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </PopoverTrigger>
@@ -428,7 +428,7 @@ function KpiCard({
             <TableBody>
               {data.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell>{format(item.date.toDate(), 'PPP')}</TableCell>
+                  <TableCell>{format(item.date.toDate(), 'MM/dd/yyyy')}</TableCell>
                   <TableCell>{kpiType === 'appraisal' ? `${item.points.toFixed(1)} / 10` : `${item.points} / 4`}</TableCell>
                   <TableCell>{item.actorName || '-'}</TableCell>
                 </TableRow>
@@ -775,7 +775,7 @@ function KpiDashboardContent() {
                                 <TableBody>
                                     {profDevelopment.length > 0 ? profDevelopment.map(item => (
                                         <TableRow key={item.id}>
-                                            <TableCell>{format(item.date.toDate(), "dd MMM yyyy")}</TableCell>
+                                            <TableCell>{format(item.date.toDate(), "MM/dd/yyyy")}</TableCell>
                                             <TableCell>{item.courseName}</TableCell>
                                             <TableCell>
                                                 <a href={item.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">

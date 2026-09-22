@@ -136,10 +136,10 @@ function DashboardCard({
           <Button
             asChild
             variant="outline"
-            className="w-full mt-auto group/btn transition-colors group-hover:border-primary/40 group-hover:bg-primary/5"
+            className="w-full mt-auto font-medium text-foreground bg-background/90 border-border hover:bg-primary hover:text-primary-foreground group/btn transition-all duration-200 group-hover:border-primary/50 shadow-xs"
           >
-            <Link href={href}>
-              {linkText}
+            <Link href={href} className="flex items-center justify-center">
+              <span>{linkText}</span>
               <ArrowRight className="ml-2 h-4 w-4 transform transition-transform group-hover/btn:translate-x-1" />
             </Link>
           </Button>
@@ -299,16 +299,19 @@ return (
         setIsLoadingTotalEmp(true);
         setIsLoadingActiveEmp(true);
         try {
-          const empQuery = query(collection(db, "employee"));
-          const activeEmpQuery = query(collection(db, "employee"), where("status", "==", "Active"));
-          const [empSnapshot, activeEmpSnapshot] = await Promise.all([
-            getCountFromServer(empQuery),
-            getCountFromServer(activeEmpQuery),
-          ]);
-          setTotalEmployees(empSnapshot.data().count);
-          setActiveEmployees(activeEmpSnapshot.data().count);
+          const empSnapshot = await getDocs(collection(db, "employee"));
+          let activeCount = 0;
+          empSnapshot.forEach((doc) => {
+            const data = doc.data();
+            const status = toStr(data.status).toLowerCase();
+            if (status !== "deactivated") {
+              activeCount++;
+            }
+          });
+          setTotalEmployees(activeCount);
+          setActiveEmployees(activeCount);
         } catch (error) {
-          console.error("Error fetching total employees count:", error);
+          console.error("Error fetching active employees count:", error);
           setTotalEmployees(0);
           setActiveEmployees(0);
         } finally {
@@ -388,7 +391,7 @@ return (
         const todayEnd = endOfDay(today);
         const dateStr = format(today, "yyyy-MM-dd");
     
-        setAttendanceDate(format(today, "PPP"));
+        setAttendanceDate(format(today, "MM/dd/yyyy"));
         setDateStringForLink(dateStr);
     
         const [attendanceSnapshot, campusHoursSnap, employeeSnap, leaveSnap] =
@@ -552,10 +555,13 @@ return (
         const empQuery = query(collection(db, "employee"));
         const snapshot = await getDocs(empQuery);
         const campusCounts: { [key: string]: number } = {};
-        snapshot.forEach(doc => {
-          const employee = doc.data() as Employee;
-          if (employee.campus) {
-            campusCounts[employee.campus] = (campusCounts[employee.campus] || 0) + 1;
+        snapshot.forEach((doc) => {
+          const data = doc.data() as any;
+          const status = toStr(data.status).toLowerCase();
+          // Filter out deactivated employees so only active employees are displayed
+          if (status === "deactivated") return;
+          if (data.campus) {
+            campusCounts[data.campus] = (campusCounts[data.campus] || 0) + 1;
           }
         });
         const formattedData = Object.entries(campusCounts).map(([name, count]) => ({ name, count }));
@@ -689,11 +695,11 @@ return (
 
   const statisticCards: DashboardCardProps[] = [
     {
-      title: "Total Employees",
+      title: "Active Employees",
       iconName: "Users",
-      statistic: totalEmployees ?? 0,
-      isLoadingStatistic: isLoadingTotalEmp,
-      href: "/employees",
+      statistic: activeEmployees ?? 0,
+      isLoadingStatistic: isLoadingActiveEmp,
+      href: "/employees?status=Active",
       linkText: "Manage Employees",
       adminOnly: true,
     },

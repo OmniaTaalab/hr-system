@@ -7,6 +7,7 @@ import { db } from '@/lib/firebase/config';
 import { z } from 'zod';
 import { logSystemEvent } from '@/lib/system-log';
 import { render } from '@react-email/render';
+import { format } from 'date-fns';
 import ProfDevelopmentNotificationEmail from '@/emails/prof-development-notification';
 import { toAbsoluteAppUrl } from '@/lib/app-url';
 
@@ -241,7 +242,7 @@ export async function addProfDevelopmentAction(
               managerName: managerData.name,
               employeeName: employeeData.name,
               courseName,
-              date: date.toLocaleDateString(),
+              date: format(date, 'MM/dd/yyyy'),
               submissionLink,
             })
           );
@@ -360,7 +361,7 @@ export async function updateProfDevelopmentStatusAction(
                 managerName: employeeData.name, // Email is to the employee
                 employeeName: employeeData.name,
                 courseName: "Your recent submission", // Generic
-                date: new Date().toLocaleDateString(),
+                date: format(new Date(), 'MM/dd/yyyy'),
                 submissionLink,
                 reason: `The status has been updated to ${newStatus}. Manager notes: ${managerNotes || 'N/A'}`
             })

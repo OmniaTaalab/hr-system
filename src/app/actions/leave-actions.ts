@@ -548,8 +548,8 @@ export async function updateLeaveRequestStatusAction(
                   managerName: managerData.name || "Manager",
                   employeeName: reqEmployeeName,
                   leaveType: requestData.leaveType,
-                  startDate: requestData.startDate?.toDate ? requestData.startDate.toDate().toLocaleDateString() : '',
-                  endDate: requestData.endDate?.toDate ? requestData.endDate.toDate().toLocaleDateString() : '',
+                  startDate: requestData.startDate?.toDate ? format(requestData.startDate.toDate(), 'MM/dd/yyyy') : '',
+                  endDate: requestData.endDate?.toDate ? format(requestData.endDate.toDate(), 'MM/dd/yyyy') : '',
                   reason: "This request has been approved by the first manager and is now awaiting your final approval.",
                   leaveRequestLink: requestLink,
                 })
@@ -634,7 +634,7 @@ export async function updateLeaveRequestStatusAction(
 
           if (employeeUserEmail) {
             try {
-              const emailHtml = render(LeaveRequestNotificationEmail({ managerName: employeeData.name, employeeName: employeeData.name, leaveType: requestData.leaveType, startDate: requestData.startDate.toDate().toLocaleDateString(), endDate: requestData.endDate.toDate().toLocaleDateString(), reason: `Your leave request has been ${finalStatus}. Manager notes: ${managerNotes || 'N/A'}`, leaveRequestLink: requestLink }));
+              const emailHtml = render(LeaveRequestNotificationEmail({ managerName: employeeData.name, employeeName: employeeData.name, leaveType: requestData.leaveType, startDate: format(requestData.startDate.toDate(), 'MM/dd/yyyy'), endDate: format(requestData.endDate.toDate(), 'MM/dd/yyyy'), reason: `Your leave request has been ${finalStatus}. Manager notes: ${managerNotes || 'N/A'}`, leaveRequestLink: requestLink }));
               await addDoc(collection(db, "mail"), { to: employeeUserEmail, message: { subject: `Update on Your Leave Request: ${finalStatus}`, html: emailHtml }, status: "pending", createdAt: serverTimestamp() });
             } catch (emailErr) {
               console.error(`Failed to send decision email to employee ${employeeUserEmail}:`, emailErr);

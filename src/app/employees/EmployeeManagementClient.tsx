@@ -1781,7 +1781,7 @@ return (
                                 <PopoverTrigger asChild>
                                     <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !leavingDate && "text-muted-foreground")}>
                                         <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {leavingDate ? format(leavingDate, "PPP") : <span>Pick a date</span>}
+                                        {leavingDate ? format(leavingDate, "MM/dd/yyyy") : <span>Pick a date</span>}
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0" align="start">
@@ -2245,7 +2245,8 @@ return (
     }
     if (statusFilters.length > 0) {
         listToFilter = listToFilter.filter(emp => {
-            const empStatus = emp.status === 'deactivated' ? 'Deactivated' : 'Active';
+            const isDeact = String(emp.status ?? '').trim().toLowerCase() === 'deactivated';
+            const empStatus = isDeact ? 'Deactivated' : 'Active';
             return statusFilters.includes(empStatus);
         });
     }
@@ -2312,10 +2313,10 @@ return (
         }
 
         // 2. Sort by status (Active before deactivated)
-        const aStatus = a.status ?? 'Active';
-        const bStatus = b.status ?? 'Active';
-        if (aStatus !== bStatus) {
-            return aStatus === 'Active' ? -1 : 1;
+        const aIsDeact = String(a.status ?? '').trim().toLowerCase() === 'deactivated';
+        const bIsDeact = String(b.status ?? '').trim().toLowerCase() === 'deactivated';
+        if (aIsDeact !== bIsDeact) {
+            return aIsDeact ? 1 : -1;
         }
 
         // 3. Then sort by name
@@ -2324,9 +2325,13 @@ return (
 
   }, [allEmployees, searchTerm, campusFilters, stageFilters, subjectFilters, genderFilters, religionFilters, titleFilters, statusFilters, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilters]);
   
+  const totalEmployeesCount = useMemo(() => {
+    return allEmployees.length;
+  }, [allEmployees]);
+
   const activeEmployeesCount = useMemo(() => {
-    return filteredEmployees.filter(emp => emp.status !== 'deactivated').length;
-  }, [filteredEmployees]);
+    return allEmployees.filter(emp => String(emp.status ?? '').trim().toLowerCase() !== 'deactivated').length;
+  }, [allEmployees]);
 
   const totalPages = useMemo(() => Math.ceil(filteredEmployees.length / PAGE_SIZE), [filteredEmployees]);
   const isLastPage = currentPage >= totalPages;
@@ -2455,7 +2460,7 @@ if (
             'Department': emp.department,
             'Campus': emp.campus,
             'Stage': emp.stage,
-           'Status': emp.status === 'deactivated' ? 'Deactivated' : 'Active',
+            'Status': String(emp.status ?? '').trim().toLowerCase() === 'deactivated' ? 'Deactivated' : 'Active',
             'Subject': emp.subject,
             'Personal Email': emp.personalEmail,
             'Phone': emp.phone,
@@ -2473,12 +2478,12 @@ if (
             'Report Line 4': emp.reportLine4,
             'Report Line 5': emp.reportLine5,
             'Report Line 6': emp.reportLine6,
-            'Reason For Leaving': emp.status === 'deactivated' ? emp.reasonForLeaving : '-',
+            'Reason For Leaving': String(emp.status ?? '').trim().toLowerCase() === 'deactivated' ? emp.reasonForLeaving : '-',
             'Deactivation Date':
-    emp.status === 'deactivated' && deactivationDate
+    String(emp.status ?? '').trim().toLowerCase() === 'deactivated' && deactivationDate
         ? format(deactivationDate, 'yyyy-MM-dd')
         : '-',
-            'Reason Note': emp.status === 'deactivated' ? emp.reasonNote : '-',
+            'Reason Note': String(emp.status ?? '').trim().toLowerCase() === 'deactivated' ? emp.reasonNote : '-',
        
         };
     });
@@ -2535,7 +2540,7 @@ if (
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent className="p-3 pt-0">
-              <div className="text-lg font-bold sm:text-2xl">{isLoading || isLoadingProfile ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : filteredEmployees.length}</div>
+              <div className="text-lg font-bold sm:text-2xl">{isLoading || isLoadingProfile ? <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /> : totalEmployeesCount}</div>
             </CardContent>
           </Card>
            <Card>
@@ -2748,9 +2753,11 @@ if (
             </TableHeader>
             <TableBody>
               {paginatedEmployees.length > 0 ? (
-                paginatedEmployees.map((employee) => (
+                paginatedEmployees.map((employee) => {
+                  const isDeactivated = String(employee.status ?? '').trim().toLowerCase() === 'deactivated';
+                  return (
                   <TableRow key={employee.id} className={cn(
-                    employee.status === 'deactivated' && 'bg-destructive/20 hover:bg-destructive/30',
+                    isDeactivated && 'bg-destructive/20 hover:bg-destructive/30',
                     employee.isDuplicate && 'bg-yellow-100 dark:bg-yellow-900/30'
                     )}>
                     <TableCell className="font-medium">
@@ -2769,13 +2776,13 @@ if (
                     <TableCell>{employee.campus || '-'}</TableCell>
                     <TableCell>
                        <Badge
-                        variant={employee.status === 'deactivated' ? 'destructive' : 'secondary'}
+                        variant={isDeactivated ? 'destructive' : 'secondary'}
                         className={cn(
-                          employee.status !== 'deactivated' ? 'bg-green-100 text-green-800' : '',
+                          !isDeactivated ? 'bg-green-100 text-green-800' : '',
                           employee.isDuplicate && 'bg-yellow-500 text-white'
                           )}
                       >
-                        {employee.isDuplicate ? 'Duplicate' : (employee.status === 'deactivated' ? 'Deactivated' : 'Active')}
+                        {employee.isDuplicate ? 'Duplicate' : (isDeactivated ? 'Deactivated' : 'Active')}
                       </Badge>
                     </TableCell>
 {(
@@ -2845,7 +2852,7 @@ if (
                                   Edit Employee
                                 </DropdownMenuItem>
 
-                                {employee.status === "deactivated" ? (
+                                {String(employee.status ?? '').trim().toLowerCase() === "deactivated" ? (
                                   <DropdownMenuItem
                                     onSelect={() => {
                                       startActivateTransition(() => {
@@ -2887,7 +2894,8 @@ if (
                         </TableCell>
                       )}
                   </TableRow>
-                ))
+                  );
+                })
               ) : (
                 <TableRow>
                   <TableCell colSpan={8} className="h-24 text-center">

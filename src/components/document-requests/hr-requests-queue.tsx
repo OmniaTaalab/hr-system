@@ -453,7 +453,7 @@ export function HrRequestsQueue() {
               <TableBody>
                 {filteredRequests.map((req) => {
                   const reqDate = req.createdAt?.seconds
-                    ? format(new Date(req.createdAt.seconds * 1000), "dd MMM yyyy")
+                    ? format(new Date(req.createdAt.seconds * 1000), "MM/dd/yyyy")
                     : "-";
 
                   return (

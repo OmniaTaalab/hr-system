@@ -29,9 +29,9 @@ export function OfficialDocumentViewer({
 
   if (!request) return null;
 
-  const todayStr = format(new Date(), "MMMM dd, yyyy");
+  const todayStr = format(new Date(), "MM/dd/yyyy");
   const requestDateStr = request.createdAt?.seconds
-    ? format(new Date(request.createdAt.seconds * 1000), "MMMM dd, yyyy")
+    ? format(new Date(request.createdAt.seconds * 1000), "MM/dd/yyyy")
     : todayStr;
 
   const handlePrint = () => {

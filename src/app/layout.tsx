@@ -5,6 +5,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import { AppProvider } from '@/components/layout/app-provider';
+import { NetworkStatusBanner } from '@/components/network-status-banner';
 // import { HelpChat } from '@/components/help-chat';
 
 const fontInter = Inter({
@@ -42,6 +43,7 @@ export default function RootLayout({
           fontSpaceGrotesk.variable
         )}
       >
+        <NetworkStatusBanner />
         <AppProvider>
             {children}
             {/* <HelpChat /> */}
@@ -51,3 +53,4 @@ export default function RootLayout({
     </html>
   );
 }
+

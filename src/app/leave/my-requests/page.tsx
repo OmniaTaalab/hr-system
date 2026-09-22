@@ -1028,7 +1028,7 @@ function MyRequestsContent() {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between col-span-1 md:col-span-2 border-b pb-4 mb-4">
                         <div className="flex items-center mb-2 sm:mb-0">
                             <iconMap.Clock className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            <span className="font-medium">Work Hours ({specificDayForSnapshot ? format(specificDayForSnapshot, 'PPP') : 'Select Day'}):&nbsp;</span>
+                            <span className="font-medium">Work Hours ({specificDayForSnapshot ? format(specificDayForSnapshot, 'MM/dd/yyyy') : 'Select Day'}):&nbsp;</span>
                             {isLoadingSpecificDayHours ? (
                             <iconMap.Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
@@ -1046,7 +1046,7 @@ function MyRequestsContent() {
                                 )}
                             >
                                 <iconMap.CalendarDays className="mr-2 h-4 w-4" />
-                                {specificDayForSnapshot ? format(specificDayForSnapshot, "PPP") : <span>Pick a day</span>}
+                                {specificDayForSnapshot ? format(specificDayForSnapshot, "MM/dd/yyyy") : <span>Pick a day</span>}
                             </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0">
@@ -1128,7 +1128,7 @@ function MyRequestsContent() {
                             <TableBody>
                                 {monthlyAttendanceDetails.map((record) => (
                                     <TableRow key={record.id}>
-                                        <TableCell>{record.date ? format(record.date.toDate(), "PPP") : "-"}</TableCell>
+                                        <TableCell>{record.date ? format(record.date.toDate(), "MM/dd/yyyy") : "-"}</TableCell>
                                         <TableCell><AttendanceStatusBadge status={record.status} /></TableCell>
                                         <TableCell>
                                             {record.clockInTime && isValid(record.clockInTime.toDate()) 
@@ -1273,15 +1273,15 @@ function MyRequestsContent() {
                             return (
                               <TableRow key={request.id}>
                                 <TableCell>{request.leaveType}</TableCell>
-                                <TableCell>{request.startDate ? format(startDate, "PPP") : "-"}</TableCell>
-                                <TableCell>{request.endDate ? format(endDate, "PPP") : "-"}</TableCell>
+                                <TableCell>{request.startDate ? format(startDate, "MM/dd/yyyy") : "-"}</TableCell>
+                                <TableCell>{request.endDate ? format(endDate, "MM/dd/yyyy") : "-"}</TableCell>
                                 <TableCell>
                                   {isMaternityHour
                                     ? `${daysInSelectedMonth > 0 ? daysInSelectedMonth : (request.numberOfDays ?? 1)}d (1h/d)`
                                     : (daysInSelectedMonth > 0 ? daysInSelectedMonth : "-")}
                                 </TableCell>
                                 <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
-                                <TableCell>{request.submittedAt ? format(request.submittedAt.toDate(), "PPP p") : "-"}</TableCell>
+                                <TableCell>{request.submittedAt ? format(request.submittedAt.toDate(), "MM/dd/yyyy p") : "-"}</TableCell>
                                 <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>
                                 <TableCell className="text-right">
                                   <LeaveStatusBadge status={request.status} />

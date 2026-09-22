@@ -222,7 +222,7 @@ function LeaveRequestDetailContent() {
             <CardContent className="space-y-4">
                 <DetailItem icon={User} label="Employee" value={request.employeeName} />
                 <DetailItem icon={FileText} label="Leave Type" value={request.leaveType} />
-                <DetailItem icon={CalendarIcon} label="Dates" value={`${format(request.startDate.toDate(), "PPP")} to ${format(request.endDate.toDate(), "PPP")}`} />
+                <DetailItem icon={CalendarIcon} label="Dates" value={`${format(request.startDate.toDate(), "MM/dd/yyyy")} to ${format(request.endDate.toDate(), "MM/dd/yyyy")}`} />
                 <DetailItem
                   icon={Hourglass}
                   label="Duration"

@@ -521,8 +521,8 @@ if (
       ['Campus', employee.campus],
       ['Stage', employee.stage || '-'],
       ['Subject', employee.subject || '-'],
-      ['Joining Date', joiningDate ? format(joiningDate, 'PPP') : '-'],
-      ['Date of Birth', dob ? format(dob, 'PPP') : '-'],
+      ['Joining Date', joiningDate ? format(joiningDate, 'MM/dd/yyyy') : '-'],
+      ['Date of Birth', dob ? format(dob, 'MM/dd/yyyy') : '-'],
       ['Gender', employee.gender || '-'],
       ['National ID', employee.nationalId || '-'],
       ['Religion', employee.religion || '-'],
@@ -538,7 +538,7 @@ if (
 
     if (employee.status === 'deactivated') {
         tableData.push(['Status', 'Deactivated']);
-        tableData.push(['Leaving Date', safeToDate(employee.leavingDate) ? format(safeToDate(employee.leavingDate)!, 'PPP') : '-']);
+        tableData.push(['Leaving Date', safeToDate(employee.leavingDate) ? format(safeToDate(employee.leavingDate)!, 'MM/dd/yyyy') : '-']);
         tableData.push(['Deactivation Reason', employee.reasonForLeaving || '-']);
         tableData.push(['Deactivation Note', employee.reasonNote || '-']);
     }
@@ -564,7 +564,7 @@ if (
     if (m < 0 || (m === 0 && getDate(today) < getDate(dob))) {
         age--;
     }
-    return `${format(dob, "PPP")} (Age: ${age})`;
+    return `${format(dob, "MM/dd/yyyy")} (Age: ${age})`;
   }, [employee?.dateOfBirth]);
 
   const formattedJoiningDateAndPeriod = useMemo(() => {
@@ -577,7 +577,7 @@ if (
     if (duration.months && duration.months > 0) periodParts.push(`${duration.months} month${duration.months > 1 ? 's' : ''}`);
     const period = periodParts.length > 0 ? periodParts.join(', ') : 'Less than a month';
 
-    return `${format(joiningDate, "PPP")} (${period})`;
+    return `${format(joiningDate, "MM/dd/yyyy")} (${period})`;
   }, [employee?.joiningDate]);
 const getAttendancePointValue = (entry: any): number => {
   if (entry.type === "leave") return 1;
@@ -820,10 +820,10 @@ const getAttendancePointValue = (entry: any): number => {
                        {employee.status && (
                         <div className="mt-2">
                           <Badge
-                            variant={employee.status === 'deactivated' ? 'destructive' : 'secondary'}
-                            className={cn(employee.status !== 'deactivated' && 'bg-green-100 text-green-800')}
+                            variant={String(employee.status ?? '').trim().toLowerCase() === 'deactivated' ? 'destructive' : 'secondary'}
+                            className={cn(String(employee.status ?? '').trim().toLowerCase() !== 'deactivated' && 'bg-green-100 text-green-800')}
                           >
-                            {employee.status === 'deactivated' ? 'Deactivated' : 'Active'}
+                            {String(employee.status ?? '').trim().toLowerCase() === 'deactivated' ? 'Deactivated' : 'Active'}
                           </Badge>
                         </div>
                       )}
@@ -841,11 +841,11 @@ const getAttendancePointValue = (entry: any): number => {
                    </div>
               </CardHeader>
               <CardContent className="p-6">
-                {employee.status === 'deactivated' && (
+                {String(employee.status ?? '').trim().toLowerCase() === 'deactivated' && (
                     <div className="mb-6 p-4 bg-destructive/10 rounded-lg border border-destructive/20 space-y-3">
                          <h3 className="text-lg font-semibold flex items-center mb-1 text-destructive"><UserMinus className="mr-2 h-5 w-5" />Deactivation Information</h3>
                          <DetailItem icon={User} label="Deactivated By" value={employee.deactivatedBy} />
-                         <DetailItem icon={CalendarDays} label="Leaving Date" value={safeToDate(employee.leavingDate) ? format(safeToDate(employee.leavingDate)!, 'MMMM do, yyyy') : undefined} />
+                         <DetailItem icon={CalendarDays} label="Leaving Date" value={safeToDate(employee.leavingDate) ? format(safeToDate(employee.leavingDate)!, 'MM/dd/yyyy') : undefined} />
                          <DetailItem icon={FileText} label="Reason" value={employee.reasonForLeaving} />
                          <DetailItem icon={FileText} label="Memos / Notes" value={employee.reasonNote} />
                     </div>
@@ -871,8 +871,8 @@ const getAttendancePointValue = (entry: any): number => {
                    <DetailItem icon={Users} label="Report Line 5" value={employee.reportLine5 || "-"} />
                    <DetailItem icon={Users} label="Report Line 6" value={employee.reportLine6 || "-"} />
                    <DetailItem icon={Activity} label="Status">
-                     <Badge variant={employee.status === "deactivated" ? "destructive" : "secondary"} className={employee.status !== 'deactivated' ? 'bg-green-100 text-green-800' : ''}>
-                       {employee.status === 'deactivated' ? 'Deactivated' : 'Active'}
+                     <Badge variant={String(employee.status ?? '').trim().toLowerCase() === "deactivated" ? "destructive" : "secondary"} className={String(employee.status ?? '').trim().toLowerCase() !== 'deactivated' ? 'bg-green-100 text-green-800' : ''}>
+                       {String(employee.status ?? '').trim().toLowerCase() === 'deactivated' ? 'Deactivated' : 'Active'}
                      </Badge>
                    </DetailItem>
                 </div>
@@ -934,7 +934,7 @@ const getAttendancePointValue = (entry: any): number => {
                                 <TableBody>
                                     {eleotHistory.map(entry => (
                                         <TableRow key={entry.id}>
-                                            <TableCell>{format(entry.date.toDate(), "PPP")}</TableCell>
+                                            <TableCell>{format(entry.date.toDate(), "MM/dd/yyyy")}</TableCell>
                                             <TableCell className="text-right">{entry.points} / 4</TableCell>
                                         </TableRow>
                                     ))}
@@ -954,7 +954,7 @@ const getAttendancePointValue = (entry: any): number => {
                                 <TableBody>
                                     {totHistory.map(entry => (
                                         <TableRow key={entry.id}>
-                                            <TableCell>{format(entry.date.toDate(), "PPP")}</TableCell>
+                                            <TableCell>{format(entry.date.toDate(), "MM/dd/yyyy")}</TableCell>
                                             <TableCell className="text-right">{entry.points} / 4</TableCell>
                                         </TableRow>
                                     ))}
@@ -1027,8 +1027,8 @@ const getAttendancePointValue = (entry: any): number => {
                           {leaveRequests.map((request) => (
                               <TableRow key={request.id}>
                                   <TableCell>{request.leaveType}</TableCell>
-                                  <TableCell>{format(request.startDate.toDate(), "PPP")}</TableCell>
-                                  <TableCell>{format(request.endDate.toDate(), "PPP")}</TableCell>
+                                  <TableCell>{format(request.startDate.toDate(), "MM/dd/yyyy")}</TableCell>
+                                  <TableCell>{format(request.endDate.toDate(), "MM/dd/yyyy")}</TableCell>
                                   <TableCell>{request.numberOfDays ?? 0}</TableCell>
                                   <TableCell className="text-right">
                                     <LeaveStatusBadge status={request.status} />

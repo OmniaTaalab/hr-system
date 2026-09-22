@@ -73,7 +73,7 @@ const formatDateSafe = (date: any) => {
     }
   
     if (isNaN(d.getTime())) return "-";
-    return format(d, "PPP");
+    return format(d, "MM/dd/yyyy");
   };
 
 const initialDeleteState: DeleteApplicationState = { success: false };
@@ -485,7 +485,7 @@ const canViewPage =
                       )}
                       >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateFilter ? format(dateFilter, "PPP") : <span>Filter by date</span>}
+                      {dateFilter ? format(dateFilter, "MM/dd/yyyy") : <span>Filter by date</span>}
                       </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -620,7 +620,7 @@ const canViewPage =
                       {columnVisibility.expectedSalary && <TableCell>{app.expectedSalary ? `$${app.expectedSalary.toLocaleString()}` : 'N/A'}</TableCell>}
                       {columnVisibility.schoolType && <TableCell>{app.schoolType || 'N/A'}</TableCell>}
                       {columnVisibility.nationalCampus && <TableCell>{app.nationalCampus || 'N/A'}</TableCell>}
-                      {columnVisibility.submittedAt && <TableCell>{app.submittedAt instanceof Timestamp ? format(app.submittedAt.toDate(), "dd MMM yyyy") : 'N/A'}</TableCell>}
+                      {columnVisibility.submittedAt && <TableCell>{app.submittedAt instanceof Timestamp ? format(app.submittedAt.toDate(), "MM/dd/yyyy") : 'N/A'}</TableCell>}
                       {columnVisibility.yearsOfExperience && <TableCell>{app.yearsOfExperience ?? 'N/A'}</TableCell>}
                       {columnVisibility.email1 && <TableCell>{app.email1 || 'N/A'}</TableCell>}
                       {columnVisibility.email2 && <TableCell>{app.email2 || 'N/A'}</TableCell>}

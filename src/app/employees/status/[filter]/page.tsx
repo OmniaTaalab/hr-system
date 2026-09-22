@@ -151,7 +151,7 @@ function EmployeeStatusContent() {
           };
         });
 
-        const activeEmployees = allEmployees.filter(emp => emp.status !== 'deactivated');
+        const activeEmployees = allEmployees.filter(emp => toStr(emp.status).toLowerCase() !== 'deactivated');
 
         if (campusFilters.length > 0) {
           allEmployees = allEmployees.filter(emp => emp.campus && campusFilters.includes(emp.campus));

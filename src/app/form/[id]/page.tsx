@@ -43,15 +43,15 @@ import { Separator } from "@/components/ui/separator";
 // Helper to safely convert different date formats to a string
 const formatDateSafe = (date: any) => {
   if (!date) return "-";
-  if (date instanceof Timestamp) return format(date.toDate(), "PPP");
+  if (date instanceof Timestamp) return format(date.toDate(), "MM/dd/yyyy");
   if (typeof date === "string") {
     const parsedDate = new Date(date);
     if (!isNaN(parsedDate.getTime())) {
-      return format(parsedDate, "PPP");
+      return format(parsedDate, "MM/dd/yyyy");
     }
   }
   if (date.seconds) { // Handle Firestore-like timestamp objects
-    return format(new Date(date.seconds * 1000), "PPP");
+    return format(new Date(date.seconds * 1000), "MM/dd/yyyy");
   }
   return "-";
 };

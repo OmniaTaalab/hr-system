@@ -46,7 +46,7 @@ const formatValue = (value: any) => {
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     if (value && typeof value === 'object' && (value.seconds || value._seconds)) {
       const seconds = value.seconds || value._seconds;
-      return format(new Date(seconds * 1000), 'PPP');
+      return format(new Date(seconds * 1000), 'MM/dd/yyyy');
     }
     if (typeof value === 'object') return <pre className="text-xs bg-muted p-1 rounded-sm whitespace-pre-wrap">{JSON.stringify(value, null, 2)}</pre>;
     return value.toString();
@@ -235,7 +235,7 @@ const canViewPage =
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <DetailItem label="Log ID" value={log.id} />
                     <DetailItem label="Action" value={log.action} />
-                    <DetailItem label="Timestamp" value={format(log.timestamp.toDate(), 'PPP p')} />
+                    <DetailItem label="Timestamp" value={format(log.timestamp.toDate(), 'MM/dd/yyyy p')} />
                     <DetailItem label="Actor Name" value={log.actorName} />
                     <DetailItem label="Actor Email" value={log.actorEmail} />
                     <DetailItem label="Actor Role" value={log.actorRole} />

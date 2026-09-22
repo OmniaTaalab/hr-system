@@ -152,7 +152,7 @@ export function HolidaySettings() {
                   <PopoverTrigger asChild>
                     <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !addHolidayForm.date && "text-muted-foreground")}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {addHolidayForm.date ? format(addHolidayForm.date, "PPP") : <span>Pick a date</span>}
+                      {addHolidayForm.date ? format(addHolidayForm.date, "MM/dd/yyyy") : <span>Pick a date</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -191,7 +191,7 @@ export function HolidaySettings() {
                 <TableBody>
                   {holidays.map(holiday => (
                     <TableRow key={holiday.id}>
-                      <TableCell>{format(holiday.date.toDate(), 'PPP')}</TableCell>
+                      <TableCell>{format(holiday.date.toDate(), 'MM/dd/yyyy')}</TableCell>
                       <TableCell className="font-medium">{holiday.name}</TableCell>
                       <TableCell className="text-right">
                         <form action={deleteAction}>

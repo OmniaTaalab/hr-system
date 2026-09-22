@@ -289,7 +289,7 @@ export function MyRequestsView() {
 
             const isHardCopy = req.deliveryMethod === "hard_copy";
             const reqDate = req.createdAt?.seconds
-              ? format(new Date(req.createdAt.seconds * 1000), "dd MMM yyyy, hh:mm a")
+              ? format(new Date(req.createdAt.seconds * 1000), "MM/dd/yyyy, hh:mm a")
               : "Recently";
 
             return (

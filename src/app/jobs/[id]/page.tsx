@@ -144,7 +144,7 @@ export default function JobDetailPage() {
               <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-1 text-base pt-2">
                 <span className="flex items-center"><Briefcase className="mr-2 h-4 w-4 text-muted-foreground" /> {job.department}</span>
                 <span className="flex items-center"><MapPin className="mr-2 h-4 w-4 text-muted-foreground" /> {job.location}</span>
-                {job.createdAt && <span className="flex items-center"><CalendarDays className="mr-2 h-4 w-4 text-muted-foreground" /> Posted {format(job.createdAt.toDate(), 'PPP')}</span>}
+                {job.createdAt && <span className="flex items-center"><CalendarDays className="mr-2 h-4 w-4 text-muted-foreground" /> Posted {format(job.createdAt.toDate(), 'MM/dd/yyyy')}</span>}
               </CardDescription>
             </CardHeader>
             <CardContent className="prose dark:prose-invert max-w-none">

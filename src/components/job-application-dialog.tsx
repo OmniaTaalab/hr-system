@@ -467,7 +467,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                             <PopoverTrigger asChild>
                                 <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
                                     <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
+                                    {dateOfBirth ? format(dateOfBirth, "MM/dd/yyyy") : <span>Pick a date</span>}
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0">
@@ -687,7 +687,7 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                             <PopoverTrigger asChild>
                                 <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !availableStartDate && "text-muted-foreground")}>
                                     <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {availableStartDate ? format(availableStartDate, "PPP") : <span>Pick a date</span>}
+                                    {availableStartDate ? format(availableStartDate, "MM/dd/yyyy") : <span>Pick a date</span>}
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0">
@@ -779,11 +779,11 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                             </div>
                             <div className="space-y-1">
                                 <Label className="text-xs">Start Date</Label>
-                                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolStartDate ? format(schoolStartDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolStartDate} onSelect={setSchoolStartDate} initialFocus /></PopoverContent></Popover>
+                                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolStartDate ? format(schoolStartDate, "MM/dd/yyyy") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolStartDate} onSelect={setSchoolStartDate} initialFocus /></PopoverContent></Popover>
                             </div>
                              <div className="space-y-1">
                                 <Label className="text-xs">End Date</Label>
-                                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolEndDate ? format(schoolEndDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolEndDate} onSelect={setSchoolEndDate} initialFocus /></PopoverContent></Popover>
+                                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{schoolEndDate ? format(schoolEndDate, "MM/dd/yyyy") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={schoolEndDate} onSelect={setSchoolEndDate} initialFocus /></PopoverContent></Popover>
                             </div>
                              <div className="space-y-2 col-span-2">
                                 <Label className="text-xs">Completed</Label>
@@ -806,11 +806,11 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                             <Input name="university_overall" placeholder="Overall" disabled={isPending} />
                              <div className="space-y-1">
                                 <Label className="text-xs">Start Date</Label>
-                                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityStartDate ? format(universityStartDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityStartDate} onSelect={setUniversityStartDate} initialFocus /></PopoverContent></Popover>
+                                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityStartDate ? format(universityStartDate, "MM/dd/yyyy") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityStartDate} onSelect={setUniversityStartDate} initialFocus /></PopoverContent></Popover>
                             </div>
                              <div className="space-y-1">
                                 <Label className="text-xs">End Date</Label>
-                                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityEndDate ? format(universityEndDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityEndDate} onSelect={setUniversityEndDate} initialFocus /></PopoverContent></Popover>
+                                <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{universityEndDate ? format(universityEndDate, "MM/dd/yyyy") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={universityEndDate} onSelect={setUniversityEndDate} initialFocus /></PopoverContent></Popover>
                             </div>
                              <div className="space-y-2 col-span-2">
                                 <Label className="text-xs">Completed</Label>
@@ -921,11 +921,11 @@ export function JobApplicationDialog({ job }: JobApplicationDialogProps) {
                                       <Input type="number" placeholder="Basic Salary / month" value={exp.salary} onChange={e => handleWorkExperienceChange(exp.id, 'salary', e.target.valueAsNumber)} />
                                       <Input placeholder="Benefits" value={exp.benefits} onChange={e => handleWorkExperienceChange(exp.id, 'benefits', e.target.value)} />
                                       <Popover>
-                                          <PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{exp.fromDate ? format(exp.fromDate, "PPP") : <span>From</span>}</Button></PopoverTrigger>
+                                          <PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{exp.fromDate ? format(exp.fromDate, "MM/dd/yyyy") : <span>From</span>}</Button></PopoverTrigger>
                                           <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={exp.fromDate} onSelect={date => handleWorkExperienceChange(exp.id, 'fromDate', date)} /></PopoverContent>
                                       </Popover>
                                       <Popover>
-                                          <PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{exp.toDate ? format(exp.toDate, "PPP") : <span>To</span>}</Button></PopoverTrigger>
+                                          <PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{exp.toDate ? format(exp.toDate, "MM/dd/yyyy") : <span>To</span>}</Button></PopoverTrigger>
                                           <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={exp.toDate} onSelect={date => handleWorkExperienceChange(exp.id, 'toDate', date)} /></PopoverContent>
                                       </Popover>
                                   </div>

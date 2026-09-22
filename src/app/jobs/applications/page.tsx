@@ -146,7 +146,7 @@ function JobApplicationsContent() {
                                 <TableCell>{formatCurrency(app.salary)}</TableCell>
                                 <TableCell>{formatCurrency(app.netSalary)}</TableCell>
                                 <TableCell>
-                                    {app.submittedAt ? format(app.submittedAt.toDate(), 'PPP p') : '-'}
+                                    {app.submittedAt ? format(app.submittedAt.toDate(), 'MM/dd/yyyy p') : '-'}
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <Button asChild variant="outline" size="sm">

@@ -220,7 +220,7 @@ function CreateProfileForm({ user }: { user: User }) {
           <PopoverTrigger asChild>
               <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !dateOfBirth && "text-muted-foreground")}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateOfBirth ? format(dateOfBirth, "PPP") : <span>Pick a date</span>}
+                  {dateOfBirth ? format(dateOfBirth, "MM/dd/yyyy") : <span>Pick a date</span>}
               </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0">
@@ -319,7 +319,7 @@ function AddProfDevelopmentDialog({ employee, actorProfile }: { employee: Employ
                                 <PopoverTrigger asChild>
                                     <Button variant="outline" className="w-full justify-start text-left font-normal" disabled={isSubmitting}>
                                         <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {date ? format(date, "PPP") : <span>Pick a date</span>}
+                                        {date ? format(date, "MM/dd/yyyy") : <span>Pick a date</span>}
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0">
@@ -481,7 +481,7 @@ function UpdateProfDevelopmentDialog({ isOpen, onOpenChange, submission, employe
                         </div>
                         <div className="space-y-2">
                             <Label>Date</Label>
-                            <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{date ? format(date, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent></Popover>
+                            <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{date ? format(date, "MM/dd/yyyy") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent></Popover>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="attachmentFile">New Attachment (Optional)</Label>
@@ -642,7 +642,7 @@ export function AttendanceChartCard({ employeeDocId, employeeId, onScoreCalculat
                             <TableBody>
                                 {manualPoints.map(point => (
                                     <TableRow key={point.id}>
-                                        <TableCell>{format(point.date.toDate(), 'PPP')}</TableCell>
+                                        <TableCell>{format(point.date.toDate(), 'MM/dd/yyyy')}</TableCell>
                                         <TableCell>{point.points} / 10</TableCell>
                                         <TableCell>{point.actorName || 'N/A'}</TableCell>
                                     </TableRow>
@@ -1124,7 +1124,7 @@ export default function ProfilePage() {
 
   const formattedJoiningDate = useMemo(() => {
     if (employeeProfile?.joiningDate) {
-      return format(employeeProfile.joiningDate.toDate(), "PPP");
+      return format(employeeProfile.joiningDate.toDate(), "MM/dd/yyyy");
     }
     return undefined;
   }, [employeeProfile?.joiningDate]);
@@ -1138,7 +1138,7 @@ export default function ProfilePage() {
       if (m < 0 || (m === 0 && getDate(today) < getDate(dob))) {
           age--;
       }
-      return `${format(dob, "PPP")} (Age: ${age})`;
+      return `${format(dob, "MM/dd/yyyy")} (Age: ${age})`;
     }
     return undefined;
   }, [employeeProfile?.dateOfBirth]);
@@ -1254,7 +1254,7 @@ export default function ProfilePage() {
     // Date
     doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
-    doc.text(`Date: ${format(new Date(), "PPP")}`, pageWidth - margin, currentY, { align: "right" });
+    doc.text(`Date: ${format(new Date(), "MM/dd/yyyy")}`, pageWidth - margin, currentY, { align: "right" });
     currentY += 15;
 
     // Body
@@ -1399,7 +1399,7 @@ export default function ProfilePage() {
                             <TableBody>
                                 {profDevelopment.length > 0 ? profDevelopment.map(item => (
                                     <TableRow key={item.id}>
-                                        <TableCell>{format(item.date.toDate(), "dd MMM yyyy")}</TableCell>
+                                        <TableCell>{format(item.date.toDate(), "MM/dd/yyyy")}</TableCell>
                                         <TableCell>{item.courseName}</TableCell>
                                         <TableCell>
                                             <a href={item.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
@@ -1468,7 +1468,7 @@ export default function ProfilePage() {
                         <TableBody>
                             {attendanceHistory.map((record) => (
                                 <TableRow key={record.id} className="group">
-                                    <TableCell>{format(new Date(record.date.replace(/-/g, '/')), 'PPP')}</TableCell>
+                                    <TableCell>{format(new Date(record.date.replace(/-/g, '/')), 'MM/dd/yyyy')}</TableCell>
                                     <TableCell>
                                         {record.type === 'leave' ? (
                                             <Badge variant="outline" className="border-blue-500 text-blue-500">Approved Leave</Badge>

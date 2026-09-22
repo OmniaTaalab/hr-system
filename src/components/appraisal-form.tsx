@@ -83,7 +83,7 @@ export function AppraisalForm({ formAction, isPending, serverState, employeeDocI
                   variant={"outline"}
                   className={cn("w-[240px] pl-3 text-left font-normal", !selectedDate && "text-muted-foreground")}
                 >
-                  {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                  {selectedDate ? format(selectedDate, "MM/dd/yyyy") : <span>Pick a date</span>}
                   <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                 </Button>
               </PopoverTrigger>
