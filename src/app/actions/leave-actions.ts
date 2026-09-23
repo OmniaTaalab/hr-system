@@ -508,6 +508,184 @@ export async function updateLeaveRequestStatusAction(
       // route to reportLine2 for the second approval.
       if (r2.length > 0 && r2 !== r1 && isFirstApproverAction) {
         updates.currentApprover = requestData.reportLine2.trim();
+        // ------------------------------------------------------------
+// Notify employee that first manager approved,
+// but second manager approval is still pending
+// ------------------------------------------------------------
+
+try {
+  const employeeDoc = await getDoc(
+    doc(db, "employee", requestData.requestingEmployeeDocId)
+  );
+
+  if (employeeDoc.exists()) {
+    const employeeData = employeeDoc.data();
+
+    const employeeUserId = employeeData.userId || null;
+
+    const employeeUserEmail = (
+      employeeData.nisEmail ||
+      employeeData.email ||
+      requestData.employeeEmail ||
+      ""
+    ).trim();
+
+    // Get first approver name
+    let firstApproverName = approverEmail || "First Manager";
+
+    try {
+      const firstApproverQuery = query(
+        collection(db, "employee"),
+        where("email", "==", approverEmail),
+        limit(1)
+      );
+
+      const firstApproverSnapshot = await getDocs(firstApproverQuery);
+
+      if (!firstApproverSnapshot.empty) {
+        const firstApproverData =
+          firstApproverSnapshot.docs[0].data();
+
+        firstApproverName =
+          firstApproverData.name ||
+          approverEmail ||
+          "First Manager";
+      }
+    } catch (error) {
+      console.error(
+        "Could not get first approver name:",
+        error
+      );
+    }
+
+    // Get second approver name
+    let secondApproverName =
+      requestData.reportLine2 || "Second Manager";
+
+    try {
+      const secondApproverQuery = query(
+        collection(db, "employee"),
+        where(
+          "email",
+          "==",
+          requestData.reportLine2.trim()
+        ),
+        limit(1)
+      );
+
+      const secondApproverSnapshot =
+        await getDocs(secondApproverQuery);
+
+      if (!secondApproverSnapshot.empty) {
+        const secondApproverData =
+          secondApproverSnapshot.docs[0].data();
+
+        secondApproverName =
+          secondApproverData.name ||
+          requestData.reportLine2;
+      }
+    } catch (error) {
+      console.error(
+        "Could not get second approver name:",
+        error
+      );
+    }
+
+    const requestPath =
+      `/leave/all-requests/${requestId}`;
+
+    const requestLink =
+      toAbsoluteAppUrl(requestPath);
+
+    const employeeNotificationMessage =
+      `${firstApproverName} has approved your leave request for ` +
+      `${requestData.leaveType}. ` +
+      `Your request is now awaiting approval from ${secondApproverName}.`;
+
+    // In-app notification
+    if (employeeUserId) {
+      await addDoc(
+        collection(
+          db,
+          `users/${employeeUserId}/notifications`
+        ),
+        {
+          message: employeeNotificationMessage,
+          link: requestPath,
+          createdAt: serverTimestamp(),
+          isRead: false,
+        }
+      );
+    }
+
+    // Email to employee
+    if (employeeUserEmail) {
+      const employeeEmailHtml = render(
+        LeaveRequestNotificationEmail({
+          managerName:
+            employeeData.name || "Employee",
+
+          employeeName:
+            employeeData.name ||
+            requestData.employeeName ||
+            "Employee",
+
+          leaveType:
+            requestData.leaveType,
+
+          startDate:
+            requestData.startDate?.toDate
+              ? format(
+                  requestData.startDate.toDate(),
+                  "MM/dd/yyyy"
+                )
+              : "",
+
+          endDate:
+            requestData.endDate?.toDate
+              ? format(
+                  requestData.endDate.toDate(),
+                  "MM/dd/yyyy"
+                )
+              : "",
+
+          reason:
+            `${firstApproverName} has approved your leave request. ` +
+            `The request is now awaiting final approval from ${secondApproverName}.`,
+
+          leaveRequestLink:
+            requestLink,
+        })
+      );
+
+      await addDoc(
+        collection(db, "mail"),
+        {
+          to: employeeUserEmail,
+
+          message: {
+            subject:
+              `Leave Request Approved by ${firstApproverName} - Awaiting Final Approval`,
+
+            html: employeeEmailHtml,
+          },
+
+          status: "pending",
+          createdAt: serverTimestamp(),
+        }
+      );
+
+      console.log(
+        `First approval notification sent to employee ${employeeUserEmail}`
+      );
+    }
+  }
+} catch (employeeNotificationError) {
+  console.error(
+    "Failed to notify employee after first approval:",
+    employeeNotificationError
+  );
+}
         // Notify reportLine2
         const managerQuery = query(collection(db, "employee"), where("email", "==", requestData.reportLine2.trim()), limit(1));
         const managerSnapshot = await getDocs(managerQuery);
@@ -615,33 +793,101 @@ export async function updateLeaveRequestStatusAction(
         leaveRequestId: requestId,
         newStatus: updates.status || "Pending",
     });
+if (isFinalDecision) {
+  // Notify original requester of final decision
+  const employeeDoc = await getDoc(
+    doc(db, "employee", requestData.requestingEmployeeDocId)
+  );
 
-    if(isFinalDecision){
-        // Notify original requester of final decision
-        const employeeDoc = await getDoc(doc(db, "employee", requestData.requestingEmployeeDocId));
-        if (employeeDoc.exists()) {
-          const employeeData = employeeDoc.data();
-          const employeeUserId = employeeData.userId;
-          const employeeUserEmail = employeeData.email;
+  if (employeeDoc.exists()) {
+    const employeeData = employeeDoc.data();
 
-          const notificationMessage = `Your leave request for ${requestData.leaveType} has been ${finalStatus.toLowerCase()}.`;
-          const requestPath = `/leave/all-requests/${requestId}`;
-          const requestLink = toAbsoluteAppUrl(requestPath);
+    const employeeUserId = employeeData.userId;
 
-          if (employeeUserId) {
-            await addDoc(collection(db, `users/${employeeUserId}/notifications`), { message: notificationMessage, link: requestPath, createdAt: serverTimestamp(), isRead: false });
-          }
+    const employeeUserEmail = (
+      employeeData.nisEmail ||
+      employeeData.email ||
+      requestData.employeeEmail ||
+      ""
+    ).trim();
 
-          if (employeeUserEmail) {
-            try {
-              const emailHtml = render(LeaveRequestNotificationEmail({ managerName: employeeData.name, employeeName: employeeData.name, leaveType: requestData.leaveType, startDate: format(requestData.startDate.toDate(), 'MM/dd/yyyy'), endDate: format(requestData.endDate.toDate(), 'MM/dd/yyyy'), reason: `Your leave request has been ${finalStatus}. Manager notes: ${managerNotes || 'N/A'}`, leaveRequestLink: requestLink }));
-              await addDoc(collection(db, "mail"), { to: employeeUserEmail, message: { subject: `Update on Your Leave Request: ${finalStatus}`, html: emailHtml }, status: "pending", createdAt: serverTimestamp() });
-            } catch (emailErr) {
-              console.error(`Failed to send decision email to employee ${employeeUserEmail}:`, emailErr);
-            }
-          }
+  const notificationMessage =
+  finalStatus === "Approved"
+    ? `Your leave request for ${requestData.leaveType} has been fully approved. You may now take your approved leave.`
+    : `Your leave request for ${requestData.leaveType} has been rejected.`;
+
+    const requestPath = `/leave/all-requests/${requestId}`;
+    const requestLink = toAbsoluteAppUrl(requestPath);
+
+    // In-app notification
+    if (employeeUserId) {
+      await addDoc(
+        collection(db, `users/${employeeUserId}/notifications`),
+        {
+          message: notificationMessage,
+          link: requestPath,
+          createdAt: serverTimestamp(),
+          isRead: false,
         }
+      );
     }
+
+    // Email notification
+    if (employeeUserEmail) {
+      try {
+        const emailHtml = render(
+          LeaveRequestNotificationEmail({
+            managerName: employeeData.name || "Employee",
+            employeeName: employeeData.name || "Employee",
+            leaveType: requestData.leaveType,
+            startDate: requestData.startDate?.toDate
+              ? format(
+                  requestData.startDate.toDate(),
+                  "MM/dd/yyyy"
+                )
+              : "",
+            endDate: requestData.endDate?.toDate
+              ? format(
+                  requestData.endDate.toDate(),
+                  "MM/dd/yyyy"
+                )
+              : "",
+       reason:
+  finalStatus === "Approved"
+    ? `Your leave request has received all required approvals and is now fully approved. You may take your leave according to the approved dates. Manager notes: ${managerNotes || "N/A"}`
+    : `Your leave request has been rejected. Manager notes: ${managerNotes || "N/A"}`,
+            leaveRequestLink: requestLink,
+          })
+        );
+
+        await addDoc(collection(db, "mail"), {
+          to: employeeUserEmail,
+
+          message: {
+            subject: `Update on Your Leave Request: ${finalStatus}`,
+            html: emailHtml,
+          },
+
+          status: "pending",
+          createdAt: serverTimestamp(),
+        });
+
+        console.log(
+          `Decision email queued for employee: ${employeeUserEmail}`
+        );
+      } catch (emailErr) {
+        console.error(
+          `Failed to send decision email to employee ${employeeUserEmail}:`,
+          emailErr
+        );
+      }
+    } else {
+      console.error(
+        `No employee email found for leave request ${requestId}`
+      );
+    }
+  }
+}
 
     return { message: `Leave request status updated successfully.`, 
       errors: {},

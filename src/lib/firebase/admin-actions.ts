@@ -282,9 +282,7 @@ export async function createEmployeeAction(
   prevState: CreateEmployeeState,
   formData: FormData
 ): Promise<CreateEmployeeState> {
-  if (!adminAuthSrv) {
-    return { errors: { form: ["Firebase Admin SDK is not configured."] }, success: false };
-  }
+
 
   const rawData = Object.fromEntries(formData.entries());
   const validatedFields = CreateEmployeeFormSchema.safeParse(rawData);

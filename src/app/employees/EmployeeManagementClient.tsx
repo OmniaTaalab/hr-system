@@ -698,13 +698,46 @@ const validateAddEmployeeForm = (form: HTMLFormElement) => {
     </p>
   )}
 </div>
-                 <div className="space-y-2">
-                    <Label>Stage</Label>
-                    <Select name="stage" value={stage} onValueChange={setStage} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder="Select Stage" /></SelectTrigger>
-                        <SelectContent>{stages.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                </div>
+              <div className="space-y-2">
+  <Label className={fieldErrors.stage ? "text-destructive" : ""}>
+    Stage *
+  </Label>
+
+  <Select
+    name="stage"
+    value={stage}
+    onValueChange={(value) => {
+      setStage(value);
+      clearFieldError("stage");
+    }}
+    disabled={isLoadingLists}
+  >
+    <SelectTrigger
+      data-field="stage"
+      className={
+        fieldErrors.stage
+          ? "border-destructive border-2 focus:ring-destructive"
+          : ""
+      }
+    >
+      <SelectValue placeholder="Select Stage" />
+    </SelectTrigger>
+
+    <SelectContent>
+      {stages.map((s) => (
+        <SelectItem key={s.id} value={s.name}>
+          {s.name}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+
+  {fieldErrors.stage && (
+    <p className="text-sm text-destructive">
+      {fieldErrors.stage}
+    </p>
+  )}
+</div>
             </div>
             <div className="space-y-2">
                 <Label htmlFor="add-joiningDate">Joining Date (MM/DD/YYYY)</Label>
