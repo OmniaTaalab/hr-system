@@ -86,7 +86,9 @@ const calculateLeaveDaysInMonthForReport = (
   leaveStart: Date,
   leaveEnd: Date,
   monthStartDate: Date,
-  monthEndDate: Date
+  monthEndDate: Date,
+  leaveType: string = "",
+  storedNumberOfDays?: number
 ): number => {
   const effectiveLeaveStart = dateMax([leaveStart, monthStartDate]);
   const effectiveLeaveEnd = dateMin([leaveEnd, monthEndDate]);
@@ -94,7 +96,31 @@ const calculateLeaveDaysInMonthForReport = (
   if (effectiveLeaveStart > effectiveLeaveEnd) {
     return 0;
   }
-  return differenceInCalendarDays(effectiveLeaveEnd, effectiveLeaveStart) + 1;
+
+  const lt = (leaveType || "").toLowerCase();
+  const isMaternity = (lt.includes("maternity") && !lt.includes("hour")) || lt.includes("وضع") || lt.includes("أمومة") || lt.includes("امومة");
+  if (isMaternity) {
+    return differenceInCalendarDays(effectiveLeaveEnd, effectiveLeaveStart) + 1;
+  }
+
+  const isEntirelyInMonth = leaveStart >= monthStartDate && leaveEnd <= monthEndDate;
+  if (isEntirelyInMonth && typeof storedNumberOfDays === "number" && storedNumberOfDays > 0) {
+    return storedNumberOfDays;
+  }
+
+  const weekendSet = new Set([5, 6]); // Friday & Saturday
+  let workingDays = 0;
+  const cur = new Date(effectiveLeaveStart);
+
+  while (cur <= effectiveLeaveEnd) {
+    const dayOfWeek = cur.getDay();
+    if (!weekendSet.has(dayOfWeek)) {
+      workingDays++;
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  return workingDays;
 };
 
 
@@ -239,7 +265,9 @@ const canViewReport =
                 leave.startDate.toDate(),
                 leave.endDate.toDate(),
                 currentMonthStartDate,
-                currentMonthEndDate
+                currentMonthEndDate,
+                leave.leaveType,
+                (leave as any).numberOfDays
               );
             });
           }

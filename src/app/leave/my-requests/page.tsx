@@ -104,11 +104,35 @@ const formatDurationFromMinutes = (totalMinutes: number | null | undefined): str
   return result || "0m"; 
 };
 
+const isFullMaternity = (leaveType: string = ""): boolean => {
+  const typeLower = (leaveType || "").toLowerCase();
+  const isMaternity =
+    typeLower.includes("maternity") ||
+    typeLower.includes("وضع") ||
+    typeLower.includes("أمومة") ||
+    typeLower.includes("امومة") ||
+    typeLower.includes("ولادة");
+
+  const isMaternityHour =
+    isMaternity &&
+    (typeLower.includes("hour") ||
+      typeLower.includes("ساعة") ||
+      typeLower.includes("ساعه") ||
+      typeLower.includes("رضاعة") ||
+      typeLower.includes("رعاية"));
+
+  return isMaternity && !isMaternityHour;
+};
+
 const calculateLeaveDaysInMonth = (
   leaveStart: Date,
   leaveEnd: Date,
   monthStartDate: Date,
-  monthEndDate: Date
+  monthEndDate: Date,
+  leaveType: string = "",
+  storedNumberOfDays?: number,
+  weekendDaysList: number[] = [5, 6],
+  holidayDatesSet: Set<string> = new Set()
 ): number => {
   const effectiveLeaveStart = max([dateFnsStartOfDay(leaveStart), monthStartDate]);
   const effectiveLeaveEnd = min([dateFnsEndOfDay(leaveEnd), monthEndDate]);
@@ -116,7 +140,34 @@ const calculateLeaveDaysInMonth = (
   if (effectiveLeaveStart > effectiveLeaveEnd) {
     return 0; 
   }
-  return differenceInCalendarDays(effectiveLeaveEnd, effectiveLeaveStart) + 1;
+
+  if (isFullMaternity(leaveType)) {
+    return differenceInCalendarDays(effectiveLeaveEnd, effectiveLeaveStart) + 1;
+  }
+
+  const isEntirelyInMonth =
+    dateFnsStartOfDay(leaveStart) >= monthStartDate &&
+    dateFnsEndOfDay(leaveEnd) <= monthEndDate;
+
+  if (isEntirelyInMonth && typeof storedNumberOfDays === "number" && storedNumberOfDays > 0) {
+    return storedNumberOfDays;
+  }
+
+  const weekendSet = new Set(weekendDaysList);
+  let workingDays = 0;
+  const cur = new Date(effectiveLeaveStart);
+
+  while (cur <= effectiveLeaveEnd) {
+    const dayOfWeek = cur.getDay(); // 0 = Sun, 1 = Mon, ..., 5 = Fri, 6 = Sat
+    const dateStr = `${cur.getFullYear()}-${(cur.getMonth() + 1).toString().padStart(2, '0')}-${cur.getDate().toString().padStart(2, '0')}`;
+
+    if (!weekendSet.has(dayOfWeek) && !holidayDatesSet.has(dateStr)) {
+      workingDays++;
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  return workingDays;
 };
 
 
@@ -249,6 +300,35 @@ function MyRequestsContent() {
 
   const [monthlyAttendanceDetails, setMonthlyAttendanceDetails] = useState<AttendanceRecord[]>([]);
   const [isLoadingAttendanceDetails, setIsLoadingAttendanceDetails] = useState(false);
+
+  const [holidaysSet, setHolidaysSet] = useState<Set<string>>(new Set());
+  const [weekendDays, setWeekendDays] = useState<number[]>([5, 6]);
+
+  // Load holidays and weekend settings
+  useEffect(() => {
+    getDocs(collection(db, "holidays")).then(snap => {
+      const dates = new Set<string>();
+      snap.forEach(dDoc => {
+        const d = dDoc.data().date;
+        if (d?.toDate) {
+          const dt = d.toDate();
+          dates.add(`${dt.getFullYear()}-${(dt.getMonth() + 1).toString().padStart(2, '0')}-${dt.getDate().toString().padStart(2, '0')}`);
+        } else if (typeof d === "string") {
+          const dt = new Date(d);
+          if (!isNaN(dt.getTime())) {
+            dates.add(`${dt.getFullYear()}-${(dt.getMonth() + 1).toString().padStart(2, '0')}-${dt.getDate().toString().padStart(2, '0')}`);
+          }
+        }
+      });
+      setHolidaysSet(dates);
+    }).catch(console.error);
+
+    getDoc(doc(db, "settings", "weekend")).then(snap => {
+      if (snap.exists() && Array.isArray(snap.data()?.days)) {
+        setWeekendDays(snap.data()?.days);
+      }
+    }).catch(console.error);
+  }, []);
   
   const { toast } = useToast();
  
@@ -336,7 +416,11 @@ function MyRequestsContent() {
               leaveStartDate,
               leaveEndDate,
               monthStart,
-              monthEnd
+              monthEnd,
+              leave.leaveType,
+              (leave as any).numberOfDays,
+              weekendDays,
+              holidaysSet
             );
             if (daysInMonth > 0) {
               if (leave.status === "Approved") {
@@ -1260,7 +1344,16 @@ function MyRequestsContent() {
                           {displayedLeaveRequests.map((request) => {
                             const startDate = request.startDate.toDate();
                             const endDate = request.endDate.toDate();
-                            const daysInSelectedMonth = calculateLeaveDaysInMonth(startDate, endDate, startOfMonth(currentMonthDate), endOfMonth(currentMonthDate));
+                            const daysInSelectedMonth = calculateLeaveDaysInMonth(
+                              startDate,
+                              endDate,
+                              startOfMonth(currentMonthDate),
+                              endOfMonth(currentMonthDate),
+                              request.leaveType,
+                              request.numberOfDays,
+                              weekendDays,
+                              holidaysSet
+                            );
                             const isMaternityHour =
                               (request as any).hoursPerDay === 1 ||
                               (request as any).isHourly === true ||
