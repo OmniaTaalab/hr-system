@@ -519,7 +519,7 @@ function MyRequestsContent() {
       const rawEndDate = leave.endDate?.toDate ? leave.endDate.toDate() : new Date(leave.endDate || leave.startDate);
       const typeLower = (leave.leaveType || "").trim().toLowerCase();
 
-      // 1. Early Dismissal & Late Arrival (4 hours / month, 8 hours for SLT)
+      // 1. Early Dismissal & Late Arrival (4 hours / month, 8 hours for Editor)
       const isEarlyLate =
         typeLower.includes("early dismissal") ||
         typeLower.includes("late arrival") ||
@@ -639,8 +639,8 @@ function MyRequestsContent() {
     const isMale = ["male", "m", "ذكر"].includes(rawGender);
 
     const positionClass = (employeePositionClass || currentEmployee?.positionClass || "").trim().toLowerCase();
-    const isSLT = positionClass === "slt" || positionClass.includes("slt");
-    const earlyLateAllowedHours = isSLT ? 8 : 4;
+    const isEditor = positionClass === "editor" || positionClass.includes("editor") || positionClass === "slt" || positionClass.includes("slt");
+    const earlyLateAllowedHours = isEditor ? 8 : 4;
 
     const earlyLateTotalUsed = earlyLateApprovedHours + earlyLatePendingHours;
     const earlyLateRemaining = Math.max(0, earlyLateAllowedHours - earlyLateTotalUsed);
@@ -658,7 +658,7 @@ function MyRequestsContent() {
     return {
       earlyLate: {
         allowedHours: earlyLateAllowedHours,
-        isSLT,
+        isEditor,
         approvedHours: earlyLateApprovedHours,
         pendingHours: earlyLatePendingHours,
         totalUsedHours: earlyLateTotalUsed,
@@ -828,7 +828,7 @@ function MyRequestsContent() {
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Allowed: {leaveBalances.earlyLate.allowedHours} hours in {format(currentMonthDate, "MMMM")}
-                        {leaveBalances.earlyLate.isSLT ? " (SLT)" : ""}
+                        {leaveBalances.earlyLate.isEditor ? " (Editor)" : ""}
                       </p>
                     </div>
 
@@ -1085,7 +1085,7 @@ function MyRequestsContent() {
               <div className="flex items-start sm:items-center gap-2">
                 <Info className="h-4 w-4 text-primary flex-shrink-0 mt-0.5 sm:mt-0" />
                 <span>
-                  <strong>Official Policy Limits:</strong> Early & Late Excuses: 4 hours/month (8 hours for SLT, 2h per excuse) • Emergency: 1 day/term • Medical: 7 days/year • Maternity: 120 days (Female).
+                  <strong>Official Policy Limits:</strong> Early & Late Excuses: 4 hours/month (8 hours for Editor, 2h per excuse) • Emergency: 1 day/term • Medical: 7 days/year • Maternity: 120 days (Female).
                 </span>
               </div>
               <div className="text-muted-foreground/90 font-medium whitespace-nowrap self-end sm:self-auto">

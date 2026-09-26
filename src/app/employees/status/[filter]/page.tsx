@@ -263,9 +263,10 @@ function EmployeeStatusContent() {
                 if (empRecord?.campus) {
                   const campusRule: any = campusRules.get(empRecord.campus.trim().toLowerCase());
                   if (campusRule) {
-                    const isSLT = (empRecord.positionClass || "").trim().toLowerCase() === "slt" || (empRecord.positionClass || "").trim().toLowerCase().includes("slt");
+                    const pos = (empRecord.positionClass || "").trim().toLowerCase();
+                    const isEditor = pos === "editor" || pos.includes("editor") || pos === "slt" || pos.includes("slt");
                     let targetEndTime: string | null = null;
-                    if (isSLT) {
+                    if (isEditor) {
                       if (campusRule.sltFlexible || !campusRule.sltCheckInEndTime || campusRule.sltCheckInEndTime === "flexible" || campusRule.sltCheckInEndTime.trim() === "") {
                         return; // Exempt from late arrival tracking
                       }

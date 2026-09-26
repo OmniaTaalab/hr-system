@@ -2359,12 +2359,12 @@ return (
   }, [allEmployees, searchTerm, campusFilters, stageFilters, subjectFilters, genderFilters, religionFilters, titleFilters, statusFilters, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilters]);
   
   const totalEmployeesCount = useMemo(() => {
-    return allEmployees.length;
-  }, [allEmployees]);
+    return filteredEmployees.length;
+  }, [filteredEmployees]);
 
   const activeEmployeesCount = useMemo(() => {
-    return allEmployees.filter(emp => String(emp.status ?? '').trim().toLowerCase() !== 'deactivated').length;
-  }, [allEmployees]);
+    return filteredEmployees.filter(emp => String(emp.status ?? '').trim().toLowerCase() !== 'deactivated').length;
+  }, [filteredEmployees]);
 
   const totalPages = useMemo(() => Math.ceil(filteredEmployees.length / PAGE_SIZE), [filteredEmployees]);
   const isLastPage = currentPage >= totalPages;

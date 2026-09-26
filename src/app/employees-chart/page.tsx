@@ -148,6 +148,7 @@ function EmployeeCard({ employee, level }: { employee: Employee; level: number }
   const theme = getLevelTheme(level);
   const isMatch = matchedIds.has(employee.id);
   const isDimmed = Boolean(searchQuery) && matchedIds.size > 0 && !isMatch;
+  const isDeactivated = String(employee.status ?? '').trim().toLowerCase() === 'deactivated';
 
   return (
     <Tooltip>
@@ -183,12 +184,18 @@ function EmployeeCard({ employee, level }: { employee: Employee; level: number }
                 {jobTitle}
               </p>
             ) : null}
+            {isDeactivated && (
+              <span className="mt-1.5 inline-block rounded bg-red-100 dark:bg-red-950/60 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:text-red-400">
+                Deactivated
+              </span>
+            )}
           </div>
         </button>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-xs">
         <p className="font-semibold">{employee.name}</p>
         {jobTitle && <p className="text-xs text-muted-foreground">{jobTitle}</p>}
+        {isDeactivated && <p className="text-xs font-medium text-red-600">Status: Deactivated</p>}
       </TooltipContent>
     </Tooltip>
   );
@@ -326,7 +333,7 @@ function EmployeesChartContent() {
 
   const [campusFilter, setCampusFilter] = useState<string[]>([]);
   const [titleFilter, setTitleFilter] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string[]>(['Active']);
   const [religionFilter, setReligionFilter] = useState<string[]>([]);
   const [stageFilter, setStageFilter] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -426,13 +433,25 @@ function EmployeesChartContent() {
   }, [allEmployees]);
 
   const rootEmployees = useMemo(() => {
-    const noFiltersApplied = campusFilter.length === 0 && titleFilter.length === 0 && statusFilter.length === 0 && religionFilter.length === 0 && stageFilter.length === 0;
-
-    if (!allEmployees.length || noFiltersApplied) {
+    if (!allEmployees.length) {
       return [];
     }
 
-    const employees = allEmployees.map(emp => ({ ...emp, subordinates: [] as Employee[] }));
+    const isTotal = statusFilter.includes('Total') || (statusFilter.includes('Active') && (statusFilter.includes('Deactivated') || statusFilter.includes('deactive') || statusFilter.includes('Deactive')));
+    const isDeactive = !isTotal && (statusFilter.includes('Deactivated') || statusFilter.includes('deactive') || statusFilter.includes('Deactive'));
+
+    const eligibleEmployees = allEmployees.filter(emp => {
+      const isEmpDeact = String(emp.status ?? '').trim().toLowerCase() === 'deactivated';
+      if (isTotal) return true;
+      if (isDeactive) return isEmpDeact;
+      return !isEmpDeact;
+    });
+
+    if (!eligibleEmployees.length) {
+      return [];
+    }
+
+    const employees: Employee[] = eligibleEmployees.map(emp => ({ ...emp, subordinates: [] as Employee[] }));
     const emailMap = new Map<string, Employee>();
     employees.forEach(emp => {
       if (emp.nisEmail) {
@@ -457,12 +476,6 @@ function EmployeesChartContent() {
 
     if (campusFilter.length > 0) roots = roots.filter(e => e.campus && campusFilter.includes(e.campus));
     if (titleFilter.length > 0) roots = roots.filter(e => e.title && titleFilter.includes(e.title));
-    if (statusFilter.length > 0) {
-      roots = roots.filter(e => {
-        const status = e.status === 'deactivated' ? 'Deactivated' : 'Active';
-        return statusFilter.includes(status);
-      });
-    }
     if (religionFilter.length > 0) roots = roots.filter(e => e.religion && religionFilter.includes(e.religion));
     if (stageFilter.length > 0) roots = roots.filter(e => e.stage && stageFilter.includes(e.stage));
 
@@ -661,7 +674,7 @@ function EmployeesChartContent() {
   const resetFilters = () => {
     setCampusFilter([]);
     setTitleFilter([]);
-    setStatusFilter([]);
+    setStatusFilter(['Active']);
     setReligionFilter([]);
     setStageFilter([]);
     setSearchQuery("");
@@ -808,7 +821,11 @@ function EmployeesChartContent() {
               <MultiSelectFilter placeholder="Title" options={titleList} selected={titleFilter} onChange={setTitleFilter} />
               <MultiSelectFilter
                 placeholder="Status"
-                options={[{ label: 'Active', value: 'Active' }, { label: 'Deactivated', value: 'Deactivated' }]}
+                options={[
+                  { label: 'Active Employees', value: 'Active' },
+                  { label: 'Deactive Employees', value: 'Deactivated' },
+                  { label: 'Total Employees', value: 'Total' },
+                ]}
                 selected={statusFilter}
                 onChange={setStatusFilter}
               />
@@ -906,21 +923,18 @@ function EmployeesChartContent() {
                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                   <GitBranch className="h-8 w-8" />
                 </div>
-                <h3 className="font-headline text-xl font-semibold">Select filters to generate the chart</h3>
+                <h3 className="font-headline text-xl font-semibold">No employees found</h3>
                 <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                  Choose at least one filter above, or pick a campus to see that team’s reporting line.
+                  Try adjusting your filters or search query to view reporting lines.
                 </p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
-                  {campusList.slice(0, 8).map((campus) => (
-                    <Button
-                      key={campus.value}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCampusFilter([campus.value])}
-                    >
-                      {campus.label}
-                    </Button>
-                  ))}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resetFilters}
+                  >
+                    Reset Filters
+                  </Button>
                 </div>
               </div>
             )}

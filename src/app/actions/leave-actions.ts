@@ -118,9 +118,9 @@ const employeeEmail = (
   ""
 ).trim();
     const positionClass = (employeeData.positionClass || "").trim().toLowerCase();
-    const isSLT = positionClass === "slt" || positionClass.includes("slt");
+    const isEditor = positionClass === "editor" || positionClass.includes("editor") || positionClass === "slt" || positionClass.includes("slt");
 
-    // Late Arrival & Early Dismissal: 4-hour monthly limit (8 hours for SLT).
+    // Late Arrival & Early Dismissal: 4-hour monthly limit (8 hours for Editor).
     // Query by employee only (equality) and filter dates in memory so we
     // don't need a composite Firestore index on requestingEmployeeDocId + startDate.
     if (leaveType === "Late Arrival" || leaveType === "Early Dismissal") {
@@ -148,7 +148,7 @@ const employeeEmail = (
       });
 
       const HOURS_PER_REQUEST = 2;
-      const MONTHLY_LIMIT = isSLT ? 8 : 4;
+      const MONTHLY_LIMIT = isEditor ? 8 : 4;
       const usedHours = existingRequests.length * HOURS_PER_REQUEST;
 
       if (usedHours >= MONTHLY_LIMIT) {

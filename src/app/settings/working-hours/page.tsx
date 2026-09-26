@@ -138,7 +138,7 @@ function CampusWorkingHoursPage() {
             Campus Working Hours
           </h1>
           <p className="text-muted-foreground mt-1">
-            Configure working hours and attendance windows per campus based on employee <strong>Position Class</strong> (SLT vs. Teacher, Administrative / Support).
+            Configure working hours and attendance windows per campus based on employee <strong>Position Class</strong> (Editor vs. Teacher, Administrative / Support).
           </p>
         </header>
 
@@ -174,9 +174,9 @@ function CampusWorkingHoursPage() {
                       <TableHead className="min-w-[240px]">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="border-purple-300 text-purple-700 bg-purple-50">
-                            SLT
+                            Editor
                           </Badge>
-                          <span>Senior Leadership</span>
+                          <span>Editor Schedule</span>
                         </div>
                       </TableHead>
                       <TableHead className="min-w-[240px]">
@@ -375,7 +375,7 @@ function WorkingHoursForm({
               {record ? "Edit Campus Working Hours" : "Add Campus Working Hours"}
             </DialogTitle>
             <DialogDescription>
-              Select a campus, then set specific schedules for SLT and shared schedules for Teacher, Administrative, and Support staff based on their Position Class.
+              Select a campus, then set specific schedules for Editor and shared schedules for Teacher, Administrative, and Support staff based on their Position Class.
             </DialogDescription>
           </DialogHeader>
 
@@ -407,18 +407,18 @@ function WorkingHoursForm({
               )}
             </div>
 
-            {/* STEP 2: SLT Working Hours */}
+            {/* STEP 2: Editor Working Hours */}
             <div className="p-4 rounded-lg border border-purple-200 dark:border-purple-900 bg-purple-50/40 dark:bg-purple-950/20 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-purple-200/60 dark:border-purple-800/60 pb-2">
                 <div className="flex items-center gap-2">
                   <Badge variant="default" className="bg-purple-600 hover:bg-purple-700 text-white font-medium flex items-center gap-1">
-                    <Shield className="h-3 w-3" /> SLT
+                    <Shield className="h-3 w-3" /> Editor
                   </Badge>
                   <h4 className="font-semibold text-sm text-foreground">
-                    Senior Leadership Team (SLT)
+                    Editor Working Hours
                   </h4>
                 </div>
-                <span className="text-xs text-muted-foreground">Applies to Position Class: SLT</span>
+                <span className="text-xs text-muted-foreground">Applies to Position Class: Editor</span>
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-md bg-purple-100/60 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800">
@@ -428,7 +428,7 @@ function WorkingHoursForm({
                     <span>Flexible Arrival (No Check-in Cutoff Time)</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Enable this so SLT members have no fixed arrival deadline and can check in flexibly without late penalty.
+                    Enable this so Editor members have no fixed arrival deadline and can check in flexibly without late penalty.
                   </p>
                 </div>
                 <Switch

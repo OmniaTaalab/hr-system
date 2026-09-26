@@ -507,12 +507,13 @@ return (
           const rule: any = campusRules.get(emp.campus.trim().toLowerCase());
           if (!rule) return;
 
-          const isSLT = emp.positionClass?.trim().toLowerCase() === 'slt' || emp.positionClass?.trim().toLowerCase().includes('slt');
+          const pos = emp.positionClass?.trim().toLowerCase() || "";
+          const isEditor = pos === 'editor' || pos.includes('editor') || pos === 'slt' || pos.includes('slt');
           let targetEndTime: string | null = null;
-          if (isSLT) {
-            // SLT has flexible arrival time / no late cutoff
+          if (isEditor) {
+            // Editor has flexible arrival time / no late cutoff
             if (rule.sltFlexible || !rule.sltCheckInEndTime || rule.sltCheckInEndTime === "flexible" || rule.sltCheckInEndTime.trim() === "") {
-              return; // SLT is exempt from late tracking
+              return; // Editor is exempt from late tracking
             }
             targetEndTime = rule.sltCheckInEndTime;
           } else {

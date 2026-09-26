@@ -128,6 +128,7 @@ function KpisContent() {
     const { profile, loading: isLoadingProfile } = useUserProfile();
     const router = useRouter();
     const { toast } = useToast();
+    const [allEligibleEmployees, setAllEligibleEmployees] = useState<Employee[]>([]);
     const [employeesWithKpis, setEmployeesWithKpis] = useState<EmployeeWithKpis[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
     
@@ -140,14 +141,8 @@ function KpisContent() {
     const [currentPage, setCurrentPage] = useState(1);
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
     
-    const { campuses, stage, reportLines1, reportLines2, isLoading: isLoadingLists } = useOrganizationLists();
+    const { campuses, stage, reportLines1, reportLines2 } = useOrganizationLists();
     const [titles, setTitles] = useState<string[]>([]);
-
-    // New state for server-side pagination
-    const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
-    const [pageCursors, setPageCursors] = useState<(DocumentSnapshot | null)[]>([null]);
-    const [isLastPage, setIsLastPage] = useState(false);
-    const [totalEmployees, setTotalEmployees] = useState(0);
 
     const isPrivilegedUser = useMemo(() => {
         if (!profile) return false;
@@ -166,12 +161,10 @@ function KpisContent() {
         );
     }, [profile]);
     
-    const fetchData = useCallback(async (direction: 'next' | 'prev' | 'first' = 'first') => {
+    // 1. Fetch eligible employees based on permissions and filters
+    const fetchEligibleEmployees = useCallback(async () => {
+        if (!profile) return;
         setIsLoadingData(true);
-        if (!profile) {
-            setIsLoadingData(false);
-            return;
-        }
 
         try {
             const employeeCollectionRef = collection(db, "employee");
@@ -180,7 +173,6 @@ function KpisContent() {
             if (!isPrivilegedUser && profile.email) {
                 constraints.push(or(where("reportLine1", "==", profile.email), where("reportLine2", "==", profile.email)));
             } else {
-                 constraints.push(orderBy("name"));
                 if (campusFilter !== "All") constraints.push(where("campus", "==", campusFilter));
                 if (stageFilter !== "All") constraints.push(where("stage", "==", stageFilter));
                 if (titleFilter !== "All") constraints.push(where("title", "==", titleFilter));
@@ -190,56 +182,58 @@ function KpisContent() {
                 constraints.push(or(where("reportLine1", "==", reportLineFilter), where("reportLine2", "==", reportLineFilter)));
             }
 
-
-            if (searchTerm) {
-                 constraints.push(where('name', '>=', searchTerm), where('name', '<=', searchTerm + '\uf8ff'));
-            }
-            
-            // Handle pagination
-            let currentCursor = pageCursors[currentPage - 1];
-            if (direction === 'next' && lastVisible) {
-                currentCursor = lastVisible;
-            } else if (direction === 'prev' && currentPage > 1) {
-                currentCursor = pageCursors[currentPage - 2] || null;
-            }
-
-            if(direction !== 'first' && currentCursor) {
-              constraints.push(startAfter(currentCursor), limit(PAGE_SIZE));
-            } else {
-              constraints.push(limit(PAGE_SIZE));
-            }
-            
-            const q = query(employeeCollectionRef, ...constraints);
+            const q = constraints.length > 0 
+                ? query(employeeCollectionRef, ...constraints) 
+                : query(employeeCollectionRef);
 
             const employeesSnapshot = await getDocs(q);
             const employees = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-            const employeeIds = employees.map(emp => emp.id);
+            employees.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+            setAllEligibleEmployees(employees);
+        } catch (error) {
+            console.error("Error fetching employees for KPIs:", error);
+            toast({ variant: "destructive", title: "Error", description: "Failed to load employee list." });
+            setAllEligibleEmployees([]);
+        } finally {
+            setIsLoadingData(false);
+        }
+    }, [profile, isPrivilegedUser, campusFilter, stageFilter, titleFilter, reportLineFilter, toast]);
 
-            // Set pagination state
-            setLastVisible(employeesSnapshot.docs[employeesSnapshot.docs.length - 1] || null);
+    // 2. Filter employees case-insensitively by search term
+    const filteredEmployees = useMemo(() => {
+        let list = allEligibleEmployees;
+        const term = searchTerm.trim().toLowerCase();
+        if (term) {
+            list = list.filter(emp => {
+                const name = (emp.name || "").toLowerCase();
+                const nameAr = (emp.nameAr || "").toLowerCase();
+                const empId = (emp.employeeId || "").toLowerCase();
+                const email = (emp.nisEmail || emp.email || emp.personalEmail || "").toLowerCase();
+                return name.includes(term) || nameAr.includes(term) || empId.includes(term) || email.includes(term);
+            });
+        }
+        return list;
+    }, [allEligibleEmployees, searchTerm]);
 
-            // Update cursors for navigation
-            if (direction === 'next') {
-                setPageCursors(prev => [...prev, employeesSnapshot.docs[0]]);
-            }
+    const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
+    
+    // Paginated subset of employees
+    const paginatedEmployees = useMemo(() => {
+        const start = (currentPage - 1) * PAGE_SIZE;
+        return filteredEmployees.slice(start, start + PAGE_SIZE);
+    }, [filteredEmployees, currentPage]);
 
-            // Check if this is the last page
-            if (employees.length < PAGE_SIZE) {
-                setIsLastPage(true);
-            } else {
-                 const nextQuery = query(q, startAfter(employeesSnapshot.docs[employeesSnapshot.docs.length - 1]), limit(1));
-                 const nextSnapshot = await getDocs(nextQuery);
-                 setIsLastPage(nextSnapshot.empty);
-            }
+    // 3. Fetch KPI metrics for the currently paginated employees
+    const fetchKpiMetricsForPage = useCallback(async (employeesToProcess: Employee[]) => {
+        if (employeesToProcess.length === 0) {
+            setEmployeesWithKpis([]);
+            return;
+        }
 
-            if (employeeIds.length === 0) {
-                setEmployeesWithKpis([]);
-                setIsLoadingData(false);
-                return;
-            }
-
-            // --- CHUNKED KPI/LEAVE/ATTENDANCE FETCHING ---
-            const CHUNK_SIZE = 30; // Firestore 'in' query limit
+        setIsLoadingData(true);
+        try {
+            const employeeIds = employeesToProcess.map(emp => emp.id);
+            const CHUNK_SIZE = 30;
             const allKpiSnapshots: Record<string, DocumentData[]> = { eleot: [], tot: [], appraisal: [] };
             const allProfDevSnapshots: DocumentData[] = [];
             const allLeaveRequests: DocumentData[] = [];
@@ -315,8 +309,8 @@ function KpisContent() {
             const holidays = holidaysSnapshot.docs.map(d => d.data().date.toDate());
             
             const attendanceLogs: DocumentData[] = [];
-            const employeeIdStrings = employees.map(e => e.employeeId).filter(Boolean);
-             for (let i = 0; i < employeeIdStrings.length; i += CHUNK_SIZE) {
+            const employeeIdStrings = employeesToProcess.map(e => e.employeeId).filter(Boolean);
+            for (let i = 0; i < employeeIdStrings.length; i += CHUNK_SIZE) {
                 const chunk = employeeIdStrings.slice(i, i + CHUNK_SIZE);
                 const attPromise = getDocs(query(collection(db, "attendance_log"), where("userId", "in", chunk)));
                 const attSnapshot = await attPromise;
@@ -328,7 +322,7 @@ function KpisContent() {
                 leaves: allLeaveRequests as any[],
             };
 
-            const employeesWithKpisResult = employees.map(emp => {
+            const employeesWithKpisResult = employeesToProcess.map(emp => {
                 const kpis = kpiDataMap.get(emp.id) || { eleot: [], tot: [], appraisal: [] };
                 const eleotAvg = kpis.eleot.length > 0 ? kpis.eleot.reduce((sum, item) => sum + item.points, 0) / kpis.eleot.length : 0;
                 let eleotScore = (eleotAvg / 4) * 10;
@@ -347,7 +341,7 @@ function KpisContent() {
                     const points = manualPointsByEmployee.get(emp.id);
                     if (points && points.length > 0) {
                         const totalPoints = points.reduce((sum, item) => sum + item.points, 0);
-                        attendanceScore = totalPoints / points.length; // Average of points (already out of 10)
+                        attendanceScore = totalPoints / points.length;
                     }
                 } else {
                     attendanceScore = getAttendanceScore(emp, bulkAttendanceData, holidays);
@@ -368,14 +362,13 @@ function KpisContent() {
             });
             
             setEmployeesWithKpis(employeesWithKpisResult);
-
         } catch (error) {
-            console.error("Error fetching KPI data:", error);
+            console.error("Error fetching KPI metrics:", error);
             toast({ variant: "destructive", title: "Error", description: "Failed to load all KPI data." });
         } finally {
             setIsLoadingData(false);
         }
-    }, [profile, isPrivilegedUser, toast, campusFilter, stageFilter, titleFilter, reportLineFilter, searchTerm, lastVisible, currentPage, pageCursors]);
+    }, [toast]);
 
     const allReportLines = useMemo(() => {
         const lines = new Set<string>();
@@ -398,27 +391,30 @@ function KpisContent() {
         }
     }, [isPrivilegedUser]);
 
-
     useEffect(() => {
         if (!isLoadingProfile) {
-            setCurrentPage(1);
-            setPageCursors([null]);
-            setLastVisible(null);
-            fetchData('first');
+            fetchEligibleEmployees();
         }
-    }, [isLoadingProfile, campusFilter, stageFilter, titleFilter, reportLineFilter, searchTerm]);
+    }, [isLoadingProfile, fetchEligibleEmployees]);
 
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, campusFilter, stageFilter, titleFilter, reportLineFilter]);
+
+    useEffect(() => {
+        fetchKpiMetricsForPage(paginatedEmployees);
+    }, [paginatedEmployees, fetchKpiMetricsForPage]);
 
     const goToNextPage = () => {
-        if (isLastPage) return;
-        setCurrentPage(prev => prev + 1);
-        fetchData('next');
+        if (currentPage < totalPages) {
+            setCurrentPage(prev => prev + 1);
+        }
     };
 
     const goToPrevPage = () => {
-        if (currentPage === 1) return;
-        setCurrentPage(prev => prev - 1);
-        fetchData('prev');
+        if (currentPage > 1) {
+            setCurrentPage(prev => prev - 1);
+        }
     };
 
     const calculateTotalScore = (kpis: KpiData) => {
@@ -456,7 +452,7 @@ function KpisContent() {
                         <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
                             Teachers KPIs
                         </h1>
-                         <Badge variant="secondary" className="mt-1">{employeesWithKpis.length} Teacher{employeesWithKpis.length !== 1 && 's'}</Badge>
+                         <Badge variant="secondary" className="mt-1">{filteredEmployees.length} Teacher{filteredEmployees.length !== 1 && 's'}</Badge>
                     </div>
                 </div>
                  <div className="flex items-center gap-2">
@@ -469,7 +465,7 @@ function KpisContent() {
              <Card className="shadow-lg">
                 <CardHeader>
                     <div className="flex items-center gap-4">
-                        <Input placeholder="Teacher name" className="max-w-xs" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                        <Input placeholder="Search by name, ID, email..." className="max-w-xs" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                         {isPrivilegedUser && (
                             <>
                                 <Select value={campusFilter} onValueChange={setCampusFilter}>
@@ -561,12 +557,12 @@ function KpisContent() {
                 )}
                 </CardContent>
                  <CardFooter className="flex justify-between items-center">
-                    <p className="text-sm text-muted-foreground">Showing page {currentPage}</p>
+                    <p className="text-sm text-muted-foreground">Showing page {currentPage} of {totalPages} ({filteredEmployees.length} {filteredEmployees.length === 1 ? 'teacher' : 'teachers'})</p>
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={goToPrevPage} disabled={currentPage === 1 || isLoadingData}>
+                        <Button variant="outline" size="sm" onClick={goToPrevPage} disabled={currentPage <= 1 || isLoadingData}>
                             <ArrowLeft className="h-4 w-4"/> Previous
                         </Button>
-                        <Button variant="outline" size="sm" onClick={goToNextPage} disabled={isLastPage || isLoadingData}>
+                        <Button variant="outline" size="sm" onClick={goToNextPage} disabled={currentPage >= totalPages || isLoadingData}>
                             Next <ArrowRight className="h-4 w-4"/>
                         </Button>
                     </div>
