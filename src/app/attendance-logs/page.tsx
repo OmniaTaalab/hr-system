@@ -68,7 +68,8 @@ function AttendanceLogsContent() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [isLoadingMachines, setIsLoadingMachines] = useState(true);
   
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [fromDate, setFromDate] = useState<Date | null>(null);
+  const [toDate, setToDate] = useState<Date | null>(null);
   
   const [correctionState, correctionAction, isCorrectionPending] = useActionState(correctAttendanceNamesAction, initialCorrectionState);
 
@@ -189,7 +190,7 @@ return (
       const logsCollection = collection(db, "attendance_log");
       let queryConstraints: QueryConstraint[] = [];
       
-      const isFiltered = machineFilter !== "All" || !!selectedDate || (!isPrivileged && subordinateIds.length > 0);
+      const isFiltered = machineFilter !== "All" || !!fromDate || !!toDate || (!isPrivileged && subordinateIds.length > 0);
       const shouldPaginate = !isFiltered;
 
       // Only add orderBy if not combining with multiple filters to avoid index requirements
@@ -197,9 +198,18 @@ return (
         queryConstraints.push(orderBy("date", "desc"));
       }
 
-      if (selectedDate) {
-        const dateString = format(selectedDate, 'yyyy-MM-dd');
-        queryConstraints.push(where("date", "==", dateString));
+      const fromDateString = fromDate ? format(fromDate, 'yyyy-MM-dd') : null;
+      const toDateString = toDate ? format(toDate, 'yyyy-MM-dd') : null;
+
+      if (fromDateString && toDateString && fromDateString === toDateString) {
+        queryConstraints.push(where("date", "==", fromDateString));
+      } else {
+        if (fromDateString) {
+          queryConstraints.push(where("date", ">=", fromDateString));
+        }
+        if (toDateString) {
+          queryConstraints.push(where("date", "<=", toDateString));
+        }
       }
       
       if (machineFilter !== "All") {
@@ -228,10 +238,34 @@ return (
         }
       }
 
-      const finalQuery = query(logsCollection, ...queryConstraints);
-      const documentSnapshots = await getDocs(finalQuery);
+      let documentSnapshots;
+      try {
+        const finalQuery = query(logsCollection, ...queryConstraints);
+        documentSnapshots = await getDocs(finalQuery);
+      } catch (err: any) {
+        console.warn("Direct query failed, attempting query without date range constraints for client-side filtering:", err);
+        const fallbackConstraints: QueryConstraint[] = [];
+        if (machineFilter !== "All") {
+          fallbackConstraints.push(where("machine", "==", machineFilter));
+        }
+        if (!isPrivileged && subordinateIds.length > 0) {
+          fallbackConstraints.push(where("userId", "in", subordinateIds.slice(0, 30)));
+        }
+        fallbackConstraints.push(limit(1000));
+        const fallbackQuery = query(logsCollection, ...fallbackConstraints);
+        documentSnapshots = await getDocs(fallbackQuery);
+      }
+
       let logsData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceLog));
       
+      // Ensure in-memory date range filter applies
+      if (fromDateString) {
+        logsData = logsData.filter(log => log.date >= fromDateString);
+      }
+      if (toDateString) {
+        logsData = logsData.filter(log => log.date <= toDateString);
+      }
+
       // If we used a filter, we sort manually since we removed orderBy from the query
       if (isFiltered) {
           logsData.sort((a, b) => b.date.localeCompare(a.date));
@@ -266,7 +300,7 @@ return (
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDate, machineFilter, toast, isPrivileged, subordinateIdsKey, subordinateIds]);
+  }, [fromDate, toDate, machineFilter, toast, isPrivileged, subordinateIdsKey, subordinateIds]);
 
   useEffect(() => {
     if (!canViewPage) return;
@@ -276,7 +310,7 @@ return (
     setFirstVisible(null);
     setLastVisible(null);
     fetchLogs('first');
-  }, [canViewPage, machineFilter, selectedDate, fetchLogs]);
+  }, [canViewPage, machineFilter, fromDate, toDate, fetchLogs]);
 
 
   const goToNextPage = () => {
@@ -292,7 +326,8 @@ return (
   };
   
   const clearDateFilter = () => {
-    setSelectedDate(null);
+    setFromDate(null);
+    setToDate(null);
   };
 
     const handleCorrection = () => {
@@ -305,14 +340,16 @@ return (
 
   const displayedRecords = useMemo(() => {
     const employeeMap = new Map(allEmployees.map(emp => [String(emp.employeeId), emp.name]));
-    const uniqueEmployeesMap = new Map<number, any>();
+    const uniqueEmployeesMap = new Map<string, any>();
     
     allLogs.forEach(log => {
-        if (!uniqueEmployeesMap.has(log.userId)) {
-            const employeeName = employeeMap.get(String(log.userId)) || log.employeeName;
-            uniqueEmployeesMap.set(log.userId, {
+        const key = String(log.userId);
+        if (!uniqueEmployeesMap.has(key)) {
+            const isNumericLogName = log.employeeName && /^\d+$/.test(log.employeeName);
+            const employeeName = employeeMap.get(key) || (!isNumericLogName ? log.employeeName : '') || `ID: ${key}`;
+            uniqueEmployeesMap.set(key, {
                 id: log.id,
-                userId: log.userId,
+                userId: key,
                 employeeName: employeeName,
                 lastActivity: log.date,
                 machine: log.machine,
@@ -400,18 +437,44 @@ return (
                       />
                   </div>
                   <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                      {/* From Date */}
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("w-full sm:w-auto justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
+                          <Button variant="outline" className={cn("w-full sm:w-auto justify-start text-left font-normal", !fromDate && "text-muted-foreground")}>
                               <CalendarIcon className="mr-2 h-4 w-4" />
-                              {selectedDate ? format(selectedDate, 'MM/dd/yyyy') : <span>Filter by date...</span>}
+                              {fromDate ? `From: ${format(fromDate, 'MM/dd/yyyy')}` : <span>From Date</span>}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={selectedDate || undefined} onSelect={(date) => setSelectedDate(date || null)} initialFocus />
+                            <Calendar mode="single" selected={fromDate || undefined} onSelect={(date) => setFromDate(date || null)} initialFocus />
                         </PopoverContent>
                       </Popover>
-                      {selectedDate && <Button variant="ghost" size="icon" onClick={clearDateFilter}><X className="h-4 w-4" /></Button>}
+
+                      {/* To Date */}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-full sm:w-auto justify-start text-left font-normal", !toDate && "text-muted-foreground")}>
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {toDate ? `To: ${format(toDate, 'MM/dd/yyyy')}` : <span>To Date</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <Calendar 
+                              mode="single" 
+                              selected={toDate || undefined} 
+                              onSelect={(date) => setToDate(date || null)} 
+                              disabled={fromDate ? (d) => d < fromDate : undefined}
+                              initialFocus 
+                            />
+                        </PopoverContent>
+                      </Popover>
+
+                      {(fromDate || toDate) && (
+                        <Button variant="ghost" size="icon" onClick={clearDateFilter} title="Clear Date Filter">
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+
                       <Select value={machineFilter} onValueChange={setMachineFilter} disabled={isLoadingMachines}>
                           <SelectTrigger className="w-full sm:w-auto">
                               <SelectValue placeholder="Filter by machine" />
@@ -447,7 +510,7 @@ return (
                ) : displayedRecords.length === 0 ? (
                   <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
                       <h3 className="text-xl font-semibold">No Employees Found</h3>
-                      <p className="mt-2">{searchTerm || machineFilter !== 'All' || selectedDate ? `No employees match your search/filter.` : "There are currently no attendance logs available."}</p>
+                      <p className="mt-2">{searchTerm || machineFilter !== 'All' || fromDate || toDate ? `No employees match your search/filter.` : "There are currently no attendance logs available."}</p>
                   </div>
                ) : (
                   <Table>
@@ -485,7 +548,7 @@ return (
                   </Table>
                )}
           </CardContent>
-           {(!selectedDate && machineFilter === "All" && !searchTerm) && (
+           {(!fromDate && !toDate && machineFilter === "All" && !searchTerm) && (
             <CardContent>
               <div className="flex items-center justify-end space-x-2 py-4">
                   <Button

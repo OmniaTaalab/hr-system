@@ -5,7 +5,7 @@ import { AppLayout, useUserProfile } from '@/components/layout/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, getDocs, limit, or } from 'firebase/firestore';
 import { Loader2, BookOpenCheck, ArrowLeft, AlertTriangle, Search, Calendar as CalendarIcon, X, FileDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useParams, useRouter } from 'next/navigation';
@@ -28,6 +28,8 @@ interface AttendanceLog {
 }
 
 interface DailyAttendanceLog {
+    employeeId: string;
+    employeeName: string;
     date: string;
     check_in: string | null;
     check_out: string | null;
@@ -42,7 +44,8 @@ function UserAttendanceLogContent() {
   const router = useRouter();
   const params = useParams();
   const employeeIdentifier = params.id as string;
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [fromDate, setFromDate] = useState<Date | null>(null);
+  const [toDate, setToDate] = useState<Date | null>(null);
 
   const [checkingAccess, setCheckingAccess] = useState(true);
 
@@ -71,9 +74,14 @@ if (
         }
 
         try {
+            const idAsNumber = Number(employeeIdentifier);
+            const conditions = [where("employeeId", "==", String(employeeIdentifier))];
+            if (!isNaN(idAsNumber)) {
+                conditions.push(where("employeeId", "==", idAsNumber));
+            }
             const empQuery = query(
                 collection(db, "employee"), 
-                where("employeeId", "==", employeeIdentifier),
+                or(...conditions),
                 limit(1)
             );
             const empSnap = await getDocs(empQuery);
@@ -109,7 +117,7 @@ if (
     setIsLoading(true);
 
     const getEmployeeIdAndFetchLogs = async () => {
-        let employeeId: number | null = null;
+        let rawEmployeeId: string | number = employeeIdentifier;
         let fetchedEmployeeName: string | null = null;
 
         if (employeeIdentifier.includes('@')) {
@@ -118,7 +126,7 @@ if (
                 const employeeSnapshot = await getDocs(employeeQuery);
                 if (!employeeSnapshot.empty) {
                     const employeeData = employeeSnapshot.docs[0].data();
-                    employeeId = Number(employeeData.employeeId);
+                    rawEmployeeId = employeeData.employeeId;
                     fetchedEmployeeName = employeeData.name;
                     setEmployeeName(fetchedEmployeeName || '');
                 } else {
@@ -133,18 +141,35 @@ if (
                 return;
             }
         } else {
-            employeeId = Number(employeeIdentifier);
+            // Lookup employee by employeeId (string or number) to get their official name
+            try {
+                const idAsNumber = Number(employeeIdentifier);
+                const conditions = [where("employeeId", "==", String(employeeIdentifier))];
+                if (!isNaN(idAsNumber)) {
+                    conditions.push(where("employeeId", "==", idAsNumber));
+                }
+                const empQuery = query(collection(db, "employee"), or(...conditions), limit(1));
+                const empSnap = await getDocs(empQuery);
+                if (!empSnap.empty) {
+                    const empData = empSnap.docs[0].data();
+                    fetchedEmployeeName = empData.name;
+                    setEmployeeName(fetchedEmployeeName || '');
+                }
+            } catch (e) {
+                console.warn("Could not lookup employee name by ID:", e);
+            }
         }
 
-        if (employeeId === null || isNaN(employeeId)) {
-            toast({ variant: "destructive", title: "Invalid Identifier", description: "The provided employee identifier is not valid." });
-            setIsLoading(false);
-            return;
+        // Build attendance log query matching BOTH string and number userId
+        const idAsNumber = Number(rawEmployeeId);
+        const userConditions = [where("userId", "==", String(rawEmployeeId))];
+        if (!isNaN(idAsNumber)) {
+            userConditions.push(where("userId", "==", idAsNumber));
         }
 
         const logsQuery = query(
             collection(db, "attendance_log"), 
-            where("userId", "==", employeeId)
+            or(...userConditions)
         );
 
         const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
@@ -153,9 +178,13 @@ if (
             ...doc.data()
           } as AttendanceLog));
           
-          if (selectedDate) {
-              const dateString = format(selectedDate, 'yyyy-MM-dd');
-              rawLogs = rawLogs.filter(log => log.date === dateString);
+          if (fromDate) {
+              const fromDateString = format(fromDate, 'yyyy-MM-dd');
+              rawLogs = rawLogs.filter(log => log.date >= fromDateString);
+          }
+          if (toDate) {
+              const toDateString = format(toDate, 'yyyy-MM-dd');
+              rawLogs = rawLogs.filter(log => log.date <= toDateString);
           }
 
           const groupedLogs: { [key: string]: { check_ins: string[], check_outs: string[] } } = {};
@@ -177,11 +206,22 @@ if (
               if (log.check_out) groupedLogs[log.date].check_outs.push(log.check_out);
           });
           
+          // Determine the most accurate employee name (prefer official fetched name, or non-numeric log name)
+          const validLogName = rawLogs.find(l => l.employeeName && !/^\d+$/.test(l.employeeName))?.employeeName;
+          const currentEmployeeName = fetchedEmployeeName || employeeName || validLogName || `ID: ${rawEmployeeId}`;
+          const currentEmployeeId = String(rawEmployeeId);
+
+          if (!fetchedEmployeeName && validLogName) {
+            setEmployeeName(validLogName);
+          }
+
           const processedLogs: DailyAttendanceLog[] = Object.keys(groupedLogs).map(date => {
               const { check_ins, check_outs } = groupedLogs[date];
               check_ins.sort();
               check_outs.sort();
               return {
+                  employeeId: currentEmployeeId,
+                  employeeName: currentEmployeeName,
                   date: date,
                   check_in: check_ins[0] || null,
                   check_out: check_outs.length > 0 ? check_outs[check_outs.length - 1] : null,
@@ -191,11 +231,6 @@ if (
           processedLogs.sort((a, b) => b.date.localeCompare(a.date));
           setLogs(processedLogs);
 
-          if (rawLogs.length > 0 && !fetchedEmployeeName) {
-            setEmployeeName(rawLogs[0].employeeName);
-          } else if (rawLogs.length === 0 && !fetchedEmployeeName) {
-             setEmployeeName(`ID: ${employeeId}`);
-          }
           setIsLoading(false);
         }, (error) => {
           console.error("Error fetching user attendance logs:", error);
@@ -213,18 +248,24 @@ if (
             if (unsubscribe) unsubscribe();
         });
     };
-  }, [toast, canViewPage, employeeIdentifier, selectedDate]);
+  }, [toast, canViewPage, employeeIdentifier, fromDate, toDate, employeeName]);
 
   const handleExportExcel = () => {
     if (logs.length === 0) {
       toast({ title: "No Data", description: "There are no records to export.", variant: "destructive" });
       return;
     }
-    const dataToExport = logs.map(log => ({ 'Date': log.date, 'Check In': log.check_in || '-', 'Check Out': log.check_out || '-' }));
+    const dataToExport = logs.map(log => ({
+      'Employee ID': log.employeeId,
+      'Employee Name': log.employeeName,
+      'Date': log.date,
+      'Check In': log.check_in || '-',
+      'Check Out': log.check_out || '-'
+    }));
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance History");
-    XLSX.writeFile(workbook, `Attendance_History_${employeeName.replace(/\s/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    XLSX.writeFile(workbook, `Attendance_History_${(employeeName || employeeIdentifier).replace(/\s/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
   if (isLoadingProfile || checkingAccess || isLoading) {
@@ -245,26 +286,64 @@ if (
       <header>
         <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
           <BookOpenCheck className="mr-3 h-8 w-8 text-primary" />
-          {`Attendance History for ${employeeName || `ID: ${employeeIdentifier}`}`}
+          {employeeName && employeeName !== `ID: ${employeeIdentifier}`
+            ? `Attendance History for ${employeeName} (ID: ${employeeIdentifier})`
+            : `Attendance History for ID: ${employeeIdentifier}`}
         </h1>
       </header>
 
       <Card className="shadow-lg">
           <CardHeader>
               <CardTitle>Full Log Data</CardTitle>
-              <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <div className="flex flex-col sm:flex-row items-center gap-2 pt-2 flex-wrap">
+                 {/* From Date */}
                  <Popover>
                     <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn("w-full sm:w-[240px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
+                        <Button variant="outline" className={cn("w-full sm:w-auto justify-start text-left font-normal", !fromDate && "text-muted-foreground")}>
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {selectedDate ? format(selectedDate, 'MM/dd/yyyy') : <span>Filter by date...</span>}
+                            {fromDate ? `From: ${format(fromDate, 'MM/dd/yyyy')}` : <span>From Date</span>}
                         </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                        <Calendar mode="single" selected={selectedDate || undefined} onSelect={(date) => setSelectedDate(date || null)} initialFocus />
+                        <Calendar 
+                          mode="single" 
+                          selected={fromDate || undefined} 
+                          onSelect={(date) => setFromDate(date || null)} 
+                          initialFocus 
+                        />
                     </PopoverContent>
                   </Popover>
-                  {selectedDate && <Button variant="ghost" size="icon" onClick={() => setSelectedDate(null)}><X className="h-4 w-4" /></Button>}
+
+                 {/* To Date */}
+                 <Popover>
+                    <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full sm:w-auto justify-start text-left font-normal", !toDate && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {toDate ? `To: ${format(toDate, 'MM/dd/yyyy')}` : <span>To Date</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                        <Calendar 
+                          mode="single" 
+                          selected={toDate || undefined} 
+                          onSelect={(date) => setToDate(date || null)} 
+                          disabled={fromDate ? (d) => d < fromDate : undefined}
+                          initialFocus 
+                        />
+                    </PopoverContent>
+                  </Popover>
+
+                  {(fromDate || toDate) && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => { setFromDate(null); setToDate(null); }}
+                      title="Clear date filter"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+
                   <Button onClick={handleExportExcel} variant="outline" className="w-full sm:w-auto">
                     <FileDown className="mr-2 h-4 w-4" />
                     Export Excel
@@ -280,6 +359,8 @@ if (
                   <Table>
                       <TableHeader>
                           <TableRow>
+                              <TableHead>Employee ID</TableHead>
+                              <TableHead>Employee Name</TableHead>
                               <TableHead>Date</TableHead>
                               <TableHead>Check In</TableHead>
                               <TableHead>Check Out</TableHead>
@@ -288,7 +369,9 @@ if (
                       <TableBody>
                           {logs.map((record) => (
                               <TableRow key={record.date}>
-                                  <TableCell className="font-medium">{record.date}</TableCell>
+                                  <TableCell className="font-medium">{record.employeeId}</TableCell>
+                                  <TableCell className="font-medium">{record.employeeName}</TableCell>
+                                  <TableCell>{record.date}</TableCell>
                                   <TableCell>{record.check_in || '-'}</TableCell>
                                   <TableCell>{record.check_out || '-'}</TableCell>
                               </TableRow>
