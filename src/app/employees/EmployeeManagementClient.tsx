@@ -2493,6 +2493,7 @@ if (
             'Department': emp.department,
             'Campus': emp.campus,
             'Stage': emp.stage,
+            'System':emp.system,
             'Status': String(emp.status ?? '').trim().toLowerCase() === 'deactivated' ? 'Deactivated' : 'Active',
             'Subject': emp.subject,
             'Personal Email': emp.personalEmail,
@@ -2535,7 +2536,7 @@ if (
   const handleDownloadTemplate = () => {
     const headers = [
       "Employee ID", "Name", "NameAr", "childrenAtNIS", "NIS Email", "Title","Role" , "Position Class",
-      "Department", "Campus", "Stage", "Status", "Subject", "personal Email",
+      "Department", "Campus", "Stage", "System","Status", "Subject", "personal Email",
       "Phone", "Date Of Birth", "joining Date", "Gender", "National ID", "Religion",
       "Emergency Contact Name", "Emergency Contact Relationship", "Emergency Contact Number",
       "ReportLine1", "ReportLine2", "ReportLine3", "ReportLine4", "ReportLine5", "ReportLine6","Reason For Leaving","Deactivation Date","Reason Note"

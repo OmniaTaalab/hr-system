@@ -520,6 +520,7 @@ if (
       ['Department', employee.department],
       ['Campus', employee.campus],
       ['Stage', employee.stage || '-'],
+      ['System', employee.system|| '-'],
       ['Subject', employee.subject || '-'],
       ['Joining Date', joiningDate ? format(joiningDate, 'MM/dd/yyyy') : '-'],
       ['Date of Birth', dob ? format(dob, 'MM/dd/yyyy') : '-'],
