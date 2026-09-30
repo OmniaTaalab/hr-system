@@ -4,7 +4,7 @@
 import { AppLayout, useUserProfile } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Loader2, CalendarCheck2, Trash2, PlusCircle, Sunrise, Sun, Moon } from "lucide-react";
+import { ArrowRight, Loader2, CalendarCheck2, Trash2, PlusCircle, Sunrise, Sun, Moon, BarChart3, Layers, TableProperties, School, Building2, Search, X, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { iconMap } from "@/components/icon-map";
 import React, { useState, useEffect, useMemo } from "react";
@@ -16,7 +16,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell, Legend } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { format, startOfDay, endOfDay, differenceInCalendarDays, isToday, isTomorrow } from 'date-fns';
@@ -152,6 +152,8 @@ function DashboardCard({
 interface CampusData {
   name: string;
   count: number;
+  systems: { [system: string]: number };
+  [systemKey: string]: any;
 }
 
 // Harmonious, elegant enterprise palette for school campuses
@@ -167,6 +169,42 @@ const CAMPUS_PALETTE = [
   "#14B8A6", // Bright Teal
   "#D97706", // Ochre Gold
 ];
+
+const SYSTEM_PALETTE: Record<string, string> = {
+  British: "#7C3AED", // Vibrant Purple
+  American: "#2563EB", // Royal Blue
+  National: "#0D9488", // Deep Teal
+  IB: "#F59E0B", // Warm Amber
+  French: "#E11D48", // Rose Coral
+  German: "#10B981", // Emerald Green
+  "General / Unassigned": "#94A3B8", // Slate Muted
+};
+
+const EXTRA_SYSTEM_COLORS = [
+  "#0284C7", "#D97706", "#8B5CF6", "#EC4899", "#14B8A6", "#64748B", "#F97316", "#06B6D4"
+];
+
+function getSystemColor(sys: string, idx = 0): string {
+  if (SYSTEM_PALETTE[sys]) return SYSTEM_PALETTE[sys];
+  const lower = sys.toLowerCase();
+  for (const [key, color] of Object.entries(SYSTEM_PALETTE)) {
+    if (key.toLowerCase() === lower) return color;
+  }
+  return EXTRA_SYSTEM_COLORS[idx % EXTRA_SYSTEM_COLORS.length];
+}
+
+const normalizeSystemName = (raw: string): string => {
+  const trimmed = raw.trim();
+  if (!trimmed) return "General / Unassigned";
+  const lower = trimmed.toLowerCase();
+  if (lower === "british") return "British";
+  if (lower === "american" || lower === "amrican") return "American";
+  if (lower === "national") return "National";
+  if (lower === "ib") return "IB";
+  if (lower === "french") return "French";
+  if (lower === "german") return "German";
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+};
 
 const chartConfig = {
   employees: {
@@ -188,6 +226,10 @@ function DashboardPageContent() {
   const [rejectedLeaveRequests, setRejectedLeaveRequests] = useState<number | null>(null);
   const [totalLeaveRequests, setTotalLeaveRequests] = useState<number | null>(null);
   const [campusData, setCampusData] = useState<CampusData[]>([]);
+  const [knownSystems, setKnownSystems] = useState<string[]>([]);
+  const [visualizationView, setVisualizationView] = useState<"overview" | "stacked" | "details">("overview");
+  const [selectedCampusFilter, setSelectedCampusFilter] = useState<string | null>(null);
+  const [detailsSearchTerm, setDetailsSearchTerm] = useState<string>("");
   const [upcomingHolidays, setUpcomingHolidays] = useState<Holiday[]>([]);
   const [lateAttendance, setLateAttendance] = useState<number | null>(null);
   const [kpiData, setKpiData] = useState<{ eleot: KpiEntry[], tot: KpiEntry[] }>({ eleot: [], tot: [] });
@@ -555,17 +597,49 @@ return (
       try {
         const empQuery = query(collection(db, "employee"));
         const snapshot = await getDocs(empQuery);
-        const campusCounts: { [key: string]: number } = {};
+        const campusMap: { [campus: string]: { count: number; systems: { [system: string]: number } } } = {};
+        const systemSet = new Set<string>();
+
         snapshot.forEach((doc) => {
           const data = doc.data() as any;
           const status = toStr(data.status).toLowerCase();
           // Filter out deactivated employees so only active employees are displayed
           if (status === "deactivated") return;
           if (data.campus) {
-            campusCounts[data.campus] = (campusCounts[data.campus] || 0) + 1;
+            const campusName = String(data.campus).trim();
+            if (!campusMap[campusName]) {
+              campusMap[campusName] = { count: 0, systems: {} };
+            }
+            campusMap[campusName].count += 1;
+
+            const rawSys = (data.system || data.systems) ? String(data.system || data.systems).trim() : "";
+            const sys = normalizeSystemName(rawSys);
+            campusMap[campusName].systems[sys] = (campusMap[campusName].systems[sys] || 0) + 1;
+            systemSet.add(sys);
           }
         });
-        const formattedData = Object.entries(campusCounts).map(([name, count]) => ({ name, count }));
+
+        const sortedSystems = Array.from(systemSet).sort((a, b) => {
+          if (a === "General / Unassigned") return 1;
+          if (b === "General / Unassigned") return -1;
+          return a.localeCompare(b);
+        });
+        setKnownSystems(sortedSystems);
+
+        const formattedData: CampusData[] = Object.entries(campusMap).map(([name, info]) => {
+          const item: CampusData = {
+            name,
+            count: info.count,
+            systems: info.systems,
+          };
+          Object.entries(info.systems).forEach(([sys, cnt]) => {
+            item[sys] = cnt;
+          });
+          return item;
+        });
+
+        // Sort campuses descending by total count
+        formattedData.sort((a, b) => b.count - a.count);
         setCampusData(formattedData);
       } catch (error) {
         console.error("Error fetching campus data:", error);
@@ -693,6 +767,20 @@ return (
       const total = kpiData.tot.reduce((sum, item) => sum + item.points, 0);
       return parseFloat(((total / (kpiData.tot.length * 6)) * 10).toFixed(1));
   }, [kpiData.tot]);
+
+  const selectedCampusData = useMemo(() => {
+    if (!selectedCampusFilter) return null;
+    return campusData.find((c) => c.name.toLowerCase() === selectedCampusFilter.toLowerCase()) || null;
+  }, [campusData, selectedCampusFilter]);
+
+  const filteredDetailsCampuses = useMemo(() => {
+    if (!detailsSearchTerm.trim()) return campusData;
+    const term = detailsSearchTerm.trim().toLowerCase();
+    return campusData.filter((c) => {
+      if (c.name.toLowerCase().includes(term)) return true;
+      return Object.keys(c.systems || {}).some((sys) => sys.toLowerCase().includes(term));
+    });
+  }, [campusData, detailsSearchTerm]);
 
   const statisticCards: DashboardCardProps[] = [
     {
@@ -934,99 +1022,514 @@ return (
           <h2 id="charts-title" className="text-2xl font-semibold font-headline mb-4">
             Visualizations
           </h2>
-          <Card className="group relative overflow-hidden rounded-xl border border-border/70 bg-card p-0 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.01] hover:shadow-xl hover:shadow-primary/15 hover:border-primary/50 hover:ring-2 hover:ring-primary/20 col-span-1 lg:col-span-2">
-            <div className="pointer-events-none absolute -inset-px rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-b from-primary/10 via-primary/5 to-transparent" />
-            <CardHeader className="relative pb-2">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <Card className="group relative overflow-hidden rounded-xl border border-border/70 bg-card p-0 shadow-sm transition-all duration-300 ease-out hover:shadow-xl hover:shadow-primary/10 hover:border-primary/40 col-span-1 lg:col-span-2">
+            <CardHeader className="relative pb-3 border-b bg-muted/20">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                 <div>
                   <CardTitle className="font-headline text-xl flex items-center">
                     <iconMap.BarChartBig className="mr-2 h-6 w-6 text-primary" />
-                    Employee Distribution by Campus
+                    Employee Distribution by Campus & System
                   </CardTitle>
-                  <CardDescription>Number of active employees distributed across each school campus.</CardDescription>
+                  <CardDescription>
+                    Number of active employees distributed across each school campus with academic system details.
+                  </CardDescription>
                 </div>
-                {campusData.length > 0 && (
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 self-start sm:self-auto">
-                    {campusData.reduce((acc, curr) => acc + curr.count, 0)} Total Assigned
-                  </span>
-                )}
+                <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+                  {/* View Mode Switcher */}
+                  <div className="inline-flex items-center rounded-lg border bg-background/80 p-0.5 shadow-xs text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setVisualizationView("overview")}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors",
+                        visualizationView === "overview"
+                          ? "bg-primary text-primary-foreground shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      title="Campus Overview Chart"
+                    >
+                      <BarChart3 className="h-3.5 w-3.5" />
+                      <span>Overview</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVisualizationView("stacked")}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors",
+                        visualizationView === "stacked"
+                          ? "bg-primary text-primary-foreground shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      title="Stacked by System (British, American, etc.)"
+                    >
+                      <Layers className="h-3.5 w-3.5" />
+                      <span>By System (Stacked)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVisualizationView("details")}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors",
+                        visualizationView === "details"
+                          ? "bg-primary text-primary-foreground shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      title="Full System Breakdown Table & Cards"
+                    >
+                      <TableProperties className="h-3.5 w-3.5" />
+                      <span>Details by System</span>
+                    </button>
+                  </div>
+
+                  {campusData.length > 0 && (
+                    <span className="text-xs font-semibold px-2.5 py-1.5 rounded-md bg-primary/10 text-primary border border-primary/20 flex-shrink-0">
+                      {campusData.reduce((acc, curr) => acc + curr.count, 0)} Total Assigned
+                    </span>
+                  )}
+                </div>
               </div>
             </CardHeader>
-            <CardContent className="relative pl-2 pr-6">
+            <CardContent className="relative p-4 sm:p-6 space-y-4">
               {isLoadingCampusData ? (
                 <div className="flex justify-center items-center h-[350px]">
                   <Loader2 className="h-12 w-12 animate-spin text-primary" />
                 </div>
               ) : campusData.length > 0 ? (
                 <div className="space-y-4">
-                  <ChartContainer config={chartConfig} className="h-[350px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart accessibilityLayer data={campusData} margin={{ top: 15, right: 10, left: -20, bottom: 65 }}>
-                        <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
-                        <XAxis
-                          dataKey="name"
-                          tickLine={false}
-                          axisLine={false}
-                          tickMargin={10}
-                          angle={-30}
-                          textAnchor="end"
-                          interval={0}
-                          height={70}
-                          className="text-xs fill-muted-foreground font-medium"
-                          tickFormatter={(value) => value.length > 16 ? `${value.substring(0, 14)}...` : value}
-                        />
-                        <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} className="text-xs fill-muted-foreground" />
-                        <ChartTooltip
-                          cursor={{ fill: "rgba(0,0,0,0.04)" }}
-                          content={({ active, payload }) => {
-                            if (active && payload && payload.length) {
-                              const data = payload[0].payload as CampusData;
-                              const index = campusData.findIndex(c => c.name === data.name);
-                              const color = CAMPUS_PALETTE[index >= 0 ? index % CAMPUS_PALETTE.length : 0];
-                              return (
-                                <div className="rounded-lg border bg-popover p-2.5 shadow-md text-xs">
-                                  <div className="flex items-center gap-2 font-medium text-popover-foreground mb-1">
-                                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
-                                    <span>{data.name}</span>
-                                  </div>
-                                  <p className="text-muted-foreground">
-                                    Employees: <span className="font-bold text-foreground text-sm">{data.count}</span>
-                                  </p>
-                                </div>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                        <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                          {campusData.map((entry, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={CAMPUS_PALETTE[index % CAMPUS_PALETTE.length]}
-                              className="transition-opacity duration-200 hover:opacity-80"
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </ChartContainer>
-
-                  {/* Harmonious campus color legend chips */}
-                  <div className="flex flex-wrap items-center justify-center gap-2 pt-3 border-t">
-                    {campusData.map((c, i) => (
-                      <div
-                        key={c.name}
-                        className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/40 hover:bg-muted/70 px-2.5 py-1 rounded-md border transition-colors"
-                      >
-                        <span
-                          className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: CAMPUS_PALETTE[i % CAMPUS_PALETTE.length] }}
-                        />
-                        <span className="font-medium text-foreground">{c.name}:</span>
-                        <span className="font-semibold">{c.count}</span>
+                  {/* Selected Campus Drilldown Banner */}
+                  {selectedCampusData && (
+                    <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 shadow-xs transition-all">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-3 border-b border-primary/15 pb-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                            <School className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <h4 className="font-headline font-semibold text-base text-foreground flex items-center gap-2">
+                              <span>{selectedCampusData.name}</span>
+                              <span className="text-xs font-normal text-muted-foreground bg-background/80 px-2 py-0.5 rounded-full border">
+                                System Breakdown
+                              </span>
+                            </h4>
+                            <p className="text-xs text-muted-foreground">
+                              <span className="font-semibold text-foreground">{selectedCampusData.count}</span> active employee(s) assigned to this campus
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                          onClick={() => setSelectedCampusFilter(null)}
+                        >
+                          <X className="h-3.5 w-3.5 mr-1" />
+                          Close Details
+                        </Button>
                       </div>
-                    ))}
-                  </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                        {Object.entries(selectedCampusData.systems)
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([sysName, count], idx) => {
+                            const sysColor = getSystemColor(sysName, idx);
+                            const pct = selectedCampusData.count > 0 ? ((count / selectedCampusData.count) * 100).toFixed(1) : "0";
+                            return (
+                              <div
+                                key={sysName}
+                                className="rounded-lg border bg-card p-3 shadow-xs flex flex-col justify-between hover:border-primary/40 transition-colors"
+                              >
+                                <div className="flex items-center justify-between gap-1 mb-2">
+                                  <span className="inline-flex items-center gap-1.5 font-medium text-xs text-foreground truncate">
+                                    <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: sysColor }} />
+                                    <span className="truncate">{sysName}</span>
+                                  </span>
+                                  <span className="text-[11px] font-semibold text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
+                                    {pct}%
+                                  </span>
+                                </div>
+                                <div className="flex items-baseline justify-between pt-1">
+                                  <div className="flex items-baseline gap-1.5">
+                                    <span className="text-xl font-bold font-headline text-foreground">{count}</span>
+                                    <span className="text-xs text-muted-foreground">{count === 1 ? 'employee' : 'employees'}</span>
+                                  </div>
+                                </div>
+                                <div className="w-full bg-muted/50 rounded-full h-1.5 mt-2 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full transition-all duration-500"
+                                    style={{ width: `${pct}%`, backgroundColor: sysColor }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* View 1: Standard Campus Overview Bar Chart */}
+                  {visualizationView === "overview" && (
+                    <div className="space-y-4">
+                      <ChartContainer config={chartConfig} className="h-[350px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            accessibilityLayer
+                            data={campusData}
+                            margin={{ top: 15, right: 10, left: -20, bottom: 65 }}
+                            onClick={(state) => {
+                              if (state && state.activePayload && state.activePayload.length) {
+                                const clickedCampus = state.activePayload[0].payload as CampusData;
+                                setSelectedCampusFilter(prev => prev === clickedCampus.name ? null : clickedCampus.name);
+                              }
+                            }}
+                          >
+                            <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
+                            <XAxis
+                              dataKey="name"
+                              tickLine={false}
+                              axisLine={false}
+                              tickMargin={10}
+                              angle={-30}
+                              textAnchor="end"
+                              interval={0}
+                              height={70}
+                              className="text-xs fill-muted-foreground font-medium"
+                              tickFormatter={(value) => value.length > 16 ? `${value.substring(0, 14)}...` : value}
+                            />
+                            <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} className="text-xs fill-muted-foreground" />
+                            <ChartTooltip
+                              cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  const data = payload[0].payload as CampusData;
+                                  const index = campusData.findIndex(c => c.name === data.name);
+                                  const color = CAMPUS_PALETTE[index >= 0 ? index % CAMPUS_PALETTE.length : 0];
+                                  const systemEntries = Object.entries(data.systems || {}).sort((a, b) => b[1] - a[1]);
+
+                                  return (
+                                    <div className="rounded-lg border bg-popover p-3 shadow-lg text-xs min-w-[210px] z-50">
+                                      <div className="flex items-center justify-between gap-2 border-b pb-1.5 mb-2">
+                                        <div className="flex items-center gap-1.5 font-semibold text-popover-foreground">
+                                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+                                          <span>{data.name}</span>
+                                        </div>
+                                        <span className="font-bold text-foreground bg-muted px-1.5 py-0.5 rounded text-[11px]">
+                                          {data.count} Total
+                                        </span>
+                                      </div>
+
+                                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                                        System Breakdown
+                                      </p>
+
+                                      <div className="space-y-1">
+                                        {systemEntries.length > 0 ? (
+                                          systemEntries.map(([sysName, sysCount], idx) => {
+                                            const sysColor = getSystemColor(sysName, idx);
+                                            const pct = data.count > 0 ? ((sysCount / data.count) * 100).toFixed(1) : "0";
+                                            return (
+                                              <div key={sysName} className="flex items-center justify-between gap-3 py-0.5">
+                                                <div className="flex items-center gap-1.5 truncate">
+                                                  <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: sysColor }} />
+                                                  <span className="text-foreground truncate font-medium">{sysName}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1 text-right flex-shrink-0">
+                                                  <span className="font-bold text-foreground">{sysCount}</span>
+                                                  <span className="text-muted-foreground text-[10px]">({pct}%)</span>
+                                                </div>
+                                              </div>
+                                            );
+                                          })
+                                        ) : (
+                                          <p className="text-muted-foreground text-xs">No system details</p>
+                                        )}
+                                      </div>
+
+                                      <div className="mt-2 pt-1.5 border-t text-[10px] text-primary/80 font-medium text-center">
+                                        Click bar to view full breakdown
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                            <Bar dataKey="count" radius={[6, 6, 0, 0]} className="cursor-pointer">
+                              {campusData.map((entry, index) => {
+                                const isSelected = selectedCampusFilter === entry.name;
+                                return (
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={CAMPUS_PALETTE[index % CAMPUS_PALETTE.length]}
+                                    stroke={isSelected ? "#000" : "transparent"}
+                                    strokeWidth={isSelected ? 2 : 0}
+                                    className="transition-opacity duration-200 hover:opacity-85"
+                                  />
+                                );
+                              })}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </ChartContainer>
+
+                      {/* Interactive campus legend chips */}
+                      <div className="flex flex-wrap items-center justify-center gap-2 pt-3 border-t">
+                        {campusData.map((c, i) => {
+                          const isSelected = selectedCampusFilter === c.name;
+                          return (
+                            <button
+                              key={c.name}
+                              type="button"
+                              onClick={() => setSelectedCampusFilter(prev => prev === c.name ? null : c.name)}
+                              className={cn(
+                                "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border transition-all cursor-pointer",
+                                isSelected
+                                  ? "bg-primary text-primary-foreground border-primary shadow-xs font-semibold"
+                                  : "text-muted-foreground bg-muted/40 hover:bg-muted/70 hover:text-foreground"
+                              )}
+                              title={`Click to view ${c.name} system breakdown`}
+                            >
+                              <span
+                                className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: CAMPUS_PALETTE[i % CAMPUS_PALETTE.length] }}
+                              />
+                              <span className={isSelected ? "text-primary-foreground" : "font-medium text-foreground"}>
+                                {c.name}:
+                              </span>
+                              <span className="font-semibold">{c.count}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* View 2: Stacked by System Bar Chart */}
+                  {visualizationView === "stacked" && (
+                    <div className="space-y-4">
+                      <ChartContainer config={chartConfig} className="h-[360px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            accessibilityLayer
+                            data={campusData}
+                            margin={{ top: 15, right: 10, left: -20, bottom: 65 }}
+                            onClick={(state) => {
+                              if (state && state.activePayload && state.activePayload.length) {
+                                const clickedCampus = state.activePayload[0].payload as CampusData;
+                                setSelectedCampusFilter(prev => prev === clickedCampus.name ? null : clickedCampus.name);
+                              }
+                            }}
+                          >
+                            <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
+                            <XAxis
+                              dataKey="name"
+                              tickLine={false}
+                              axisLine={false}
+                              tickMargin={10}
+                              angle={-30}
+                              textAnchor="end"
+                              interval={0}
+                              height={70}
+                              className="text-xs fill-muted-foreground font-medium"
+                              tickFormatter={(value) => value.length > 16 ? `${value.substring(0, 14)}...` : value}
+                            />
+                            <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} className="text-xs fill-muted-foreground" />
+                            <ChartTooltip
+                              cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  const data = payload[0].payload as CampusData;
+                                  const systemEntries = Object.entries(data.systems || {}).sort((a, b) => b[1] - a[1]);
+
+                                  return (
+                                    <div className="rounded-lg border bg-popover p-3 shadow-lg text-xs min-w-[210px] z-50">
+                                      <div className="flex items-center justify-between gap-2 border-b pb-1.5 mb-2">
+                                        <span className="font-semibold text-popover-foreground">{data.name}</span>
+                                        <span className="font-bold text-foreground bg-muted px-1.5 py-0.5 rounded text-[11px]">
+                                          {data.count} Total
+                                        </span>
+                                      </div>
+
+                                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                                        Systems in this Campus
+                                      </p>
+
+                                      <div className="space-y-1">
+                                        {systemEntries.map(([sysName, sysCount], idx) => {
+                                          const sysColor = getSystemColor(sysName, idx);
+                                          const pct = data.count > 0 ? ((sysCount / data.count) * 100).toFixed(1) : "0";
+                                          return (
+                                            <div key={sysName} className="flex items-center justify-between gap-3 py-0.5">
+                                              <div className="flex items-center gap-1.5 truncate">
+                                                <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: sysColor }} />
+                                                <span className="text-foreground truncate font-medium">{sysName}</span>
+                                              </div>
+                                              <div className="flex items-center gap-1 text-right flex-shrink-0">
+                                                <span className="font-bold text-foreground">{sysCount}</span>
+                                                <span className="text-muted-foreground text-[10px]">({pct}%)</span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                            {knownSystems.map((sys, idx) => (
+                              <Bar
+                                key={sys}
+                                dataKey={sys}
+                                name={sys}
+                                stackId="campusSystems"
+                                fill={getSystemColor(sys, idx)}
+                                radius={idx === knownSystems.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                                className="cursor-pointer"
+                              />
+                            ))}
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </ChartContainer>
+
+                      {/* System Legend Chips with total counts */}
+                      <div className="pt-3 border-t">
+                        <p className="text-[11px] font-semibold text-muted-foreground mb-2 text-center uppercase tracking-wider">
+                          System Color Legend (Total Employees Across All Campuses)
+                        </p>
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                          {knownSystems.map((sys, i) => {
+                            const totalInSystem = campusData.reduce((sum, c) => sum + (c.systems[sys] || 0), 0);
+                            return (
+                              <div
+                                key={sys}
+                                className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/40 px-2.5 py-1 rounded-md border"
+                              >
+                                <span
+                                  className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: getSystemColor(sys, i) }}
+                                />
+                                <span className="font-medium text-foreground">{sys}:</span>
+                                <span className="font-semibold text-foreground">{totalInSystem}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* View 3: Details by System (Interactive Cards Grid) */}
+                  {visualizationView === "details" && (
+                    <div className="space-y-4">
+                      {/* Search Bar for details */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/30 p-2.5 rounded-lg border">
+                        <div className="relative flex-1 min-w-[200px] max-w-sm">
+                          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <input
+                            type="text"
+                            placeholder="Filter by campus or system name (e.g. 1st Settlement, British)..."
+                            value={detailsSearchTerm}
+                            onChange={(e) => setDetailsSearchTerm(e.target.value)}
+                            className="w-full pl-9 pr-3 py-1.5 text-xs rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                        {detailsSearchTerm && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => setDetailsSearchTerm("")}
+                          >
+                            Clear Search
+                          </Button>
+                        )}
+                        <span className="text-xs text-muted-foreground font-medium">
+                          Showing {filteredDetailsCampuses.length} of {campusData.length} campuses
+                        </span>
+                      </div>
+
+                      {/* Cards Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {filteredDetailsCampuses.map((c) => {
+                          const systemEntries = Object.entries(c.systems).sort((a, b) => b[1] - a[1]);
+                          const isSelected = selectedCampusFilter === c.name;
+
+                          return (
+                            <div
+                              key={c.name}
+                              className={cn(
+                                "rounded-xl border p-4 shadow-xs transition-all flex flex-col justify-between",
+                                isSelected
+                                  ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                                  : "border-border/70 bg-card hover:border-primary/40 hover:shadow-md"
+                              )}
+                            >
+                              <div>
+                                <div className="flex items-start justify-between gap-2 mb-3 border-b pb-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="p-1.5 rounded-md bg-muted text-foreground">
+                                      <Building2 className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                      <h4 className="font-headline font-semibold text-sm text-foreground">
+                                        {c.name}
+                                      </h4>
+                                      <p className="text-[11px] text-muted-foreground">
+                                        {systemEntries.length} {systemEntries.length === 1 ? 'system' : 'systems'} active
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                                    {c.count} Employees
+                                  </span>
+                                </div>
+
+                                <div className="space-y-2.5">
+                                  {systemEntries.map(([sysName, count], idx) => {
+                                    const sysColor = getSystemColor(sysName, idx);
+                                    const pct = c.count > 0 ? ((count / c.count) * 100).toFixed(1) : "0";
+
+                                    return (
+                                      <div key={sysName} className="space-y-1">
+                                        <div className="flex items-center justify-between text-xs">
+                                          <span className="flex items-center gap-1.5 font-medium text-foreground">
+                                            <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: sysColor }} />
+                                            <span>{sysName}</span>
+                                          </span>
+                                          <span className="font-semibold text-foreground">
+                                            {count} <span className="text-muted-foreground font-normal text-[11px]">({pct}%)</span>
+                                          </span>
+                                        </div>
+                                        <div className="w-full bg-muted/60 rounded-full h-1.5 overflow-hidden">
+                                          <div
+                                            className="h-full rounded-full transition-all duration-300"
+                                            style={{ width: `${pct}%`, backgroundColor: sysColor }}
+                                          />
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              <div className="pt-3 mt-3 border-t flex justify-end">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-xs text-primary hover:text-primary hover:bg-primary/10"
+                                  onClick={() => setSelectedCampusFilter(prev => prev === c.name ? null : c.name)}
+                                >
+                                  {isSelected ? "Hide Focus" : "Focus on this Campus"}
+                                  <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="text-center text-muted-foreground py-10">No campus data available to display chart.</p>

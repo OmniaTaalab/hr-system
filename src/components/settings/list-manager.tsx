@@ -16,6 +16,7 @@ import {
     syncSubjectsFromEmployeesAction,
     syncMachineNamesFromAttendanceLogsAction,
     syncPositionClassesFromEmployeesAction,
+    syncSystemsFromEmployeesAction,
     type SyncState 
 } from "@/app/actions/settings-actions";
 
@@ -67,6 +68,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   const [syncSubjectsState, syncSubjectsAction, isSyncSubjectsPending] = useActionState(syncSubjectsFromEmployeesAction, initialSyncState);
   const [syncMachineNamesState, syncMachineNamesAction, isSyncMachineNamesPending] = useActionState(syncMachineNamesFromAttendanceLogsAction, initialSyncState);
   const [syncPositionClassesState, syncPositionClassesAction, isSyncPositionClassesPending] = useActionState(syncPositionClassesFromEmployeesAction, initialSyncState);
+  const [syncSystemsState, syncSystemsAction, isSyncSystemsPending] = useActionState(syncSystemsFromEmployeesAction, initialSyncState);
 
 
   const addFormRef = useRef<HTMLFormElement>(null);
@@ -121,7 +123,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
   }, [deleteState, toast]);
 
   useEffect(() => {
-    const states = [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState, syncReportLine2State];
+    const states = [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState, syncReportLine2State, syncPositionClassesState, syncSystemsState];
     states.forEach(state => {
         if (state?.message) {
             toast({
@@ -131,7 +133,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
             });
         }
     });
-  }, [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState, syncReportLine2State, syncPositionClassesState, toast]);
+  }, [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState, syncReportLine2State, syncPositionClassesState, syncSystemsState, toast]);
 
 
   const filteredItems = useMemo(() => {
@@ -218,6 +220,14 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
               <form action={syncPositionClassesAction}>
                   <Button size="sm" variant="secondary" disabled={isSyncPositionClassesPending}>
                       {isSyncPositionClassesPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Sync
+                  </Button>
+              </form>
+            )}
+            {collectionName === 'systems' && (
+              <form action={syncSystemsAction}>
+                  <Button size="sm" variant="secondary" disabled={isSyncSystemsPending}>
+                      {isSyncSystemsPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
                       Sync
                   </Button>
               </form>

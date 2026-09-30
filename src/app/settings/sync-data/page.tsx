@@ -16,6 +16,7 @@ import {
   syncMachineNamesFromAttendanceLogsAction,
   syncReportLine1FromEmployeesAction,
   syncReportLine2FromEmployeesAction,
+  syncSystemsFromEmployeesAction,
   correctAttendanceNamesAction,
   type SyncState,
 } from "@/app/actions/settings-actions";
@@ -152,6 +153,7 @@ export default function SyncDataPage() {
   const [syncMachineState, syncMachineAction, isSyncMachinePending] = useActionState(syncMachineNamesFromAttendanceLogsAction, initialSyncState);
   const [syncReportLine1State, syncReportLine1Action, isSyncReportLine1Pending] = useActionState(syncReportLine1FromEmployeesAction, initialSyncState);
   const [syncReportLine2State, syncReportLine2Action, isSyncReportLine2Pending] = useActionState(syncReportLine2FromEmployeesAction, initialSyncState);
+  const [syncSystemState, syncSystemAction, isSyncSystemPending] = useActionState(syncSystemsFromEmployeesAction, initialSyncState);
   const [correctionState, correctionAction, isCorrectionPending] = useActionState(correctAttendanceNamesAction, initialCorrectionState);
   const [deduplicationState, deduplicationAction, isDeduplicationPending] = useActionState(deduplicateEmployeesAction, initialDeduplicationState);
   
@@ -231,6 +233,13 @@ export default function SyncDataPage() {
                     action={syncReportLine2Action}
                     isPending={isSyncReportLine2Pending}
                     state={syncReportLine2State}
+                    actorDetails={actorDetails}
+                />
+                <SyncButton 
+                    label="Sync Systems from Employees"
+                    action={syncSystemAction}
+                    isPending={isSyncSystemPending}
+                    state={syncSystemState}
                     actorDetails={actorDetails}
                 />
             </CardContent>

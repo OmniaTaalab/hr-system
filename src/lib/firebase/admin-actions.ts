@@ -209,14 +209,15 @@ async function resolveCreateEmployeeId(typedEmployeeId: string | undefined): Pro
 
 // Helper for date string validation (MM/DD/YYYY)
 const dateInputSchema = z.preprocess(
-  (arg) => (arg === "" || arg === null || arg === undefined ? undefined : String(arg)),
+  (arg) => (arg === "" || arg === null || arg === undefined ? undefined : String(arg).trim()),
   z.string().optional().refine((val) => {
     if (!val || val === "") return true;
     const match = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (!match) return false;
     const mm = parseInt(match[1], 10);
-    return mm >= 1 && mm <= 12;
-  }, { message: "Invalid date format or month > 12. Please use MM/DD/YYYY." })
+    const dd = parseInt(match[2], 10);
+    return mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31;
+  }, { message: "Invalid date format. Please use MM/DD/YYYY." })
   .transform(val => {
     if (!val || val === "") return undefined;
     const [m, d, y] = val.split('/').map(Number);
@@ -234,14 +235,26 @@ const CreateEmployeeFormSchema = z.object({
     (val) => (val === "" || val === null || val === undefined ? undefined : String(val).trim()),
     z.string().optional()
   ),
-  gender: z.enum(["Male", "Female", "Other"]).optional(),
-  role: z.string().optional().nullable(),
+  gender: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.enum(["Male", "Female", "Other"]).optional()
+  ),
+  role: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? null : String(val).trim()),
+    z.string().optional().nullable()
+  ),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
   nameAr: z.string().optional(),
-  childrenAtNIS: z.enum(['Yes', 'No']).optional(),
-  personalEmail: z.string().email().optional().or(z.literal('')).transform(val => val ? val.replace(/\s/g, '').toLowerCase() : val),
+  childrenAtNIS: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.enum(['Yes', 'No']).optional()
+  ),
+  personalEmail: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : String(val).trim()),
+    z.string().email({ message: "Invalid personal email address." }).optional().or(z.literal(''))
+  ),
   emergencyContactName: z.string().optional(),
   emergencyContactRelationship: z.string().optional(),
   emergencyContactNumber: z.string().optional(),
@@ -252,22 +265,35 @@ const CreateEmployeeFormSchema = z.object({
   reportLine5: z.string().optional(),
   reportLine6: z.string().optional(),
   department: z.string().optional(),
-  stage: z.string().optional().nullable(),
-  system: z.string().optional(),
-  campus: z.string().optional().nullable(),
+  stage: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? null : String(val).trim()),
+    z.string().optional().nullable()
+  ),
+  system: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? null : String(val).trim()),
+    z.string().optional().nullable()
+  ),
+  campus: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? null : String(val).trim()),
+    z.string().optional().nullable()
+  ),
   phone: z.string().optional(),
   hourlyRate: z.preprocess((val) => {
     if (val === "" || val === null || val === undefined) return undefined;
     const parsed = parseFloat(String(val));
     return isNaN(parsed) ? undefined : parsed;
-  }, z.number().nonnegative().optional()),
+  }, z.number().nonnegative({ message: "Hourly rate cannot be negative." }).optional()),
   dateOfBirth: dateInputSchema,
   joiningDate: dateInputSchema,
+  leavingDate: dateInputSchema,
   nationalId: z.string().optional(),
   religion: z.string().optional(),
   subject: z.string().optional(),
   title: z.string().optional(),
-  positionClass: z.string().optional().nullable(),
+  positionClass: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? null : String(val).trim()),
+    z.string().optional().nullable()
+  ),
 });
 
 export type CreateEmployeeState = {
@@ -288,9 +314,13 @@ export async function createEmployeeAction(
   const validatedFields = CreateEmployeeFormSchema.safeParse(rawData);
 
   if (!validatedFields.success) {
+    const fieldErrors = validatedFields.error.flatten().fieldErrors;
+    const errorDetails = Object.entries(fieldErrors)
+      .map(([k, v]) => `${k}: ${v?.join(", ")}`)
+      .join("; ");
     return {
-      errors: validatedFields.error.flatten().fieldErrors,
-      message: "Validation failed.",
+      errors: fieldErrors,
+      message: errorDetails ? `Validation failed: ${errorDetails}` : "Validation failed.",
       success: false,
     };
   }
@@ -409,7 +439,15 @@ export async function updateEmployeeAction(
   const validatedFields = CreateEmployeeFormSchema.safeParse(rawData);
 
   if (!validatedFields.success) {
-    return { errors: validatedFields.error.flatten().fieldErrors, success: false, message: "Validation failed." };
+    const fieldErrors = validatedFields.error.flatten().fieldErrors;
+    const errorDetails = Object.entries(fieldErrors)
+      .map(([k, v]) => `${k}: ${v?.join(", ")}`)
+      .join("; ");
+    return {
+      errors: fieldErrors,
+      success: false,
+      message: errorDetails ? `Validation failed: ${errorDetails}` : "Validation failed.",
+    };
   }
 
   const { firstName, lastName, nisEmail, employeeId, gender, role, ...otherData } = validatedFields.data;
@@ -475,6 +513,7 @@ export async function updateEmployeeAction(
       hourlyRate: otherData.hourlyRate || null,
       dateOfBirth: otherData.dateOfBirth ? Timestamp.fromDate(otherData.dateOfBirth) : null,
       joiningDate: otherData.joiningDate ? Timestamp.fromDate(otherData.joiningDate) : null,
+      leavingDate: otherData.leavingDate ? Timestamp.fromDate(otherData.leavingDate) : null,
       nationalId: otherData.nationalId || null,
       religion: otherData.religion || null,
       subject: otherData.subject || null,

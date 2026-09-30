@@ -737,6 +737,10 @@ export async function syncStagesFromEmployeesAction(prevState: SyncState, formDa
     return runSync(formData, (actorDetails) => syncListFromSource("employee", "stage", "stage", actorDetails));
 }
 
+export async function syncSystemsFromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
+    return runSync(formData, (actorDetails) => syncListFromSource("employee", "system", "systems", actorDetails));
+}
+
 export async function syncSubjectsFromEmployeesAction(prevState: SyncState, formData: FormData): Promise<SyncState> {
     return runSync(formData, (actorDetails) => syncListFromSource("employee", "subject", "subjects", actorDetails));
 }

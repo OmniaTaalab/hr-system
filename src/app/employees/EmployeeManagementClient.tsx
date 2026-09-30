@@ -231,9 +231,10 @@ function AddEmployeeFormContent({
   const { roles, stage: stages, systems, campuses, positionClasses, isLoading: isLoadingLists } = useOrganizationLists();
   const [gender, setGender] = useState("");
   const [role, setRole] = useState("");
-const [campus, setCampus] = useState("");
-const [stage, setStage] = useState("");
-const [positionClass, setPositionClass] = useState("");
+  const [campus, setCampus] = useState("");
+  const [stage, setStage] = useState("");
+  const [positionClass, setPositionClass] = useState("");
+  const [system, setSystem] = useState("");
   const [reportLineCount, setReportLineCount] = useState(2);
   const [typedEmployeeId, setTypedEmployeeId] = useState("");
   const [employeeIdError, setEmployeeIdError] = useState<string | null>(null);
@@ -317,6 +318,18 @@ const validateAddEmployeeForm = (form: HTMLFormElement) => {
       return;
     }
 
+    if (addState.errors && Object.keys(addState.errors).length > 0) {
+      const serverFieldErrors: Record<string, string> = {};
+      Object.entries(addState.errors).forEach(([field, msgs]) => {
+        if (field !== "form" && msgs && msgs.length > 0) {
+          serverFieldErrors[field] = msgs[0];
+        }
+      });
+      if (Object.keys(serverFieldErrors).length > 0) {
+        setFieldErrors((prev) => ({ ...prev, ...serverFieldErrors }));
+      }
+    }
+
     if (addState.message && !addState.success) {
       toast({
         title: "Error",
@@ -397,6 +410,7 @@ const validateAddEmployeeForm = (form: HTMLFormElement) => {
         <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
         <input type="hidden" name="actorRole" value={profile?.role ?? ''} />
         <input type="hidden" name="positionClass" value={positionClass || ''} />
+        <input type="hidden" name="system" value={system || ''} />
         
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
           <div className="space-y-6 p-4 pr-6">
@@ -650,11 +664,24 @@ const validateAddEmployeeForm = (form: HTMLFormElement) => {
   )}
 </div>
                 <div className="space-y-2">
-                    <Label>Position class</Label>
-                    <Select name="positionClass" value={positionClass} onValueChange={setPositionClass} disabled={isLoadingLists}>
-                        <SelectTrigger><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Position class"} /></SelectTrigger>
+                    <Label className={fieldErrors.positionClass ? "text-destructive" : ""}>Position class</Label>
+                    <Select value={positionClass} onValueChange={(val) => { setPositionClass(val); clearFieldError("positionClass"); }} disabled={isLoadingLists}>
+                        <SelectTrigger data-field="positionClass" className={fieldErrors.positionClass ? "border-destructive border-2 ring-1 ring-destructive focus:ring-destructive" : ""}><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Position class"} /></SelectTrigger>
                         <SelectContent>{positionClasses?.map(pc => <SelectItem key={pc.id} value={pc.name}>{pc.name}</SelectItem>)}</SelectContent>
                     </Select>
+                    {fieldErrors.positionClass && (
+                      <p className="text-sm text-destructive">{fieldErrors.positionClass}</p>
+                    )}
+                </div>
+                <div className="space-y-2">
+                    <Label className={fieldErrors.system ? "text-destructive" : ""}>System</Label>
+                    <Select value={system} onValueChange={(val) => { setSystem(val); clearFieldError("system"); }} disabled={isLoadingLists}>
+                        <SelectTrigger data-field="system" className={fieldErrors.system ? "border-destructive border-2 ring-1 ring-destructive focus:ring-destructive" : ""}><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select System"} /></SelectTrigger>
+                        <SelectContent>{systems?.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                    {fieldErrors.system && (
+                      <p className="text-sm text-destructive">{fieldErrors.system}</p>
+                    )}
                 </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -879,18 +906,6 @@ export function EditEmployeeFormContent({
 
     lastHandledEditStateRef.current = serverState;
 
-    // Backend validation error for NIS Email
-    if (serverState.errors?.nisEmail?.length) {
-      setFieldErrors((prev) => ({
-        ...prev,
-        nisEmail:
-          serverState.errors?.nisEmail?.[0] ||
-          "NIS Email is required.",
-      }));
-
-      return;
-    }
-
     // Successful update
     if (serverState.success) {
       toast({
@@ -906,6 +921,51 @@ export function EditEmployeeFormContent({
       onSuccess();
 
       return;
+    }
+
+    // Backend validation errors - map ALL field errors to state
+    if (serverState.errors && Object.keys(serverState.errors).length > 0) {
+      const serverFieldErrors: Record<string, string> = {};
+      let firstErrorField: string | null = null;
+
+      Object.entries(serverState.errors).forEach(([field, msgs]) => {
+        if (field !== "form" && msgs && msgs.length > 0) {
+          serverFieldErrors[field] = msgs[0];
+          if (!firstErrorField) {
+            firstErrorField = field;
+          }
+        }
+      });
+
+      if (Object.keys(serverFieldErrors).length > 0) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          ...serverFieldErrors,
+        }));
+
+        // Scroll and focus first error field
+        window.setTimeout(() => {
+          const form = document.getElementById("edit-employee-form");
+          if (form && firstErrorField) {
+            const el =
+              form.querySelector(`[data-field="${firstErrorField}"]`) ||
+              form.querySelector(`[name="${firstErrorField}"]`);
+
+            if (el instanceof HTMLElement) {
+              el.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+
+              window.setTimeout(() => {
+                if (typeof (el as any).focus === "function") {
+                  (el as any).focus();
+                }
+              }, 200);
+            }
+          }
+        }, 150);
+      }
     }
 
     // Other backend errors
@@ -961,35 +1021,57 @@ export function EditEmployeeFormContent({
           }
 
           const form = event.currentTarget;
-
           const formData = new FormData(form);
+
+          const clientErrors: Record<string, string> = {};
 
           const nisEmail = String(
             formData.get("nisEmail") || ""
           ).trim();
 
-          /*
-           * IMPORTANT:
-           * لو الـ NIS Email فاضي:
-           *
-           * - منبعتش الفورم
-           * - منقفلش الـ dialog
-           * - منمسحش أي قيمة اتغيرت
-           * - نعلم NIS Email بالأحمر فقط
-           */
           if (!nisEmail) {
+            clientErrors.nisEmail = "NIS Email is required.";
+          } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nisEmail)) {
+            clientErrors.nisEmail = "Please enter a valid NIS email address.";
+          }
+
+          const personalEmail = String(formData.get("personalEmail") || "").trim();
+          if (personalEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personalEmail)) {
+            clientErrors.personalEmail = "Please enter a valid personal email address.";
+          }
+
+          const dateRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+          const checkDate = (val: string, fieldName: string, label: string) => {
+            if (!val) return;
+            const match = val.match(dateRegex);
+            if (!match) {
+              clientErrors[fieldName] = `${label} must be in MM/DD/YYYY format.`;
+              return;
+            }
+            const mm = parseInt(match[1], 10);
+            const dd = parseInt(match[2], 10);
+            if (mm < 1 || mm > 12 || dd < 1 || dd > 31) {
+              clientErrors[fieldName] = `Invalid ${label}. Month must be 1-12 and day 1-31.`;
+            }
+          };
+
+          const dob = String(formData.get("dateOfBirth") || "").trim();
+          checkDate(dob, "dateOfBirth", "Date of Birth");
+
+          const joining = String(formData.get("joiningDate") || "").trim();
+          checkDate(joining, "joiningDate", "Joining Date");
+
+          const leaving = String(formData.get("leavingDate") || "").trim();
+          checkDate(leaving, "leavingDate", "Leaving Date");
+
+          if (Object.keys(clientErrors).length > 0) {
             event.preventDefault();
+            setFieldErrors(clientErrors);
 
-            setFieldErrors((prev) => ({
-              ...prev,
-              nisEmail: "NIS Email is required.",
-            }));
-
+            const firstErrorField = Object.keys(clientErrors)[0];
             const field =
-              form.querySelector(
-                '[data-field="nisEmail"]'
-              ) ||
-              form.querySelector('[name="nisEmail"]');
+              form.querySelector(`[data-field="${firstErrorField}"]`) ||
+              form.querySelector(`[name="${firstErrorField}"]`);
 
             if (field instanceof HTMLElement) {
               field.scrollIntoView({
@@ -998,24 +1080,16 @@ export function EditEmployeeFormContent({
               });
 
               window.setTimeout(() => {
-                field.focus();
+                if (typeof (field as any).focus === "function") {
+                  (field as any).focus();
+                }
               }, 250);
             }
 
             return;
           }
 
-          clearFieldError("nisEmail");
-
           setFormClientError(null);
-
-          /*
-           * مهم:
-           * هنا منعملش preventDefault
-           *
-           * action={formAction}
-           * هيبعت كل البيانات المعدلة للسيرفر.
-           */
         }}
       >
         <input
@@ -1091,13 +1165,14 @@ export function EditEmployeeFormContent({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-firstName">
+                <Label htmlFor="edit-firstName" className={fieldErrors.firstName ? "text-destructive" : ""}>
                   First Name
                 </Label>
 
                 <Input
                   id="edit-firstName"
                   name="firstName"
+                  data-field="firstName"
                   defaultValue={
                     employee.firstName ||
                     (typeof employee.name === "string"
@@ -1105,23 +1180,30 @@ export function EditEmployeeFormContent({
                       : "") ||
                     ""
                   }
+                  className={
+                    fieldErrors.firstName
+                      ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  onChange={() => clearFieldError("firstName")}
                 />
 
-                {serverState?.errors?.firstName && (
+                {fieldErrors.firstName && (
                   <p className="text-sm text-destructive">
-                    {serverState.errors.firstName.join(", ")}
+                    {fieldErrors.firstName}
                   </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-lastName">
+                <Label htmlFor="edit-lastName" className={fieldErrors.lastName ? "text-destructive" : ""}>
                   Last Name
                 </Label>
 
                 <Input
                   id="edit-lastName"
                   name="lastName"
+                  data-field="lastName"
                   defaultValue={
                     employee.lastName ||
                     (typeof employee.name === "string"
@@ -1132,32 +1214,51 @@ export function EditEmployeeFormContent({
                       : "") ||
                     ""
                   }
+                  className={
+                    fieldErrors.lastName
+                      ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  onChange={() => clearFieldError("lastName")}
                 />
 
-                {serverState?.errors?.lastName && (
+                {fieldErrors.lastName && (
                   <p className="text-sm text-destructive">
-                    {serverState.errors.lastName.join(", ")}
+                    {fieldErrors.lastName}
                   </p>
                 )}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-name-ar">
+              <Label htmlFor="edit-name-ar" className={fieldErrors.nameAr ? "text-destructive" : ""}>
                 Full Name (Arabic)
               </Label>
 
               <Input
                 id="edit-name-ar"
                 name="nameAr"
+                data-field="nameAr"
                 defaultValue={employee.nameAr || ""}
                 dir="rtl"
+                className={
+                  fieldErrors.nameAr
+                    ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                    : ""
+                }
+                onChange={() => clearFieldError("nameAr")}
               />
+
+              {fieldErrors.nameAr && (
+                <p className="text-sm text-destructive">
+                  {fieldErrors.nameAr}
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-personalEmail">
+                <Label htmlFor="edit-personalEmail" className={fieldErrors.personalEmail ? "text-destructive" : ""}>
                   Personal Email
                 </Label>
 
@@ -1165,20 +1266,46 @@ export function EditEmployeeFormContent({
                   id="edit-personalEmail"
                   name="personalEmail"
                   type="email"
+                  data-field="personalEmail"
                   defaultValue={employee.personalEmail || ""}
+                  className={
+                    fieldErrors.personalEmail
+                      ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  onChange={() => clearFieldError("personalEmail")}
                 />
+
+                {fieldErrors.personalEmail && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.personalEmail}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-phone">
+                <Label htmlFor="edit-phone" className={fieldErrors.phone ? "text-destructive" : ""}>
                   Personal Phone
                 </Label>
 
                 <Input
                   id="edit-phone"
                   name="phone"
+                  data-field="phone"
                   defaultValue={employee.phone || ""}
+                  className={
+                    fieldErrors.phone
+                      ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  onChange={() => clearFieldError("phone")}
                 />
+
+                {fieldErrors.phone && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.phone}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1189,55 +1316,114 @@ export function EditEmployeeFormContent({
               </h4>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-md">
-                <Input
-                  name="emergencyContactName"
-                  placeholder="Name"
-                  defaultValue={
-                    employee.emergencyContact?.name || ""
-                  }
-                />
+                <div className="space-y-1">
+                  <Input
+                    name="emergencyContactName"
+                    data-field="emergencyContactName"
+                    placeholder="Name"
+                    defaultValue={
+                      employee.emergencyContact?.name || ""
+                    }
+                    className={
+                      fieldErrors.emergencyContactName
+                        ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                        : ""
+                    }
+                    onChange={() => clearFieldError("emergencyContactName")}
+                  />
+                  {fieldErrors.emergencyContactName && (
+                    <p className="text-xs text-destructive">{fieldErrors.emergencyContactName}</p>
+                  )}
+                </div>
 
-                <Input
-                  name="emergencyContactRelationship"
-                  placeholder="Relationship"
-                  defaultValue={
-                    employee.emergencyContact?.relationship ||
-                    ""
-                  }
-                />
+                <div className="space-y-1">
+                  <Input
+                    name="emergencyContactRelationship"
+                    data-field="emergencyContactRelationship"
+                    placeholder="Relationship"
+                    defaultValue={
+                      employee.emergencyContact?.relationship ||
+                      ""
+                    }
+                    className={
+                      fieldErrors.emergencyContactRelationship
+                        ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                        : ""
+                    }
+                    onChange={() => clearFieldError("emergencyContactRelationship")}
+                  />
+                  {fieldErrors.emergencyContactRelationship && (
+                    <p className="text-xs text-destructive">{fieldErrors.emergencyContactRelationship}</p>
+                  )}
+                </div>
 
-                <Input
-                  name="emergencyContactNumber"
-                  placeholder="Number"
-                  defaultValue={
-                    employee.emergencyContact?.number || ""
-                  }
-                />
+                <div className="space-y-1">
+                  <Input
+                    name="emergencyContactNumber"
+                    data-field="emergencyContactNumber"
+                    placeholder="Number"
+                    defaultValue={
+                      employee.emergencyContact?.number || ""
+                    }
+                    className={
+                      fieldErrors.emergencyContactNumber
+                        ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                        : ""
+                    }
+                    onChange={() => clearFieldError("emergencyContactNumber")}
+                  />
+                  {fieldErrors.emergencyContactNumber && (
+                    <p className="text-xs text-destructive">{fieldErrors.emergencyContactNumber}</p>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-dateOfBirth">
+                <Label htmlFor="edit-dateOfBirth" className={fieldErrors.dateOfBirth ? "text-destructive" : ""}>
                   Date of Birth (MM/DD/YYYY)
                 </Label>
 
                 <Input
                   id="edit-dateOfBirth"
                   name="dateOfBirth"
+                  data-field="dateOfBirth"
                   defaultValue={dobFormatted}
                   placeholder="MM/DD/YYYY"
+                  className={
+                    fieldErrors.dateOfBirth
+                      ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  onChange={() => clearFieldError("dateOfBirth")}
                 />
+
+                {fieldErrors.dateOfBirth && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.dateOfBirth}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label>Gender</Label>
+                <Label className={fieldErrors.gender ? "text-destructive" : ""}>Gender</Label>
 
                 <Select
                   value={gender}
-                  onValueChange={setGender}
+                  onValueChange={(val) => {
+                    setGender(val);
+                    clearFieldError("gender");
+                  }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger
+                    data-field="gender"
+                    className={
+                      fieldErrors.gender
+                        ? "border-destructive border-2 ring-1 ring-destructive focus:ring-destructive"
+                        : ""
+                    }
+                  >
                     <SelectValue placeholder="Select Gender" />
                   </SelectTrigger>
 
@@ -1255,45 +1441,79 @@ export function EditEmployeeFormContent({
                     </SelectItem>
                   </SelectContent>
                 </Select>
+
+                {fieldErrors.gender && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.gender}
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-nationalId">
+                <Label htmlFor="edit-nationalId" className={fieldErrors.nationalId ? "text-destructive" : ""}>
                   National ID
                 </Label>
 
                 <Input
                   id="edit-nationalId"
                   name="nationalId"
+                  data-field="nationalId"
                   defaultValue={employee.nationalId || ""}
+                  className={
+                    fieldErrors.nationalId
+                      ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  onChange={() => clearFieldError("nationalId")}
                 />
+
+                {fieldErrors.nationalId && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.nationalId}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-religion">
+                <Label htmlFor="edit-religion" className={fieldErrors.religion ? "text-destructive" : ""}>
                   Religion
                 </Label>
 
                 <Input
                   id="edit-religion"
                   name="religion"
+                  data-field="religion"
                   defaultValue={employee.religion || ""}
+                  className={
+                    fieldErrors.religion
+                      ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  onChange={() => clearFieldError("religion")}
                 />
+
+                {fieldErrors.religion && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.religion}
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>
+              <Label className={fieldErrors.childrenAtNIS ? "text-destructive" : ""}>
                 Do they have children enrolled at NIS?
               </Label>
 
               <RadioGroup
+                data-field="childrenAtNIS"
                 value={childrenAtNIS}
-                onValueChange={(val) =>
-                  setChildrenAtNIS(val as "Yes" | "No")
-                }
+                onValueChange={(val) => {
+                  setChildrenAtNIS(val as "Yes" | "No");
+                  clearFieldError("childrenAtNIS");
+                }}
                 className="flex items-center space-x-4"
               >
                 <div className="flex items-center space-x-2">
@@ -1318,6 +1538,12 @@ export function EditEmployeeFormContent({
                   </Label>
                 </div>
               </RadioGroup>
+
+              {fieldErrors.childrenAtNIS && (
+                <p className="text-sm text-destructive">
+                  {fieldErrors.childrenAtNIS}
+                </p>
+              )}
             </div>
 
             <Separator />
@@ -1331,17 +1557,29 @@ export function EditEmployeeFormContent({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-employeeId">
+                <Label htmlFor="edit-employeeId" className={fieldErrors.employeeId ? "text-destructive" : ""}>
                   Employee ID
                 </Label>
 
                 <Input
                   id="edit-employeeId"
                   name="employeeId"
+                  data-field="employeeId"
                   defaultValue={employee.employeeId || ""}
+                  className={
+                    fieldErrors.employeeId
+                      ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  onChange={() => clearFieldError("employeeId")}
                 />
 
-                {serverState?.errors?.employeeId && (
+                {fieldErrors.employeeId && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.employeeId}
+                  </p>
+                )}
+                {serverState?.errors?.employeeId && !fieldErrors.employeeId && (
                   <p className="text-sm text-destructive">
                     {serverState.errors.employeeId.join(", ")}
                   </p>
@@ -1373,7 +1611,7 @@ export function EditEmployeeFormContent({
                   )}
                   className={
                     fieldErrors.nisEmail
-                      ? "border-destructive border-2 focus-visible:ring-destructive"
+                      ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
                       : ""
                   }
                   onChange={() =>
@@ -1391,26 +1629,49 @@ export function EditEmployeeFormContent({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="edit-department">
+                <Label htmlFor="edit-department" className={fieldErrors.department ? "text-destructive" : ""}>
                   Department
                 </Label>
 
                 <Input
                   id="edit-department"
                   name="department"
+                  data-field="department"
                   defaultValue={employee.department || ""}
+                  className={
+                    fieldErrors.department
+                      ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  onChange={() => clearFieldError("department")}
                 />
+
+                {fieldErrors.department && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.department}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label>Role</Label>
+                <Label className={fieldErrors.role ? "text-destructive" : ""}>Role</Label>
 
                 <Select
                   value={role}
-                  onValueChange={setRole}
+                  onValueChange={(val) => {
+                    setRole(val);
+                    clearFieldError("role");
+                  }}
                   disabled={isLoadingLists}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger
+                    data-field="role"
+                    className={
+                      fieldErrors.role
+                        ? "border-destructive border-2 ring-1 ring-destructive focus:ring-destructive"
+                        : ""
+                    }
+                  >
                     <SelectValue
                       placeholder={
                         isLoadingLists
@@ -1431,19 +1692,35 @@ export function EditEmployeeFormContent({
                     ))}
                   </SelectContent>
                 </Select>
+
+                {fieldErrors.role && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.role}
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Stage</Label>
+                <Label className={fieldErrors.stage ? "text-destructive" : ""}>Stage</Label>
 
                 <Select
                   value={stage}
-                  onValueChange={setStage}
+                  onValueChange={(val) => {
+                    setStage(val);
+                    clearFieldError("stage");
+                  }}
                   disabled={isLoadingLists}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger
+                    data-field="stage"
+                    className={
+                      fieldErrors.stage
+                        ? "border-destructive border-2 ring-1 ring-destructive focus:ring-destructive"
+                        : ""
+                    }
+                  >
                     <SelectValue placeholder="Select Stage" />
                   </SelectTrigger>
 
@@ -1458,31 +1735,60 @@ export function EditEmployeeFormContent({
                     ))}
                   </SelectContent>
                 </Select>
+
+                {fieldErrors.stage && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.stage}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-subject">
+                <Label htmlFor="edit-subject" className={fieldErrors.subject ? "text-destructive" : ""}>
                   Subject
                 </Label>
 
                 <Input
                   id="edit-subject"
                   name="subject"
+                  data-field="subject"
                   defaultValue={employee.subject || ""}
+                  className={
+                    fieldErrors.subject
+                      ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  onChange={() => clearFieldError("subject")}
                 />
+
+                {fieldErrors.subject && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.subject}
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Campus</Label>
+                <Label className={fieldErrors.campus ? "text-destructive" : ""}>Campus</Label>
 
                 <Select
                   value={campus}
-                  onValueChange={setCampus}
+                  onValueChange={(val) => {
+                    setCampus(val);
+                    clearFieldError("campus");
+                  }}
                   disabled={isLoadingLists}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger
+                    data-field="campus"
+                    className={
+                      fieldErrors.campus
+                        ? "border-destructive border-2 ring-1 ring-destructive focus:ring-destructive"
+                        : ""
+                    }
+                  >
                     <SelectValue placeholder="Select Campus" />
                   </SelectTrigger>
 
@@ -1497,17 +1803,33 @@ export function EditEmployeeFormContent({
                     ))}
                   </SelectContent>
                 </Select>
+
+                {fieldErrors.campus && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.campus}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label>Position class</Label>
+                <Label className={fieldErrors.positionClass ? "text-destructive" : ""}>Position class</Label>
 
                 <Select
                   value={positionClass}
-                  onValueChange={setPositionClass}
+                  onValueChange={(val) => {
+                    setPositionClass(val);
+                    clearFieldError("positionClass");
+                  }}
                   disabled={isLoadingLists}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger
+                    data-field="positionClass"
+                    className={
+                      fieldErrors.positionClass
+                        ? "border-destructive border-2 ring-1 ring-destructive focus:ring-destructive"
+                        : ""
+                    }
+                  >
                     <SelectValue
                       placeholder={
                         isLoadingLists
@@ -1528,19 +1850,35 @@ export function EditEmployeeFormContent({
                     ))}
                   </SelectContent>
                 </Select>
+
+                {fieldErrors.positionClass && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.positionClass}
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>System</Label>
+                <Label className={fieldErrors.system ? "text-destructive" : ""}>System</Label>
 
                 <Select
                   value={system}
-                  onValueChange={setSystem}
+                  onValueChange={(val) => {
+                    setSystem(val);
+                    clearFieldError("system");
+                  }}
                   disabled={isLoadingLists}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger
+                    data-field="system"
+                    className={
+                      fieldErrors.system
+                        ? "border-destructive border-2 ring-1 ring-destructive focus:ring-destructive"
+                        : ""
+                    }
+                  >
                     <SelectValue placeholder="Select System" />
                   </SelectTrigger>
 
@@ -1555,18 +1893,37 @@ export function EditEmployeeFormContent({
                     ))}
                   </SelectContent>
                 </Select>
+
+                {fieldErrors.system && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.system}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-title">
+                <Label htmlFor="edit-title" className={fieldErrors.title ? "text-destructive" : ""}>
                   Title
                 </Label>
 
                 <Input
                   id="edit-title"
                   name="title"
+                  data-field="title"
                   defaultValue={employee.title || ""}
+                  className={
+                    fieldErrors.title
+                      ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  onChange={() => clearFieldError("title")}
                 />
+
+                {fieldErrors.title && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.title}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1617,89 +1974,146 @@ export function EditEmployeeFormContent({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 name="reportLine1"
+                data-field="reportLine1"
                 defaultValue={employee.reportLine1 || ""}
                 placeholder="Report Line 1"
+                className={fieldErrors.reportLine1 ? "border-destructive border-2 ring-1 ring-destructive" : ""}
+                onChange={() => clearFieldError("reportLine1")}
               />
 
               <Input
                 name="reportLine2"
+                data-field="reportLine2"
                 defaultValue={employee.reportLine2 || ""}
                 placeholder="Report Line 2"
+                className={fieldErrors.reportLine2 ? "border-destructive border-2 ring-1 ring-destructive" : ""}
+                onChange={() => clearFieldError("reportLine2")}
               />
 
               {reportLineCount >= 3 && (
                 <Input
                   name="reportLine3"
+                  data-field="reportLine3"
                   defaultValue={employee.reportLine3 || ""}
                   placeholder="Report Line 3"
+                  className={fieldErrors.reportLine3 ? "border-destructive border-2 ring-1 ring-destructive" : ""}
+                  onChange={() => clearFieldError("reportLine3")}
                 />
               )}
 
               {reportLineCount >= 4 && (
                 <Input
                   name="reportLine4"
+                  data-field="reportLine4"
                   defaultValue={employee.reportLine4 || ""}
                   placeholder="Report Line 4"
+                  className={fieldErrors.reportLine4 ? "border-destructive border-2 ring-1 ring-destructive" : ""}
+                  onChange={() => clearFieldError("reportLine4")}
                 />
               )}
 
               {reportLineCount >= 5 && (
                 <Input
                   name="reportLine5"
+                  data-field="reportLine5"
                   defaultValue={employee.reportLine5 || ""}
                   placeholder="Report Line 5"
+                  className={fieldErrors.reportLine5 ? "border-destructive border-2 ring-1 ring-destructive" : ""}
+                  onChange={() => clearFieldError("reportLine5")}
                 />
               )}
 
               {reportLineCount >= 6 && (
                 <Input
                   name="reportLine6"
+                  data-field="reportLine6"
                   defaultValue={employee.reportLine6 || ""}
                   placeholder="Report Line 6"
+                  className={fieldErrors.reportLine6 ? "border-destructive border-2 ring-1 ring-destructive" : ""}
+                  onChange={() => clearFieldError("reportLine6")}
                 />
               )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-hourlyRate">
+                <Label htmlFor="edit-hourlyRate" className={fieldErrors.hourlyRate ? "text-destructive" : ""}>
                   Hourly Rate (Optional)
                 </Label>
 
                 <Input
                   id="edit-hourlyRate"
                   name="hourlyRate"
+                  data-field="hourlyRate"
                   type="number"
                   step="0.01"
                   defaultValue={employee.hourlyRate ?? 0}
+                  className={
+                    fieldErrors.hourlyRate
+                      ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  onChange={() => clearFieldError("hourlyRate")}
                 />
+
+                {fieldErrors.hourlyRate && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.hourlyRate}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-joiningDate">
+                <Label htmlFor="edit-joiningDate" className={fieldErrors.joiningDate ? "text-destructive" : ""}>
                   Joining Date (MM/DD/YYYY)
                 </Label>
 
                 <Input
                   id="edit-joiningDate"
                   name="joiningDate"
+                  data-field="joiningDate"
                   defaultValue={joiningFormatted}
                   placeholder="MM/DD/YYYY"
+                  className={
+                    fieldErrors.joiningDate
+                      ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  onChange={() => clearFieldError("joiningDate")}
                 />
+
+                {fieldErrors.joiningDate && (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.joiningDate}
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-leavingDate">
+              <Label htmlFor="edit-leavingDate" className={fieldErrors.leavingDate ? "text-destructive" : ""}>
                 Leaving Date (Optional - MM/DD/YYYY)
               </Label>
 
               <Input
                 id="edit-leavingDate"
                 name="leavingDate"
+                data-field="leavingDate"
                 defaultValue={leavingFormatted}
                 placeholder="MM/DD/YYYY"
+                className={
+                  fieldErrors.leavingDate
+                    ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
+                    : ""
+                }
+                onChange={() => clearFieldError("leavingDate")}
               />
+
+              {fieldErrors.leavingDate && (
+                <p className="text-sm text-destructive">
+                  {fieldErrors.leavingDate}
+                </p>
+              )}
             </div>
 
             <EmployeeFileManager employee={employee} />
