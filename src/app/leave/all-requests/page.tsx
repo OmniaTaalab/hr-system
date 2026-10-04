@@ -60,11 +60,21 @@ import { useLeaveTypes } from "@/hooks/use-leave-types";
 export interface LeaveRequestEntry {
   id: string;
   requestingEmployeeDocId: string;
+  employeeId?: string;
   employeeName: string;
   employeeStage?: string;
   employeeCampus?: string;
   reportLine1?: string;
   reportLine2?: string;
+  reportLine3?: string;
+  reportLine4?: string;
+  reportLine5?: string;
+  reportLine6?: string;
+  selectedApproverId?: string;
+  selectedApproverName?: string;
+  selectedApproverEmail?: string;
+  notifiedReportingLineIds?: string[];
+  notifiedReportingLineEmails?: string[];
   leaveType: string;
   startDate: any;
   endDate: any;
@@ -185,31 +195,91 @@ const isPrivileged =
     try {
         if (isPrivileged) {
             finalQuery = query(collection(db, "leaveRequests"), orderBy("submittedAt", "desc"));
-        } else if (profile?.email) {
-            // Manager's view
-            const reportingEmployeesQuery = query(
-                collection(db, "employee"),
-                or(
-                    where("reportLine1", "==", profile.email),
-                    where("reportLine2", "==", profile.email)
-                )
-            );
-            const reportingEmployeesSnapshot = await getDocs(reportingEmployeesQuery);
-            const employeeIds = reportingEmployeesSnapshot.docs.map((doc) => doc.id);
+        } else if (profile?.email || profile?.employeeId) {
+            // Manager / Reporting Line view
+            const managerEmails = [profile?.email, profile?.nisEmail].filter(Boolean).map(e => e!.toLowerCase());
+            const managerIds = [profile?.employeeId ? String(profile.employeeId) : null, profile?.id].filter(Boolean) as string[];
 
-            if (employeeIds.length === 0) {
-                setAllRequests([]);
-                setIsLoading(false);
-                return;
+            const subordinateDocIds = new Set<string>();
+
+            // Query employees where manager is assigned in ANY report line (1 to 6)
+            for (const email of managerEmails) {
+              for (const field of ["reportLine1", "reportLine2", "reportLine3", "reportLine4", "reportLine5", "reportLine6"]) {
+                try {
+                  const qSub = query(collection(db, "employee"), where(field, "==", email));
+                  const snap = await getDocs(qSub);
+                  snap.docs.forEach((d) => subordinateDocIds.add(d.id));
+                } catch {}
+              }
             }
-            
-            // Use a single 'in' query for all subordinate requests without composite index requirement
-            finalQuery = query(
-              collection(db, "leaveRequests"),
-              where("requestingEmployeeDocId", "in", employeeIds)
-            );
+
+            for (const id of managerIds) {
+              for (const field of ["reportLine1", "reportLine2", "reportLine3", "reportLine4", "reportLine5", "reportLine6"]) {
+                try {
+                  const qSub = query(collection(db, "employee"), where(field, "==", id));
+                  const snap = await getDocs(qSub);
+                  snap.docs.forEach((d) => subordinateDocIds.add(d.id));
+                } catch {}
+              }
+            }
+
+            const reqMap = new Map<string, LeaveRequestEntry>();
+
+            const subIdsArray = Array.from(subordinateDocIds);
+            while (subIdsArray.length > 0) {
+              const chunk = subIdsArray.splice(0, 30);
+              try {
+                const qSubReq = query(collection(db, "leaveRequests"), where("requestingEmployeeDocId", "in", chunk));
+                const s = await getDocs(qSubReq);
+                s.docs.forEach((d) => reqMap.set(d.id, { id: d.id, ...d.data() } as LeaveRequestEntry));
+              } catch {}
+            }
+
+            for (const email of managerEmails) {
+              try {
+                const qNotified = query(collection(db, "leaveRequests"), where("notifiedReportingLineEmails", "array-contains", email));
+                const s = await getDocs(qNotified);
+                s.docs.forEach((d) => reqMap.set(d.id, { id: d.id, ...d.data() } as LeaveRequestEntry));
+              } catch {}
+
+              try {
+                const qCurr = query(collection(db, "leaveRequests"), where("currentApprover", "==", email));
+                const s = await getDocs(qCurr);
+                s.docs.forEach((d) => reqMap.set(d.id, { id: d.id, ...d.data() } as LeaveRequestEntry));
+              } catch {}
+            }
+
+            for (const id of managerIds) {
+              try {
+                const qNotifiedId = query(collection(db, "leaveRequests"), where("notifiedReportingLineIds", "array-contains", id));
+                const s = await getDocs(qNotifiedId);
+                s.docs.forEach((d) => reqMap.set(d.id, { id: d.id, ...d.data() } as LeaveRequestEntry));
+              } catch {}
+
+              try {
+                const qSelId = query(collection(db, "leaveRequests"), where("selectedApproverId", "==", id));
+                const s = await getDocs(qSelId);
+                s.docs.forEach((d) => reqMap.set(d.id, { id: d.id, ...d.data() } as LeaveRequestEntry));
+              } catch {}
+            }
+
+            const requestsData = Array.from(reqMap.values());
+            requestsData.sort((a, b) => {
+              const getMillis = (val: any) => {
+                if (!val) return 0;
+                if (typeof val.toMillis === "function") return val.toMillis();
+                if (typeof val.toDate === "function") return val.toDate().getTime();
+                if (typeof val.seconds === "number") return val.seconds * 1000;
+                if (val instanceof Date) return val.getTime();
+                const parsed = new Date(val).getTime();
+                return isNaN(parsed) ? 0 : parsed;
+              };
+              return getMillis(b.submittedAt) - getMillis(a.submittedAt);
+            });
+            setAllRequests(requestsData);
+            setIsLoading(false);
+            return;
         } else {
-            // No profile/email, shouldn't happen if properly guarded, but good to handle
             setAllRequests([]);
             setIsLoading(false);
             return;
@@ -284,11 +354,22 @@ const isPrivileged =
 
     if (statusFilter !== "All") {
       if (statusFilter === "MyPending") {
-        requests = requests.filter(
-          (item) =>
-            item.status === "Pending" &&
-            item.currentApprover === profile?.email
-        );
+        requests = requests.filter((item) => {
+          if (item.status !== "Pending") return false;
+          const empId = profile?.employeeId ? String(profile.employeeId).trim() : null;
+          const docId = profile?.id || null;
+          const email = profile?.email?.trim().toLowerCase() || null;
+          const nis = profile?.nisEmail?.trim().toLowerCase() || null;
+          const selId = item.selectedApproverId ? String(item.selectedApproverId).trim() : null;
+          const selEmail = item.selectedApproverEmail ? String(item.selectedApproverEmail).trim().toLowerCase() : null;
+          const currApp = (item.currentApprover || "").trim().toLowerCase();
+
+          if (selId && ((empId && selId === empId) || (docId && selId === docId))) return true;
+          if (selEmail && email && selEmail === email) return true;
+          if (currApp && email && currApp === email) return true;
+          if (currApp && nis && currApp === nis) return true;
+          return false;
+        });
       } else {
         requests = requests.filter((item) => item.status === statusFilter);
       }
@@ -604,9 +685,22 @@ const isPrivileged =
               <TableBody>
                 {filteredRequests.length > 0 ? (
                   filteredRequests.map((r) => {
+                    const empId = profile?.employeeId ? String(profile.employeeId).trim() : null;
+                    const docId = profile?.id || null;
+                    const email = profile?.email?.trim().toLowerCase() || null;
+                    const nis = profile?.nisEmail?.trim().toLowerCase() || null;
+                    const selId = r.selectedApproverId ? String(r.selectedApproverId).trim() : null;
+                    const selEmail = r.selectedApproverEmail ? String(r.selectedApproverEmail).trim().toLowerCase() : null;
+                    const currApp = (r.currentApprover || "").trim().toLowerCase();
+
                     const isPendingMyApproval =
                       r.status === "Pending" &&
-                      r.currentApprover === profile?.email;
+                      (
+                        (selId && ((empId && selId === empId) || (docId && selId === docId))) ||
+                        (selEmail && email && selEmail === email) ||
+                        (currApp && email && currApp === email) ||
+                        (currApp && nis && currApp === nis)
+                      );
                     return (
                       <TableRow
                         key={r.id}
@@ -638,7 +732,7 @@ const isPrivileged =
                           <LeaveStatusBadge status={r.status} />
                         </TableCell>
                         <TableCell>
-                          {r.currentApprover || <Badge variant="outline">N/A</Badge>}
+                          {r.selectedApproverName || r.currentApprover || <Badge variant="outline">N/A</Badge>}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button variant="ghost" size="sm">

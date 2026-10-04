@@ -6,7 +6,7 @@ import { AppLayout, useUserProfile } from '@/components/layout/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, limit, onSnapshot } from 'firebase/firestore';
-import { Loader2, ArrowLeft, AlertTriangle, User, FileText, Calendar as CalendarIcon, Hourglass, Paperclip, Send, Info, ShieldCheck, ShieldX, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertTriangle, User, FileText, Calendar as CalendarIcon, Hourglass, Paperclip, Send, Info, ShieldCheck, ShieldX, CheckCircle, XCircle, UserCheck, Users } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -23,11 +23,23 @@ import { Skeleton } from '@/components/ui/skeleton';
 interface LeaveRequestEntry {
   id: string; 
   requestingEmployeeDocId: string;
+  employeeId?: string;
   employeeName: string;
+  employeeEmail?: string;
   employeeStage?: string; 
   employeeCampus?: string; 
   reportLine1?: string;
   reportLine2?: string;
+  reportLine3?: string;
+  reportLine4?: string;
+  reportLine5?: string;
+  reportLine6?: string;
+  selectedApproverId?: string;
+  selectedApproverDocId?: string;
+  selectedApproverName?: string;
+  selectedApproverEmail?: string;
+  notifiedReportingLineIds?: string[];
+  notifiedReportingLineEmails?: string[];
   leaveType: string;
   startDate: Timestamp;
   endDate: Timestamp;
@@ -41,6 +53,9 @@ interface LeaveRequestEntry {
   currentApprover?: string | null;
   approvedBy?: string[];
   rejectedBy?: string[];
+  approvedRejectedById?: string;
+  approvedRejectedByName?: string;
+  approvedRejectedAt?: Timestamp;
 }
 
 const initialUpdateStatusState: UpdateLeaveStatusState = { message: null, errors: {}, success: false };
@@ -94,7 +109,9 @@ function UpdateStatusForm({ request, actionType, onClose }: { request: LeaveRequ
       <input type="hidden" name="requestId" value={request.id} />
       <input type="hidden" name="newStatus" value={actionType} />
       <input type="hidden" name="actorId" value={profile?.id || ""} />
-      <input type="hidden" name="actorEmail" value={profile?.email || ""} />
+      <input type="hidden" name="actorDocId" value={profile?.id || ""} />
+      <input type="hidden" name="actorEmployeeId" value={profile?.employeeId ? String(profile.employeeId) : ""} />
+      <input type="hidden" name="actorEmail" value={profile?.nisEmail || profile?.email || ""} />
       <input type="hidden" name="actorRole" value={profile?.role || ""} />
       <AlertDialogHeader>
         <AlertDialogTitle>Confirm {actionType === "Approved" ? "Approval" : "Rejection"}</AlertDialogTitle>
@@ -150,31 +167,72 @@ function LeaveRequestDetailContent() {
     return () => unsub();
   }, [requestId, toast]);
   
+  const currentEmpId = profile?.employeeId ? String(profile.employeeId).trim() : null;
+  const currentDocId = profile?.id ? String(profile.id).trim() : null;
+  const currentEmail = (profile?.nisEmail || profile?.email || "").trim().toLowerCase();
+
   const canTakeAction = useMemo(() => {
     if (!profile || !request) return false;
-    const userRole = profile.role?.toLowerCase();
+    if (request.status !== "Pending") return false;
+
+    // Only allow Approve or Reject when currentUser.employeeId === leaveRequest.selectedApproverId
+    if (request.selectedApproverId) {
+      const selectedId = String(request.selectedApproverId).trim();
+      if (currentEmpId && currentEmpId === selectedId) return true;
+      if (currentDocId && currentDocId === selectedId) return true;
+      if (request.selectedApproverDocId && currentDocId && currentDocId === String(request.selectedApproverDocId).trim()) return true;
+      if (request.selectedApproverEmail && currentEmail && currentEmail === String(request.selectedApproverEmail).trim().toLowerCase()) return true;
+      return false;
+    }
+
+    // Fallback for legacy requests without selectedApproverId
     if (
-      userRole === "admin" ||
-      userRole === "hr" ||
-      userRole === "director" ||
-      userRole === "human resource director" ||
-      userRole === "human resource director international schools" ||
-      userRole === "personnal director" ||
-      userRole === "recruitment and onbording manager" ||
-      userRole === "human resource executive" ||
-      userRole === "recruitment and onboarding executive" ||
-      userRole === "personnel executive"
-    ) return true; // HR/Admin can always action
-    if (
-      profile.email &&
+      currentEmail &&
       request.currentApprover &&
-      profile.email.trim().toLowerCase() === request.currentApprover.trim().toLowerCase() &&
-      request.status === 'Pending'
+      currentEmail === request.currentApprover.trim().toLowerCase()
     ) {
       return true;
     }
+
+    const userRole = profile.role?.toLowerCase();
+    const isPrivileged = [
+      "admin", "hr", "director", "human resource director",
+      "human resource director international schools", "personnal director",
+      "recruitment and onbording manager", "human resource executive",
+      "recruitment and onboarding executive", "personnel executive"
+    ].includes(userRole ?? "");
+    if (isPrivileged) return true;
+
     return false;
-  }, [profile, request]);
+  }, [profile, request, currentEmpId, currentDocId, currentEmail]);
+
+  const isOtherReportingLine = useMemo(() => {
+    if (!profile || !request || canTakeAction) return false;
+    if (request.status !== "Pending") return false;
+
+    // Check if the current user is the requester themselves
+    if (
+      (currentDocId && currentDocId === request.requestingEmployeeDocId) ||
+      (currentEmpId && currentEmpId === String(request.employeeId || "").trim()) ||
+      (currentEmail && currentEmail === (request.employeeEmail || "").trim().toLowerCase())
+    ) {
+      return false; // employee who created the request
+    }
+
+    return true;
+  }, [profile, request, canTakeAction, currentDocId, currentEmpId, currentEmail]);
+
+  const assignedReportingLines = useMemo(() => {
+    if (!request) return [];
+    return [
+      { label: "ReportLine 1", val: request.reportLine1 },
+      { label: "ReportLine 2", val: request.reportLine2 },
+      { label: "ReportLine 3", val: request.reportLine3 },
+      { label: "ReportLine 4", val: request.reportLine4 },
+      { label: "ReportLine 5", val: request.reportLine5 },
+      { label: "ReportLine 6", val: request.reportLine6 },
+    ].filter((item) => typeof item.val === "string" && item.val.trim().length > 0);
+  }, [request]);
 
   const handleActionClick = (type: "Approved" | "Rejected") => {
     setActionType(type);
@@ -239,6 +297,26 @@ function LeaveRequestDetailContent() {
                 <DetailItem icon={Info} label="Status">
                    <LeaveStatusBadge status={request.status} />
                 </DetailItem>
+                <DetailItem
+                  icon={UserCheck}
+                  label="Reporting Line Approver"
+                  value={
+                    request.selectedApproverName
+                      ? `${request.selectedApproverName}${request.selectedApproverEmail ? ` (${request.selectedApproverEmail})` : ''}`
+                      : request.currentApprover || "N/A"
+                  }
+                />
+                {assignedReportingLines.length > 0 && (
+                  <DetailItem icon={Users} label="Notified Reporting Lines">
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {assignedReportingLines.map((line, idx) => (
+                        <Badge key={idx} variant="outline" className="text-xs font-normal">
+                          {line.label ? `${line.label}: ` : ''}{line.val}
+                        </Badge>
+                      ))}
+                    </div>
+                  </DetailItem>
+                )}
                 
                 <Separator />
 
@@ -266,25 +344,41 @@ function LeaveRequestDetailContent() {
 
                 <div className="space-y-2">
                     <h3 className="text-sm font-semibold text-muted-foreground">Approval Flow</h3>
-                    {request.status === 'Pending' && request.currentApprover && (
-                        <p className="text-sm text-yellow-600 flex items-center gap-2"><Hourglass className="h-4 w-4" /> Awaiting approval from: <strong>{request.currentApprover}</strong></p>
+                    {request.status === 'Pending' && (
+                        <p className="text-sm text-yellow-600 flex items-center gap-2">
+                          <Hourglass className="h-4 w-4" />
+                          <span>
+                            Awaiting approval from: <strong>{request.selectedApproverName || request.currentApprover || "Assigned Approver"}</strong>
+                          </span>
+                        </p>
                     )}
-                    {request.approvedBy && request.approvedBy.length > 0 && (
+                    {request.status === 'Approved' && (
                         <div className="text-sm text-green-600 flex items-start gap-2">
-                            <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0"/> 
+                            <ShieldCheck className="h-4 w-4 mt-0.5 flex-shrink-0" />
                             <div>
-                                Approved by:
-                                <ul className="list-disc pl-5">
-                                    {request.approvedBy.map(email => <li key={email}>{email}</li>)}
-                                </ul>
+                                <p className="font-medium">Request fully approved.</p>
+                                {request.approvedRejectedByName && (
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    Approved by: <strong>{request.approvedRejectedByName}</strong>
+                                    {request.approvedRejectedAt?.toDate ? ` on ${format(request.approvedRejectedAt.toDate(), "MM/dd/yyyy h:mm a")}` : ""}
+                                  </p>
+                                )}
                             </div>
                         </div>
                     )}
-                    {request.rejectedBy && request.rejectedBy.length > 0 && (
-                        <p className="text-sm text-red-600 flex items-center gap-2"><XCircle className="h-4 w-4" /> Rejected by: <strong>{request.rejectedBy.join(', ')}</strong></p>
-                    )}
-                    {request.status === 'Approved' && (
-                         <p className="text-sm text-green-600 flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Request fully approved.</p>
+                    {request.status === 'Rejected' && (
+                        <div className="text-sm text-red-600 flex items-start gap-2">
+                            <ShieldX className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            <div>
+                                <p className="font-medium">Request rejected.</p>
+                                {request.approvedRejectedByName && (
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    Rejected by: <strong>{request.approvedRejectedByName}</strong>
+                                    {request.approvedRejectedAt?.toDate ? ` on ${format(request.approvedRejectedAt.toDate(), "MM/dd/yyyy h:mm a")}` : ""}
+                                  </p>
+                                )}
+                            </div>
+                        </div>
                     )}
                 </div>
             </CardContent>
@@ -294,6 +388,18 @@ function LeaveRequestDetailContent() {
                     <div className="flex justify-end gap-2">
                         <Button variant="destructive" onClick={() => handleActionClick("Rejected")}>Reject</Button>
                         <Button onClick={() => handleActionClick("Approved")}>Approve</Button>
+                    </div>
+                </CardContent>
+            )}
+
+            {isOtherReportingLine && request.status === "Pending" && (
+                <CardContent>
+                    <Separator className="mb-4" />
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-50/70 dark:bg-amber-950/20 p-4 text-sm text-amber-900 dark:text-amber-200 flex items-center gap-3">
+                      <Info className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                      <p className="font-medium">
+                        View only — another Reporting Line was selected as the approver for this request.
+                      </p>
                     </div>
                 </CardContent>
             )}

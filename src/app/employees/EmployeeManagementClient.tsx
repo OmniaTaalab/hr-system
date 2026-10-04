@@ -2327,7 +2327,7 @@ export default function EmployeeManagementContent() {
   const searchParams = useSearchParams();
 
   const { toast } = useToast();
-  const { campuses, stage: stages, subjects, reportLines1, reportLines2, isLoading: isLoadingLists } = useOrganizationLists();
+  const { campuses, systems, stage: stages, subjects, reportLines1, reportLines2, isLoading: isLoadingLists } = useOrganizationLists();
   
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -2336,6 +2336,7 @@ export default function EmployeeManagementContent() {
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') || "");
   const [statusFilters, setStatusFilters] = useState(() => searchParams.getAll('status') || []);
   const [campusFilters, setCampusFilters] = useState(() => searchParams.getAll('campus') || []);
+  const [systemFilters, setSystemFilters] = useState(() => searchParams.getAll('system') || []);
   const [titleFilters, setTitleFilters] = useState(() => searchParams.get('title') ? [searchParams.get('title')!] : []);
   const [stageFilters, setStageFilters] = useState(() => searchParams.getAll('stage') || []);
   const [subjectFilters, setSubjectFilters] = useState(() => searchParams.getAll('subject') || []);
@@ -2361,6 +2362,7 @@ export default function EmployeeManagementContent() {
       setSearchTerm("");
       setStatusFilters([]);
       setCampusFilters([]);
+      setSystemFilters([]);
       setTitleFilters([]);
       setStageFilters([]);
       setSubjectFilters([]);
@@ -2385,6 +2387,7 @@ export default function EmployeeManagementContent() {
 
       statusFilters.forEach(s => params.append('status', s));
       campusFilters.forEach(c => params.append('campus', c));
+      systemFilters.forEach(s => params.append('system', s));
       titleFilters.forEach(t => params.append('title', t));
       stageFilters.forEach(s => params.append('stage', s));
       subjectFilters.forEach(s => params.append('subject', s));
@@ -2406,7 +2409,7 @@ export default function EmployeeManagementContent() {
 
     return () => window.clearTimeout(timeoutId);
   }, [
-    searchTerm, statusFilters, campusFilters, titleFilters, stageFilters,
+    searchTerm, statusFilters, campusFilters, systemFilters, titleFilters, stageFilters,
     subjectFilters, genderFilters, religionFilters, reportLineFilters,
     dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, currentPage,
     pathname
@@ -2635,6 +2638,20 @@ return (
     return Array.from(religionSet).sort().map(r => ({label: r, value: r}));
   }, [allEmployees]);
   
+  const uniqueSystems = useMemo(() => {
+    const systemSet = new Set<string>();
+    systems.forEach(s => {
+      if (s.name && s.name.trim()) systemSet.add(s.name.trim());
+    });
+    allEmployees.forEach(e => {
+      if (e.system && typeof e.system === 'string' && e.system.trim()) {
+        systemSet.add(e.system.trim());
+      }
+    });
+    return Array.from(systemSet)
+      .sort((a, b) => a.localeCompare(b))
+      .map(s => ({ label: s, value: s }));
+  }, [systems, allEmployees]);
 
   const uniqueReportLines = useMemo(() => {
     const lines = new Set<string>();
@@ -2669,6 +2686,16 @@ return (
         listToFilter = listToFilter.filter(emp => 
             emp.campus && lowercasedCampusFilters.includes(emp.campus.toLowerCase().trim())
         );
+    }
+    const lowercasedSystemFilters = systemFilters.map(s => s.toLowerCase().trim());
+    if (lowercasedSystemFilters.length > 0) {
+      listToFilter = listToFilter.filter(emp => {
+        const empSys = (emp.system ?? '').toLowerCase().trim();
+        if (!empSys) return false;
+        return lowercasedSystemFilters.some(filterSys =>
+          empSys === filterSys || empSys.split(',').map(part => part.trim()).includes(filterSys)
+        );
+      });
     }
     if (stageFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.stage && stageFilters.includes(emp.stage));
     if (subjectFilters.length > 0) listToFilter = listToFilter.filter(emp => emp.subject && subjectFilters.includes(emp.subject));
@@ -2736,6 +2763,7 @@ return (
               employee.department,
               employee.role,
               employee.stage,
+              employee.system,
               employee.campus,
               employee.email,
               employee.nisEmail,
@@ -2770,7 +2798,7 @@ return (
         return (a.name || "").localeCompare(b.name || "");
     });
 
-  }, [allEmployees, searchTerm, campusFilters, stageFilters, subjectFilters, genderFilters, religionFilters, titleFilters, statusFilters, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilters]);
+  }, [allEmployees, searchTerm, campusFilters, systemFilters, stageFilters, subjectFilters, genderFilters, religionFilters, titleFilters, statusFilters, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilters]);
   
   const totalEmployeesCount = useMemo(() => {
     return filteredEmployees.length;
@@ -2791,7 +2819,7 @@ return (
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, campusFilters, stageFilters, subjectFilters, genderFilters, religionFilters, titleFilters, statusFilters, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilters]);
+  }, [searchTerm, campusFilters, systemFilters, stageFilters, subjectFilters, genderFilters, religionFilters, titleFilters, statusFilters, dobStartYear, dobEndYear, joiningStartYear, joiningEndYear, reportLineFilters]);
 
   const goToNextPage = useCallback(() => {
     setCurrentPage((page) => Math.min(page + 1, totalPages));
@@ -3091,6 +3119,13 @@ if (
                                 className="w-full sm:w-auto flex-1 min-w-[150px]"
                             />
                             <MultiSelectFilter
+                                placeholder="Filter by system..."
+                                options={uniqueSystems}
+                                selected={systemFilters}
+                                onChange={setSystemFilters}
+                                className="w-full sm:w-auto flex-1 min-w-[150px]"
+                            />
+                            <MultiSelectFilter
                                 placeholder="Filter by title..."
                                 options={uniqueTitles}
                                 selected={titleFilters}
@@ -3183,6 +3218,7 @@ if (
                 <TableHead>Title</TableHead>
                 <TableHead>Subject</TableHead>
                 <TableHead>Stage</TableHead>
+                <TableHead>System</TableHead>
                 <TableHead>Campus</TableHead>
                 <TableHead>Status</TableHead>
 {(
@@ -3221,6 +3257,7 @@ if (
                     <TableCell>{employee.title || '-'}</TableCell>
                     <TableCell>{employee.subject || '-'}</TableCell>
                     <TableCell>{employee.stage || '-'}</TableCell>
+                    <TableCell>{employee.system || '-'}</TableCell>
                     <TableCell>{employee.campus || '-'}</TableCell>
                     <TableCell>
                        <Badge
@@ -3346,7 +3383,7 @@ if (
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center">
+                  <TableCell colSpan={9} className="h-24 text-center">
                     {allEmployees.length === 0 ? "No employees found." : "No employees match your current filters."}
                   </TableCell>
                 </TableRow>

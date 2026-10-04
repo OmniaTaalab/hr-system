@@ -20,14 +20,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Send, Loader2, AlertTriangle, Clock } from "lucide-react";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { CalendarIcon, Send, Loader2, AlertTriangle, Clock, UserCheck } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { storage } from "@/lib/firebase/config";
+import { storage, db } from "@/lib/firebase/config";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { collection, getDocs, query, where, limit, doc, getDoc } from "firebase/firestore";
 import { nanoid } from "nanoid";
 import { useActionState } from "react";
 
@@ -37,6 +38,139 @@ function LeaveRequestForm() {
 
   const { profile, user, loading: isLoadingProfile } = useUserProfile();
   const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
+
+  // Fresh employee record from Firestore
+  const [freshEmployee, setFreshEmployee] = useState<any>(null);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    let isMounted = true;
+    getDoc(doc(db, "employee", profile.id)).then((dSnap) => {
+      if (isMounted && dSnap.exists()) {
+        setFreshEmployee(dSnap.data());
+      }
+    }).catch((err) => {
+      console.error("Error fetching fresh employee profile:", err);
+    });
+    return () => { isMounted = false; };
+  }, [profile?.id]);
+
+  // Retrieve all Reporting Lines assigned to the employee (ReportLine1 - ReportLine6)
+  const rawAssignedLines = useMemo(() => {
+    const p = freshEmployee || profile;
+    if (!p) return [];
+    const getVal = (idx: number) => {
+      const v = p[`reportLine${idx}`] ?? p[`ReportLine${idx}`] ?? p[`report_line_${idx}`];
+      return typeof v === "string" ? v.trim() : "";
+    };
+    return [
+      { key: "reportLine1", label: "ReportLine 1", val: getVal(1) },
+      { key: "reportLine2", label: "ReportLine 2", val: getVal(2) },
+      { key: "reportLine3", label: "ReportLine 3", val: getVal(3) },
+      { key: "reportLine4", label: "ReportLine 4", val: getVal(4) },
+      { key: "reportLine5", label: "ReportLine 5", val: getVal(5) },
+      { key: "reportLine6", label: "ReportLine 6", val: getVal(6) },
+    ].filter((item) => item.val.length > 0);
+  }, [freshEmployee, profile]);
+
+  const hasReportingLines = rawAssignedLines.length > 0;
+
+  interface ResolvedApprover {
+    id: string;
+    docId: string;
+    employeeId: string;
+    name: string;
+    email: string;
+    label: string;
+  }
+
+  const [resolvedApprovers, setResolvedApprovers] = useState<ResolvedApprover[]>([]);
+  const [isLoadingApprovers, setIsLoadingApprovers] = useState(false);
+  const [selectedApproverId, setSelectedApproverId] = useState<string>("");
+
+  useEffect(() => {
+    if (!hasReportingLines) {
+      setResolvedApprovers([]);
+      setSelectedApproverId("");
+      return;
+    }
+
+    let isMounted = true;
+    const fetchManagerDetails = async () => {
+      setIsLoadingApprovers(true);
+      try {
+        const list: ResolvedApprover[] = [];
+        const seen = new Set<string>();
+
+        for (const item of rawAssignedLines) {
+          const trimmed = item.val.trim();
+          let mDoc: any = null;
+
+          try {
+            const qEmail = query(collection(db, "employee"), where("email", "==", trimmed), limit(1));
+            const snap = await getDocs(qEmail);
+            if (!snap.empty) mDoc = snap.docs[0];
+          } catch {}
+
+          if (!mDoc) {
+            try {
+              const qNis = query(collection(db, "employee"), where("nisEmail", "==", trimmed.toLowerCase()), limit(1));
+              const snap = await getDocs(qNis);
+              if (!snap.empty) mDoc = snap.docs[0];
+            } catch {}
+          }
+
+          if (!mDoc) {
+            try {
+              const qId = query(collection(db, "employee"), where("employeeId", "==", trimmed), limit(1));
+              const snap = await getDocs(qId);
+              if (!snap.empty) mDoc = snap.docs[0];
+            } catch {}
+          }
+
+          if (!mDoc) {
+            try {
+              const docRef = doc(db, "employee", trimmed);
+              const dSnap = await getDoc(docRef);
+              if (dSnap.exists()) mDoc = dSnap;
+            } catch {}
+          }
+
+          const mData = mDoc?.data();
+          const empId = mData?.employeeId ? String(mData.employeeId) : (mDoc?.id || trimmed);
+          const name = mData?.name || trimmed;
+          const email = (mData?.nisEmail || mData?.email || (trimmed.includes("@") ? trimmed : "")).trim();
+
+          const key = (email || empId).toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            list.push({
+              id: empId,
+              docId: mDoc?.id || trimmed,
+              employeeId: empId,
+              name,
+              email,
+              label: item.label,
+            });
+          }
+        }
+
+        if (isMounted) {
+          setResolvedApprovers(list);
+          if (list.length > 0) {
+            setSelectedApproverId(list[0].id);
+          }
+        }
+      } catch (err) {
+        console.error("Error resolving reporting line details:", err);
+      } finally {
+        if (isMounted) setIsLoadingApprovers(false);
+      }
+    };
+
+    fetchManagerDetails();
+    return () => { isMounted = false; };
+  }, [rawAssignedLines, hasReportingLines]);
 
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
@@ -206,6 +340,24 @@ function LeaveRequestForm() {
   
     const currentForm = formRef.current;
     if (!currentForm || !user || isSubmittingFile) return;
+
+    if (!hasReportingLines) {
+      toast({
+        variant: "destructive",
+        title: "No Reporting Line Assigned",
+        description: "No Reporting Line is assigned to your employee profile. Please contact HR.",
+      });
+      return;
+    }
+
+    if (!selectedApproverId) {
+      toast({
+        variant: "destructive",
+        title: "Reporting Line Approver Required",
+        description: "Please select a Reporting Line approver for this leave request.",
+      });
+      return;
+    }
   
     setIsSubmittingFile(true);
   
@@ -219,7 +371,16 @@ function LeaveRequestForm() {
       return;
     }
 
+    const chosenApprover = resolvedApprovers.find((a) => a.id === selectedApproverId);
+
     const formData = new FormData(currentForm);
+    formData.set("selectedApproverId", selectedApproverId);
+    if (chosenApprover?.name) {
+      formData.set("selectedApproverName", chosenApprover.name);
+    }
+    if (chosenApprover?.email) {
+      formData.set("selectedApproverEmail", chosenApprover.email);
+    }
   
     if (selectedLeaveType) {
       formData.set("leaveType", selectedLeaveType);
@@ -253,21 +414,16 @@ if (endDate) {
   
     // File Upload
     if (attachment) {
-  
       try {
-  
         const ext = attachment.name.split(".").pop();
         const fileName = `leave-attachments/${user.uid}/${nanoid()}.${ext}`;
         const fileRef = ref(storage, fileName);
   
         const snapshot = await uploadBytes(fileRef, attachment);
-  
-  
         const downloadURL = await getDownloadURL(snapshot.ref);
   
         formData.set("attachmentURL", downloadURL);
         formData.delete("attachment");
-  
       } catch (error) {
         console.error("UPLOAD ERROR:", error);
         setIsSubmittingFile(false);
@@ -278,7 +434,6 @@ if (endDate) {
     }
   
     // Server Action
-  
     try {
       startTransition(() => formAction(formData));
     } finally {
@@ -312,6 +467,51 @@ if (endDate) {
           name="requestingEmployeeDocId"
           value={profile?.id || ""}
         />
+
+        {/* Reporting Line Approver */}
+        {!hasReportingLines ? (
+          <div className="rounded-xl border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-semibold">No Reporting Line Assigned</p>
+              <p className="mt-0.5 text-xs sm:text-sm">
+                No Reporting Line is assigned to your employee profile. Please contact HR.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-4">
+            <Label htmlFor="reportingLineApprover" className="flex items-center gap-1.5 font-semibold text-sm">
+              <UserCheck className="h-4 w-4 text-primary" />
+              <span>Reporting Line Approver <span className="text-destructive">*</span></span>
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Select one Reporting Line who has authority to Approve or Reject this request. All assigned reporting lines will receive notifications for visibility.
+            </p>
+            <Select
+              name="selectedApproverId"
+              value={selectedApproverId}
+              onValueChange={setSelectedApproverId}
+              disabled={isPending || isSubmittingFile || isLoadingApprovers}
+              required
+            >
+              <SelectTrigger id="reportingLineApprover" className="bg-background">
+                <SelectValue placeholder={isLoadingApprovers ? "Loading reporting lines..." : "Select Reporting Line Approver"} />
+              </SelectTrigger>
+              <SelectContent>
+                {resolvedApprovers.map((approver) => (
+                  <SelectItem key={approver.id} value={approver.id}>
+                    {approver.name} {approver.email ? `(${approver.email})` : ""} — {approver.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {serverState?.errors?.selectedApproverId && (
+              <p className="text-sm text-destructive">{serverState.errors.selectedApproverId[0]}</p>
+            )}
+          </div>
+        )}
 
         {/* Leave Type */}
         <div className="space-y-2">
@@ -526,7 +726,7 @@ if (endDate) {
 
         <Button
           type="submit"
-          disabled={isPending || isSubmittingFile}
+          disabled={isPending || isSubmittingFile || !hasReportingLines || !selectedApproverId}
           className="w-full md:w-auto"
         >
           {(isPending || isSubmittingFile) ? (

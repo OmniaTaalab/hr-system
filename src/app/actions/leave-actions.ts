@@ -61,6 +61,9 @@ const LeaveRequestFormSchema = z.object({
   endDate: z.coerce.date(),
   reason: z.string().min(10).max(500),
   attachmentURL: z.string().url().optional(),
+  selectedApproverId: z.string().min(1, "Please select a Reporting Line approver."),
+  selectedApproverName: z.string().optional(),
+  selectedApproverEmail: z.string().optional(),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
   path: ["endDate"],
@@ -74,6 +77,7 @@ export type SubmitLeaveRequestState = {
     endDate?: string[];
     reason?: string[];
     attachmentURL?: string[];
+    selectedApproverId?: string[];
     form?: string[];
   };
   message?: string | null;
@@ -91,6 +95,9 @@ export async function submitLeaveRequestAction(
     endDate: formData.get('endDate'),
     reason: formData.get('reason'),
     attachmentURL: formData.get('attachmentURL') || undefined,
+    selectedApproverId: formData.get('selectedApproverId'),
+    selectedApproverName: formData.get('selectedApproverName') || undefined,
+    selectedApproverEmail: formData.get('selectedApproverEmail') || undefined,
   });
 
   if (!validatedFields.success) {
@@ -101,7 +108,17 @@ export async function submitLeaveRequestAction(
     };
   }
 
-  const { requestingEmployeeDocId, leaveType, startDate, endDate, reason, attachmentURL } = validatedFields.data;
+  const {
+    requestingEmployeeDocId,
+    leaveType,
+    startDate,
+    endDate,
+    reason,
+    attachmentURL,
+    selectedApproverId,
+    selectedApproverName,
+    selectedApproverEmail,
+  } = validatedFields.data;
 
   try {
     const employeeDocRef = doc(db, "employee", requestingEmployeeDocId);
@@ -233,8 +250,154 @@ const employeeEmail = (
     const hoursPerDay = isMaternityHour ? 1 : null;
     const durationHours = isMaternityHour ? workingDays * 1 : null;
 
+    // Collect raw reporting lines from employee record (supporting both reportLineX and ReportLineX casing)
+    const getReportLineVal = (data: any, idx: number) => {
+      const v = data?.[`reportLine${idx}`] ?? data?.[`ReportLine${idx}`] ?? data?.[`report_line_${idx}`];
+      return typeof v === 'string' ? v.trim() : "";
+    };
+
+    const rawReportLines = [
+      { key: "reportLine1", val: getReportLineVal(employeeData, 1) },
+      { key: "reportLine2", val: getReportLineVal(employeeData, 2) },
+      { key: "reportLine3", val: getReportLineVal(employeeData, 3) },
+      { key: "reportLine4", val: getReportLineVal(employeeData, 4) },
+      { key: "reportLine5", val: getReportLineVal(employeeData, 5) },
+      { key: "reportLine6", val: getReportLineVal(employeeData, 6) },
+    ].filter(item => item.val.length > 0);
+
+    if (rawReportLines.length === 0) {
+      return {
+        errors: {
+          selectedApproverId: ["No Reporting Line is assigned to your employee profile. Please contact HR."],
+          form: ["No Reporting Line is assigned to your employee profile. Please contact HR."],
+        },
+        message: "No Reporting Line is assigned to your employee profile. Please contact HR.",
+        success: false,
+      };
+    }
+
+    // Resolve all assigned reporting lines into manager profiles
+    interface ManagerInfo {
+      key: string;
+      raw: string;
+      docId: string;
+      employeeId: string;
+      name: string;
+      email: string;
+      userId: string | null;
+    }
+
+    const resolvedManagers: ManagerInfo[] = [];
+
+    for (const r of rawReportLines) {
+      const trimmed = r.val.trim();
+      let mDoc: any = null;
+
+      // 1. Match by email
+      try {
+        const qEmail = query(collection(db, "employee"), where("email", "==", trimmed), limit(1));
+        const snap = await getDocs(qEmail);
+        if (!snap.empty) mDoc = snap.docs[0];
+      } catch {}
+
+      // 2. Match by nisEmail
+      if (!mDoc) {
+        try {
+          const qNis = query(collection(db, "employee"), where("nisEmail", "==", trimmed.toLowerCase()), limit(1));
+          const snap = await getDocs(qNis);
+          if (!snap.empty) mDoc = snap.docs[0];
+        } catch {}
+      }
+
+      // 3. Match by employeeId
+      if (!mDoc) {
+        try {
+          const qId = query(collection(db, "employee"), where("employeeId", "==", trimmed), limit(1));
+          const snap = await getDocs(qId);
+          if (!snap.empty) mDoc = snap.docs[0];
+        } catch {}
+      }
+
+      // 4. Match by doc id
+      if (!mDoc) {
+        try {
+          const docRef = doc(db, "employee", trimmed);
+          const dSnap = await getDoc(docRef);
+          if (dSnap.exists()) mDoc = dSnap;
+        } catch {}
+      }
+
+      if (mDoc) {
+        const mData = mDoc.data();
+        resolvedManagers.push({
+          key: r.key,
+          raw: trimmed,
+          docId: mDoc.id,
+          employeeId: mData.employeeId ? String(mData.employeeId) : mDoc.id,
+          name: mData.name || trimmed,
+          email: (mData.nisEmail || mData.email || trimmed).trim(),
+          userId: mData.userId || null,
+        });
+      } else {
+        resolvedManagers.push({
+          key: r.key,
+          raw: trimmed,
+          docId: trimmed,
+          employeeId: trimmed,
+          name: trimmed,
+          email: trimmed.includes('@') ? trimmed : '',
+          userId: null,
+        });
+      }
+    }
+
+    // Validate that selectedApproverId exists inside the employee's ReportLine1–ReportLine6 values
+    const approverIdInput = String(selectedApproverId || '').trim();
+    const approverEmailInput = String(selectedApproverEmail || '').trim().toLowerCase();
+
+    const matchedApprover = resolvedManagers.find(m => {
+      if (approverIdInput) {
+        if (m.employeeId === approverIdInput) return true;
+        if (m.docId === approverIdInput) return true;
+        if (m.raw.toLowerCase() === approverIdInput.toLowerCase()) return true;
+        if (m.email.toLowerCase() === approverIdInput.toLowerCase()) return true;
+      }
+      if (approverEmailInput) {
+        if (m.email.toLowerCase() === approverEmailInput) return true;
+        if (m.raw.toLowerCase() === approverEmailInput) return true;
+      }
+      return false;
+    });
+
+    if (!matchedApprover) {
+      return {
+        errors: {
+          selectedApproverId: ["The selected approver must be one of the employee's assigned Reporting Lines."],
+          form: ["The selected approver must be one of the employee's assigned Reporting Lines."],
+        },
+        message: "The selected approver must be one of the employee's assigned Reporting Lines.",
+        success: false,
+      };
+    }
+
+    // Deduplicate all managers by email or employeeId for notifications and stored list
+    const uniqueManagers: ManagerInfo[] = [];
+    const seenManagerKeys = new Set<string>();
+
+    for (const m of resolvedManagers) {
+      const identifier = (m.email || m.employeeId || m.raw).toLowerCase();
+      if (!seenManagerKeys.has(identifier)) {
+        seenManagerKeys.add(identifier);
+        uniqueManagers.push(m);
+      }
+    }
+
+    const notifiedReportingLineIds = uniqueManagers.map(m => m.employeeId).filter(Boolean);
+    const notifiedReportingLineEmails = uniqueManagers.map(m => m.email).filter(Boolean);
+
     const newRequestRef = await addDoc(collection(db, "leaveRequests"), {
       requestingEmployeeDocId,
+      employeeId: employeeData.employeeId ? String(employeeData.employeeId) : requestingEmployeeDocId,
       employeeName,
       employeeEmail: employeeEmail || employeeData.email || "",
       employeeStage: employeeData.stage ?? null,
@@ -245,6 +408,13 @@ const employeeEmail = (
       reportLine4: employeeData.reportLine4 ?? null,
       reportLine5: employeeData.reportLine5 ?? null,
       reportLine6: employeeData.reportLine6 ?? null,
+      selectedApproverId: matchedApprover.employeeId,
+      selectedApproverDocId: matchedApprover.docId,
+      selectedApproverName: selectedApproverName || matchedApprover.name,
+      selectedApproverEmail: matchedApprover.email,
+      notifiedReportingLineIds,
+      notifiedReportingLineEmails,
+      currentApprover: matchedApprover.email || matchedApprover.employeeId,
       leaveType,
       startDate: Timestamp.fromDate(startDate),
       endDate: Timestamp.fromDate(effectiveEndDate),
@@ -260,7 +430,6 @@ const employeeEmail = (
       status: "Pending",
       submittedAt: serverTimestamp(),
       managerNotes: "",
-      currentApprover: employeeData.reportLine1 || employeeData.reportLine2 || null,
       approvedBy: [],
       rejectedBy: [],
     });
@@ -272,117 +441,80 @@ const employeeEmail = (
       leaveRequestId: newRequestRef.id,
       leaveType,
       employeeName,
+      selectedApproverId: matchedApprover.employeeId,
+      selectedApproverName: matchedApprover.name,
     });
-
-    // Collect all reporting lines (reportLine1 to reportLine6)
-    const reportLineFields = [
-      employeeData.reportLine1,
-      employeeData.reportLine2,
-      employeeData.reportLine3,
-      employeeData.reportLine4,
-      employeeData.reportLine5,
-      employeeData.reportLine6,
-    ];
-
-    const uniqueReportLineEmails: string[] = [];
-    const seenEmails = new Set<string>();
-
-    for (const val of reportLineFields) {
-      if (typeof val === 'string' && val.trim().length > 0) {
-        const email = val.trim();
-        const lower = email.toLowerCase();
-        if (!seenEmails.has(lower)) {
-          seenEmails.add(lower);
-          uniqueReportLineEmails.push(email);
-        }
-      }
-    }
 
     const requestPath = `/leave/all-requests/${newRequestRef.id}`;
     const requestLink = toAbsoluteAppUrl(requestPath);
-    const firstApproverEmail = (employeeData.reportLine1 || employeeData.reportLine2 || '').trim().toLowerCase();
 
-    // Send notifications and emails to ALL reporting lines
-    if (uniqueReportLineEmails.length > 0) {
-      for (const managerEmail of uniqueReportLineEmails) {
-        const isFirstApprover = managerEmail.toLowerCase() === firstApproverEmail;
-        const notificationMessage = isFirstApprover
-          ? `New leave request from ${employeeName} for ${leaveType}. Awaiting your approval.`
-          : `New leave request from ${employeeName} for ${leaveType}.`;
+    // Send notifications to ALL Reporting Lines assigned to the employee
+    for (const manager of uniqueManagers) {
+      const isSelected =
+        manager.employeeId === matchedApprover.employeeId ||
+        (manager.email && manager.email.toLowerCase() === matchedApprover.email.toLowerCase());
 
-        const managerQuery = query(collection(db, "employee"), where("email", "==", managerEmail), limit(1));
-        const managerSnapshot = await getDocs(managerQuery);
+      const startStr = format(startDate, "MMMM d");
+      const endStr = format(effectiveEndDate, "MMMM d");
 
-        let managerName = "Manager";
-        let managerUserId: string | null = null;
-        let targetEmail = managerEmail;
+      const notificationMessage = isSelected
+        ? `${employeeName} submitted a new ${leaveType} Request from ${startStr} to ${endStr}. You are the selected approver for this request.`
+        : `${employeeName} submitted a new ${leaveType} Request from ${startStr} to ${endStr}.`;
 
-        if (!managerSnapshot.empty) {
-          const managerDoc = managerSnapshot.docs[0];
-          const managerData = managerDoc.data();
-          managerName = managerData.name || "Manager";
-          managerUserId = managerData.userId || null;
-          if (managerData.email) {
-            targetEmail = managerData.email;
-          }
-        }
+      // 1. In-app notification
+      if (manager.userId) {
+        await addDoc(collection(db, `users/${manager.userId}/notifications`), {
+          message: notificationMessage,
+          link: requestPath,
+          requestId: newRequestRef.id,
+          isSelectedApprover: isSelected,
+          createdAt: serverTimestamp(),
+          isRead: false,
+        });
+      } else {
+        await addDoc(collection(db, "notifications"), {
+          message: `${notificationMessage} (Manager: ${manager.name || manager.email})`,
+          link: requestPath,
+          requestId: newRequestRef.id,
+          isSelectedApprover: isSelected,
+          createdAt: serverTimestamp(),
+          readBy: [],
+        });
+      }
 
-        // 1. In-app notification to manager's personal user notifications
-        if (managerUserId) {
-          await addDoc(collection(db, `users/${managerUserId}/notifications`), {
-            message: notificationMessage,
-            link: requestPath,
+      // 2. Email notification
+      if (manager.email && manager.email.includes("@")) {
+        try {
+          const emailHtml = render(
+            LeaveRequestNotificationEmail({
+              managerName: manager.name || "Manager",
+              employeeName,
+              leaveType,
+              startDate: format(startDate, "MM/dd/yyyy"),
+              endDate: format(effectiveEndDate, "MM/dd/yyyy"),
+              reason: isSelected
+                ? `${reason}\n\nNote: You are the designated Reporting Line Approver for this request.`
+                : `${reason}\n\nNote: Another Reporting Line (${matchedApprover.name}) was designated as approver. This notification is for your visibility.`,
+              leaveRequestLink: requestLink,
+            })
+          );
+
+          await addDoc(collection(db, "mail"), {
+            to: manager.email,
+            ...(employeeEmail ? { replyTo: employeeEmail } : {}),
+            message: {
+              subject: isSelected
+                ? `Action Required: New Leave Request from ${employeeName}`
+                : `Notification: New Leave Request from ${employeeName}`,
+              html: emailHtml,
+            },
+            status: "pending",
             createdAt: serverTimestamp(),
-            isRead: false,
           });
-        } else {
-          await addDoc(collection(db, "notifications"), {
-            message: `${notificationMessage} (Manager: ${managerEmail})`,
-            link: requestPath,
-            createdAt: serverTimestamp(),
-            readBy: [],
-          });
-        }
-
-        // 2. Email notification via mail collection
-        if (targetEmail) {
-          try {
-            const emailHtml = render(
-              LeaveRequestNotificationEmail({
-                managerName,
-                employeeName,
-                leaveType,
-                startDate: format(startDate, "MM/dd/yyyy"),
-                endDate: format(effectiveEndDate, "MM/dd/yyyy"),
-                reason,
-                leaveRequestLink: requestLink,
-              })
-            );
-            await addDoc(collection(db, "mail"), {
-  to: targetEmail,
-
-  ...(employeeEmail ? { replyTo: employeeEmail } : {}),
-
-  message: {
-    subject: `New Leave Request from ${employeeName}`,
-    html: emailHtml,
-  },
-
-  status: "pending",
-  createdAt: serverTimestamp(),
-});
-          } catch (emailErr) {
-            console.error(`Failed to send email to ${targetEmail}:`, emailErr);
-          }
+        } catch (emailErr) {
+          console.error(`Failed to send email to ${manager.email}:`, emailErr);
         }
       }
-    } else {
-      await addDoc(collection(db, "notifications"), {
-        message: `New leave request from ${employeeName} (No manager assigned).`,
-        link: requestPath,
-        createdAt: serverTimestamp(),
-        readBy: [],
-      });
     }
 
     return { message: 'Leave request submitted successfully.', success: true };
@@ -400,6 +532,8 @@ const updateStatusSchema = z.object({
   newStatus: z.enum(["Approved", "Rejected"], { required_error: "New status is required." }),
   managerNotes: z.string().max(500, "Notes cannot exceed 500 characters.").optional(),
   actorId: z.string().optional(),
+  actorDocId: z.string().optional(),
+  actorEmployeeId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorRole: z.string().optional(),
 });
@@ -413,6 +547,8 @@ export interface UpdateLeaveStatusState {
     newStatus?: string[];
     managerNotes?: string[];
     actorId?: string[];
+    actorDocId?: string[];
+    actorEmployeeId?: string[];
     actorEmail?: string[];
     actorRole?: string[];
   };
@@ -426,9 +562,11 @@ export async function updateLeaveRequestStatusAction(
     requestId: formData.get('requestId'),
     newStatus: formData.get('newStatus'),
     managerNotes: formData.get('managerNotes') || undefined,
-    actorId: formData.get('actorId'),
-    actorEmail: formData.get('actorEmail'),
-    actorRole: formData.get('actorRole'),
+    actorId: formData.get('actorId') || undefined,
+    actorDocId: formData.get('actorDocId') || undefined,
+    actorEmployeeId: formData.get('actorEmployeeId') || undefined,
+    actorEmail: formData.get('actorEmail') || undefined,
+    actorRole: formData.get('actorRole') || undefined,
   });
 
   if (!validatedFields.success) {
@@ -439,7 +577,7 @@ export async function updateLeaveRequestStatusAction(
     };
   }
   
-  const { requestId, newStatus, managerNotes, actorId, actorEmail, actorRole } = validatedFields.data;
+  const { requestId, newStatus, managerNotes, actorId, actorDocId: formActorDocId, actorEmployeeId: formActorEmployeeId, actorEmail, actorRole } = validatedFields.data;
   const approverEmail = actorEmail || '';
 
   try {
@@ -455,35 +593,121 @@ export async function updateLeaveRequestStatusAction(
 
     const approverEmailClean = approverEmail.trim().toLowerCase();
     const currentApproverClean = (requestData.currentApprover || '').trim().toLowerCase();
-    const isCurrentApprover = currentApproverClean.length > 0 && approverEmailClean === currentApproverClean;
-    const userRole = actorRole?.trim().toLowerCase();
+    const reqSelectedApproverId = requestData.selectedApproverId ? String(requestData.selectedApproverId).trim() : null;
+    const reqSelectedApproverEmail = requestData.selectedApproverEmail ? String(requestData.selectedApproverEmail).trim().toLowerCase() : null;
 
-    const privilegedRoles = [
-      'admin',
-      'hr',
-      'director',
-      'human resource director',
-      'human resource director international schools',
-      'personnal director',
-      'recruitment and onbording manager',
-      'human resource executive',
-      'recruitment and onboarding executive',
-      'personnel executive',
-    ];
+    // Look up acting employee record to validate identity
+    let actorEmployeeSnap: any = null;
+    if (formActorDocId) {
+      try {
+        const docSnap = await getDoc(doc(db, "employee", formActorDocId));
+        if (docSnap.exists()) actorEmployeeSnap = docSnap;
+      } catch {}
+    }
+    if (!actorEmployeeSnap && formActorEmployeeId) {
+      try {
+        const qId = query(collection(db, "employee"), where("employeeId", "==", formActorEmployeeId), limit(1));
+        const snap = await getDocs(qId);
+        if (!snap.empty) actorEmployeeSnap = snap.docs[0];
+      } catch {}
+    }
+    if (!actorEmployeeSnap && actorId) {
+      try {
+        const docSnap = await getDoc(doc(db, "employee", actorId));
+        if (docSnap.exists()) actorEmployeeSnap = docSnap;
+      } catch {}
+      if (!actorEmployeeSnap) {
+        try {
+          const qId = query(collection(db, "employee"), where("employeeId", "==", actorId), limit(1));
+          const snap = await getDocs(qId);
+          if (!snap.empty) actorEmployeeSnap = snap.docs[0];
+        } catch {}
+      }
+    }
+    if (!actorEmployeeSnap && actorEmail) {
+      try {
+        const qEmp = query(collection(db, "employee"), where("email", "==", actorEmail), limit(1));
+        const snap = await getDocs(qEmp);
+        if (!snap.empty) actorEmployeeSnap = snap.docs[0];
+      } catch {}
+      if (!actorEmployeeSnap) {
+        try {
+          const qNis = query(collection(db, "employee"), where("nisEmail", "==", actorEmail.toLowerCase()), limit(1));
+          const snapNis = await getDocs(qNis);
+          if (!snapNis.empty) actorEmployeeSnap = snapNis.docs[0];
+        } catch {}
+      }
+    }
 
-    const isPrivileged = privilegedRoles.includes(userRole ?? '');
+    const actorEmployeeData = actorEmployeeSnap?.data();
+    const actorEmployeeId = actorEmployeeData?.employeeId
+      ? String(actorEmployeeData.employeeId).trim()
+      : (formActorEmployeeId ? String(formActorEmployeeId).trim() : null);
+    const actorDocId = actorEmployeeSnap?.id || formActorDocId || actorId || null;
+    const actorName = actorEmployeeData?.name || actorEmail || "Reporting Line Approver";
 
-    const isDirector = userRole === 'director';
-    if (!isCurrentApprover && !isPrivileged) {
+    let isSelectedApprover = false;
+    if (reqSelectedApproverId) {
+      if (
+        (actorEmployeeId && actorEmployeeId === reqSelectedApproverId) ||
+        (actorDocId && actorDocId === reqSelectedApproverId) ||
+        (actorEmailClean && actorEmailClean === reqSelectedApproverId.toLowerCase())
+      ) {
+        isSelectedApprover = true;
+      }
+    }
+    if (!isSelectedApprover && (requestData as any).selectedApproverDocId && actorDocId) {
+      if (actorDocId === String((requestData as any).selectedApproverDocId).trim()) {
+        isSelectedApprover = true;
+      }
+    }
+    if (!isSelectedApprover && reqSelectedApproverEmail) {
+      if (actorEmailClean && actorEmailClean === reqSelectedApproverEmail) {
+        isSelectedApprover = true;
+      }
+    }
+    if (!isSelectedApprover && currentApproverClean) {
+      if (actorEmailClean && actorEmailClean === currentApproverClean) {
+        isSelectedApprover = true;
+      }
+    }
+
+    // Permission enforcement: Only the selected Reporting Line can approve or reject
+    if (reqSelectedApproverId || reqSelectedApproverEmail) {
+      if (!isSelectedApprover) {
+        return {
+          message: "Permission denied",
+          errors: {
+            form: [
+              `Permission denied: Only the selected Reporting Line approver (${requestData.selectedApproverName || "designated approver"}) can approve or reject this leave request.`
+            ]
+          },
+          success: false,
+        };
+      }
+    } else {
+      const isCurrentApprover = currentApproverClean.length > 0 && approverEmailClean === currentApproverClean;
+      const userRole = actorRole?.trim().toLowerCase();
+      const privilegedRoles = [
+        'admin', 'hr', 'director', 'superadmin', 'human resource director',
+        'personnal director', 'recruitment and onbording manager'
+      ];
+      const isPrivileged = privilegedRoles.includes(userRole ?? '');
+      if (!isCurrentApprover && !isPrivileged) {
         return {
           message: "Something went wrong",
-          errors: { form: ["You are not the current approver for this request."] }, 
-          success: false };
+          errors: { form: ["You are not the current approver for this request."] },
+          success: false
+        };
+      }
     }
     
     const updates: any = {
       managerNotes: managerNotes || requestData.managerNotes || "", 
       updatedAt: serverTimestamp(),
+      approvedRejectedById: actorEmployeeId || actorDocId || actorEmailClean,
+      approvedRejectedByName: actorName,
+      approvedRejectedAt: serverTimestamp(),
     };
 
     let isFinalDecision = false;
@@ -491,23 +715,48 @@ export async function updateLeaveRequestStatusAction(
 
     if (newStatus === "Rejected") {
       updates.status = "Rejected";
-      updates.rejectedBy = [...(requestData.rejectedBy || []), approverEmail];
+      updates.rejectedBy = [...(requestData.rejectedBy || []), actorEmailClean || actorName];
       updates.currentApprover = null;
       isFinalDecision = true;
       finalStatus = "Rejected";
     } else { // Approved
-      updates.approvedBy = [...(requestData.approvedBy || []), approverEmail];
+      updates.approvedBy = [...(requestData.approvedBy || []), actorEmailClean || actorName];
       
-      const r1 = (requestData.reportLine1 || '').trim().toLowerCase();
-      const r2 = (requestData.reportLine2 || '').trim().toLowerCase();
-      const isFirstApproverAction = 
-        (r1.length > 0 && (approverEmailClean === r1 || currentApproverClean === r1));
+      // If this request has a designated selected approver, their decision is final!
+      if (reqSelectedApproverId || reqSelectedApproverEmail) {
+        updates.status = "Approved";
+        updates.currentApprover = null;
+        isFinalDecision = true;
+        finalStatus = "Approved";
 
-      // Rule: Only the first approves, and then the second approves (reportLine1 then reportLine2 only).
-      // If reportLine2 exists and is different from reportLine1, and this was the first manager approval:
-      // route to reportLine2 for the second approval.
-      if (r2.length > 0 && r2 !== r1 && isFirstApproverAction) {
-        updates.currentApprover = requestData.reportLine2.trim();
+        const reqLower = (requestData.leaveType || "").trim().toLowerCase();
+        const isMaternityHour =
+          requestData.hoursPerDay === 1 ||
+          requestData.isHourly === true ||
+          reqLower.includes("hour") ||
+          reqLower.includes("ساعة") ||
+          reqLower.includes("ساعه") ||
+          reqLower.includes("رضاعة") ||
+          reqLower.includes("رعاية");
+
+        const isFullMaternity = !isMaternityHour && reqLower.includes("maternity");
+
+        if (isFullMaternity && requestData.startDate?.toDate) {
+          const start = requestData.startDate.toDate();
+          const computedEnd = new Date(start);
+          computedEnd.setDate(computedEnd.getDate() + 119);
+          updates.endDate = Timestamp.fromDate(computedEnd);
+          updates.numberOfDays = 120;
+        }
+      } else {
+        // Legacy flow
+        const r1 = (requestData.reportLine1 || '').trim().toLowerCase();
+        const r2 = (requestData.reportLine2 || '').trim().toLowerCase();
+        const isFirstApproverAction = 
+          (r1.length > 0 && (approverEmailClean === r1 || currentApproverClean === r1));
+
+        if (r2.length > 0 && r2 !== r1 && isFirstApproverAction) {
+          updates.currentApprover = requestData.reportLine2.trim();
         // ------------------------------------------------------------
 // Notify employee that first manager approved,
 // but second manager approval is still pending
@@ -783,6 +1032,7 @@ try {
         }
       }
     }
+  }
     
     await updateDoc(requestRef, updates);
 
