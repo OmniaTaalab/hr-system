@@ -73,6 +73,10 @@ export interface LeaveRequestEntry {
   selectedApproverId?: string;
   selectedApproverName?: string;
   selectedApproverEmail?: string;
+  selectedApproverIds?: string[];
+  selectedApproverDocIds?: string[];
+  selectedApproverNames?: string[];
+  selectedApproverEmails?: string[];
   notifiedReportingLineIds?: string[];
   notifiedReportingLineEmails?: string[];
   leaveType: string;
@@ -360,14 +364,23 @@ const isPrivileged =
           const docId = profile?.id || null;
           const email = profile?.email?.trim().toLowerCase() || null;
           const nis = profile?.nisEmail?.trim().toLowerCase() || null;
-          const selId = item.selectedApproverId ? String(item.selectedApproverId).trim() : null;
-          const selEmail = item.selectedApproverEmail ? String(item.selectedApproverEmail).trim().toLowerCase() : null;
+
+          const approverIds: string[] = Array.isArray(item.selectedApproverIds)
+            ? item.selectedApproverIds.map(String)
+            : (item.selectedApproverId ? String(item.selectedApproverId).split(',') : []);
+          const approverDocIds: string[] = Array.isArray(item.selectedApproverDocIds)
+            ? item.selectedApproverDocIds.map(String)
+            : [];
+          const approverEmails: string[] = Array.isArray(item.selectedApproverEmails)
+            ? item.selectedApproverEmails.map((s) => String(s).trim().toLowerCase())
+            : (item.selectedApproverEmail ? String(item.selectedApproverEmail).toLowerCase().split(',') : []);
           const currApp = (item.currentApprover || "").trim().toLowerCase();
 
-          if (selId && ((empId && selId === empId) || (docId && selId === docId))) return true;
-          if (selEmail && email && selEmail === email) return true;
-          if (currApp && email && currApp === email) return true;
-          if (currApp && nis && currApp === nis) return true;
+          if (empId && approverIds.some((id) => id.trim() === empId)) return true;
+          if (docId && (approverIds.some((id) => id.trim() === docId) || approverDocIds.some((id) => id.trim() === docId))) return true;
+          if (email && approverEmails.some((e) => e.trim() === email)) return true;
+          if (currApp && email && currApp.includes(email)) return true;
+          if (currApp && nis && currApp.includes(nis)) return true;
           return false;
         });
       } else {
@@ -689,17 +702,25 @@ const isPrivileged =
                     const docId = profile?.id || null;
                     const email = profile?.email?.trim().toLowerCase() || null;
                     const nis = profile?.nisEmail?.trim().toLowerCase() || null;
-                    const selId = r.selectedApproverId ? String(r.selectedApproverId).trim() : null;
-                    const selEmail = r.selectedApproverEmail ? String(r.selectedApproverEmail).trim().toLowerCase() : null;
+                    const approverIds: string[] = Array.isArray(r.selectedApproverIds)
+                      ? r.selectedApproverIds.map(String)
+                      : (r.selectedApproverId ? String(r.selectedApproverId).split(',') : []);
+                    const approverDocIds: string[] = Array.isArray(r.selectedApproverDocIds)
+                      ? r.selectedApproverDocIds.map(String)
+                      : [];
+                    const approverEmails: string[] = Array.isArray(r.selectedApproverEmails)
+                      ? r.selectedApproverEmails.map((s) => String(s).trim().toLowerCase())
+                      : (r.selectedApproverEmail ? String(r.selectedApproverEmail).toLowerCase().split(',') : []);
                     const currApp = (r.currentApprover || "").trim().toLowerCase();
 
                     const isPendingMyApproval =
                       r.status === "Pending" &&
                       (
-                        (selId && ((empId && selId === empId) || (docId && selId === docId))) ||
-                        (selEmail && email && selEmail === email) ||
-                        (currApp && email && currApp === email) ||
-                        (currApp && nis && currApp === nis)
+                        (empId && approverIds.some((id) => id.trim() === empId)) ||
+                        (docId && (approverIds.some((id) => id.trim() === docId) || approverDocIds.some((id) => id.trim() === docId))) ||
+                        (email && approverEmails.some((e) => e.trim() === email)) ||
+                        (currApp && email && currApp.includes(email)) ||
+                        (currApp && nis && currApp.includes(nis))
                       );
                     return (
                       <TableRow

@@ -38,6 +38,10 @@ interface LeaveRequestEntry {
   selectedApproverDocId?: string;
   selectedApproverName?: string;
   selectedApproverEmail?: string;
+  selectedApproverIds?: string[];
+  selectedApproverDocIds?: string[];
+  selectedApproverNames?: string[];
+  selectedApproverEmails?: string[];
   notifiedReportingLineIds?: string[];
   notifiedReportingLineEmails?: string[];
   leaveType: string;
@@ -175,13 +179,34 @@ function LeaveRequestDetailContent() {
     if (!profile || !request) return false;
     if (request.status !== "Pending") return false;
 
-    // Only allow Approve or Reject when currentUser.employeeId === leaveRequest.selectedApproverId
+    // Allow Approve or Reject when currentUser matches ANY of the selected approvers (up to 2)
+    const validApproverIds = new Set<string>();
+    const validApproverEmails = new Set<string>();
+
+    if (Array.isArray(request.selectedApproverIds)) {
+      request.selectedApproverIds.forEach((id) => validApproverIds.add(String(id).trim().toLowerCase()));
+    }
+    if (Array.isArray(request.selectedApproverDocIds)) {
+      request.selectedApproverDocIds.forEach((id) => validApproverIds.add(String(id).trim().toLowerCase()));
+    }
     if (request.selectedApproverId) {
-      const selectedId = String(request.selectedApproverId).trim();
-      if (currentEmpId && currentEmpId === selectedId) return true;
-      if (currentDocId && currentDocId === selectedId) return true;
-      if (request.selectedApproverDocId && currentDocId && currentDocId === String(request.selectedApproverDocId).trim()) return true;
-      if (request.selectedApproverEmail && currentEmail && currentEmail === String(request.selectedApproverEmail).trim().toLowerCase()) return true;
+      String(request.selectedApproverId).split(',').forEach(id => validApproverIds.add(id.trim().toLowerCase()));
+    }
+    if (request.selectedApproverDocId) {
+      String(request.selectedApproverDocId).split(',').forEach(id => validApproverIds.add(id.trim().toLowerCase()));
+    }
+
+    if (Array.isArray(request.selectedApproverEmails)) {
+      request.selectedApproverEmails.forEach((e) => validApproverEmails.add(String(e).trim().toLowerCase()));
+    }
+    if (request.selectedApproverEmail) {
+      String(request.selectedApproverEmail).split(',').forEach(e => validApproverEmails.add(e.trim().toLowerCase()));
+    }
+
+    if (validApproverIds.size > 0 || validApproverEmails.size > 0) {
+      if (currentEmpId && validApproverIds.has(currentEmpId.toLowerCase())) return true;
+      if (currentDocId && validApproverIds.has(currentDocId.toLowerCase())) return true;
+      if (currentEmail && (validApproverEmails.has(currentEmail) || validApproverIds.has(currentEmail))) return true;
       return false;
     }
 
@@ -299,7 +324,7 @@ function LeaveRequestDetailContent() {
                 </DetailItem>
                 <DetailItem
                   icon={UserCheck}
-                  label="Reporting Line Approver"
+                  label="Reporting Line Approver(s)"
                   value={
                     request.selectedApproverName
                       ? `${request.selectedApproverName}${request.selectedApproverEmail ? ` (${request.selectedApproverEmail})` : ''}`

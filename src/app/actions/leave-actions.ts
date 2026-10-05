@@ -61,9 +61,12 @@ const LeaveRequestFormSchema = z.object({
   endDate: z.coerce.date(),
   reason: z.string().min(10).max(500),
   attachmentURL: z.string().url().optional(),
-  selectedApproverId: z.string().min(1, "Please select a Reporting Line approver."),
+  selectedApproverId: z.string().optional(),
+  selectedApproverIds: z.string().optional(),
   selectedApproverName: z.string().optional(),
+  selectedApproverNames: z.string().optional(),
   selectedApproverEmail: z.string().optional(),
+  selectedApproverEmails: z.string().optional(),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
   path: ["endDate"],
@@ -95,9 +98,12 @@ export async function submitLeaveRequestAction(
     endDate: formData.get('endDate'),
     reason: formData.get('reason'),
     attachmentURL: formData.get('attachmentURL') || undefined,
-    selectedApproverId: formData.get('selectedApproverId'),
+    selectedApproverId: formData.get('selectedApproverId') || undefined,
+    selectedApproverIds: formData.get('selectedApproverIds') || undefined,
     selectedApproverName: formData.get('selectedApproverName') || undefined,
+    selectedApproverNames: formData.get('selectedApproverNames') || undefined,
     selectedApproverEmail: formData.get('selectedApproverEmail') || undefined,
+    selectedApproverEmails: formData.get('selectedApproverEmails') || undefined,
   });
 
   if (!validatedFields.success) {
@@ -116,6 +122,7 @@ export async function submitLeaveRequestAction(
     reason,
     attachmentURL,
     selectedApproverId,
+    selectedApproverIds,
     selectedApproverName,
     selectedApproverEmail,
   } = validatedFields.data;
@@ -351,31 +358,80 @@ const employeeEmail = (
       }
     }
 
-    // Validate that selectedApproverId exists inside the employee's ReportLine1–ReportLine6 values
-    const approverIdInput = String(selectedApproverId || '').trim();
-    const approverEmailInput = String(selectedApproverEmail || '').trim().toLowerCase();
-
-    const matchedApprover = resolvedManagers.find(m => {
-      if (approverIdInput) {
-        if (m.employeeId === approverIdInput) return true;
-        if (m.docId === approverIdInput) return true;
-        if (m.raw.toLowerCase() === approverIdInput.toLowerCase()) return true;
-        if (m.email.toLowerCase() === approverIdInput.toLowerCase()) return true;
+    // Parse selected approver IDs (supports array JSON, comma-separated, or single ID)
+    let selectedIdsList: string[] = [];
+    const rawIdsJson = formData.get('selectedApproverIds');
+    if (typeof rawIdsJson === 'string' && rawIdsJson.trim()) {
+      try {
+        const parsed = JSON.parse(rawIdsJson);
+        if (Array.isArray(parsed)) {
+          selectedIdsList = parsed.map(s => String(s).trim()).filter(Boolean);
+        }
+      } catch {
+        selectedIdsList = rawIdsJson.split(',').map(s => s.trim()).filter(Boolean);
       }
-      if (approverEmailInput) {
-        if (m.email.toLowerCase() === approverEmailInput) return true;
-        if (m.raw.toLowerCase() === approverEmailInput) return true;
+    }
+    if (selectedIdsList.length === 0) {
+      const singleId = formData.get('selectedApproverId');
+      if (typeof singleId === 'string' && singleId.trim()) {
+        try {
+          const parsed = JSON.parse(singleId);
+          if (Array.isArray(parsed)) {
+            selectedIdsList = parsed.map(s => String(s).trim()).filter(Boolean);
+          } else {
+            selectedIdsList = singleId.split(',').map(s => s.trim()).filter(Boolean);
+          }
+        } catch {
+          selectedIdsList = singleId.split(',').map(s => s.trim()).filter(Boolean);
+        }
       }
-      return false;
-    });
+    }
 
-    if (!matchedApprover) {
+    if (selectedIdsList.length === 0) {
       return {
         errors: {
-          selectedApproverId: ["The selected approver must be one of the employee's assigned Reporting Lines."],
-          form: ["The selected approver must be one of the employee's assigned Reporting Lines."],
+          selectedApproverId: ["Please select at least one Reporting Line approver (up to 2)."],
+          form: ["Please select at least one Reporting Line approver (up to 2)."],
         },
-        message: "The selected approver must be one of the employee's assigned Reporting Lines.",
+        message: "Please select at least one Reporting Line approver (up to 2).",
+        success: false,
+      };
+    }
+
+    if (selectedIdsList.length > 2) {
+      return {
+        errors: {
+          selectedApproverId: ["You can select a maximum of 2 Reporting Lines."],
+          form: ["You can select a maximum of 2 Reporting Lines."],
+        },
+        message: "You can select a maximum of 2 Reporting Lines.",
+        success: false,
+      };
+    }
+
+    // Match each selected ID against the employee's assigned reporting lines
+    const matchedApprovers: ManagerInfo[] = [];
+    for (const selId of selectedIdsList) {
+      const trimmedSel = selId.trim();
+      const matched = resolvedManagers.find(m => {
+        if (m.employeeId === trimmedSel) return true;
+        if (m.docId === trimmedSel) return true;
+        if (m.raw.toLowerCase() === trimmedSel.toLowerCase()) return true;
+        if (m.email.toLowerCase() === trimmedSel.toLowerCase()) return true;
+        return false;
+      });
+      if (matched && !matchedApprovers.some(existing => existing.employeeId === matched.employeeId)) {
+        matchedApprovers.push(matched);
+      }
+    }
+
+    if (matchedApprovers.length === 0) {
+      return {
+        errors: {
+          selectedApproverId: ["The selected approver(s) must be from the employee's assigned Reporting Lines."],
+          form: ["The selected approver(s) must be from the employee's assigned Reporting Lines."],
+        },
+        message: "The selected approver(s) must be from the employee's assigned Reporting Lines.",
         success: false,
       };
     }
@@ -395,6 +451,10 @@ const employeeEmail = (
     const notifiedReportingLineIds = uniqueManagers.map(m => m.employeeId).filter(Boolean);
     const notifiedReportingLineEmails = uniqueManagers.map(m => m.email).filter(Boolean);
 
+    const primaryApprover = matchedApprovers[0];
+    const combinedApproverNames = matchedApprovers.map(m => m.name).join(", ");
+    const combinedApproverEmails = matchedApprovers.map(m => m.email).filter(Boolean).join(", ");
+
     const newRequestRef = await addDoc(collection(db, "leaveRequests"), {
       requestingEmployeeDocId,
       employeeId: employeeData.employeeId ? String(employeeData.employeeId) : requestingEmployeeDocId,
@@ -408,13 +468,17 @@ const employeeEmail = (
       reportLine4: employeeData.reportLine4 ?? null,
       reportLine5: employeeData.reportLine5 ?? null,
       reportLine6: employeeData.reportLine6 ?? null,
-      selectedApproverId: matchedApprover.employeeId,
-      selectedApproverDocId: matchedApprover.docId,
-      selectedApproverName: selectedApproverName || matchedApprover.name,
-      selectedApproverEmail: matchedApprover.email,
+      selectedApproverId: primaryApprover.employeeId,
+      selectedApproverDocId: primaryApprover.docId,
+      selectedApproverName: combinedApproverNames,
+      selectedApproverEmail: combinedApproverEmails,
+      selectedApproverIds: matchedApprovers.map(m => m.employeeId),
+      selectedApproverDocIds: matchedApprovers.map(m => m.docId),
+      selectedApproverNames: matchedApprovers.map(m => m.name),
+      selectedApproverEmails: matchedApprovers.map(m => m.email).filter(Boolean),
       notifiedReportingLineIds,
       notifiedReportingLineEmails,
-      currentApprover: matchedApprover.email || matchedApprover.employeeId,
+      currentApprover: combinedApproverEmails || combinedApproverNames || primaryApprover.employeeId,
       leaveType,
       startDate: Timestamp.fromDate(startDate),
       endDate: Timestamp.fromDate(effectiveEndDate),
@@ -441,8 +505,8 @@ const employeeEmail = (
       leaveRequestId: newRequestRef.id,
       leaveType,
       employeeName,
-      selectedApproverId: matchedApprover.employeeId,
-      selectedApproverName: matchedApprover.name,
+      selectedApproverIds: matchedApprovers.map(m => m.employeeId),
+      selectedApproverNames: matchedApprovers.map(m => m.name),
     });
 
     const requestPath = `/leave/all-requests/${newRequestRef.id}`;
@@ -450,15 +514,17 @@ const employeeEmail = (
 
     // Send notifications to ALL Reporting Lines assigned to the employee
     for (const manager of uniqueManagers) {
-      const isSelected =
-        manager.employeeId === matchedApprover.employeeId ||
-        (manager.email && manager.email.toLowerCase() === matchedApprover.email.toLowerCase());
+      const isSelected = matchedApprovers.some(
+        a => a.employeeId === manager.employeeId ||
+        a.docId === manager.docId ||
+        (manager.email && a.email && manager.email.toLowerCase() === a.email.toLowerCase())
+      );
 
       const startStr = format(startDate, "MMMM d");
       const endStr = format(effectiveEndDate, "MMMM d");
 
       const notificationMessage = isSelected
-        ? `${employeeName} submitted a new ${leaveType} Request from ${startStr} to ${endStr}. You are the selected approver for this request.`
+        ? `${employeeName} submitted a new ${leaveType} Request from ${startStr} to ${endStr}. You are a designated approver for this request.`
         : `${employeeName} submitted a new ${leaveType} Request from ${startStr} to ${endStr}.`;
 
       // 1. In-app notification
@@ -493,8 +559,8 @@ const employeeEmail = (
               startDate: format(startDate, "MM/dd/yyyy"),
               endDate: format(effectiveEndDate, "MM/dd/yyyy"),
               reason: isSelected
-                ? `${reason}\n\nNote: You are the designated Reporting Line Approver for this request.`
-                : `${reason}\n\nNote: Another Reporting Line (${matchedApprover.name}) was designated as approver. This notification is for your visibility.`,
+                ? `${reason}\n\nNote: You are a designated Reporting Line Approver for this request.`
+                : `${reason}\n\nNote: Reporting Line Approver(s) designated: ${combinedApproverNames}. This notification is for your visibility.`,
               leaveRequestLink: requestLink,
             })
           );
@@ -646,40 +712,51 @@ export async function updateLeaveRequestStatusAction(
     const actorDocId = actorEmployeeSnap?.id || formActorDocId || actorId || null;
     const actorName = actorEmployeeData?.name || actorEmail || "Reporting Line Approver";
 
-    let isSelectedApprover = false;
+    // Collect all valid IDs and emails for the selected approver(s)
+    const validApproverIds = new Set<string>();
+    const validApproverEmails = new Set<string>();
+
+    if (Array.isArray(requestData.selectedApproverIds)) {
+      requestData.selectedApproverIds.forEach((id: any) => validApproverIds.add(String(id).trim().toLowerCase()));
+    }
+    if (Array.isArray(requestData.selectedApproverDocIds)) {
+      requestData.selectedApproverDocIds.forEach((id: any) => validApproverIds.add(String(id).trim().toLowerCase()));
+    }
     if (reqSelectedApproverId) {
-      if (
-        (actorEmployeeId && actorEmployeeId === reqSelectedApproverId) ||
-        (actorDocId && actorDocId === reqSelectedApproverId) ||
-        (actorEmailClean && actorEmailClean === reqSelectedApproverId.toLowerCase())
-      ) {
-        isSelectedApprover = true;
-      }
+      reqSelectedApproverId.split(',').forEach(id => validApproverIds.add(id.trim().toLowerCase()));
     }
-    if (!isSelectedApprover && (requestData as any).selectedApproverDocId && actorDocId) {
-      if (actorDocId === String((requestData as any).selectedApproverDocId).trim()) {
-        isSelectedApprover = true;
-      }
+    if ((requestData as any).selectedApproverDocId) {
+      String((requestData as any).selectedApproverDocId).split(',').forEach(id => validApproverIds.add(id.trim().toLowerCase()));
     }
-    if (!isSelectedApprover && reqSelectedApproverEmail) {
-      if (actorEmailClean && actorEmailClean === reqSelectedApproverEmail) {
-        isSelectedApprover = true;
-      }
+
+    if (Array.isArray(requestData.selectedApproverEmails)) {
+      requestData.selectedApproverEmails.forEach((e: any) => validApproverEmails.add(String(e).trim().toLowerCase()));
     }
+    if (reqSelectedApproverEmail) {
+      reqSelectedApproverEmail.split(',').forEach(e => validApproverEmails.add(e.trim().toLowerCase()));
+    }
+
+    let isSelectedApprover = false;
+    if (actorEmployeeId && validApproverIds.has(actorEmployeeId.toLowerCase())) isSelectedApprover = true;
+    if (actorDocId && validApproverIds.has(actorDocId.toLowerCase())) isSelectedApprover = true;
+    if (actorId && validApproverIds.has(String(actorId).trim().toLowerCase())) isSelectedApprover = true;
+    if (actorEmailClean && (validApproverEmails.has(actorEmailClean) || validApproverIds.has(actorEmailClean))) isSelectedApprover = true;
+
     if (!isSelectedApprover && currentApproverClean) {
-      if (actorEmailClean && actorEmailClean === currentApproverClean) {
+      const currentList = currentApproverClean.split(',').map(s => s.trim().toLowerCase());
+      if (actorEmailClean && currentList.includes(actorEmailClean)) {
         isSelectedApprover = true;
       }
     }
 
-    // Permission enforcement: Only the selected Reporting Line can approve or reject
-    if (reqSelectedApproverId || reqSelectedApproverEmail) {
+    // Permission enforcement: Only the selected Reporting Line(s) can approve or reject
+    if (validApproverIds.size > 0 || validApproverEmails.size > 0) {
       if (!isSelectedApprover) {
         return {
           message: "Permission denied",
           errors: {
             form: [
-              `Permission denied: Only the selected Reporting Line approver (${requestData.selectedApproverName || "designated approver"}) can approve or reject this leave request.`
+              `Permission denied: Only the selected Reporting Line approver(s) (${requestData.selectedApproverName || "designated approver"}) can approve or reject this leave request.`
             ]
           },
           success: false,

@@ -20,12 +20,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Send, Loader2, AlertTriangle, Clock, UserCheck } from "lucide-react";
+import { CalendarIcon, Send, Loader2, AlertTriangle, Clock, UserCheck, Check, ChevronsUpDown, X, Users } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { storage, db } from "@/lib/firebase/config";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { collection, getDocs, query, where, limit, doc, getDoc } from "firebase/firestore";
@@ -86,12 +88,29 @@ function LeaveRequestForm() {
 
   const [resolvedApprovers, setResolvedApprovers] = useState<ResolvedApprover[]>([]);
   const [isLoadingApprovers, setIsLoadingApprovers] = useState(false);
-  const [selectedApproverId, setSelectedApproverId] = useState<string>("");
+  const [selectedApproverIds, setSelectedApproverIds] = useState<string[]>([]);
+  const [isApproverPopoverOpen, setIsApproverPopoverOpen] = useState(false);
+
+  const toggleApprover = (id: string) => {
+    setSelectedApproverIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((item) => item !== id);
+      }
+      if (prev.length >= 2) {
+        toast({
+          title: "Maximum of 2 Approvers",
+          description: "You can select up to 2 reporting lines. Deselect one first to choose another.",
+        });
+        return prev;
+      }
+      return [...prev, id];
+    });
+  };
 
   useEffect(() => {
     if (!hasReportingLines) {
       setResolvedApprovers([]);
-      setSelectedApproverId("");
+      setSelectedApproverIds([]);
       return;
     }
 
@@ -158,7 +177,10 @@ function LeaveRequestForm() {
         if (isMounted) {
           setResolvedApprovers(list);
           if (list.length > 0) {
-            setSelectedApproverId(list[0].id);
+            setSelectedApproverIds((prev) => {
+              const valid = prev.filter((id) => list.some((a) => a.id === id));
+              return valid.length > 0 ? valid : [list[0].id];
+            });
           }
         }
       } catch (err) {
@@ -350,11 +372,20 @@ function LeaveRequestForm() {
       return;
     }
 
-    if (!selectedApproverId) {
+    if (selectedApproverIds.length === 0) {
       toast({
         variant: "destructive",
         title: "Reporting Line Approver Required",
-        description: "Please select a Reporting Line approver for this leave request.",
+        description: "Please select at least one Reporting Line approver (up to 2).",
+      });
+      return;
+    }
+
+    if (selectedApproverIds.length > 2) {
+      toast({
+        variant: "destructive",
+        title: "Too Many Approvers Selected",
+        description: "You can select a maximum of 2 Reporting Lines.",
       });
       return;
     }
@@ -371,15 +402,17 @@ function LeaveRequestForm() {
       return;
     }
 
-    const chosenApprover = resolvedApprovers.find((a) => a.id === selectedApproverId);
+    const chosenApprovers = resolvedApprovers.filter((a) => selectedApproverIds.includes(a.id));
 
     const formData = new FormData(currentForm);
-    formData.set("selectedApproverId", selectedApproverId);
-    if (chosenApprover?.name) {
-      formData.set("selectedApproverName", chosenApprover.name);
-    }
-    if (chosenApprover?.email) {
-      formData.set("selectedApproverEmail", chosenApprover.email);
+    formData.set("selectedApproverIds", JSON.stringify(selectedApproverIds));
+    formData.set("selectedApproverId", selectedApproverIds.join(","));
+    if (chosenApprovers.length > 0) {
+      formData.set("selectedApproverNames", JSON.stringify(chosenApprovers.map(a => a.name)));
+      formData.set("selectedApproverName", chosenApprovers.map(a => a.name).join(", "));
+      formData.set("selectedApproverEmails", JSON.stringify(chosenApprovers.map(a => a.email).filter(Boolean)));
+      formData.set("selectedApproverEmail", chosenApprovers.map(a => a.email).filter(Boolean).join(","));
+      formData.set("selectedApproverDocIds", JSON.stringify(chosenApprovers.map(a => a.docId)));
     }
   
     if (selectedLeaveType) {
@@ -480,32 +513,137 @@ if (endDate) {
             </div>
           </div>
         ) : (
-          <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-4">
-            <Label htmlFor="reportingLineApprover" className="flex items-center gap-1.5 font-semibold text-sm">
-              <UserCheck className="h-4 w-4 text-primary" />
-              <span>Reporting Line Approver <span className="text-destructive">*</span></span>
-            </Label>
+          <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="reportingLineApprover" className="flex items-center gap-1.5 font-semibold text-sm">
+                <UserCheck className="h-4 w-4 text-primary" />
+                <span>Reporting Line Approver <span className="text-destructive">*</span></span>
+              </Label>
+              <Badge
+                variant={selectedApproverIds.length === 2 ? "default" : selectedApproverIds.length === 1 ? "secondary" : "outline"}
+                className="text-xs"
+              >
+                {selectedApproverIds.length} / 2 selected
+              </Badge>
+            </div>
             <p className="text-xs text-muted-foreground">
-              Select one Reporting Line who has authority to Approve or Reject this request. All assigned reporting lines will receive notifications for visibility.
+              Select up to 2 Reporting Lines who have authority to Approve or Reject this request (1 or 2). All assigned reporting lines will receive notifications for visibility.
             </p>
-            <Select
-              name="selectedApproverId"
-              value={selectedApproverId}
-              onValueChange={setSelectedApproverId}
-              disabled={isPending || isSubmittingFile || isLoadingApprovers}
-              required
-            >
-              <SelectTrigger id="reportingLineApprover" className="bg-background">
-                <SelectValue placeholder={isLoadingApprovers ? "Loading reporting lines..." : "Select Reporting Line Approver"} />
-              </SelectTrigger>
-              <SelectContent>
-                {resolvedApprovers.map((approver) => (
-                  <SelectItem key={approver.id} value={approver.id}>
-                    {approver.name} {approver.email ? `(${approver.email})` : ""} — {approver.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+            <Popover open={isApproverPopoverOpen} onOpenChange={setIsApproverPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  id="reportingLineApprover"
+                  type="button"
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={isApproverPopoverOpen}
+                  disabled={isPending || isSubmittingFile || isLoadingApprovers}
+                  className="w-full justify-between bg-background text-left font-normal h-auto min-h-10 py-2"
+                >
+                  <div className="flex flex-wrap items-center gap-1.5 truncate">
+                    {isLoadingApprovers ? (
+                      <span className="text-muted-foreground">Loading reporting lines...</span>
+                    ) : selectedApproverIds.length === 0 ? (
+                      <span className="text-muted-foreground">Select up to 2 Reporting Lines...</span>
+                    ) : (
+                      selectedApproverIds.map((id) => {
+                        const app = resolvedApprovers.find((a) => a.id === id);
+                        return (
+                          <span key={id} className="font-medium text-xs bg-muted px-2 py-0.5 rounded">
+                            {app?.name || id} ({app?.label})
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-2" align="start">
+                <div className="space-y-1">
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground flex justify-between items-center">
+                    <span>Available Reporting Lines</span>
+                    <span>Can select up to 2</span>
+                  </div>
+                  {resolvedApprovers.map((approver) => {
+                    const isChecked = selectedApproverIds.includes(approver.id);
+                    const isMaxReached = !isChecked && selectedApproverIds.length >= 2;
+
+                    return (
+                      <div
+                        key={approver.id}
+                        onClick={() => {
+                          if (!isMaxReached) {
+                            toggleApprover(approver.id);
+                          } else {
+                            toast({
+                              title: "Maximum 2 Approvers Allowed",
+                              description: "You can select up to 2 reporting lines. Unselect one first to select another.",
+                            });
+                          }
+                        }}
+                        className={cn(
+                          "flex items-start gap-2.5 rounded-md p-2 text-sm cursor-pointer select-none transition-colors",
+                          isChecked ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted",
+                          isMaxReached && "opacity-50 cursor-not-allowed hover:bg-transparent"
+                        )}
+                      >
+                        <Checkbox
+                          checked={isChecked}
+                          disabled={isMaxReached}
+                          className="mt-0.5"
+                          onCheckedChange={() => toggleApprover(approver.id)}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="truncate">{approver.name}</span>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal">
+                              {approver.label}
+                            </Badge>
+                          </div>
+                          {approver.email && (
+                            <p className="text-xs text-muted-foreground truncate">{approver.email}</p>
+                          )}
+                        </div>
+                        {isMaxReached && (
+                          <span className="text-[10px] text-muted-foreground self-center">Max 2</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Selected badges with removable action */}
+            {selectedApproverIds.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-xs text-muted-foreground mr-1">Selected approver(s):</span>
+                {selectedApproverIds.map((id) => {
+                  const approver = resolvedApprovers.find((a) => a.id === id);
+                  if (!approver) return null;
+                  return (
+                    <Badge key={id} variant="secondary" className="text-xs py-0.5 pl-2.5 pr-1 flex items-center gap-1">
+                      <span>{approver.name} ({approver.label})</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          toggleApprover(id);
+                        }}
+                        className="rounded-full hover:bg-muted p-0.5 inline-flex items-center justify-center text-muted-foreground hover:text-foreground"
+                        aria-label={`Remove ${approver.name}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
 
             {serverState?.errors?.selectedApproverId && (
               <p className="text-sm text-destructive">{serverState.errors.selectedApproverId[0]}</p>
@@ -726,7 +864,7 @@ if (endDate) {
 
         <Button
           type="submit"
-          disabled={isPending || isSubmittingFile || !hasReportingLines || !selectedApproverId}
+          disabled={isPending || isSubmittingFile || !hasReportingLines || selectedApproverIds.length === 0}
           className="w-full md:w-auto"
         >
           {(isPending || isSubmittingFile) ? (
