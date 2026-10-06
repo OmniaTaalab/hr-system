@@ -740,11 +740,11 @@ export async function updateLeaveRequestStatusAction(
     if (actorEmployeeId && validApproverIds.has(actorEmployeeId.toLowerCase())) isSelectedApprover = true;
     if (actorDocId && validApproverIds.has(actorDocId.toLowerCase())) isSelectedApprover = true;
     if (actorId && validApproverIds.has(String(actorId).trim().toLowerCase())) isSelectedApprover = true;
-    if (actorEmailClean && (validApproverEmails.has(actorEmailClean) || validApproverIds.has(actorEmailClean))) isSelectedApprover = true;
+    if (approverEmailClean && (validApproverEmails.has(approverEmailClean) || validApproverIds.has(approverEmailClean))) isSelectedApprover = true;
 
     if (!isSelectedApprover && currentApproverClean) {
       const currentList = currentApproverClean.split(',').map(s => s.trim().toLowerCase());
-      if (actorEmailClean && currentList.includes(actorEmailClean)) {
+      if (approverEmailClean && currentList.includes(approverEmailClean)) {
         isSelectedApprover = true;
       }
     }
@@ -779,26 +779,30 @@ export async function updateLeaveRequestStatusAction(
       }
     }
     
-    const updates: any = {
-      managerNotes: managerNotes || requestData.managerNotes || "", 
-      updatedAt: serverTimestamp(),
-      approvedRejectedById: actorEmployeeId || actorDocId || actorEmailClean,
-      approvedRejectedByName: actorName,
-      approvedRejectedAt: serverTimestamp(),
-    };
-
+  const updates: any = {
+  managerNotes: managerNotes || requestData.managerNotes || "",
+  updatedAt: serverTimestamp(),
+  approvedRejectedById: actorEmployeeId || actorDocId || approverEmailClean,
+  approvedRejectedByName: actorName,
+  approvedRejectedAt: serverTimestamp(),
+};
     let isFinalDecision = false;
     let finalStatus = "";
 
     if (newStatus === "Rejected") {
       updates.status = "Rejected";
-      updates.rejectedBy = [...(requestData.rejectedBy || []), actorEmailClean || actorName];
+updates.rejectedBy = [
+  ...(requestData.rejectedBy || []),
+  approverEmailClean || actorName
+];
       updates.currentApprover = null;
       isFinalDecision = true;
       finalStatus = "Rejected";
     } else { // Approved
-      updates.approvedBy = [...(requestData.approvedBy || []), actorEmailClean || actorName];
-      
+updates.approvedBy = [
+  ...(requestData.approvedBy || []),
+  approverEmailClean || actorName
+];      
       // If this request has a designated selected approver, their decision is final!
       if (reqSelectedApproverId || reqSelectedApproverEmail) {
         updates.status = "Approved";
