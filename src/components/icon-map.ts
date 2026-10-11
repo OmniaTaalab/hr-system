@@ -42,6 +42,8 @@ import {
   ZoomIn, 
   ZoomOut, 
   FileText, 
+  HelpCircle,
+  BookOpen,
 } from 'lucide-react';
 
 export const iconMap: { [key: string]: LucideIcon } = {
@@ -86,4 +88,6 @@ export const iconMap: { [key: string]: LucideIcon } = {
   ZoomIn, 
   ZoomOut, 
   FileText, 
+  HelpCircle,
+  BookOpen,
 };

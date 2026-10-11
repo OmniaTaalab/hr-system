@@ -20,6 +20,7 @@ import { collection, query, where, getDocs, or, limit } from "firebase/firestore
 
 function formatI18nKey(key: string): string {
   if (!key) return "";
+  if (key === "sidebar.how_to_use") return "How to Use";
   // Converts "sidebar.employee_management" to "Employee Management"
   return key
     .split(".")[1]

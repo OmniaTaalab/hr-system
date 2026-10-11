@@ -74,6 +74,11 @@ export const navItems: NavItem[] = [
     href: '/settings',
     iconName: 'Settings',
   },
+  {
+    i18nKey: 'sidebar.how_to_use',
+    href: '/how-to-use',
+    iconName: 'HelpCircle',
+  },
 ];
 
 export const siteConfig = {
