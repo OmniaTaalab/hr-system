@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useI18n } from '@/lib/i18n';
 
 interface SystemLog {
   id: string;
@@ -45,6 +46,7 @@ const LOG_ACTIONS = [
 
 
 function SystemLogContent() {
+  const { isRTL, tText } = useI18n();
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -188,27 +190,27 @@ const canViewPage =
     <div className="space-y-8">
       <header>
         <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
-          <History className="mr-3 h-8 w-8 text-primary" />
-          System Log
+          <History className={cn("h-8 w-8 text-primary", isRTL ? "ml-3" : "mr-3")} />
+          {isRTL ? "سجل أحداث النظام" : "System Log"}
         </h1>
         <p className="text-muted-foreground">
-          An audit trail of all significant actions performed in the system.
+          {isRTL ? "سجل تدقيق وتتبع لجميع العمليات والإجراءات المهمة التي تمت داخل النظام." : "An audit trail of all significant actions performed in the system."}
         </p>
       </header>
 
       <Card className="shadow-lg">
           <CardHeader>
-              <CardTitle>Log Entries</CardTitle>
+              <CardTitle>{isRTL ? "سجلات النظام" : "Log Entries"}</CardTitle>
               <CardDescription>
-                  Review actions, the actors who performed them, and when they occurred.
+                  {isRTL ? "مراجعة العمليات، والمستخدمين الذين قاموا بها، وتوقيت حدوثها." : "Review actions, the actors who performed them, and when they occurred."}
               </CardDescription>
                <div className="flex flex-col sm:flex-row gap-4 pt-2">
                   <div className="relative flex-grow">
-                      <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Filter className={cn("absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground", isRTL ? "right-2.5" : "left-2.5")} />
                       <Input
                           type="search"
-                          placeholder="Search by action, name, email, role..."
-                          className="w-full pl-8"
+                          placeholder={isRTL ? "بحث بالإجراء، الاسم، البريد، الدور..." : "Search by action, name, email, role..."}
+                          className={cn("w-full", isRTL ? "pr-8" : "pl-8")}
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                       />
@@ -217,8 +219,8 @@ const canViewPage =
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button variant="outline" className={cn("w-full sm:w-auto justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {selectedDate ? format(selectedDate, 'MM/dd/yyyy') : <span>Filter by date...</span>}
+                              <CalendarIcon className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                              {selectedDate ? format(selectedDate, 'MM/dd/yyyy') : <span>{isRTL ? "تصفية بالتاريخ..." : "Filter by date..."}</span>}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
@@ -228,10 +230,10 @@ const canViewPage =
                       {selectedDate && <Button variant="ghost" size="icon" onClick={() => setSelectedDate(null)}><X className="h-4 w-4" /></Button>}
                       <Select value={actionFilter} onValueChange={setActionFilter}>
                           <SelectTrigger className="w-full sm:w-[200px]">
-                              <SelectValue placeholder="Filter by action" />
+                              <SelectValue placeholder={isRTL ? "تصفية حسب نوع الإجراء" : "Filter by action"} />
                           </SelectTrigger>
                           <SelectContent>
-                              <SelectItem value="All">All Actions</SelectItem>
+                              <SelectItem value="All">{isRTL ? "جميع الإجراءات" : "All Actions"}</SelectItem>
                               {LOG_ACTIONS.map(action => <SelectItem key={action} value={action}>{action}</SelectItem>)}
                           </SelectContent>
                       </Select>
@@ -242,21 +244,25 @@ const canViewPage =
                {isLoading ? (
                   <div className="flex justify-center items-center h-64">
                       <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                      <p className="ml-4 text-lg">Loading logs...</p>
+                      <p className={cn("text-lg", isRTL ? "mr-4" : "ml-4")}>
+                        {isRTL ? "جاري تحميل السجلات..." : "Loading logs..."}
+                      </p>
                   </div>
                ) : displayedRecords.length === 0 ? (
                   <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
-                      <h3 className="text-xl font-semibold">No Logs Found</h3>
-                      <p className="mt-2">{searchTerm || actionFilter !== 'All' || selectedDate ? `No logs match your filters.` : "There are currently no logs in the system."}</p>
+                      <h3 className="text-xl font-semibold">
+                        {isRTL ? "لم يتم العثور على سجلات" : "No Logs Found"}
+                      </h3>
+                      <p className="mt-2">{searchTerm || actionFilter !== 'All' || selectedDate ? (isRTL ? "لا توجد سجلات تطابق الفلاتر المحددة." : "No logs match your filters.") : (isRTL ? "لا توجد سجلات حالية في النظام." : "There are currently no logs in the system.")}</p>
                   </div>
                ) : (
                   <Table>
                       <TableHeader>
                           <TableRow>
-                              <TableHead>Timestamp</TableHead>
-                              <TableHead>Action</TableHead>
-                              <TableHead>Actor</TableHead>
-                              <TableHead>Actor Role</TableHead>
+                              <TableHead>{isRTL ? "الوقت والتاريخ" : "Timestamp"}</TableHead>
+                              <TableHead>{isRTL ? "الإجراء" : "Action"}</TableHead>
+                              <TableHead>{isRTL ? "المستخدم" : "Actor"}</TableHead>
+                              <TableHead>{isRTL ? "الدور الوظيفي" : "Actor Role"}</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -268,7 +274,7 @@ const canViewPage =
                               >
                                   <TableCell>{format(log.timestamp.toDate(), 'MM/dd/yyyy p')}</TableCell>
                                   <TableCell className="font-medium">{log.action}</TableCell>
-                                  <TableCell>{log.actorName || log.actorEmail || 'System'}</TableCell>
+                                  <TableCell>{log.actorName || log.actorEmail || (isRTL ? 'النظام' : 'System')}</TableCell>
                                   <TableCell>{log.actorRole || '-'}</TableCell>
                               </TableRow>
                           ))}
@@ -280,11 +286,11 @@ const canViewPage =
             <CardContent>
               <div className="flex items-center justify-end space-x-2 py-4">
                   <Button variant="outline" size="sm" onClick={goToPrevPage} disabled={currentPage <= 1 || isLoading}>
-                      <ArrowLeft className="mr-2 h-4 w-4" /> Previous
+                      <ArrowLeft className={cn("h-4 w-4", isRTL ? "ml-2 rotate-180" : "mr-2")} /> {isRTL ? "السابق" : "Previous"}
                   </Button>
-                  <span className="text-sm font-medium">Page {currentPage}</span>
+                  <span className="text-sm font-medium">{isRTL ? `صفحة ${currentPage}` : `Page ${currentPage}`}</span>
                   <Button variant="outline" size="sm" onClick={goToNextPage} disabled={isLastPage || isLoading}>
-                      Next <ArrowRight className="ml-2 h-4 w-4" />
+                      {isRTL ? "التالي" : "Next"} <ArrowRight className={cn("h-4 w-4", isRTL ? "mr-2 rotate-180" : "ml-2")} />
                   </Button>
               </div>
           </CardContent>

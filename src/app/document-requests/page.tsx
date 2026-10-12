@@ -11,8 +11,10 @@ import { FileText, PlusCircle, History, ListFilter, Shield } from "lucide-react"
 import { Badge } from "@/components/ui/badge";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
+import { useI18n } from "@/lib/i18n";
 
 function DocumentRequestsContent() {
+  const { isRTL, tText } = useI18n();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { profile, user } = useUserProfile();
@@ -76,10 +78,12 @@ const isPrivilegedUser =
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                Document Requests
+                {isRTL ? "طلبات المستندات" : "Document Requests"}
               </h1>
               <p className="text-xs sm:text-sm text-muted-foreground">
-                Request official employment certificates, salary slips, bank & embassy letters with complete status tracking.
+                {isRTL
+                  ? "طلب شهادات العمل الرسمية، مفردات المرتب، وخطابات البنوك والسفارات مع متابعة كاملة للحالة."
+                  : "Request official employment certificates, salary slips, bank & embassy letters with complete status tracking."}
               </p>
             </div>
           </div>
@@ -88,7 +92,7 @@ const isPrivilegedUser =
         {isPrivilegedUser && (
           <Badge variant="secondary" className="self-start sm:self-auto gap-1.5 py-1 px-3 bg-purple-100 dark:bg-purple-950/40 text-purple-900 dark:text-purple-300 border-purple-300">
             <Shield className="h-3.5 w-3.5 text-purple-600" />
-            HR Management Mode
+            {isRTL ? "وضع إدارة الموارد البشرية" : "HR Management Mode"}
           </Badge>
         )}
       </div>
@@ -98,18 +102,18 @@ const isPrivilegedUser =
         <TabsList className="grid w-full max-w-lg grid-cols-2 sm:grid-cols-3 h-11 p-1 bg-muted/60">
           <TabsTrigger value="submit" className="gap-1.5 text-xs sm:text-sm font-medium">
             <PlusCircle className="h-4 w-4" />
-            New Request
+            {isRTL ? "طلب جديد" : "New Request"}
           </TabsTrigger>
           <TabsTrigger value="my-requests" className="gap-1.5 text-xs sm:text-sm font-medium">
             <History className="h-4 w-4" />
-            My Requests
+            {isRTL ? "طلباتي" : "My Requests"}
           </TabsTrigger>
           {isPrivilegedUser && (
             <TabsTrigger value="queue" className="gap-1.5 text-xs sm:text-sm font-medium">
               <ListFilter className="h-4 w-4" />
-              HR Queue
+              {isRTL ? "قائمة الانتظار" : "HR Queue"}
               {pendingCount > 0 && (
-                <Badge variant="destructive" className="ml-1 h-5 min-w-[20px] px-1 text-[10px] font-bold">
+                <Badge variant="destructive" className={cn("h-5 min-w-[20px] px-1 text-[10px] font-bold", isRTL ? "mr-1" : "ml-1")}>
                   {pendingCount}
                 </Badge>
               )}

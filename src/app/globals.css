@@ -6,6 +6,19 @@ body {
   font-family: var(--font-inter), sans-serif;
 }
 
+[dir="rtl"] {
+  font-family: var(--font-inter), 'Segoe UI', Tahoma, -apple-system, sans-serif;
+  letter-spacing: normal;
+}
+
+[dir="rtl"] input[type="email"],
+[dir="rtl"] input[type="password"],
+[dir="rtl"] input[type="tel"],
+[dir="rtl"] input[type="url"] {
+  direction: ltr;
+  text-align: left;
+}
+
 @layer base {
   :root {
     --background: 210 17% 95%; /* Off-white #F2F3F4 */

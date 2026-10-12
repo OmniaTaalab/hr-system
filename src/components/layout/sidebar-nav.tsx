@@ -17,6 +17,7 @@ import { useApp } from "./app-provider";
 import { Skeleton } from "../ui/skeleton";
 import { db } from "@/lib/firebase/config";
 import { collection, query, where, getDocs, or, limit } from "firebase/firestore";
+import { useI18n } from "@/lib/i18n";
 
 function formatI18nKey(key: string): string {
   if (!key) return "";
@@ -31,6 +32,7 @@ function formatI18nKey(key: string): string {
 export function SidebarNav() {
   const pathname = usePathname();
   const { profile, loading } = useApp();
+  const { t, isRTL } = useI18n();
   const [isManager, setIsManager] = useState(false);
 
   useEffect(() => {
@@ -141,7 +143,8 @@ const isDirector = userRole === 'director';
       <SidebarMenu>
         {navItems.map((item, index) => {
           const IconComponent = iconMap[item.iconName];
-          const title = formatI18nKey(item.i18nKey);
+          const defaultTitle = formatI18nKey(item.i18nKey);
+          const title = t(item.i18nKey, defaultTitle);
           return (
             item.href && (
               <SidebarMenuItem key={index}>
@@ -160,9 +163,9 @@ const isDirector = userRole === 'director';
                     tooltip={title}
                   >
                     {IconComponent ? (
-                      <IconComponent className="mr-2 h-4 w-4" />
+                      <IconComponent className={cn("h-4 w-4 shrink-0", isRTL ? "ml-2" : "mr-2")} />
                     ) : (
-                      <span className="mr-2 h-4 w-4" />
+                      <span className={cn("h-4 w-4 shrink-0", isRTL ? "ml-2" : "mr-2")} />
                     )}
                     <span className="truncate">{title}</span>
                   </SidebarMenuButton>
@@ -177,15 +180,16 @@ const isDirector = userRole === 'director';
 }
 
 export function AppLogo() {
+  const { isRTL } = useI18n();
   return (
     <Link
       href="/"
-      className="flex items-center space-x-2 px-2 py-4"
+      className="flex items-center gap-2 px-2 py-4"
       aria-label={siteConfig.name}
     >
-      <Icons.NisLogo className="h-8 w-8 text-sidebar-foreground" />
+      <Icons.NisLogo className="h-8 w-8 text-sidebar-foreground shrink-0" />
       <span className="font-headline text-lg font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-        {siteConfig.name}
+        {isRTL ? "بوابة الموارد البشرية" : siteConfig.name}
       </span>
     </Link>
   );

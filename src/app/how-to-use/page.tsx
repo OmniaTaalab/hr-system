@@ -16,9 +16,9 @@ import { Input } from "@/components/ui/input";
 import { db } from "@/lib/firebase/config";
 import { collection, query, where, getDocs, or, limit } from "firebase/firestore";
 import { Search } from "lucide-react";
+import { useI18n, type Language as Lang } from "@/lib/i18n";
 
 type SectionTab = "getting-started" | "employees" | "managers";
-type Lang = "en" | "ar";
 
 interface StepItem {
   text: string;
@@ -65,26 +65,13 @@ interface GuideGroup {
 
 export default function HowToUsePage() {
   const { profile, loading: isProfileLoading } = useUserProfile();
-  const [lang, setLang] = useState<Lang>("en");
+  const { lang, setLang, isRTL, t } = useI18n();
   const [activeTab, setActiveTab] = useState<SectionTab>("getting-started");
   const [searchQuery, setSearchQuery] = useState("");
   const [isManagerFromDb, setIsManagerFromDb] = useState(false);
 
-  // Load language preference from localStorage
-  useEffect(() => {
-    try {
-      const savedLang = localStorage.getItem("nis_guide_lang");
-      if (savedLang === "ar" || savedLang === "en") {
-        setLang(savedLang);
-      }
-    } catch {}
-  }, []);
-
   const handleLangChange = (newLang: Lang) => {
     setLang(newLang);
-    try {
-      localStorage.setItem("nis_guide_lang", newLang);
-    } catch {}
   };
 
   // Check if current user is assigned as reporting line to any employee
@@ -124,8 +111,6 @@ export default function HowToUsePage() {
       checkManagerStatus();
     }
   }, [profile]);
-
-  const isRTL = lang === "ar";
 
   // 1. GETTING STARTED GUIDES (matching Image 1, 2, 3)
   const gettingStartedGuides: DetailedGuide[] = [

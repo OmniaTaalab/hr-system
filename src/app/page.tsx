@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { format, startOfDay, endOfDay, differenceInCalendarDays, isToday, isTomorrow } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { useApp } from "@/components/layout/app-provider";
+import { useI18n } from "@/lib/i18n";
 
 // Helper functions for attendance logic
 const toStr = (v: any) => String(v ?? "").trim();
@@ -252,6 +253,7 @@ function DashboardPageContent() {
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const { user } = useApp();
   const { toast } = useToast();
+  const { t, tText, isRTL, lang } = useI18n();
 
   // Dynamic greeting based on time of day:
   // Before 12 PM: Good morning
@@ -784,77 +786,77 @@ return (
 
   const statisticCards: DashboardCardProps[] = [
     {
-      title: "Active Employees",
+      title: t("dashboard.active_employees", "Active Employees"),
       iconName: "Users",
       statistic: activeEmployees ?? 0,
       isLoadingStatistic: isLoadingActiveEmp,
       href: "/employees?status=Active",
-      linkText: "Manage Employees",
+      linkText: tText("Manage Employees", "إدارة الموظفين"),
       adminOnly: true,
     },
     {
-      title: "Today's Attendance",
+      title: t("dashboard.attendance_today", "Today's Attendance"),
       iconName: "UserCheck",
       statistic: todaysAttendance ?? 0,
-      statisticLabel: attendanceDate ? `As of ${attendanceDate}` : 'No attendance data',
+      statisticLabel: attendanceDate ? `${tText("As of", "بتاريخ")} ${attendanceDate}` : tText("No attendance data", "لا توجد بيانات حضور"),
       isLoadingStatistic: isLoadingTodaysAttendance,
       href: `/employees/status/present?date=${dateStringForLink || ''}`,
-      linkText: "View Employees",
+      linkText: tText("View Employees", "عرض الموظفين"),
       adminOnly: true,
     },
     {
-      title: "Absent Today",
+      title: tText("Absent Today", "الغياب اليوم"),
       iconName: "UserX",
       statistic: absentToday ?? 0,
-      statisticLabel: `From ${activeEmployees ?? 'N/A'} active employees`,
+      statisticLabel: `${tText("From", "من إجمالي")} ${activeEmployees ?? 'N/A'} ${tText("active employees", "موظف على رأس العمل")}`,
       isLoadingStatistic: isLoadingAbsentToday || isLoadingActiveEmp,
       href: `/employees/status/absent?date=${dateStringForLink || ''}`,
-      linkText: "View Employees",
+      linkText: tText("View Employees", "عرض الموظفين"),
       adminOnly: true,
     },
     {
-      title: "Late Arrivals",
+      title: tText("Late Arrivals", "المتأخرون اليوم"),
       iconName: "Clock",
       statistic: lateAttendance ?? 0,
-      statisticLabel: attendanceDate ? `Based on campus-specific rules` : 'No attendance data',
+      statisticLabel: attendanceDate ? tText("Based on campus-specific rules", "وفقاً للائحة الحضور المعتمدة") : tText("No attendance data", "لا توجد بيانات حضور"),
       isLoadingStatistic: isLoadingLateAttendance,
       href: `/employees/status/late?date=${dateStringForLink || ''}`,
-      linkText: "View Employees",
+      linkText: tText("View Employees", "عرض الموظفين"),
       adminOnly: true,
     },
     {
-      title: "Pending Leaves",
+      title: t("dashboard.pending_leaves", "Pending Leaves"),
       iconName: "Hourglass",
       statistic: pendingLeaveRequests ?? 0,
       isLoadingStatistic: isLoadingPendingLeaves,
       href: isPrivilegedUser ? "/leave/all-requests?status=Pending" : "/leave/my-requests?status=Pending",
-      linkText: "Review Requests",
+      linkText: tText("Review Requests", "مراجعة الطلبات"),
     },
     {
-      title: "Approved Leaves",
+      title: tText("Approved Leaves", "إجازات مقبولة"),
       iconName: "ShieldCheck",
       statistic: approvedLeaveRequests ?? 0,
       isLoadingStatistic: isLoadingApprovedLeaves,
       href: isPrivilegedUser ? "/leave/all-requests?status=Approved" : "/leave/my-requests?status=Approved",
-      linkText: "View Approved",
+      linkText: tText("View Approved", "عرض المقبولة"),
     },
     {
-      title: "Rejected Leaves",
+      title: tText("Rejected Leaves", "إجازات مرفوضة"),
       iconName: "ShieldX",
       statistic: rejectedLeaveRequests ?? 0,
       isLoadingStatistic: isLoadingRejectedLeaves,
       href: isPrivilegedUser ? "/leave/all-requests?status=Rejected" : "/leave/my-requests?status=Rejected",
-      linkText: "View Rejected",
+      linkText: tText("View Rejected", "عرض المرفوضة"),
     },
     ...(!isPrivilegedUser && profile ? [
-      { title: "ELEOT Score", iconName: "Trophy", statistic: eleotScore, statisticLabel: `Based on ${kpiData.eleot.length} entries`, isLoadingStatistic: isLoadingKpis, href: `/kpis/${profile.employeeId}`, linkText: "View Details" },
-      { title: "TOT Score", iconName: "Trophy", statistic: totScore, statisticLabel: `Based on ${kpiData.tot.length} entries`, isLoadingStatistic: isLoadingKpis, href: `/kpis/${profile.employeeId}`, linkText: "View Details" }
+      { title: tText("ELEOT Score", "تقييم ELEOT"), iconName: "Trophy", statistic: eleotScore, statisticLabel: `${tText("Based on", "بناء على")} ${kpiData.eleot.length} ${tText("entries", "تقييمات")}`, isLoadingStatistic: isLoadingKpis, href: `/kpis/${profile.employeeId}`, linkText: tText("View Details", "عرض التفاصيل") },
+      { title: tText("TOT Score", "تقييم TOT"), iconName: "Trophy", statistic: totScore, statisticLabel: `${tText("Based on", "بناء على")} ${kpiData.tot.length} ${tText("entries", "تقييمات")}`, isLoadingStatistic: isLoadingKpis, href: `/kpis/${profile.employeeId}`, linkText: tText("View Details", "عرض التفاصيل") }
     ] : [])
   ];
 
   const filteredStatisticCards = useMemo(() => {
     if (isPrivilegedUser) {
-        return statisticCards.filter(card => card.adminOnly === true || !['Pending Leaves', 'Approved Leaves', 'Rejected Leaves'].includes(card.title));
+        return statisticCards.filter(card => card.adminOnly === true || !['Pending Leaves', 'Approved Leaves', 'Rejected Leaves', 'إجازات مقبولة', 'إجازات مرفوضة', 'طلبات إجازة معلقة'].includes(card.title));
     }
     return statisticCards.filter(card => !card.adminOnly);
   }, [statisticCards, isPrivilegedUser, profile]);
@@ -862,27 +864,27 @@ return (
 
   const actionCards: DashboardCardProps[] = [
     {
-      title: "Submit Leave",
-      description: "Request time off.",
+      title: t("leave.submit_request", "Submit Leave"),
+      description: tText("Request time off.", "تقديم طلب إجازة جديدة."),
       iconName: "CalendarPlus",
       href: "/leave/request",
-      linkText: "Request Now",
+      linkText: tText("Request Now", "تقديم الآن"),
     },
   ];
 
   if (isPrivilegedUser) {
     actionCards.push({
-      title: "All Leave Requests",
-      description: "View and manage all requests.",
+      title: t("leave.all_requests", "All Leave Requests"),
+      description: tText("View and manage all requests.", "عرض وإدارة جميع طلبات الإجازة."),
       iconName: "ListChecks",
       href: "/leave/all-requests",
-      linkText: "View All Requests",
+      linkText: tText("View All Requests", "عرض كل الطلبات"),
     }, {
-      title: "TPIs",
-      description: "View teacher performance indicators.",
+      title: t("sidebar.tpi", "TPIs"),
+      description: tText("View teacher performance indicators.", "عرض مؤشرات أداء المعلمين."),
       iconName: "Trophy",
       href: "/tpi",
-      linkText: "View TPIs",
+      linkText: tText("View TPIs", "عرض المؤشرات"),
     });
   }
 
@@ -901,10 +903,10 @@ return (
             {greetingPeriod === "evening" && (
               <Moon className="h-8 w-8 text-indigo-400 flex-shrink-0" />
             )}
-            <span>{timeGreeting}</span>{userName ? ` ${userName}` : ""} !
+            <span>{isRTL ? (greetingPeriod === "morning" ? "صباح الخير" : "مساء الخير") : timeGreeting}</span>{userName ? ` ${userName}` : ""} !
           </h1>
           <p className="text-muted-foreground text-base mt-1.5 font-normal">
-            Let’s see what’s happening today .
+            {tText("Let’s see what’s happening today .", "إليك ملخص ما يحدث اليوم في النظام.")}
           </p>
         </div>
       </header>
@@ -915,16 +917,16 @@ return (
           <div className="flex items-center justify-between">
             <h2 id="holidays-title" className="text-2xl font-semibold font-headline flex items-center gap-2">
               <CalendarCheck2 className="h-6 w-6 text-primary" />
-              Upcoming Holidays
+              {t("dashboard.upcoming_holidays", "Upcoming Holidays")}
               <span className="ml-2 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                {upcomingHolidays.length} upcoming
+                {upcomingHolidays.length} {tText("upcoming", "قادمة")}
               </span>
             </h2>
             {isPrivilegedUser && (
               <Button asChild variant="outline" size="sm" className="gap-1.5 hover:border-primary/40">
                 <Link href="/settings/general">
                   <PlusCircle className="h-4 w-4 text-primary" />
-                  Manage Holidays
+                  {tText("Manage Holidays", "إدارة العطلات")}
                 </Link>
               </Button>
             )}
@@ -933,9 +935,11 @@ return (
           <Card className="group relative overflow-hidden rounded-xl border border-border/70 bg-card p-0 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.01] hover:shadow-xl hover:shadow-primary/15 hover:border-primary/50 hover:ring-2 hover:ring-primary/20">
             <div className="pointer-events-none absolute -inset-px rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-b from-primary/10 via-primary/5 to-transparent" />
             <CardHeader className="relative pb-3 border-b bg-muted/20">
-              <CardTitle className="font-headline text-lg">Official School & National Holidays</CardTitle>
+              <CardTitle className="font-headline text-lg">
+                {tText("Official School & National Holidays", "العطلات المدرسية والرسمية المعتمدة")}
+              </CardTitle>
               <CardDescription>
-                Holidays automatically appear here when added and are automatically removed once concluded.
+                {tText("Holidays automatically appear here when added and are automatically removed once concluded.", "تظهر العطلات تلقائياً هنا عند إضافتها وتُحذف فور انتهائها.")}
               </CardDescription>
             </CardHeader>
             <CardContent className="relative p-4 sm:p-6">
@@ -1008,7 +1012,7 @@ return (
       {/* 2. Key Statistics Section */}
       <section aria-labelledby="statistics-title">
         <h2 id="statistics-title" className="text-2xl font-semibold font-headline mb-4">
-          Key Statistics
+          {tText("Key Statistics", "الإحصائيات الرئيسية")}
         </h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredStatisticCards.map((card) => (
@@ -1020,18 +1024,21 @@ return (
       {isPrivilegedUser && (
         <section aria-labelledby="charts-title" className="mt-8">
           <h2 id="charts-title" className="text-2xl font-semibold font-headline mb-4">
-            Visualizations
+            {tText("Visualizations", "الرسوم البيانية والتحليلات")}
           </h2>
           <Card className="group relative overflow-hidden rounded-xl border border-border/70 bg-card p-0 shadow-sm transition-all duration-300 ease-out hover:shadow-xl hover:shadow-primary/10 hover:border-primary/40 col-span-1 lg:col-span-2">
             <CardHeader className="relative pb-3 border-b bg-muted/20">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                 <div>
                   <CardTitle className="font-headline text-xl flex items-center">
-                    <iconMap.BarChartBig className="mr-2 h-6 w-6 text-primary" />
-                    Employee Distribution by Campus & System
+                    <iconMap.BarChartBig className={isRTL ? "ml-2 h-6 w-6 text-primary" : "mr-2 h-6 w-6 text-primary"} />
+                    {tText("Employee Distribution by Campus & System", "توزيع الموظفين حسب الفرع والنظام الأكاديمي")}
                   </CardTitle>
                   <CardDescription>
-                    Number of active employees distributed across each school campus with academic system details.
+                    {tText(
+                      "Number of active employees distributed across each school campus with academic system details.",
+                      "عدد الموظفين على رأس العمل موزعين على فروع المدرسة مع تفاصيل الأنظمة الأكاديمية."
+                    )}
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
@@ -1049,7 +1056,7 @@ return (
                       title="Campus Overview Chart"
                     >
                       <BarChart3 className="h-3.5 w-3.5" />
-                      <span>Overview</span>
+                      <span>{tText("Overview", "نظرة عامة")}</span>
                     </button>
                     <button
                       type="button"
@@ -1063,7 +1070,7 @@ return (
                       title="Stacked by System (British, American, etc.)"
                     >
                       <Layers className="h-3.5 w-3.5" />
-                      <span>By System (Stacked)</span>
+                      <span>{tText("By System (Stacked)", "حسب النظام (تراكمي)")}</span>
                     </button>
                     <button
                       type="button"
@@ -1077,13 +1084,13 @@ return (
                       title="Full System Breakdown Table & Cards"
                     >
                       <TableProperties className="h-3.5 w-3.5" />
-                      <span>Details by System</span>
+                      <span>{tText("Details by System", "تفاصيل الأنظمة")}</span>
                     </button>
                   </div>
 
                   {campusData.length > 0 && (
                     <span className="text-xs font-semibold px-2.5 py-1.5 rounded-md bg-primary/10 text-primary border border-primary/20 flex-shrink-0">
-                      {campusData.reduce((acc, curr) => acc + curr.count, 0)} Total Assigned
+                      {campusData.reduce((acc, curr) => acc + curr.count, 0)} {tText("Total Assigned", "إجمالي الموزعين")}
                     </span>
                   )}
                 </div>
@@ -1541,7 +1548,7 @@ return (
 
       <section aria-labelledby="quick-actions-title" className="mt-8">
         <h2 id="quick-actions-title" className="text-2xl font-semibold font-headline mb-4">
-          Quick Actions
+          {t("dashboard.quick_actions", "Quick Actions")}
         </h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {isLoadingProfile ?

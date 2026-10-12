@@ -72,8 +72,10 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
+import { useI18n } from "@/lib/i18n";
 
 export function HrRequestsQueue() {
+  const { isRTL, tText } = useI18n();
   const { profile, user } = useUserProfile();
   const { campuses, groupNames: divisions } = useOrganizationLists();
 
@@ -235,43 +237,43 @@ export function HrRequestsQueue() {
       case "Submitted":
         return (
           <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300">
-            <Clock className="w-3 h-3 mr-1" /> Submitted
+            <Clock className={cn("w-3 h-3", isRTL ? "ml-1" : "mr-1")} /> {isRTL ? "تم التقديم" : "Submitted"}
           </Badge>
         );
       case "Under HR Review":
         return (
           <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300">
-            <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> Under HR Review
+            <RefreshCw className={cn("w-3 h-3 animate-spin", isRTL ? "ml-1" : "mr-1")} /> {isRTL ? "قيد مراجعة الموارد البشرية" : "Under HR Review"}
           </Badge>
         );
       case "Approved":
         return (
           <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300">
-            <CheckCircle2 className="w-3 h-3 mr-1" /> Approved
+            <CheckCircle2 className={cn("w-3 h-3", isRTL ? "ml-1" : "mr-1")} /> {isRTL ? "معتمد" : "Approved"}
           </Badge>
         );
       case "Ready for Collection":
         return (
           <Badge variant="default" className="bg-purple-600 text-white hover:bg-purple-700">
-            <Building className="w-3 h-3 mr-1" /> Ready for Collection
+            <Building className={cn("w-3 h-3", isRTL ? "ml-1" : "mr-1")} /> {isRTL ? "جاهز للاستلام" : "Ready for Collection"}
           </Badge>
         );
       case "Issued":
         return (
           <Badge variant="default" className="bg-emerald-600 text-white hover:bg-emerald-700">
-            <CheckCircle2 className="w-3 h-3 mr-1" /> Issued & Ready
+            <CheckCircle2 className={cn("w-3 h-3", isRTL ? "ml-1" : "mr-1")} /> {isRTL ? "تم الإصدار" : "Issued & Ready"}
           </Badge>
         );
       case "Rejected":
         return (
           <Badge variant="destructive" className="bg-red-600 text-white">
-            <XCircle className="w-3 h-3 mr-1" /> Rejected
+            <XCircle className={cn("w-3 h-3", isRTL ? "ml-1" : "mr-1")} /> {isRTL ? "مرفوض" : "Rejected"}
           </Badge>
         );
       case "Closed":
         return (
           <Badge variant="secondary" className="bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-            Closed
+            {isRTL ? "مغلق" : "Closed"}
           </Badge>
         );
       default:
@@ -286,10 +288,12 @@ export function HrRequestsQueue() {
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
-            HR Document Requests Queue
+            {isRTL ? "قائمة انتظار طلبات المستندات (الموارد البشرية)" : "HR Document Requests Queue"}
           </h2>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Manage incoming document requests, update lifecycle status, and notify employees automatically.
+            {isRTL
+              ? "إدارة طلبات المستندات الواردة، وتحديث مراحل المعالجة، وإشعار الموظفين تلقائياً."
+              : "Manage incoming document requests, update lifecycle status, and notify employees automatically."}
           </p>
         </div>
 
@@ -301,7 +305,7 @@ export function HrRequestsQueue() {
             className="gap-1.5 shadow-sm text-xs font-semibold"
           >
             <Sheet className="h-4 w-4 text-emerald-600" />
-            Export to Excel
+            {isRTL ? "تصدير إلى إكسيل" : "Export to Excel"}
           </Button>
         </div>
       </div>
@@ -311,27 +315,27 @@ export function HrRequestsQueue() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* Search */}
           <div className="space-y-1.5 lg:col-span-2">
-            <Label className="text-xs font-medium text-muted-foreground">Search Requester / ID</Label>
+            <Label className="text-xs font-medium text-muted-foreground">{isRTL ? "بحث بمقدم الطلب / الرقم الوظيفي" : "Search Requester / ID"}</Label>
             <div className="relative">
-              <Search className="h-3.5 w-3.5 absolute left-2.5 top-3 text-muted-foreground" />
+              <Search className={cn("h-3.5 w-3.5 absolute top-3 text-muted-foreground", isRTL ? "right-2.5" : "left-2.5")} />
               <Input
-                placeholder="Search name, email, DOC#..."
+                placeholder={isRTL ? "بحث بالاسم، البريد، DOC#..." : "Search name, email, DOC#..."}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-9 pl-8 text-xs bg-background"
+                className={cn("h-9 text-xs bg-background", isRTL ? "pr-8" : "pl-8")}
               />
             </div>
           </div>
 
           {/* Campus Filter */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground">Campus</Label>
+            <Label className="text-xs font-medium text-muted-foreground">{isRTL ? "الفرع" : "Campus"}</Label>
             <Select value={filterCampus} onValueChange={setFilterCampus}>
               <SelectTrigger className="h-9 text-xs bg-background">
-                <SelectValue placeholder="All Campuses" />
+                <SelectValue placeholder={isRTL ? "جميع الفروع" : "All Campuses"} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Campuses</SelectItem>
+                <SelectItem value="all">{isRTL ? "جميع الفروع" : "All Campuses"}</SelectItem>
                 {campuses.map((c) => (
                   <SelectItem key={c.id} value={c.name}>
                     {c.name}
@@ -343,13 +347,13 @@ export function HrRequestsQueue() {
 
           {/* Division Filter */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground">Division</Label>
+            <Label className="text-xs font-medium text-muted-foreground">{isRTL ? "القسم" : "Division"}</Label>
             <Select value={filterDivision} onValueChange={setFilterDivision}>
               <SelectTrigger className="h-9 text-xs bg-background">
-                <SelectValue placeholder="All Divisions" />
+                <SelectValue placeholder={isRTL ? "جميع الأقسام" : "All Divisions"} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Divisions</SelectItem>
+                <SelectItem value="all">{isRTL ? "جميع الأقسام" : "All Divisions"}</SelectItem>
                 {divisions.map((d) => (
                   <SelectItem key={d.id} value={d.name}>
                     {d.name}
@@ -361,13 +365,13 @@ export function HrRequestsQueue() {
 
           {/* Document Type Filter */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground">Document Type</Label>
+            <Label className="text-xs font-medium text-muted-foreground">{isRTL ? "نوع المستند" : "Document Type"}</Label>
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger className="h-9 text-xs bg-background">
-                <SelectValue placeholder="All Types" />
+                <SelectValue placeholder={isRTL ? "جميع الأنواع" : "All Types"} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="all">{isRTL ? "جميع الأنواع" : "All Types"}</SelectItem>
                 {DOCUMENT_REQUEST_TYPES.map((t) => (
                   <SelectItem key={t} value={t}>
                     {t}
@@ -379,13 +383,13 @@ export function HrRequestsQueue() {
 
           {/* Status Filter */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground">Status</Label>
+            <Label className="text-xs font-medium text-muted-foreground">{isRTL ? "الحالة" : "Status"}</Label>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger className="h-9 text-xs bg-background">
-                <SelectValue placeholder="All Statuses" />
+                <SelectValue placeholder={isRTL ? "جميع الحالات" : "All Statuses"} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="all">{isRTL ? "جميع الحالات" : "All Statuses"}</SelectItem>
                 {DOCUMENT_STATUSES.map((s) => (
                   <SelectItem key={s} value={s}>
                     {s}
@@ -400,7 +404,9 @@ export function HrRequestsQueue() {
         {(searchTerm || filterCampus !== "all" || filterDivision !== "all" || filterType !== "all" || filterStatus !== "all") && (
           <div className="flex items-center justify-between pt-3 mt-3 border-t text-xs text-muted-foreground">
             <span>
-              Showing <strong>{filteredRequests.length}</strong> of <strong>{requests.length}</strong> requests
+              {isRTL
+                ? `عرض ${filteredRequests.length} من إجمالي ${requests.length} طلب`
+                : `Showing ${filteredRequests.length} of ${requests.length} requests`}
             </span>
             <Button
               variant="ghost"
@@ -414,7 +420,7 @@ export function HrRequestsQueue() {
               }}
               className="h-7 text-xs"
             >
-              Reset Filters
+              {isRTL ? "إعادة تعيين الفلاتر" : "Reset Filters"}
             </Button>
           </div>
         )}
@@ -424,14 +430,20 @@ export function HrRequestsQueue() {
       {isLoading ? (
         <Card className="p-12 text-center">
           <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground mb-3" />
-          <p className="text-sm text-muted-foreground">Loading document requests queue...</p>
+          <p className="text-sm text-muted-foreground">
+            {isRTL ? "جاري تحميل قائمة طلبات المستندات..." : "Loading document requests queue..."}
+          </p>
         </Card>
       ) : filteredRequests.length === 0 ? (
         <Card className="p-12 text-center border-dashed">
           <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-          <h3 className="text-base font-semibold text-foreground">No Requests Found</h3>
+          <h3 className="text-base font-semibold text-foreground">
+            {isRTL ? "لم يتم العثور على طلبات" : "No Requests Found"}
+          </h3>
           <p className="text-xs text-muted-foreground mt-1">
-            No requests matched your filter criteria or none have been submitted yet.
+            {isRTL
+              ? "لا توجد طلبات تطابق معايير التصفية المحددة أو لم يتم إرسال طلبات بعد."
+              : "No requests matched your filter criteria or none have been submitted yet."}
           </p>
         </Card>
       ) : (
@@ -440,14 +452,14 @@ export function HrRequestsQueue() {
             <Table>
               <TableHeader className="bg-muted/40">
                 <TableRow>
-                  <TableHead className="w-[120px]">Ref No</TableHead>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Document Type</TableHead>
-                  <TableHead>Copies & Delivery</TableHead>
-                  <TableHead>Campus</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-[120px]">{isRTL ? "رقم المرجع" : "Ref No"}</TableHead>
+                  <TableHead>{isRTL ? "الموظف" : "Employee"}</TableHead>
+                  <TableHead>{isRTL ? "نوع المستند" : "Document Type"}</TableHead>
+                  <TableHead>{isRTL ? "النسخ والتسليم" : "Copies & Delivery"}</TableHead>
+                  <TableHead>{isRTL ? "الفرع" : "Campus"}</TableHead>
+                  <TableHead>{isRTL ? "التاريخ" : "Date"}</TableHead>
+                  <TableHead>{isRTL ? "الحالة" : "Status"}</TableHead>
+                  <TableHead className={isRTL ? "text-left" : "text-right"}>{isRTL ? "الإجراءات" : "Actions"}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -485,7 +497,7 @@ export function HrRequestsQueue() {
                         </div>
                         {req.addressedTo && (
                           <div className="text-[11px] text-muted-foreground italic truncate max-w-[180px]">
-                            To: {req.addressedTo}
+                            {isRTL ? `إلى: ${req.addressedTo}` : `To: ${req.addressedTo}`}
                           </div>
                         )}
                       </TableCell>
@@ -493,13 +505,15 @@ export function HrRequestsQueue() {
                       <TableCell>
                         <div className="text-xs space-y-0.5">
                           <span className="font-semibold text-foreground">
-                            {req.numberOfCopies} {req.numberOfCopies === 1 ? "copy" : "copies"}
+                            {isRTL
+                              ? `${req.numberOfCopies} ${req.numberOfCopies === 1 ? "نسخة" : "نسخ"}`
+                              : `${req.numberOfCopies} ${req.numberOfCopies === 1 ? "copy" : "copies"}`}
                           </span>
                           <div className="text-[11px] text-muted-foreground">
                             {req.deliveryMethod === "soft_copy" ? (
-                              <span className="text-sky-600 font-medium">Soft Copy (Email)</span>
+                              <span className="text-sky-600 font-medium">{isRTL ? "نسخة إلكترونية (بريد)" : "Soft Copy (Email)"}</span>
                             ) : (
-                              <span className="text-purple-600 font-medium">Hard Copy (Campus)</span>
+                              <span className="text-purple-600 font-medium">{isRTL ? "نسخة ورقية (الفرع)" : "Hard Copy (Campus)"}</span>
                             )}
                           </div>
                         </div>
@@ -515,13 +529,13 @@ export function HrRequestsQueue() {
 
                       <TableCell>{getStatusBadge(req.status)}</TableCell>
 
-                      <TableCell className="text-right">
+                      <TableCell className={isRTL ? "text-left" : "text-right"}>
                         <Button
                           size="sm"
                           onClick={() => handleOpenReview(req)}
                           className="h-8 px-3 text-xs font-semibold"
                         >
-                          Review
+                          {isRTL ? "مراجعة" : "Review"}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -540,13 +554,15 @@ export function HrRequestsQueue() {
             <form action={formAction} className="space-y-4">
               <DialogHeader className="border-b pb-3">
                 <DialogTitle className="text-lg flex items-center justify-between">
-                  <span>Process Document Request</span>
+                  <span>{isRTL ? "معالجة طلب المستند" : "Process Document Request"}</span>
                   <span className="font-mono text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
                     {selectedRequest.requestNumber}
                   </span>
                 </DialogTitle>
                 <DialogDescription>
-                  Review request details, update status, and communicate decisions to the employee.
+                  {isRTL
+                    ? "مراجعة تفاصيل الطلب، وتحديث الحالة، وإرسال القرار للموظف تلقائياً."
+                    : "Review request details, update status, and communicate decisions to the employee."}
                 </DialogDescription>
               </DialogHeader>
 
@@ -562,43 +578,43 @@ export function HrRequestsQueue() {
               <div className="p-3.5 rounded-lg bg-muted/40 border space-y-2 text-xs">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <span className="text-muted-foreground block">Employee:</span>
+                    <span className="text-muted-foreground block">{isRTL ? "الموظف:" : "Employee:"}</span>
                     <strong className="text-sm text-foreground">{selectedRequest.employeeName}</strong>
                     <div className="text-muted-foreground">{selectedRequest.employeeEmail}</div>
                   </div>
                   <div>
-                    <span className="text-muted-foreground block">Campus & Role:</span>
+                    <span className="text-muted-foreground block">{isRTL ? "الفرع والدور:" : "Campus & Role:"}</span>
                     <strong className="text-foreground">
                       {selectedRequest.collectionCampus || selectedRequest.employeeCampus}
                     </strong>
-                    <div className="text-muted-foreground">{selectedRequest.employeePosition || "Staff Member"}</div>
+                    <div className="text-muted-foreground">{selectedRequest.employeePosition || (isRTL ? "عضو كادر" : "Staff Member")}</div>
                   </div>
                 </div>
 
                 <div className="border-t pt-2 grid grid-cols-2 gap-2">
                   <div>
-                    <span className="text-muted-foreground block">Document Type:</span>
+                    <span className="text-muted-foreground block">{isRTL ? "نوع المستند:" : "Document Type:"}</span>
                     <strong className="text-foreground">{selectedRequest.documentType}</strong>
                   </div>
                   <div>
-                    <span className="text-muted-foreground block">Delivery Method:</span>
+                    <span className="text-muted-foreground block">{isRTL ? "طريقة التسليم:" : "Delivery Method:"}</span>
                     <strong className="text-foreground">
-                      {selectedRequest.numberOfCopies} copies •{" "}
-                      {selectedRequest.deliveryMethod === "soft_copy" ? "Soft Copy" : "Hard Copy"}
+                      {selectedRequest.numberOfCopies} {isRTL ? "نسخ" : "copies"} •{" "}
+                      {selectedRequest.deliveryMethod === "soft_copy" ? (isRTL ? "نسخة إلكترونية" : "Soft Copy") : (isRTL ? "نسخة ورقية" : "Hard Copy")}
                     </strong>
                   </div>
                 </div>
 
                 {selectedRequest.addressedTo && (
                   <div className="border-t pt-2">
-                    <span className="text-muted-foreground block">Addressed To:</span>
+                    <span className="text-muted-foreground block">{isRTL ? "الجهة الموجه إليها:" : "Addressed To:"}</span>
                     <span className="font-medium text-foreground">{selectedRequest.addressedTo}</span>
                   </div>
                 )}
 
                 {selectedRequest.requesterNote && (
                   <div className="border-t pt-2">
-                    <span className="text-muted-foreground block">Requester Note:</span>
+                    <span className="text-muted-foreground block">{isRTL ? "ملاحظات مقدم الطلب:" : "Requester Note:"}</span>
                     <p className="text-foreground italic bg-background p-2 rounded border mt-0.5">
                       "{selectedRequest.requesterNote}"
                     </p>
@@ -609,33 +625,33 @@ export function HrRequestsQueue() {
               {/* Action: Select New Status */}
               <div className="space-y-2">
                 <Label htmlFor="actionStatusSelect" className="text-sm font-semibold">
-                  Update Request Status <span className="text-destructive">*</span>
+                  {isRTL ? "تحديث حالة الطلب" : "Update Request Status"} <span className="text-destructive">*</span>
                 </Label>
                 <Select
                   value={actionStatus}
                   onValueChange={(val) => setActionStatus(val as DocumentRequestStatus)}
                 >
                   <SelectTrigger id="actionStatusSelect" className="h-10 bg-background font-medium">
-                    <SelectValue placeholder="Select new status..." />
+                    <SelectValue placeholder={isRTL ? "اختر الحالة الجديدة..." : "Select new status..."} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Under HR Review">
-                      Under HR Review (In Progress)
+                      {isRTL ? "قيد مراجعة الموارد البشرية" : "Under HR Review (In Progress)"}
                     </SelectItem>
                     <SelectItem value="Approved">
-                      Approved (Document Prepared)
+                      {isRTL ? "معتمد (تم إعداد المستند)" : "Approved (Document Prepared)"}
                     </SelectItem>
                     <SelectItem value="Ready for Collection">
-                      Ready for Collection (Hard copy at campus)
+                      {isRTL ? "جاهز للاستلام (نسخة ورقية بالفرع)" : "Ready for Collection (Hard copy at campus)"}
                     </SelectItem>
                     <SelectItem value="Issued">
-                      Issued (Soft copy completed)
+                      {isRTL ? "تم الإصدار (نسخة إلكترونية)" : "Issued (Soft copy completed)"}
                     </SelectItem>
                     <SelectItem value="Closed">
-                      Closed (Archived / Finalized)
+                      {isRTL ? "مغلق ومؤرشف" : "Closed (Archived / Finalized)"}
                     </SelectItem>
                     <SelectItem value="Rejected" className="text-destructive font-semibold">
-                      Rejected (Requires Reason)
+                      {isRTL ? "مرفوض (يتطلب كتابة السبب)" : "Rejected (Requires Reason)"}
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -646,13 +662,13 @@ export function HrRequestsQueue() {
                 <div className="space-y-2 p-3.5 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900">
                   <Label htmlFor="rejectionReasonInput" className="text-xs font-bold text-red-700 dark:text-red-300 flex items-center gap-1.5">
                     <AlertTriangle className="h-4 w-4" />
-                    Rejection Reason <span className="text-destructive">* Mandatory</span>
+                    {isRTL ? "سبب الرفض" : "Rejection Reason"} <span className="text-destructive">*{isRTL ? "إلزامي" : "Mandatory"}</span>
                   </Label>
                   <Textarea
                     id="rejectionReasonInput"
                     name="rejectionReason"
                     rows={3}
-                    placeholder="Specify clearly why this request cannot be fulfilled (e.g. probationary period requirement, missing bank statement, requires manager approval)..."
+                    placeholder={isRTL ? "حدد سبب عدم إمكانية تلبية الطلب بوضوح..." : "Specify clearly why this request cannot be fulfilled (e.g. probationary period requirement, missing bank statement, requires manager approval)..."}
                     value={rejectionReason}
                     onChange={(e) => setRejectionReason(e.target.value)}
                     className="bg-background text-xs resize-none"
@@ -664,7 +680,7 @@ export function HrRequestsQueue() {
                     </p>
                   )}
                   <p className="text-[11px] text-red-600 dark:text-red-400">
-                    This reason will be sent to the employee by email and notification.
+                    {isRTL ? "سيتم إرسال هذا السبب إلى الموظف عبر البريد والإشعارات." : "This reason will be sent to the employee by email and notification."}
                   </p>
                 </div>
               )}
@@ -673,18 +689,18 @@ export function HrRequestsQueue() {
               {actionStatus === "Ready for Collection" && (
                 <div className="space-y-2 p-3 rounded-lg bg-purple-50/60 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800">
                   <Label htmlFor="collectionRoom" className="text-xs font-semibold text-purple-900 dark:text-purple-200">
-                    Collection Office / Desk Location
+                    {isRTL ? "مكتب / مكان الاستلام" : "Collection Office / Desk Location"}
                   </Label>
                   <Input
                     id="collectionRoom"
                     name="collectionRoomOrDesk"
                     value={collectionRoom}
                     onChange={(e) => setCollectionRoom(e.target.value)}
-                    placeholder="e.g. HR Office - Room 104, Campus Building A"
+                    placeholder={isRTL ? "مثال: مكتب شؤون العاملين - غرفة 104، المبنى الرئيسي" : "e.g. HR Office - Room 104, Campus Building A"}
                     className="bg-background text-xs"
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Informs the employee where their hard copy is ready for pickup.
+                    {isRTL ? "إعلام الموظف بمكان استلام النسخة الورقية المطبوعة." : "Informs the employee where their hard copy is ready for pickup."}
                   </p>
                 </div>
               )}
@@ -692,13 +708,13 @@ export function HrRequestsQueue() {
               {/* HR Notes / Instructions */}
               <div className="space-y-2">
                 <Label htmlFor="hrNotesInput" className="text-xs font-medium">
-                  HR Internal Notes / Instructions to Employee (Optional)
+                  {isRTL ? "ملاحظات وتوجيهات داخلية للموظف (اختياري)" : "HR Internal Notes / Instructions to Employee (Optional)"}
                 </Label>
                 <Textarea
                   id="hrNotesInput"
                   name="hrNotes"
                   rows={2}
-                  placeholder="Add notes for the employee or internal HR file..."
+                  placeholder={isRTL ? "إضافة ملاحظات للموظف أو لملف الموارد البشرية..." : "Add notes for the employee or internal HR file..."}
                   value={hrNotes}
                   onChange={(e) => setHrNotes(e.target.value)}
                   className="bg-background text-xs resize-none"
@@ -720,7 +736,7 @@ export function HrRequestsQueue() {
                   size="sm"
                   onClick={() => setIsReviewModalOpen(false)}
                 >
-                  Cancel
+                  {isRTL ? "إلغاء" : "Cancel"}
                 </Button>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -736,13 +752,13 @@ export function HrRequestsQueue() {
                   >
                     {isPending ? (
                       <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Saving...
+                        <Loader2 className={cn("h-4 w-4 animate-spin", isRTL ? "ml-1.5" : "mr-1.5")} />
+                        {isRTL ? "جاري الحفظ..." : "Saving..."}
                       </>
                     ) : (
                       <>
-                        <Send className="h-4 w-4" />
-                        Confirm & Notify Employee
+                        <Send className={cn("h-4 w-4", isRTL ? "ml-1.5" : "mr-1.5")} />
+                        {isRTL ? "تأكيد وإشعار الموظف" : "Confirm & Notify Employee"}
                       </>
                     )}
                   </Button>

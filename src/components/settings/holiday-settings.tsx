@@ -22,6 +22,7 @@ import { format, getYear } from 'date-fns';
 import { Calendar as CalendarIcon, PlusCircle, Trash2, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { useUserProfile } from "@/components/layout/app-layout";
+import { useI18n } from "@/lib/i18n";
 
 interface Holiday {
   id: string;
@@ -34,6 +35,7 @@ const currentYear = getYear(new Date());
 const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
 export function HolidaySettings() {
+  const { isRTL } = useI18n();
   const { toast } = useToast();
   const { profile, user } = useUserProfile();
 

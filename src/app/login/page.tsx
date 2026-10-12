@@ -38,8 +38,11 @@ import {
   limit,
 } from "firebase/firestore";
 import { Separator } from "@/components/ui/separator";
+import { useI18n } from "@/lib/i18n";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 export default function LoginPage() {
+  const { t, isRTL } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -315,7 +318,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 selection:bg-primary/20">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-4 selection:bg-primary/20">
+      {/* Top right language switcher */}
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20">
+        <LanguageSwitcher variant="header" />
+      </div>
+
       <div className="mb-8">
         <Icons.NisLogo className="h-20 w-20" />
       </div>
@@ -342,10 +350,10 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm shadow-xl">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold font-headline">
-            Sign In
+            {t("auth.sign_in", "Sign In")}
           </CardTitle>
           <CardDescription>
-            Enter your credentials to access your account.
+            {t("auth.welcome_subtitle", "Enter your credentials to access your account.")}
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
@@ -353,16 +361,16 @@ export default function LoginPage() {
             <Button
               type="button"
               variant="outline"
-              className="w-full"
+              className="w-full gap-2"
               onClick={handleGoogleSignIn}
               disabled={isGoogleLoading || !isFirebaseConfigured}
             >
               {isGoogleLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Icons.Logo className="mr-2 h-4 w-4" />
+                <Icons.Logo className="h-4 w-4" />
               )}
-              Sign in with Google
+              {t("auth.sign_in_google", "Sign in with Google")}
             </Button>
 
             <div className="relative">
@@ -371,13 +379,13 @@ export default function LoginPage() {
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-background px-2 text-muted-foreground">
-                  Or continue with
+                  {t("auth.or_continue_with", "Or continue with")}
                 </span>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("auth.email", "Email")}</Label>
               <Input
                 id="email"
                 name="email"
@@ -390,7 +398,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t("auth.password", "Password")}</Label>
               <Input
                 id="password"
                 name="password"
@@ -416,13 +424,13 @@ export default function LoginPage() {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing In...
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  {t("auth.signing_in", "Signing In...")}
                 </>
               ) : (
                 <>
-                  Sign In with Email
-                  <LogInIcon className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  {t("auth.sign_in_email", "Sign In with Email")}
+                  <LogInIcon className={isRTL ? "mr-2 h-4 w-4 rotate-180" : "ml-2 h-4 w-4 transition-transform group-hover:translate-x-1"} />
                 </>
               )}
             </Button>

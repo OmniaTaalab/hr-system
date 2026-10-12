@@ -12,16 +12,18 @@ import {
   type WeekendSettingsState,
 } from "@/app/actions/settings-actions";
 import { Loader2, AlertCircle, Save } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
+import { cn } from '@/lib/utils';
 
 const initialWeekendState: WeekendSettingsState = { success: false, message: null, errors: {} };
 const daysOfWeek = [
-  { label: 'Sunday', value: 0 },
-  { label: 'Monday', value: 1 },
-  { label: 'Tuesday', value: 2 },
-  { label: 'Wednesday', value: 3 },
-  { label: 'Thursday', value: 4 },
-  { label: 'Friday', value: 5 },
-  { label: 'Saturday', value: 6 },
+  { labelEn: 'Sunday', labelAr: 'الأحد', value: 0 },
+  { labelEn: 'Monday', labelAr: 'الإثنين', value: 1 },
+  { labelEn: 'Tuesday', labelAr: 'الثلاثاء', value: 2 },
+  { labelEn: 'Wednesday', labelAr: 'الأربعاء', value: 3 },
+  { labelEn: 'Thursday', labelAr: 'الخميس', value: 4 },
+  { labelEn: 'Friday', labelAr: 'الجمعة', value: 5 },
+  { labelEn: 'Saturday', labelAr: 'السبت', value: 6 },
 ];
 
 interface WeekendSettingsProps {
@@ -29,6 +31,7 @@ interface WeekendSettingsProps {
 }
 
 export function WeekendSettings({ initialWeekendDays }: WeekendSettingsProps) {
+    const { isRTL } = useI18n();
     const { toast } = useToast();
     const [weekendDays, setWeekendDays] = useState<number[]>(initialWeekendDays);
     const [updateWeekendState, updateWeekendAction, isUpdateWeekendPending] = useActionState(updateWeekendSettingsAction, initialWeekendState);
@@ -37,12 +40,12 @@ export function WeekendSettings({ initialWeekendDays }: WeekendSettingsProps) {
     useEffect(() => {
         if (updateWeekendState?.message) {
         toast({
-            title: updateWeekendState.success ? "Success" : "Error",
+            title: updateWeekendState.success ? (isRTL ? "نجاح" : "Success") : (isRTL ? "خطأ" : "Error"),
             description: updateWeekendState.message,
             variant: updateWeekendState.success ? "default" : "destructive",
         });
         }
-    }, [updateWeekendState, toast]);
+    }, [updateWeekendState, toast, isRTL]);
 
     const handleWeekendDayChange = (dayValue: number, isChecked: boolean) => {
         setWeekendDays(prev => {
@@ -68,8 +71,12 @@ export function WeekendSettings({ initialWeekendDays }: WeekendSettingsProps) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Weekend Settings</CardTitle>
-                <CardDescription>Select the days of the week that are considered the weekend. These days will be excluded from leave calculations.</CardDescription>
+                <CardTitle>{isRTL ? "إعدادات عطلة نهاية الأسبوع" : "Weekend Settings"}</CardTitle>
+                <CardDescription>
+                  {isRTL
+                    ? "حدد أيام الأسبوع التي تُعتبر عطلة رسمية. سيتم استبعاد هذه الأيام من حسابات الإجازات."
+                    : "Select the days of the week that are considered the weekend. These days will be excluded from leave calculations."}
+                </CardDescription>
             </CardHeader>
             <CardContent>
                 <form onSubmit={handleSaveWeekend}>
@@ -84,19 +91,21 @@ export function WeekendSettings({ initialWeekendDays }: WeekendSettingsProps) {
                                 handleWeekendDayChange(day.value, isChecked as boolean);
                                 }}
                             />
-                            <Label htmlFor={`day-${day.value}`}>{day.label}</Label>
+                            <Label htmlFor={`day-${day.value}`} className={isRTL ? "mr-2 cursor-pointer" : "ml-2 cursor-pointer"}>
+                              {isRTL ? day.labelAr : day.labelEn}
+                            </Label>
                             </div>
                         ))}
                         </div>
                         {updateWeekendState?.errors?.form &&
                         <div className="flex items-center text-sm text-destructive">
-                            <AlertCircle className="mr-2 h-4 w-4" />
+                            <AlertCircle className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
                             {updateWeekendState.errors.form[0]}
                         </div>
                         }
                         <Button type="submit" disabled={isUpdateWeekendPending}>
-                        {isUpdateWeekendPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
-                        Save Weekend
+                        {isUpdateWeekendPending ? <Loader2 className={cn("h-4 w-4 animate-spin", isRTL ? "ml-2" : "mr-2")}/> : <Save className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />}
+                        {isRTL ? "حفظ إعدادات العطلة" : "Save Weekend"}
                         </Button>
                     </div>
                 </form>

@@ -58,6 +58,7 @@ import { collection, onSnapshot, query, doc, Timestamp, where, updateDoc, arrayU
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 import { format, getYear } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -2321,6 +2322,7 @@ return (
 }
 
 export default function EmployeeManagementContent() {
+  const { isRTL, tText } = useI18n();
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
   const pathname = usePathname();
@@ -3003,16 +3005,16 @@ if (
       <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-            Employee Management
+            {isRTL ? "إدارة الموظفين" : "Employee Management"}
           </h1>
           <p className="text-muted-foreground">
-            Manage employee records, add new hires, and update details.
+            {isRTL ? "إدارة سجلات الموظفين، وإضافة موظفين جدد، وتحديث بياناتهم." : "Manage employee records, add new hires, and update details."}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <Card>
             <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium sm:text-sm">Total Employees</CardTitle>
+              <CardTitle className="text-xs font-medium sm:text-sm">{isRTL ? "إجمالي الموظفين" : "Total Employees"}</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent className="p-3 pt-0">
@@ -3021,7 +3023,7 @@ if (
           </Card>
            <Card>
             <CardHeader className="p-3 flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium sm:text-sm">Active Employees</CardTitle>
+              <CardTitle className="text-xs font-medium sm:text-sm">{isRTL ? "الموظفون النشطون" : "Active Employees"}</CardTitle>
               <UserCheck className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent className="p-3 pt-0">
@@ -3036,11 +3038,11 @@ if (
           <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                <div className="relative flex-grow w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className={cn("absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
                 <Input
                   type="search"
-                  placeholder="Search by ID, name, email, title, department..."
-                  className="w-full pl-10"
+                  placeholder={isRTL ? "بحث بالرقم الوظيفي، الاسم، البريد، المسمى، القسم..." : "Search by ID, name, email, title, department..."}
+                  className={cn("w-full", isRTL ? "pr-10" : "pl-10")}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -3053,12 +3055,12 @@ if (
                         {isPrivileged && (
                           <>
                             <Button className="w-full" onClick={handleDownloadTemplate} variant="outline">
-                               <Download className="mr-2 h-4 w-4" />
-                               Download Template
+                               <Download className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                               {isRTL ? "تنزيل النموذج" : "Download Template"}
                             </Button>
                             <Button className="w-full" onClick={handleExportExcel} variant="outline">
-                               <FileDown className="mr-2 h-4 w-4" />
-                               Export to Excel
+                               <FileDown className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                               {isRTL ? "تصدير إلى إكسيل" : "Export to Excel"}
                             </Button>
                           </>
                         )}
@@ -3081,8 +3083,8 @@ if (
                           >
                             <DialogTrigger asChild>
                               <Button className="w-full">
-                                  <PlusCircle className="mr-2 h-4 w-4" />
-                                  Add New Employee
+                                  <PlusCircle className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                                  {isRTL ? "إضافة موظف جديد" : "Add New Employee"}
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-3xl">
@@ -3099,69 +3101,69 @@ if (
                     <AccordionTrigger>
                         <div className="flex items-center gap-2 text-sm">
                             <Filter className="h-4 w-4" />
-                            Advanced Filters
+                            {isRTL ? "فلاتر متقدمة" : "Advanced Filters"}
                         </div>
                     </AccordionTrigger>
                     <AccordionContent className="pt-4 space-y-4">
                         <div className="flex flex-wrap items-center gap-2">
                             <MultiSelectFilter
-                                placeholder="Filter by status..."
-                                options={[{label: 'Active', value: 'Active'}, {label: 'Deactivated', value: 'Deactivated'}]}
+                                placeholder={isRTL ? "تصفية حسب الحالة..." : "Filter by status..."}
+                                options={[{label: isRTL ? 'نشط' : 'Active', value: 'Active'}, {label: isRTL ? 'معطّل' : 'Deactivated', value: 'Deactivated'}]}
                                 selected={statusFilters}
                                 onChange={setStatusFilters}
                                 className="w-full sm:w-auto flex-1 min-w-[150px]"
                             />
                             <MultiSelectFilter
-                                placeholder="Filter by campus..."
+                                placeholder={isRTL ? "تصفية حسب الفرع..." : "Filter by campus..."}
                                 options={campuses.map(c => ({ label: c.name, value: c.name }))}
                                 selected={campusFilters}
                                 onChange={setCampusFilters}
                                 className="w-full sm:w-auto flex-1 min-w-[150px]"
                             />
                             <MultiSelectFilter
-                                placeholder="Filter by system..."
+                                placeholder={isRTL ? "تصفية حسب النظام..." : "Filter by system..."}
                                 options={uniqueSystems}
                                 selected={systemFilters}
                                 onChange={setSystemFilters}
                                 className="w-full sm:w-auto flex-1 min-w-[150px]"
                             />
                             <MultiSelectFilter
-                                placeholder="Filter by title..."
+                                placeholder={isRTL ? "تصفية حسب المسمى..." : "Filter by title..."}
                                 options={uniqueTitles}
                                 selected={titleFilters}
                                 onChange={setTitleFilters}
                                 className="w-full sm:w-auto flex-1 min-w-[150px]"
                             />
                             <MultiSelectFilter
-                                placeholder="Filter by stage..."
+                                placeholder={isRTL ? "تصفية حسب المرحلة..." : "Filter by stage..."}
                                 options={stages.map(s => ({label: s.name, value: s.name}))}
                                 selected={stageFilters}
                                 onChange={setStageFilters}
                                 className="w-full sm:w-auto flex-1 min-w-[150px]"
                             />
                             <MultiSelectFilter
-                                placeholder="Filter by subject..."
+                                placeholder={isRTL ? "تصفية حسب المادة..." : "Filter by subject..."}
                                 options={uniqueSubjects}
                                 selected={subjectFilters}
                                 onChange={setSubjectFilters}
                                 className="w-full sm:w-auto flex-1 min-w-[150px]"
                             />
                             <MultiSelectFilter
-                                placeholder="Filter by gender..."
-                                options={[{label: 'Male', value: 'Male'}, {label: 'Female', value: 'Female'}]}
+                                placeholder={isRTL ? "تصفية حسب الجنس..." : "Filter by gender..."}
+                                options={[{label: isRTL ? 'ذكر' : 'Male', value: 'Male'}, {label: isRTL ? 'أنثى' : 'Female', value: 'Female'}]}
                                 selected={genderFilters}
                                 onChange={setGenderFilters}
                                 className="w-full sm:w-auto flex-1 min-w-[150px]"
                             />
                             <MultiSelectFilter
-                                placeholder="Filter by religion..."
+                                placeholder={isRTL ? "تصفية حسب الديانة..." : "Filter by religion..."}
                                 options={uniqueReligions}
                                 selected={religionFilters}
                                 onChange={setReligionFilters}
                                 className="w-full sm:w-auto flex-1 min-w-[150px]"
                             />
                             <MultiSelectFilter
-                                placeholder="Reports to..."
+                                placeholder={isRTL ? "المسؤول المباشر..." : "Reports to..."}
                                 options={uniqueReportLines}
                                 selected={reportLineFilters}
                                 onChange={setReportLineFilters}
@@ -3170,32 +3172,32 @@ if (
                         </div>
                         <div className="flex flex-wrap items-center gap-4 pt-2">
                             <div className="flex items-center gap-2">
-                                <Label>Birth Year:</Label>
+                                <Label>{isRTL ? "سنة الميلاد:" : "Birth Year:"}</Label>
                                 <Select value={dobStartYear} onValueChange={setDobStartYear}>
-                                    <SelectTrigger className="w-[120px]"><SelectValue placeholder="From..." /></SelectTrigger>
+                                    <SelectTrigger className="w-[120px]"><SelectValue placeholder={isRTL ? "من..." : "From..."} /></SelectTrigger>
                                     <SelectContent>{yearRange.map(y => <SelectItem key={`dob-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
                                 </Select>
                                 -
                                 <Select value={dobEndYear} onValueChange={setDobEndYear}>
-                                        <SelectTrigger className="w-[120px]"><SelectValue placeholder="To..." /></SelectTrigger>
+                                        <SelectTrigger className="w-[120px]"><SelectValue placeholder={isRTL ? "إلى..." : "To..."} /></SelectTrigger>
                                         <SelectContent>{yearRange.map(y => <SelectItem key={`dob-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
                                 </Select>
                             </div>
                                 <div className="flex items-center gap-2">
-                                <Label>Joining Year:</Label>
+                                <Label>{isRTL ? "سنة الالتحاق:" : "Joining Year:"}</Label>
                                 <Select value={joiningStartYear} onValueChange={setJoiningStartYear}>
-                                    <SelectTrigger className="w-[120px]"><SelectValue placeholder="From..." /></SelectTrigger>
+                                    <SelectTrigger className="w-[120px]"><SelectValue placeholder={isRTL ? "من..." : "From..."} /></SelectTrigger>
                                     <SelectContent>{yearRange.map(y => <SelectItem key={`join-start-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
                                 </Select>
                                 -
                                 <Select value={joiningEndYear} onValueChange={setJoiningEndYear}>
-                                        <SelectTrigger className="w-[120px]"><SelectValue placeholder="To..." /></SelectTrigger>
+                                        <SelectTrigger className="w-[120px]"><SelectValue placeholder={isRTL ? "إلى..." : "To..."} /></SelectTrigger>
                                         <SelectContent>{yearRange.map(y => <SelectItem key={`join-end-${y}`} value={y}>{y}</SelectItem>)}</SelectContent>
                                 </Select>
                             </div>
-                                <Button variant="outline" onClick={clearAllFilters} className="ml-auto">
-                                <X className="mr-2 h-4 w-4" />
-                                Clear All Filters
+                                <Button variant="outline" onClick={clearAllFilters} className={isRTL ? "mr-auto" : "ml-auto"}>
+                                <X className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                                {isRTL ? "مسح جميع الفلاتر" : "Clear All Filters"}
                             </Button>
                         </div>
                     </AccordionContent>
@@ -3207,20 +3209,20 @@ if (
           {isLoading ? (
             <div className="flex justify-center items-center h-64">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <p className="ml-4 text-lg">Loading employees...</p>
+                <p className={cn("text-lg", isRTL ? "mr-4" : "ml-4")}>{isRTL ? "جاري تحميل بيانات الموظفين..." : "Loading employees..."}</p>
             </div>
           ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>ID</TableHead>
-                <TableHead>Title</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Stage</TableHead>
-                <TableHead>System</TableHead>
-                <TableHead>Campus</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>{isRTL ? "الاسم" : "Name"}</TableHead>
+                <TableHead>{isRTL ? "الرقم الوظيفي" : "ID"}</TableHead>
+                <TableHead>{isRTL ? "المسمى الوظيفي" : "Title"}</TableHead>
+                <TableHead>{isRTL ? "المادة" : "Subject"}</TableHead>
+                <TableHead>{isRTL ? "المرحلة" : "Stage"}</TableHead>
+                <TableHead>{isRTL ? "النظام" : "System"}</TableHead>
+                <TableHead>{isRTL ? "الفرع" : "Campus"}</TableHead>
+                <TableHead>{isRTL ? "الحالة" : "Status"}</TableHead>
 {(
   userRole === 'admin' ||
   userRole === 'hr' ||
@@ -3231,7 +3233,7 @@ if (
   userRole === 'human resource executive' ||
   userRole === 'recruitment and onboarding executive' ||
   userRole === 'personnel executive'
-) && (                  <TableHead className="text-right">Actions</TableHead>
+) && (                  <TableHead className={isRTL ? "text-left" : "text-right"}>{isRTL ? "الإجراءات" : "Actions"}</TableHead>
                 )}
               </TableRow>
             </TableHeader>
@@ -3267,7 +3269,7 @@ if (
                           employee.isDuplicate && 'bg-yellow-500 text-white'
                           )}
                       >
-                        {employee.isDuplicate ? 'Duplicate' : (isDeactivated ? 'Deactivated' : 'Active')}
+                        {employee.isDuplicate ? (isRTL ? 'مكرر' : 'Duplicate') : (isDeactivated ? (isRTL ? 'معطّل' : 'Deactivated') : (isRTL ? 'نشط' : 'Active'))}
                       </Badge>
                     </TableCell>
 {(
@@ -3300,20 +3302,20 @@ if (
 
                                 <DropdownMenuSub>
                                   <DropdownMenuSubTrigger>
-                                    <UserPlus className="mr-2 h-4 w-4" />
-                                    Login Management
+                                    <UserPlus className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                                    {isRTL ? "إدارة تسجيل الدخول" : "Login Management"}
                                   </DropdownMenuSubTrigger>
 
                                   <DropdownMenuPortal>
                                     <DropdownMenuSubContent>
                                       <DropdownMenuItem onClick={() => openCreateLoginDialog(employee)} disabled={!!employee.userId}>
-                                        <UserPlus className="mr-2 h-4 w-4" />
-                                        Create Login
+                                        <UserPlus className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                                        {isRTL ? "إنشاء حساب دخول" : "Create Login"}
                                       </DropdownMenuItem>
 
                                       <DropdownMenuItem onClick={() => openChangePasswordDialog(employee)} disabled={!employee.userId}>
-                                        <KeyRound className="mr-2 h-4 w-4" />
-                                        Change Password
+                                        <KeyRound className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                                        {isRTL ? "تغيير كلمة المرور" : "Change Password"}
                                       </DropdownMenuItem>
 
                                       <DropdownMenuItem
@@ -3321,8 +3323,8 @@ if (
                                         disabled={!employee.userId}
                                         className="text-destructive focus:text-destructive"
                                       >
-                                        <UserMinus className="mr-2 h-4 w-4" />
-                                        Delete Login
+                                        <UserMinus className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                                        {isRTL ? "حذف حساب الدخول" : "Delete Login"}
                                       </DropdownMenuItem>
                                     </DropdownMenuSubContent>
                                   </DropdownMenuPortal>
@@ -3333,8 +3335,8 @@ if (
                                     window.setTimeout(() => openEditDialog(employee), 0);
                                   }}
                                 >
-                                  <Edit3 className="mr-2 h-4 w-4" />
-                                  Edit Employee
+                                  <Edit3 className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                                  {isRTL ? "تعديل الموظف" : "Edit Employee"}
                                 </DropdownMenuItem>
 
                                 {String(employee.status ?? '').trim().toLowerCase() === "deactivated" ? (
@@ -3351,16 +3353,16 @@ if (
                                     }}
                                   >
                                     {isActivateTransitionPending ? (
-                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      <Loader2 className={cn("h-4 w-4 animate-spin", isRTL ? "ml-2" : "mr-2")} />
                                     ) : (
-                                      <UserRoundCheck className="mr-2 h-4 w-4" />
+                                      <UserRoundCheck className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
                                     )}
-                                    Activate Employee
+                                    {isRTL ? "تفعيل الموظف" : "Activate Employee"}
                                   </DropdownMenuItem>
                                 ) : (
                                   <DropdownMenuItem onSelect={() => openDeactivateDialog(employee)}>
-                                    <UserMinus className="mr-2 h-4 w-4" />
-                                    Deactivate Employee
+                                    <UserMinus className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                                    {isRTL ? "إلغاء تفعيل الموظف" : "Deactivate Employee"}
                                   </DropdownMenuItem>
                                 )}
 
@@ -3370,8 +3372,8 @@ if (
                                   onSelect={() => openDeleteConfirmDialog(employee)}
                                   className="text-destructive focus:text-destructive focus:bg-destructive/10"
                                 >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete Employee
+                                  <Trash2 className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                                  {isRTL ? "حذف الموظف" : "Delete Employee"}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -3384,7 +3386,7 @@ if (
               ) : (
                 <TableRow>
                   <TableCell colSpan={9} className="h-24 text-center">
-                    {allEmployees.length === 0 ? "No employees found." : "No employees match your current filters."}
+                    {allEmployees.length === 0 ? (isRTL ? "لم يتم العثور على أي موظف." : "No employees found.") : (isRTL ? "لا توجد نتائج تطابق خيارات البحث الحالية." : "No employees match your current filters.")}
                   </TableCell>
                 </TableRow>
               )}
@@ -3401,18 +3403,18 @@ if (
                     onClick={goToPrevPage}
                     disabled={currentPage <= 1 || isLoading}
                 >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Previous
+                    <ArrowLeft className={cn("h-4 w-4", isRTL ? "ml-2 rotate-180" : "mr-2")} />
+                    {isRTL ? "السابق" : "Previous"}
                 </Button>
-                <span className="text-sm font-medium">Page {currentPage} of {totalPages}</span>
+                <span className="text-sm font-medium">{isRTL ? `صفحة ${currentPage} من ${totalPages}` : `Page ${currentPage} of ${totalPages}`}</span>
                 <Button
                     variant="outline"
                     size="sm"
                     onClick={goToNextPage}
                     disabled={isLastPage || isLoading}
                 >
-                    Next
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                    {isRTL ? "التالي" : "Next"}
+                    <ArrowRight className={cn("h-4 w-4", isRTL ? "mr-2 rotate-180" : "ml-2")} />
                 </Button>
             </div>
             </CardContent>

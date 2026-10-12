@@ -5,19 +5,20 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useUserProfile } from '@/components/layout/app-layout';
 import { Loader2, AlertTriangle } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 const settingsNavItems = [
-  { title: "General", href: "/settings/general" },
-  { title: "Organization", href: "/settings/organization" },
-  { title: "Working Hours", href: "/settings/working-hours" },
-  { title: "Attendance", href: "/settings/attendance" },
-  { title: "Sync Data", href: "/settings/sync-data" },
-  { title: "Duplicates", href: "/settings/duplicates", roles: ['hr'] },
+  { titleEn: "General", titleAr: "عام", href: "/settings/general" },
+  { titleEn: "Organization", titleAr: "الهيكل المؤسسي", href: "/settings/organization" },
+  { titleEn: "Working Hours", titleAr: "ساعات العمل", href: "/settings/working-hours" },
+  { titleEn: "Attendance", titleAr: "الحضور والانصراف", href: "/settings/attendance" },
+  { titleEn: "Sync Data", titleAr: "مزامنة البيانات", href: "/settings/sync-data" },
+  { titleEn: "Duplicates", titleAr: "السجلات المكررة", href: "/settings/duplicates", roles: ['hr'] },
 ];
 
 export default function SettingsPageWrapper({ children }: { children: React.ReactNode }) {
+  const { isRTL } = useI18n();
   const pathname = usePathname();
   const router = useRouter();
   const { profile, loading } = useUserProfile();
@@ -79,7 +80,7 @@ const canViewSettings =
                 "justify-start"
               )}
             >
-              {item.title}
+              {isRTL ? item.titleAr : item.titleEn}
             </Link>
           ))}
         </nav>

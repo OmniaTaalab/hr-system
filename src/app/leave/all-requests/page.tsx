@@ -56,6 +56,7 @@ import * as XLSX from "xlsx";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
+import { useI18n } from "@/lib/i18n";
 
 export interface LeaveRequestEntry {
   id: string;
@@ -100,6 +101,7 @@ const initialDeleteState: DeleteLeaveRequestState = {
 };
 
 function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
+  const { isRTL } = useI18n();
   switch (status) {
     case "Approved":
       return (
@@ -107,8 +109,8 @@ function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
           variant="secondary"
           className="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"
         >
-          <ShieldCheck className="mr-1 h-3 w-3" />
-          Approved
+          <ShieldCheck className={cn("h-3 w-3", isRTL ? "ml-1" : "mr-1")} />
+          {isRTL ? "معتمد" : "Approved"}
         </Badge>
       );
     case "Pending":
@@ -117,15 +119,15 @@ function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
           variant="outline"
           className="border-yellow-500 text-yellow-600 dark:border-yellow-400 dark:text-yellow-300"
         >
-          <Hourglass className="mr-1 h-3 w-3" />
-          Pending
+          <Hourglass className={cn("h-3 w-3", isRTL ? "ml-1" : "mr-1")} />
+          {isRTL ? "قيد المراجعة" : "Pending"}
         </Badge>
       );
     case "Rejected":
       return (
         <Badge variant="destructive">
-          <ShieldX className="mr-1 h-3 w-3" />
-          Rejected
+          <ShieldX className={cn("h-3 w-3", isRTL ? "ml-1" : "mr-1")} />
+          {isRTL ? "مرفوض" : "Rejected"}
         </Badge>
       );
     default:
@@ -134,6 +136,7 @@ function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
 }
 
 function AllLeaveRequestsContent() {
+  const { isRTL, tText } = useI18n();
   const { profile, loading: isLoadingProfile } = useUserProfile();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -467,10 +470,10 @@ const isPrivileged =
     <div className="space-y-8">
       <header>
         <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-          Leave Requests
+          {isRTL ? "طلبات الإجازات" : "Leave Requests"}
         </h1>
         <p className="text-muted-foreground">
-          View, search, and manage all employee leave requests.
+          {isRTL ? "عرض وبحث وإدارة جميع طلبات الإجازات المقدمة من الموظفين." : "View, search, and manage all employee leave requests."}
         </p>
       </header>
 
@@ -487,7 +490,7 @@ const isPrivileged =
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">
-              Pending Requests
+              {isRTL ? "الطلبات المعلقة" : "Pending Requests"}
             </CardTitle>
             <Hourglass className="h-4 w-4 text-yellow-500" />
           </CardHeader>
@@ -500,9 +503,9 @@ const isPrivileged =
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1.5 flex items-center justify-between">
-              <span>{statusFilter === "Pending" ? "● Active Filter" : "Click to view pending"}</span>
+              <span>{statusFilter === "Pending" ? (isRTL ? "● تصفية نشطة" : "● Active Filter") : (isRTL ? "اضغط لعرض المعلقة" : "Click to view pending")}</span>
               {statusFilter === "Pending" && (
-                <span className="text-xs font-semibold text-yellow-600 dark:text-yellow-400">Click to reset</span>
+                <span className="text-xs font-semibold text-yellow-600 dark:text-yellow-400">{isRTL ? "إلغاء التصفية" : "Click to reset"}</span>
               )}
             </p>
           </CardContent>
@@ -519,7 +522,7 @@ const isPrivileged =
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">
-              Approved Requests
+              {isRTL ? "الطلبات المعتمدة" : "Approved Requests"}
             </CardTitle>
             <ShieldCheck className="h-4 w-4 text-green-500" />
           </CardHeader>
@@ -532,9 +535,9 @@ const isPrivileged =
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1.5 flex items-center justify-between">
-              <span>{statusFilter === "Approved" ? "● Active Filter" : "Click to view approved"}</span>
+              <span>{statusFilter === "Approved" ? (isRTL ? "● تصفية نشطة" : "● Active Filter") : (isRTL ? "اضغط لعرض المعتمدة" : "Click to view approved")}</span>
               {statusFilter === "Approved" && (
-                <span className="text-xs font-semibold text-green-600 dark:text-green-400">Click to reset</span>
+                <span className="text-xs font-semibold text-green-600 dark:text-green-400">{isRTL ? "إلغاء التصفية" : "Click to reset"}</span>
               )}
             </p>
           </CardContent>
@@ -551,7 +554,7 @@ const isPrivileged =
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">
-              Rejected Requests
+              {isRTL ? "الطلبات المرفوضة" : "Rejected Requests"}
             </CardTitle>
             <ShieldX className="h-4 w-4 text-red-500" />
           </CardHeader>
@@ -564,9 +567,9 @@ const isPrivileged =
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1.5 flex items-center justify-between">
-              <span>{statusFilter === "Rejected" ? "● Active Filter" : "Click to view rejected"}</span>
+              <span>{statusFilter === "Rejected" ? (isRTL ? "● تصفية نشطة" : "● Active Filter") : (isRTL ? "اضغط لعرض المرفوضة" : "Click to view rejected")}</span>
               {statusFilter === "Rejected" && (
-                <span className="text-xs font-semibold text-red-600 dark:text-red-400">Click to reset</span>
+                <span className="text-xs font-semibold text-red-600 dark:text-red-400">{isRTL ? "إلغاء التصفية" : "Click to reset"}</span>
               )}
             </p>
           </CardContent>
@@ -576,17 +579,17 @@ const isPrivileged =
       {/* Table */}
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle>Leave Request Log</CardTitle>
+          <CardTitle>{isRTL ? "سجل طلبات الإجازات" : "Leave Request Log"}</CardTitle>
           <CardDescription>
-            A comprehensive list of all submitted leave requests.
+            {isRTL ? "قائمة شاملة بجميع طلبات الإجازات المقدمة في النظام." : "A comprehensive list of all submitted leave requests."}
           </CardDescription>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-2">
             <div className="relative flex-grow sm:flex-grow-0 sm:w-full lg:w-1/3">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className={cn("absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
               <Input
                 type="search"
-                placeholder="Search requests..."
-                className="w-full pl-10"
+                placeholder={isRTL ? "بحث في الطلبات..." : "Search requests..."}
+                className={cn("w-full", isRTL ? "pr-10" : "pl-10")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -602,14 +605,14 @@ const isPrivileged =
                 }
               >
                 <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Filter by status" />
+                  <SelectValue placeholder={isRTL ? "تصفية حسب الحالة" : "Filter by status"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="All">All Statuses</SelectItem>
-                  <SelectItem value="MyPending">Pending My Approval</SelectItem>
-                  <SelectItem value="Pending">Pending</SelectItem>
-                  <SelectItem value="Approved">Approved</SelectItem>
-                  <SelectItem value="Rejected">Rejected</SelectItem>
+                  <SelectItem value="All">{isRTL ? "جميع الحالات" : "All Statuses"}</SelectItem>
+                  <SelectItem value="MyPending">{isRTL ? "بانتظار موافقتي" : "Pending My Approval"}</SelectItem>
+                  <SelectItem value="Pending">{isRTL ? "قيد المراجعة" : "Pending"}</SelectItem>
+                  <SelectItem value="Approved">{isRTL ? "معتمدة" : "Approved"}</SelectItem>
+                  <SelectItem value="Rejected">{isRTL ? "مرفوضة" : "Rejected"}</SelectItem>
                 </SelectContent>
               </Select>
               
@@ -619,10 +622,10 @@ const isPrivileged =
                 disabled={isLoadingLeaveTypes}
               >
                 <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Filter by leave type" />
+                  <SelectValue placeholder={isRTL ? "نوع الإجازة" : "Filter by leave type"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="All">All Leave Types</SelectItem>
+                  <SelectItem value="All">{isRTL ? "جميع أنواع الإجازات" : "All Leave Types"}</SelectItem>
                   {leaveTypes.map((type) => (
                     <SelectItem key={type.id} value={type.name}>
                       {type.name}
@@ -637,10 +640,10 @@ const isPrivileged =
                 disabled={isLoadingLists}
               >
                 <SelectTrigger className="w-full sm:w-[150px]">
-                  <SelectValue placeholder="Filter by campus" />
+                  <SelectValue placeholder={isRTL ? "الفرع" : "Filter by campus"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="All">All Campuses</SelectItem>
+                  <SelectItem value="All">{isRTL ? "جميع الفروع" : "All Campuses"}</SelectItem>
                   {campuses.map((campus) => (
                     <SelectItem key={campus.id} value={campus.name}>
                       {campus.name}
@@ -655,10 +658,10 @@ const isPrivileged =
                 disabled={isLoadingLists}
               >
                 <SelectTrigger className="w-full sm:w-[150px]">
-                  <SelectValue placeholder="Filter by stage" />
+                  <SelectValue placeholder={isRTL ? "المرحلة" : "Filter by stage"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="All">All Stages</SelectItem>
+                  <SelectItem value="All">{isRTL ? "جميع المراحل" : "All Stages"}</SelectItem>
                   {stages.map((stage) => (
                     <SelectItem key={stage.id} value={stage.name}>
                       {stage.name}
@@ -668,8 +671,8 @@ const isPrivileged =
               </Select>
 
               <Button onClick={handleExportExcel} variant="outline">
-                <FileDown className="mr-2 h-4 w-4" />
-                Export Excel
+                <FileDown className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                {isRTL ? "تصدير إلى إكسيل" : "Export Excel"}
               </Button>
             </div>
           </div>
@@ -679,20 +682,22 @@ const isPrivileged =
           {finalIsLoading ? (
             <div className="flex justify-center items-center h-64">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="ml-4 text-lg">Loading leave requests...</p>
+              <p className={cn("text-lg", isRTL ? "mr-4" : "ml-4")}>
+                {isRTL ? "جاري تحميل طلبات الإجازات..." : "Loading leave requests..."}
+              </p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Employee Name</TableHead>
-                  <TableHead>Leave Type</TableHead>
-                  <TableHead>Start Date</TableHead>
-                  <TableHead>End Date</TableHead>
-                  <TableHead>Days</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Current Approver</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{isRTL ? "اسم الموظف" : "Employee Name"}</TableHead>
+                  <TableHead>{isRTL ? "نوع الإجازة" : "Leave Type"}</TableHead>
+                  <TableHead>{isRTL ? "تاريخ البدء" : "Start Date"}</TableHead>
+                  <TableHead>{isRTL ? "تاريخ الانتهاء" : "End Date"}</TableHead>
+                  <TableHead>{isRTL ? "الأيام" : "Days"}</TableHead>
+                  <TableHead>{isRTL ? "الحالة" : "Status"}</TableHead>
+                  <TableHead>{isRTL ? "المعتمد الحالي" : "Current Approver"}</TableHead>
+                  <TableHead className={isRTL ? "text-left" : "text-right"}>{isRTL ? "الإجراءات" : "Actions"}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -746,19 +751,19 @@ const isPrivileged =
                           (r.leaveType || "").toLowerCase().includes("hour") ||
                           (r.leaveType || "").toLowerCase().includes("ساعة") ||
                           (r.leaveType || "").toLowerCase().includes("رضاعة")
-                            ? `${r.numberOfDays ?? 0} d (1h/d)`
+                            ? (isRTL ? `${r.numberOfDays ?? 0} ي (1س/ي)` : `${r.numberOfDays ?? 0} d (1h/d)`)
                             : (r.numberOfDays ?? 0)}
                         </TableCell>
                         <TableCell>
                           <LeaveStatusBadge status={r.status} />
                         </TableCell>
                         <TableCell>
-                          {r.selectedApproverName || r.currentApprover || <Badge variant="outline">N/A</Badge>}
+                          {r.selectedApproverName || r.currentApprover || <Badge variant="outline">{isRTL ? "غير محدد" : "N/A"}</Badge>}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className={isRTL ? "text-left" : "text-right"}>
                           <Button variant="ghost" size="sm">
-                            <Eye className="mr-2 h-4 w-4" />
-                            View
+                            <Eye className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                            {isRTL ? "عرض" : "View"}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -767,7 +772,7 @@ const isPrivileged =
                 ) : (
                   <TableRow>
                     <TableCell colSpan={9} className="h-24 text-center">
-                      No leave requests found matching your filters.
+                      {isRTL ? "لا توجد طلبات إجازة تطابق خيارات التصفية المحددة." : "No leave requests found matching your filters."}
                     </TableCell>
                   </TableRow>
                 )}

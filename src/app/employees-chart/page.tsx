@@ -32,6 +32,7 @@ import jsPDF from 'jspdf';
 import { MultiSelectFilter } from '@/components/multi-select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
 
 interface Employee {
   id: string;
@@ -325,6 +326,7 @@ function StatChip({
 }
 
 function EmployeesChartContent() {
+  const { isRTL, tText } = useI18n();
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { profile, loading: isLoadingProfile } = useUserProfile();
@@ -765,16 +767,16 @@ function EmployeesChartContent() {
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <GitBranch className="h-6 w-6" />
               </span>
-              Organizational Chart
+              {isRTL ? "الهيكل التنظيمي" : "Organizational Chart"}
             </h1>
             <p className="mt-2 max-w-2xl text-muted-foreground">
-              Read reporting lines from the top down. Color shows seniority, and each card opens that person’s profile.
+              {isRTL ? "استعراض خطوط التبعية الإدارية من الأعلى إلى الأسفل. تُمثّل الألوان المستويات الوظيفية، وينقلك كل كارت إلى الملف الشخصي للموظف." : "Read reporting lines from the top down. Color shows seniority, and each card opens that person’s profile."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <StatChip icon={Users} label="People in view" value={chartStats.people} />
-            <StatChip icon={UserRound} label="Top-level teams" value={chartStats.teams} />
-            <StatChip icon={Building2} label="Campuses" value={chartStats.campuses} />
+            <StatChip icon={Users} label={isRTL ? "الموظفون المعروضون" : "People in view"} value={chartStats.people} />
+            <StatChip icon={UserRound} label={isRTL ? "فرق المستوى الأعلى" : "Top-level teams"} value={chartStats.teams} />
+            <StatChip icon={Building2} label={isRTL ? "الفروع" : "Campuses"} value={chartStats.campuses} />
           </div>
         </header>
 
@@ -782,55 +784,55 @@ function EmployeesChartContent() {
           <CardHeader className="space-y-4 pb-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="relative min-w-[220px] flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className={cn("pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
                 <Input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Find a person, title, or campus…"
-                  className="pl-9"
+                  placeholder={isRTL ? "بحث عن شخص، مسمى وظيفي، أو فرع…" : "Find a person, title, or campus…"}
+                  className={isRTL ? "pr-9" : "pl-9"}
                   aria-label="Search the organization chart"
                 />
               </div>
               {searchQuery && (
                 <p className="text-xs text-muted-foreground lg:min-w-24">
-                  {search.matchedIds.size} {search.matchedIds.size === 1 ? "match" : "matches"}
+                  {search.matchedIds.size} {isRTL ? "نتيجة" : (search.matchedIds.size === 1 ? "match" : "matches")}
                 </p>
               )}
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="outline" size="sm" onClick={handleExpandAll} disabled={!hasChart}>
                   <ChevronsDownUp className="h-4 w-4" />
-                  Expand
+                  {isRTL ? "توسيع" : "Expand"}
                 </Button>
                 <Button variant="outline" size="sm" onClick={handleCollapseAll} disabled={!hasChart}>
                   <ChevronsUpDown className="h-4 w-4" />
-                  Collapse
+                  {isRTL ? "طي" : "Collapse"}
                 </Button>
                 <Button variant="outline" size="sm" onClick={resetFilters}>
                   <RotateCcw className="h-4 w-4" />
-                  Reset
+                  {isRTL ? "إعادة ضبط" : "Reset"}
                 </Button>
                 <Button variant="default" size="sm" onClick={handleExportPDF} disabled={isExporting || !hasChart}>
                   {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-                  Export PDF
+                  {isRTL ? "تصدير PDF" : "Export PDF"}
                 </Button>
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
-              <MultiSelectFilter placeholder="Campus" options={campusList} selected={campusFilter} onChange={setCampusFilter} />
-              <MultiSelectFilter placeholder="Title" options={titleList} selected={titleFilter} onChange={setTitleFilter} />
+              <MultiSelectFilter placeholder={isRTL ? "الفرع" : "Campus"} options={campusList} selected={campusFilter} onChange={setCampusFilter} />
+              <MultiSelectFilter placeholder={isRTL ? "المسمى الوظيفي" : "Title"} options={titleList} selected={titleFilter} onChange={setTitleFilter} />
               <MultiSelectFilter
-                placeholder="Status"
+                placeholder={isRTL ? "الحالة" : "Status"}
                 options={[
-                  { label: 'Active Employees', value: 'Active' },
-                  { label: 'Deactive Employees', value: 'Deactivated' },
-                  { label: 'Total Employees', value: 'Total' },
+                  { label: isRTL ? 'الموظفون النشطون' : 'Active Employees', value: 'Active' },
+                  { label: isRTL ? 'الموظفون غير النشطين' : 'Deactive Employees', value: 'Deactivated' },
+                  { label: isRTL ? 'إجمالي الموظفين' : 'Total Employees', value: 'Total' },
                 ]}
                 selected={statusFilter}
                 onChange={setStatusFilter}
               />
-              <MultiSelectFilter placeholder="Religion" options={religionList} selected={religionFilter} onChange={setReligionFilter} />
-              <MultiSelectFilter placeholder="Stage" options={stageList} selected={stageFilter} onChange={setStageFilter} />
+              <MultiSelectFilter placeholder={isRTL ? "الديانة" : "Religion"} options={religionList} selected={religionFilter} onChange={setReligionFilter} />
+              <MultiSelectFilter placeholder={isRTL ? "المرحلة" : "Stage"} options={stageList} selected={stageFilter} onChange={setStageFilter} />
             </div>
           </CardHeader>
 
@@ -856,8 +858,12 @@ function EmployeesChartContent() {
                   onDoubleClick={fitToScreen}
                   onDragStart={(event) => event.preventDefault()}
                 >
-                  <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-wrap gap-2">
-                    {LEVEL_THEMES.slice(0, 4).map((theme) => (
+                  <div className={cn("pointer-events-none absolute top-3 z-10 flex flex-wrap gap-2", isRTL ? "right-3" : "left-3")}>
+                    {LEVEL_THEMES.slice(0, 4).map((theme) => {
+                      const themeLabel = isRTL
+                        ? (theme.name === "Leadership" ? "الإدارة العليا" : theme.name === "Managers" ? "المديرون" : theme.name === "Team leads" ? "رؤساء الفرق" : "الفرق")
+                        : theme.name;
+                      return (
                       <span
                         key={theme.name}
                         className="pointer-events-none inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm backdrop-blur-sm"
@@ -868,9 +874,10 @@ function EmployeesChartContent() {
                         }}
                       >
                         <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: theme.color }} />
-                        {theme.name}
+                        {themeLabel}
                       </span>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <div
@@ -913,7 +920,7 @@ function EmployeesChartContent() {
                       <Maximize2 className="h-4 w-4" />
                     </Button>
                     <span className="hidden px-2 text-[11px] text-muted-foreground sm:inline">
-                      Drag to move · Scroll to zoom
+                      {isRTL ? "اسحب للتحريك · مرر للتكبير والتصغير" : "Drag to move · Scroll to zoom"}
                     </span>
                   </div>
                 </div>
@@ -923,9 +930,11 @@ function EmployeesChartContent() {
                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                   <GitBranch className="h-8 w-8" />
                 </div>
-                <h3 className="font-headline text-xl font-semibold">No employees found</h3>
+                <h3 className="font-headline text-xl font-semibold">
+                  {isRTL ? "لم يتم العثور على موظفين" : "No employees found"}
+                </h3>
                 <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                  Try adjusting your filters or search query to view reporting lines.
+                  {isRTL ? "حاول تعديل خيارات التصفية أو البحث لعرض خطوط التبعية الإدارية." : "Try adjusting your filters or search query to view reporting lines."}
                 </p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
                   <Button
@@ -933,7 +942,7 @@ function EmployeesChartContent() {
                     size="sm"
                     onClick={resetFilters}
                   >
-                    Reset Filters
+                    {isRTL ? "إعادة ضبط الفلاتر" : "Reset Filters"}
                   </Button>
                 </div>
               </div>

@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useSearchParams } from "next/navigation";
+import { useI18n } from "@/lib/i18n";
 
 interface AttendanceRecord {
   id: string;
@@ -55,30 +56,32 @@ export interface LeaveRequestEntry {
 }
 
 function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
+  const { t } = useI18n();
   switch (status) {
     case "Approved":
-      return <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"><iconMap.ShieldCheck className="mr-1 h-3 w-3" />Approved</Badge>;
+      return <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"><iconMap.ShieldCheck className="mr-1 h-3 w-3" />{t("leave.approved", "Approved")}</Badge>;
     case "Pending":
-      return <Badge variant="outline" className="border-yellow-500 text-yellow-600 dark:border-yellow-400 dark:text-yellow-300"><iconMap.Hourglass className="mr-1 h-3 w-3" />Pending</Badge>;
+      return <Badge variant="outline" className="border-yellow-500 text-yellow-600 dark:border-yellow-400 dark:text-yellow-300"><iconMap.Hourglass className="mr-1 h-3 w-3" />{t("leave.pending", "Pending")}</Badge>;
     case "Rejected":
-      return <Badge variant="destructive"><iconMap.ShieldX className="mr-1 h-3 w-3" />Rejected</Badge>;
+      return <Badge variant="destructive"><iconMap.ShieldX className="mr-1 h-3 w-3" />{t("leave.rejected", "Rejected")}</Badge>;
     default:
       return <Badge>{status}</Badge>;
   }
 }
 
 function AttendanceStatusBadge({ status }: { status: AttendanceRecord["status"] }) {
+  const { t, tText } = useI18n();
   switch (status) {
     case "Completed":
-      return <Badge variant="secondary" className="bg-green-100 text-green-800"><iconMap.CheckCircle2 className="mr-1 h-3 w-3" />Completed</Badge>;
+      return <Badge variant="secondary" className="bg-green-100 text-green-800"><iconMap.CheckCircle2 className="mr-1 h-3 w-3" />{tText("Completed", "مكتمل")}</Badge>;
     case "ClockedIn":
-      return <Badge variant="secondary" className="bg-sky-100 text-sky-800"><iconMap.LogIn className="mr-1 h-3 w-3" />Clocked In</Badge>;
+      return <Badge variant="secondary" className="bg-sky-100 text-sky-800"><iconMap.LogIn className="mr-1 h-3 w-3" />{t("attendance.check_in", "Clocked In")}</Badge>;
     case "ManuallyCleared":
-        return <Badge variant="outline" className="border-orange-500 text-orange-500"><iconMap.XCircle className="mr-1 h-3 w-3" />Cleared</Badge>;
+        return <Badge variant="outline" className="border-orange-500 text-orange-500"><iconMap.XCircle className="mr-1 h-3 w-3" />{tText("Cleared", "معتمد")}</Badge>;
     case "Absent": 
-        return <Badge variant="destructive"><iconMap.XCircle className="mr-1 h-3 w-3" />Absent</Badge>;
+        return <Badge variant="destructive"><iconMap.XCircle className="mr-1 h-3 w-3" />{t("attendance.status_absent", "Absent")}</Badge>;
     case "OnLeave": 
-        return <Badge variant="outline" className="border-blue-500 text-blue-500"><CalendarOff className="mr-1 h-3 w-3" />On Leave</Badge>;
+        return <Badge variant="outline" className="border-blue-500 text-blue-500"><CalendarOff className="mr-1 h-3 w-3" />{t("status.on_leave", "On Leave")}</Badge>;
     default:
       return <Badge>{status}</Badge>;
   }
@@ -230,6 +233,7 @@ function getProgressIndicatorColor(remaining: number, total: number): string {
 
 function MyRequestsContent() {
   const { profile: currentEmployee } = useUserProfile();
+  const { t, tText, isRTL } = useI18n();
   const currentEmployeeId = currentEmployee?.id;
   const searchParams = useSearchParams();
   const urlStatus = searchParams.get("status");
@@ -727,24 +731,24 @@ function MyRequestsContent() {
       <div className="space-y-8">
         <header>
           <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl my-requests-title">
-            My Work & Leave Summary
+            {t("sidebar.employee_work_leave_summary", "My Work & Leave Summary")}
           </h1>
           <p className="text-muted-foreground">
-            Overview of your work and leave summary.
+            {tText("Overview of your work and leave summary.", "نظرة عامة على ملخص العمل والإجازات الخاص بك.")}
           </p>
         </header>
         
         <Card className="shadow-lg">
           <CardHeader>
              <CardTitle className="flex items-center">
-                 <iconMap.ListFilter className="mr-2 h-5 w-5 text-primary" />
-                 Select Month and Year for Monthly Summary
+                 <iconMap.ListFilter className={isRTL ? "ml-2 h-5 w-5 text-primary" : "mr-2 h-5 w-5 text-primary"} />
+                 {tText("Select Month and Year for Monthly Summary", "اختر الشهر والسنة لعرض الملخص الشهري")}
              </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row gap-4">
                 <Select onValueChange={handleYearChange} value={getYear(currentMonthDate).toString()}>
                     <SelectTrigger className="w-full sm:w-[180px]">
-                        <SelectValue placeholder="Select Year" />
+                        <SelectValue placeholder={tText("Select Year", "اختر السنة")} />
                     </SelectTrigger>
                     <SelectContent>
                         {years.map(year => <SelectItem key={year} value={year.toString()}>{year}</SelectItem>)}
@@ -752,7 +756,7 @@ function MyRequestsContent() {
                 </Select>
                 <Select onValueChange={handleMonthChange} value={getMonth(currentMonthDate).toString()}>
                     <SelectTrigger className="w-full sm:w-[180px]">
-                        <SelectValue placeholder="Select Month" />
+                        <SelectValue placeholder={tText("Select Month", "اختر الشهر")} />
                     </SelectTrigger>
                     <SelectContent>
                         {months.map(month => <SelectItem key={month.value} value={month.value.toString()}>{month.label}</SelectItem>)}
@@ -767,16 +771,18 @@ function MyRequestsContent() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
                 <CardTitle className="flex items-center text-xl font-bold">
-                  <ShieldCheck className="mr-2 h-5 w-5 text-primary" />
-                  Leave Balances & Remaining Allowances
+                  <ShieldCheck className={cn("h-5 w-5 text-primary", isRTL ? "ml-2" : "mr-2")} />
+                  {isRTL ? "أرصدة الإجازات والمستحقات المتبقية" : "Leave Balances & Remaining Allowances"}
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  Remaining leave days and hours calculated for your account ({format(currentMonthDate, "MMMM yyyy")} • {academicTerm.termName})
+                  {isRTL
+                    ? `أيام وساعات الإجازات المتبقية المحسوبة لحسابك (${format(currentMonthDate, "MMMM yyyy")} • ${academicTerm.termName})`
+                    : `Remaining leave days and hours calculated for your account (${format(currentMonthDate, "MMMM yyyy")} • ${academicTerm.termName})`}
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="text-xs px-2.5 py-1 border-primary/30 text-primary font-medium whitespace-nowrap">
-                  Official Leave Limits
+                  {isRTL ? "حدود الإجازات الرسمية" : "Official Leave Limits"}
                 </Badge>
               </div>
             </div>
@@ -805,15 +811,15 @@ function MyRequestsContent() {
                         </div>
                         <div>
                           <h4 className="font-semibold text-sm leading-tight text-foreground">
-                            Early & Late Excuse
+                            {isRTL ? "إذن تأخير وانصراف مبكر" : "Early & Late Excuse"}
                           </h4>
                           <span className="text-xs text-muted-foreground">
-                            إذن تأخير وانصراف مبكر
+                            {isRTL ? "Early & Late Excuse" : "إذن تأخير وانصراف مبكر"}
                           </span>
                         </div>
                       </div>
                       <Badge variant="outline" className="text-[11px] font-semibold whitespace-nowrap bg-muted/50">
-                        {leaveBalances.earlyLate.allowedHours}h / month
+                        {leaveBalances.earlyLate.allowedHours} {isRTL ? "س/شهر" : "h / month"}
                       </Badge>
                     </div>
 
@@ -823,12 +829,15 @@ function MyRequestsContent() {
                           {leaveBalances.earlyLate.remainingHours}
                         </span>
                         <span className="text-sm font-medium text-muted-foreground">
-                          {leaveBalances.earlyLate.remainingHours === 1 ? "hour remaining" : "hours remaining"}
+                          {isRTL
+                            ? (leaveBalances.earlyLate.remainingHours === 1 ? "ساعة متبقية" : "ساعات متبقية")
+                            : (leaveBalances.earlyLate.remainingHours === 1 ? "hour remaining" : "hours remaining")}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Allowed: {leaveBalances.earlyLate.allowedHours} hours in {format(currentMonthDate, "MMMM")}
-                        {leaveBalances.earlyLate.isEditor ? " (Editor)" : ""}
+                        {isRTL
+                          ? `المسموح: ${leaveBalances.earlyLate.allowedHours} ساعات في ${format(currentMonthDate, "MMMM")}${leaveBalances.earlyLate.isEditor ? " (محرر)" : ""}`
+                          : `Allowed: ${leaveBalances.earlyLate.allowedHours} hours in ${format(currentMonthDate, "MMMM")}${leaveBalances.earlyLate.isEditor ? " (Editor)" : ""}`}
                       </p>
                     </div>
 
@@ -843,10 +852,10 @@ function MyRequestsContent() {
 
                   <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">
-                      Used: <strong className="text-foreground font-medium">{leaveBalances.earlyLate.totalUsedHours}h</strong>
+                      {isRTL ? "المستخدم: " : "Used: "}<strong className="text-foreground font-medium">{leaveBalances.earlyLate.totalUsedHours}{isRTL ? "س" : "h"}</strong>
                       {leaveBalances.earlyLate.pendingHours > 0 && (
                         <span className="text-amber-600 dark:text-amber-400 font-normal ml-1">
-                          ({leaveBalances.earlyLate.pendingHours}h pending)
+                          ({leaveBalances.earlyLate.pendingHours}{isRTL ? "س معلق" : "h pending"})
                         </span>
                       )}
                     </span>
@@ -866,15 +875,15 @@ function MyRequestsContent() {
                         </div>
                         <div>
                           <h4 className="font-semibold text-sm leading-tight text-foreground">
-                            Emergency Leave
+                            {isRTL ? "إجازة عارضة" : "Emergency Leave"}
                           </h4>
                           <span className="text-xs text-muted-foreground">
-                            إجازة عارضة
+                            {isRTL ? "Emergency Leave" : "إجازة عارضة"}
                           </span>
                         </div>
                       </div>
                       <Badge variant="outline" className="text-[11px] font-semibold whitespace-nowrap bg-muted/50">
-                        1 day / term
+                        {isRTL ? "1 يوم / ترم" : "1 day / term"}
                       </Badge>
                     </div>
 
@@ -884,11 +893,15 @@ function MyRequestsContent() {
                           {leaveBalances.emergency.remainingDays}
                         </span>
                         <span className="text-sm font-medium text-muted-foreground">
-                          {leaveBalances.emergency.remainingDays === 1 ? "day remaining" : "days remaining"}
+                          {isRTL
+                            ? (leaveBalances.emergency.remainingDays === 1 ? "يوم متبقي" : "أيام متبقية")
+                            : (leaveBalances.emergency.remainingDays === 1 ? "day remaining" : "days remaining")}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Allowed: 1 day per term ({academicTerm.termName})
+                        {isRTL
+                          ? `المسموح: يوم واحد لكل فصل دراسي (${academicTerm.termName})`
+                          : `Allowed: 1 day per term (${academicTerm.termName})`}
                       </p>
                     </div>
 
@@ -903,10 +916,10 @@ function MyRequestsContent() {
 
                   <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">
-                      Used: <strong className="text-foreground font-medium">{leaveBalances.emergency.totalUsedDays} day</strong>
+                      {isRTL ? "المستخدم: " : "Used: "}<strong className="text-foreground font-medium">{leaveBalances.emergency.totalUsedDays} {isRTL ? "يوم" : "day"}</strong>
                       {leaveBalances.emergency.pendingDays > 0 && (
                         <span className="text-amber-600 dark:text-amber-400 font-normal ml-1">
-                          ({leaveBalances.emergency.pendingDays} pending)
+                          ({leaveBalances.emergency.pendingDays} {isRTL ? "معلق" : "pending"})
                         </span>
                       )}
                     </span>
@@ -926,15 +939,15 @@ function MyRequestsContent() {
                         </div>
                         <div>
                           <h4 className="font-semibold text-sm leading-tight text-foreground">
-                            Medical Leave
+                            {isRTL ? "إجازة مرضية" : "Medical Leave"}
                           </h4>
                           <span className="text-xs text-muted-foreground">
-                            إجازة مرضية
+                            {isRTL ? "Medical Leave" : "إجازة مرضية"}
                           </span>
                         </div>
                       </div>
                       <Badge variant="outline" className="text-[11px] font-semibold whitespace-nowrap bg-muted/50">
-                        7 days / year
+                        {isRTL ? "7 أيام / سنة" : "7 days / year"}
                       </Badge>
                     </div>
 
@@ -944,11 +957,15 @@ function MyRequestsContent() {
                           {leaveBalances.medical.remainingDays}
                         </span>
                         <span className="text-sm font-medium text-muted-foreground">
-                          {leaveBalances.medical.remainingDays === 1 ? "day remaining" : "days remaining"}
+                          {isRTL
+                            ? (leaveBalances.medical.remainingDays === 1 ? "يوم متبقي" : "أيام متبقية")
+                            : (leaveBalances.medical.remainingDays === 1 ? "day remaining" : "days remaining")}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Allowed: 7 days per year ({leaveBalances.medical.year})
+                        {isRTL
+                          ? `المسموح: 7 أيام في السنة (${leaveBalances.medical.year})`
+                          : `Allowed: 7 days per year (${leaveBalances.medical.year})`}
                       </p>
                     </div>
 
@@ -963,15 +980,15 @@ function MyRequestsContent() {
 
                   <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">
-                      Used: <strong className="text-foreground font-medium">{leaveBalances.medical.totalUsedDays} day(s)</strong>
+                      {isRTL ? "المستخدم: " : "Used: "}<strong className="text-foreground font-medium">{leaveBalances.medical.totalUsedDays} {isRTL ? "يوم" : "day(s)"}</strong>
                       {leaveBalances.medical.pendingDays > 0 && (
                         <span className="text-amber-600 dark:text-amber-400 font-normal ml-1">
-                          ({leaveBalances.medical.pendingDays} pending)
+                          ({leaveBalances.medical.pendingDays} {isRTL ? "معلق" : "pending"})
                         </span>
                       )}
                     </span>
                     <span className="text-muted-foreground font-medium truncate max-w-[120px]">
-                      Year {leaveBalances.medical.year}
+                      {isRTL ? `عام ${leaveBalances.medical.year}` : `Year ${leaveBalances.medical.year}`}
                     </span>
                   </div>
                 </div>
@@ -986,10 +1003,10 @@ function MyRequestsContent() {
                         </div>
                         <div>
                           <h4 className="font-semibold text-sm leading-tight text-foreground">
-                            Maternity Leave
+                            {isRTL ? "إجازة وضع" : "Maternity Leave"}
                           </h4>
                           <span className="text-xs text-muted-foreground">
-                            إجازة وضع
+                            {isRTL ? "Maternity Leave" : "إجازة وضع"}
                           </span>
                         </div>
                       </div>
@@ -997,7 +1014,7 @@ function MyRequestsContent() {
                         variant={leaveBalances.maternity.isEligible ? "outline" : "secondary"}
                         className="text-[11px] font-semibold whitespace-nowrap bg-muted/50"
                       >
-                        {leaveBalances.maternity.isEligible ? "120 days" : "Female only"}
+                        {leaveBalances.maternity.isEligible ? (isRTL ? "120 يوماً" : "120 days") : (isRTL ? "للإناث فقط" : "Female only")}
                       </Badge>
                     </div>
 
@@ -1009,25 +1026,29 @@ function MyRequestsContent() {
                               {leaveBalances.maternity.remainingDays}
                             </span>
                             <span className="text-sm font-medium text-muted-foreground">
-                              {leaveBalances.maternity.remainingDays === 1 ? "day remaining" : "days remaining"}
+                              {isRTL
+                                ? (leaveBalances.maternity.remainingDays === 1 ? "يوم متبقي" : "أيام متبقية")
+                                : (leaveBalances.maternity.remainingDays === 1 ? "day remaining" : "days remaining")}
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            Allowed: 120 days (Female gender)
+                            {isRTL ? "المسموح: 120 يوماً (للإناث)" : "Allowed: 120 days (Female gender)"}
                           </p>
                         </>
                       ) : (
                         <>
                           <div className="flex items-baseline space-x-1.5">
                             <span className="text-3xl font-bold tracking-tight text-muted-foreground">
-                              N/A
+                              {isRTL ? "غير متاح" : "N/A"}
                             </span>
                             <span className="text-sm font-medium text-muted-foreground">
-                              Not eligible
+                              {isRTL ? "غير مؤهلة" : "Not eligible"}
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {leaveBalances.maternity.isMale ? "Applicable to female employees only" : "Female gender required"}
+                            {leaveBalances.maternity.isMale
+                              ? (isRTL ? "مخصصة للموظفات الإناث فقط" : "Applicable to female employees only")
+                              : (isRTL ? "تتطلب تحديد جنس أنثى" : "Female gender required")}
                           </p>
                         </>
                       )}
@@ -1047,31 +1068,31 @@ function MyRequestsContent() {
                       <>
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">
-                            Full Leave: <strong className="text-foreground font-medium">{leaveBalances.maternity.totalUsedDays} day(s)</strong>
+                            {isRTL ? "إجازة كاملة: " : "Full Leave: "}<strong className="text-foreground font-medium">{leaveBalances.maternity.totalUsedDays} {isRTL ? "يوم" : "day(s)"}</strong>
                             {leaveBalances.maternity.pendingDays > 0 && (
                               <span className="text-amber-600 dark:text-amber-400 font-normal ml-1">
-                                ({leaveBalances.maternity.pendingDays} pending)
+                                ({leaveBalances.maternity.pendingDays} {isRTL ? "معلق" : "pending"})
                               </span>
                             )}
                           </span>
                           <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-emerald-600 border-emerald-300 dark:text-emerald-400">
-                            Eligible
+                            {isRTL ? "مؤهلة" : "Eligible"}
                           </Badge>
                         </div>
                         {leaveBalances.maternity.hourTotalHours > 0 && (
                           <div className="text-[11px] text-sky-700 dark:text-sky-400 font-medium">
-                            Maternity Hour: {leaveBalances.maternity.hourApprovedHours}h ({leaveBalances.maternity.hourApprovedDays} days @ 1h/day)
-                            {leaveBalances.maternity.hourPendingHours > 0 && ` • ${leaveBalances.maternity.hourPendingHours}h pending`}
+                            {isRTL ? "ساعة رعاية الطفل: " : "Maternity Hour: "}{leaveBalances.maternity.hourApprovedHours}{isRTL ? "س" : "h"} ({leaveBalances.maternity.hourApprovedDays} {isRTL ? "أيام بواقع 1س/يوم" : "days @ 1h/day"})
+                            {leaveBalances.maternity.hourPendingHours > 0 && ` • ${leaveBalances.maternity.hourPendingHours}${isRTL ? "س معلق" : "h pending"}`}
                           </div>
                         )}
                       </>
                     ) : (
                       <>
                         <span className="text-muted-foreground">
-                          Status: <strong className="text-foreground font-medium">{leaveBalances.maternity.isMale ? "Male" : "Not Set"}</strong>
+                          {isRTL ? "الحالة: " : "Status: "}<strong className="text-foreground font-medium">{leaveBalances.maternity.isMale ? (isRTL ? "ذكر" : "Male") : (isRTL ? "غير محدد" : "Not Set")}</strong>
                         </span>
                         <span className="text-muted-foreground text-[11px]">
-                          Ineligible
+                          {isRTL ? "غير مؤهل" : "Ineligible"}
                         </span>
                       </>
                     )}
@@ -1085,11 +1106,11 @@ function MyRequestsContent() {
               <div className="flex items-start sm:items-center gap-2">
                 <Info className="h-4 w-4 text-primary flex-shrink-0 mt-0.5 sm:mt-0" />
                 <span>
-                  <strong>Official Policy Limits:</strong> Early & Late Excuses: 4 hours/month (8 hours for Editor, 2h per excuse) • Emergency: 1 day/term • Medical: 7 days/year • Maternity: 120 days (Female).
+                  <strong>{isRTL ? "الحدود الرسمية للائحة:" : "Official Policy Limits:"}</strong> {isRTL ? "أذونات التأخير والانصراف: 4 ساعات/شهر (8 ساعات للمحرر، 2س لكل إذن) • العارضة: يوم واحد/ترم • المرضية: 7 أيام/سنة • الوضع: 120 يوماً (للإناث)." : "Early & Late Excuses: 4 hours/month (8 hours for Editor, 2h per excuse) • Emergency: 1 day/term • Medical: 7 days/year • Maternity: 120 days (Female)."}
                 </span>
               </div>
               <div className="text-muted-foreground/90 font-medium whitespace-nowrap self-end sm:self-auto">
-                رصيد الإجازات المتبقي
+                {isRTL ? "رصيد الإجازات المتبقي" : "Remaining Leave Limits"}
               </div>
             </div>
           </CardContent>
@@ -1099,11 +1120,13 @@ function MyRequestsContent() {
             <Card className="shadow-lg mt-8">
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <iconMap.Activity className="mr-2 h-5 w-5 text-primary" />
-                  Summary for {currentEmployee.name}
+                  <iconMap.Activity className={cn("h-5 w-5 text-primary", isRTL ? "ml-2" : "mr-2")} />
+                  {isRTL ? `ملخص العمل لـ ${currentEmployee.name}` : `Summary for ${currentEmployee.name}`}
                 </CardTitle>
                 <CardDescription>
-                  Overview of work and leave. Monthly stats are for ({format(currentMonthDate, "MMMM yyyy")}).
+                  {isRTL
+                    ? `نظرة عامة على العمل والإجازات. الإحصائيات الشهرية لـ (${format(currentMonthDate, "MMMM yyyy")}).`
+                    : `Overview of work and leave. Monthly stats are for (${format(currentMonthDate, "MMMM yyyy")}).`}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1111,8 +1134,13 @@ function MyRequestsContent() {
                     {/* Specific Day Work Hours Snapshot */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between col-span-1 md:col-span-2 border-b pb-4 mb-4">
                         <div className="flex items-center mb-2 sm:mb-0">
-                            <iconMap.Clock className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            <span className="font-medium">Work Hours ({specificDayForSnapshot ? format(specificDayForSnapshot, 'MM/dd/yyyy') : 'Select Day'}):&nbsp;</span>
+                            <iconMap.Clock className={cn("h-4 w-4 text-muted-foreground flex-shrink-0", isRTL ? "ml-2" : "mr-2")} />
+                            <span className="font-medium">
+                              {isRTL
+                                ? `ساعات العمل (${specificDayForSnapshot ? format(specificDayForSnapshot, 'MM/dd/yyyy') : 'اختر يوماً'}): `
+                                : `Work Hours (${specificDayForSnapshot ? format(specificDayForSnapshot, 'MM/dd/yyyy') : 'Select Day'}): `}
+                              &nbsp;
+                            </span>
                             {isLoadingSpecificDayHours ? (
                             <iconMap.Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
@@ -1129,8 +1157,8 @@ function MyRequestsContent() {
                                 !specificDayForSnapshot && "text-muted-foreground"
                                 )}
                             >
-                                <iconMap.CalendarDays className="mr-2 h-4 w-4" />
-                                {specificDayForSnapshot ? format(specificDayForSnapshot, "MM/dd/yyyy") : <span>Pick a day</span>}
+                                <iconMap.CalendarDays className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                                {specificDayForSnapshot ? format(specificDayForSnapshot, "MM/dd/yyyy") : (isRTL ? <span>اختر يوماً</span> : <span>Pick a day</span>)}
                             </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0">
@@ -1158,23 +1186,23 @@ function MyRequestsContent() {
                     ) : (
                         <>
                             <div className="flex items-center">
-                            <iconMap.Clock className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            <span className="font-medium">Total Work Hours ({format(currentMonthDate, "MMMM")}):&nbsp;</span>
+                            <iconMap.Clock className={cn("h-4 w-4 text-muted-foreground flex-shrink-0", isRTL ? "ml-2" : "mr-2")} />
+                            <span className="font-medium">{isRTL ? `إجمالي ساعات العمل (${format(currentMonthDate, "MMMM")}): ` : `Total Work Hours (${format(currentMonthDate, "MMMM")}): `}&nbsp;</span>
                             <span>{formatDurationFromMinutes(monthlyWorkHours)}</span>
                             </div>
                             <div className="flex items-center">
-                            <iconMap.CalendarDays className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            <span className="font-medium">Total Work Days ({format(currentMonthDate, "MMMM")}):&nbsp;</span>
-                            <span>{monthlyWorkDays} day{monthlyWorkDays === 1 ? "" : "s"}</span>
+                            <iconMap.CalendarDays className={cn("h-4 w-4 text-muted-foreground flex-shrink-0", isRTL ? "ml-2" : "mr-2")} />
+                            <span className="font-medium">{isRTL ? `إجمالي أيام العمل (${format(currentMonthDate, "MMMM")}): ` : `Total Work Days (${format(currentMonthDate, "MMMM")}): `}&nbsp;</span>
+                            <span>{monthlyWorkDays} {isRTL ? "يوم" : (monthlyWorkDays === 1 ? "day" : "days")}</span>
                             </div>
                             <div className="flex items-center">
-                            <CalendarOff className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            <span className="font-medium">Approved Leave Days ({format(currentMonthDate, "MMMM")}):&nbsp;</span>
-                            <span>{monthlyLeaveDays} day{monthlyLeaveDays === 1 ? "" : "s"}</span>
+                            <CalendarOff className={cn("h-4 w-4 text-muted-foreground flex-shrink-0", isRTL ? "ml-2" : "mr-2")} />
+                            <span className="font-medium">{isRTL ? `أيام الإجازات المعتمدة (${format(currentMonthDate, "MMMM")}): ` : `Approved Leave Days (${format(currentMonthDate, "MMMM")}): `}&nbsp;</span>
+                            <span>{monthlyLeaveDays} {isRTL ? "يوم" : (monthlyLeaveDays === 1 ? "day" : "days")}</span>
                             </div>
                             <div className="flex items-center">
-                            <ListChecks className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            <span className="font-medium">Approved Leave Applications ({format(currentMonthDate, "MMMM")}):&nbsp;</span>
+                            <ListChecks className={cn("h-4 w-4 text-muted-foreground flex-shrink-0", isRTL ? "ml-2" : "mr-2")} />
+                            <span className="font-medium">{isRTL ? `طلبات الإجازات المعتمدة (${format(currentMonthDate, "MMMM")}): ` : `Approved Leave Applications (${format(currentMonthDate, "MMMM")}): `}&nbsp;</span>
                             <span>{monthlyLeaveApplicationsCount}</span>
                             </div>
                         </>
@@ -1186,11 +1214,15 @@ function MyRequestsContent() {
             <Card className="shadow-lg mt-8">
                 <CardHeader>
                     <CardTitle className="flex items-center">
-                        <iconMap.CalendarClock className="mr-2 h-5 w-5 text-primary" />
-                        Monthly Attendance Details for {currentEmployee.name} ({format(currentMonthDate, "MMMM yyyy")})
+                        <iconMap.CalendarClock className={cn("h-5 w-5 text-primary", isRTL ? "ml-2" : "mr-2")} />
+                        {isRTL
+                          ? `تفاصيل الحضور والانصراف الشهري لـ ${currentEmployee.name} (${format(currentMonthDate, "MMMM yyyy")})`
+                          : `Monthly Attendance Details for ${currentEmployee.name} (${format(currentMonthDate, "MMMM yyyy")})`}
                     </CardTitle>
                     <CardDescription>
-                        Day-by-day clock-in, clock-out, and duration for the selected month.
+                        {isRTL
+                          ? "سجل الحضور والانصراف اليومي والمدة للشهر المحدد."
+                          : "Day-by-day clock-in, clock-out, and duration for the selected month."}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1202,11 +1234,11 @@ function MyRequestsContent() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Clock In</TableHead>
-                                    <TableHead>Clock Out</TableHead>
-                                    <TableHead className="text-right">Duration</TableHead>
+                                    <TableHead>{isRTL ? "التاريخ" : "Date"}</TableHead>
+                                    <TableHead>{isRTL ? "الحالة" : "Status"}</TableHead>
+                                    <TableHead>{isRTL ? "تسجيل الحضور" : "Clock In"}</TableHead>
+                                    <TableHead>{isRTL ? "تسجيل الانصراف" : "Clock Out"}</TableHead>
+                                    <TableHead className={isRTL ? "text-left" : "text-right"}>{isRTL ? "المدة" : "Duration"}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -1224,7 +1256,7 @@ function MyRequestsContent() {
                                                 ? format(record.clockOutTime.toDate(), "p") 
                                                 : "-"}
                                         </TableCell>
-                                        <TableCell className="text-right">
+                                        <TableCell className={isRTL ? "text-left" : "text-right"}>
                                             {formatDurationFromMinutes(record.workDurationMinutes)}
                                         </TableCell>
                                     </TableRow>
@@ -1233,7 +1265,9 @@ function MyRequestsContent() {
                         </Table>
                     ) : (
                         <p className="text-center text-muted-foreground py-4">
-                            No attendance records found for {currentEmployee.name} in {format(currentMonthDate, "MMMM yyyy")}.
+                            {isRTL
+                              ? `لا توجد سجلات حضور وانصراف لـ ${currentEmployee.name} في ${format(currentMonthDate, "MMMM yyyy")}.`
+                              : `No attendance records found for ${currentEmployee.name} in ${format(currentMonthDate, "MMMM yyyy")}.`}
                         </p>
                     )}
                 </CardContent>
@@ -1255,13 +1289,15 @@ function MyRequestsContent() {
                   <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                       <CardTitle className="flex items-center">
-                        <iconMap.Eye className="mr-2 h-5 w-5 text-primary" />
-                        Leave Requests for {currentEmployee?.name} ({format(currentMonthDate, "MMMM yyyy")})
+                        <iconMap.Eye className={cn("h-5 w-5 text-primary", isRTL ? "ml-2" : "mr-2")} />
+                        {isRTL
+                          ? `طلبات الإجازات لـ ${currentEmployee?.name} (${format(currentMonthDate, "MMMM yyyy")})`
+                          : `Leave Requests for ${currentEmployee?.name} (${format(currentMonthDate, "MMMM yyyy")})`}
                       </CardTitle>
                       <CardDescription>
                         {statusFilter === "All"
-                          ? "Showing all leave requests overlapping with the selected month."
-                          : `Filtered by status: Showing ${statusFilter} requests only.`}
+                          ? (isRTL ? "عرض جميع طلبات الإجازات المتداخلة مع الشهر المحدد." : "Showing all leave requests overlapping with the selected month.")
+                          : (isRTL ? `مصفى حسب الحالة: عرض طلبات ${statusFilter} فقط.` : `Filtered by status: Showing ${statusFilter} requests only.`)}
                       </CardDescription>
                     </div>
 
@@ -1277,7 +1313,7 @@ function MyRequestsContent() {
                               : "text-muted-foreground hover:text-foreground"
                           )}
                         >
-                          All ({employeeLeaveRequests.length})
+                          {t("common.all", "All")} ({employeeLeaveRequests.length})
                         </button>
                         <button
                           type="button"
@@ -1290,7 +1326,7 @@ function MyRequestsContent() {
                           )}
                         >
                           <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
-                          Pending ({pendingCount})
+                          {isRTL ? "قيد المراجعة" : t("leave.pending", "Pending")} ({pendingCount})
                         </button>
                         <button
                           type="button"
@@ -1303,7 +1339,7 @@ function MyRequestsContent() {
                           )}
                         >
                           <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                          Approved ({approvedCount})
+                          {isRTL ? "تمت الموافقة" : t("leave.approved", "Approved")} ({approvedCount})
                         </button>
                         <button
                           type="button"
@@ -1316,7 +1352,7 @@ function MyRequestsContent() {
                           )}
                         >
                           <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                          Rejected ({rejectedCount})
+                          {isRTL ? "مرفوض" : t("leave.rejected", "Rejected")} ({rejectedCount})
                         </button>
                       </div>
                     </div>
@@ -1330,14 +1366,14 @@ function MyRequestsContent() {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Leave Type</TableHead>
-                            <TableHead>Start Date</TableHead>
-                            <TableHead>End Date</TableHead>
-                            <TableHead>Days in Month</TableHead>
-                            <TableHead>Reason</TableHead>
-                            <TableHead>Submitted On</TableHead>
-                            <TableHead>Manager Notes</TableHead>
-                            <TableHead className="text-right">Status</TableHead>
+                            <TableHead>{t("leave.leave_type", "Leave Type")}</TableHead>
+                            <TableHead>{t("leave.start_date", "Start Date")}</TableHead>
+                            <TableHead>{t("leave.end_date", "End Date")}</TableHead>
+                            <TableHead>{tText("Days in Month", "الأيام في الشهر")}</TableHead>
+                            <TableHead>{t("leave.reason", "Reason")}</TableHead>
+                            <TableHead>{tText("Submitted On", "تاريخ التقديم")}</TableHead>
+                            <TableHead>{tText("Manager Notes", "ملاحظات المدير")}</TableHead>
+                            <TableHead className={isRTL ? "text-left" : "text-right"}>{t("common.status", "Status")}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1376,7 +1412,7 @@ function MyRequestsContent() {
                                 <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
                                 <TableCell>{request.submittedAt ? format(request.submittedAt.toDate(), "MM/dd/yyyy p") : "-"}</TableCell>
                                 <TableCell className="max-w-xs truncate" title={request.managerNotes}>{request.managerNotes || "-"}</TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className={isRTL ? "text-left" : "text-right"}>
                                   <LeaveStatusBadge status={request.status} />
                                 </TableCell>
                               </TableRow>
@@ -1388,8 +1424,12 @@ function MyRequestsContent() {
                       <div className="text-center py-6 space-y-2">
                         <p className="text-muted-foreground">
                           {statusFilter !== "All"
-                            ? `No ${statusFilter.toLowerCase()} leave requests found for ${currentEmployee?.name} in ${format(currentMonthDate, "MMMM yyyy")}.`
-                            : `No leave requests found for ${currentEmployee?.name} overlapping with ${format(currentMonthDate, "MMMM yyyy")}.`}
+                            ? (isRTL
+                                ? `لم يتم العثور على طلبات إجازة بحالة (${statusFilter}) لـ ${currentEmployee?.name} في ${format(currentMonthDate, "MMMM yyyy")}.`
+                                : `No ${statusFilter.toLowerCase()} leave requests found for ${currentEmployee?.name} in ${format(currentMonthDate, "MMMM yyyy")}.`)
+                            : (isRTL
+                                ? `لا توجد طلبات إجازة لـ ${currentEmployee?.name} متداخلة مع ${format(currentMonthDate, "MMMM yyyy")}.`
+                                : `No leave requests found for ${currentEmployee?.name} overlapping with ${format(currentMonthDate, "MMMM yyyy")}.`)}
                         </p>
                         {statusFilter !== "All" && (
                           <Button
@@ -1397,7 +1437,7 @@ function MyRequestsContent() {
                             size="sm"
                             onClick={() => setStatusFilter("All")}
                           >
-                            View All Leave Requests ({employeeLeaveRequests.length})
+                            {isRTL ? `عرض جميع طلبات الإجازات (${employeeLeaveRequests.length})` : `View All Leave Requests (${employeeLeaveRequests.length})`}
                           </Button>
                         )}
                       </div>

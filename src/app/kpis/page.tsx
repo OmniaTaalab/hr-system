@@ -22,6 +22,8 @@ import { Badge } from "@/components/ui/badge";
 import { KpiDonutChart } from "@/components/kpi-donut-chart";
 import { AddKpiDialog } from "@/components/add-kpi-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useI18n } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 
 interface Employee {
@@ -125,6 +127,7 @@ function EmployeeKpiCard({ employee }: { employee: EmployeeWithKpis }) {
 }
 
 function KpisContent() {
+    const { isRTL, tText } = useI18n();
     const { profile, loading: isLoadingProfile } = useUserProfile();
     const router = useRouter();
     const { toast } = useToast();
@@ -445,48 +448,56 @@ function KpisContent() {
 
     return (
         <div className="space-y-8">
-            <header className="flex items-center justify-between">
+            <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-4">
-                     <Button variant="outline" size="icon" onClick={() => router.back()}><ArrowLeft className="h-4 w-4" /></Button>
+                     <Button variant="outline" size="icon" onClick={() => router.back()}><ArrowLeft className={cn("h-4 w-4", isRTL && "rotate-180")} /></Button>
                      <div>
                         <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl flex items-center">
-                            Teachers KPIs
+                            {isRTL ? "مؤشرات أداء المعلمين (KPIs)" : "Teachers KPIs"}
                         </h1>
-                         <Badge variant="secondary" className="mt-1">{filteredEmployees.length} Teacher{filteredEmployees.length !== 1 && 's'}</Badge>
+                         <Badge variant="secondary" className="mt-1">
+                           {isRTL ? `${filteredEmployees.length} معلم` : `${filteredEmployees.length} Teacher${filteredEmployees.length !== 1 ? 's' : ''}`}
+                         </Badge>
                     </div>
                 </div>
                  <div className="flex items-center gap-2">
-                    <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} onClick={() => setViewMode('list')}><List className="mr-2 h-4 w-4"/>List</Button>
-                    <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} onClick={() => setViewMode('grid')}><LayoutGrid className="mr-2 h-4 w-4"/>Grid</Button>
-                    <Button><FileDown className="mr-2 h-4 w-4"/>Export to Excel</Button>
+                    <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} onClick={() => setViewMode('list')}>
+                      <List className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")}/>{isRTL ? "قائمة" : "List"}
+                    </Button>
+                    <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} onClick={() => setViewMode('grid')}>
+                      <LayoutGrid className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")}/>{isRTL ? "شبكة" : "Grid"}
+                    </Button>
+                    <Button>
+                      <FileDown className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")}/>{isRTL ? "تصدير إلى إكسيل" : "Export to Excel"}
+                    </Button>
                 </div>
             </header>
             
              <Card className="shadow-lg">
                 <CardHeader>
-                    <div className="flex items-center gap-4">
-                        <Input placeholder="Search by name, ID, email..." className="max-w-xs" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                    <div className="flex flex-wrap items-center gap-4">
+                        <Input placeholder={isRTL ? "بحث بالاسم، الرقم، البريد..." : "Search by name, ID, email..."} className="max-w-xs" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                         {isPrivilegedUser && (
                             <>
                                 <Select value={campusFilter} onValueChange={setCampusFilter}>
-                                    <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select School"/></SelectTrigger>
-                                    <SelectContent><SelectItem value="All">All Schools</SelectItem>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                                    <SelectTrigger className="w-[180px]"><SelectValue placeholder={isRTL ? "اختر المدرسة" : "Select School"}/></SelectTrigger>
+                                    <SelectContent><SelectItem value="All">{isRTL ? "جميع المدارس" : "All Schools"}</SelectItem>{campuses.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
                                 </Select>
                                 <Select value={stageFilter} onValueChange={setStageFilter}>
-                                    <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select Stage"/></SelectTrigger>
-                                    <SelectContent><SelectItem value="All">All Stages</SelectItem>{stage.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                                    <SelectTrigger className="w-[180px]"><SelectValue placeholder={isRTL ? "اختر المرحلة" : "Select Stage"}/></SelectTrigger>
+                                    <SelectContent><SelectItem value="All">{isRTL ? "جميع المراحل" : "All Stages"}</SelectItem>{stage.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
                                 </Select>
                                 <Select value={titleFilter} onValueChange={setTitleFilter}>
-                                    <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select Title"/></SelectTrigger>
-                                    <SelectContent><SelectItem value="All">All Titles</SelectItem>{titles.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                                    <SelectTrigger className="w-[180px]"><SelectValue placeholder={isRTL ? "اختر المسمى" : "Select Title"}/></SelectTrigger>
+                                    <SelectContent><SelectItem value="All">{isRTL ? "جميع المسميات" : "All Titles"}</SelectItem>{titles.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                                 </Select>
                                 <Select value={reportLineFilter} onValueChange={setReportLineFilter}>
-                                    <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select Report Line"/></SelectTrigger>
-                                    <SelectContent><SelectItem value="All">All Report Lines</SelectItem>{allReportLines.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                                    <SelectTrigger className="w-[180px]"><SelectValue placeholder={isRTL ? "اختر خط التبعية" : "Select Report Line"}/></SelectTrigger>
+                                    <SelectContent><SelectItem value="All">{isRTL ? "جميع خطوط التبعية" : "All Report Lines"}</SelectItem>{allReportLines.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                                 </Select>
                             </>
                         )}
-                        <Button><Search className="mr-2 h-4 w-4"/>Search</Button>
+                        <Button><Search className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")}/>{isRTL ? "بحث" : "Search"}</Button>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -496,15 +507,15 @@ function KpisContent() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Attendance (10%)</TableHead>
+                        <TableHead>{isRTL ? "الموظف" : "Employee"}</TableHead>
+                        <TableHead>{isRTL ? "الحضور (10%)" : "Attendance (10%)"}</TableHead>
                         <TableHead>TOT (10%)</TableHead>
                         <TableHead>ELEOT (10%)</TableHead>
-                        <TableHead>Survey(10%)</TableHead>
-                        <TableHead>Student Growth(40%)</TableHead>
-                        <TableHead>Appraisal (10%)</TableHead>
-                        <TableHead>Professional Development (10%)</TableHead>
-                        <TableHead>Total (50%)</TableHead>
+                        <TableHead>{isRTL ? "الاستبيان (10%)" : "Survey (10%)"}</TableHead>
+                        <TableHead>{isRTL ? "تطور الطلاب (40%)" : "Student Growth (40%)"}</TableHead>
+                        <TableHead>{isRTL ? "التقييم السنوي (10%)" : "Appraisal (10%)"}</TableHead>
+                        <TableHead>{isRTL ? "التطوير المهني (10%)" : "Professional Development (10%)"}</TableHead>
+                        <TableHead>{isRTL ? "الإجمالي (50%)" : "Total (50%)"}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -557,13 +568,17 @@ function KpisContent() {
                 )}
                 </CardContent>
                  <CardFooter className="flex justify-between items-center">
-                    <p className="text-sm text-muted-foreground">Showing page {currentPage} of {totalPages} ({filteredEmployees.length} {filteredEmployees.length === 1 ? 'teacher' : 'teachers'})</p>
+                    <p className="text-sm text-muted-foreground">
+                      {isRTL
+                        ? `عرض صفحة ${currentPage} من ${totalPages} (${filteredEmployees.length} معلم)`
+                        : `Showing page ${currentPage} of ${totalPages} (${filteredEmployees.length} ${filteredEmployees.length === 1 ? 'teacher' : 'teachers'})`}
+                    </p>
                     <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={goToPrevPage} disabled={currentPage <= 1 || isLoadingData}>
-                            <ArrowLeft className="h-4 w-4"/> Previous
+                            <ArrowLeft className={cn("h-4 w-4", isRTL ? "ml-2 rotate-180" : "mr-2")}/> {isRTL ? "السابق" : "Previous"}
                         </Button>
                         <Button variant="outline" size="sm" onClick={goToNextPage} disabled={currentPage >= totalPages || isLoadingData}>
-                            Next <ArrowRight className="h-4 w-4"/>
+                            {isRTL ? "التالي" : "Next"} <ArrowRight className={cn("h-4 w-4", isRTL ? "mr-2 rotate-180" : "ml-2")}/>
                         </Button>
                     </div>
                 </CardFooter>

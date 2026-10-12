@@ -11,6 +11,7 @@ import type { DocumentData } from 'firebase/firestore';
 import { useApp } from './app-provider';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 // Define the shape of the employee profile
 export interface EmployeeProfile extends DocumentData {
@@ -50,6 +51,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const { user, profile, loading } = useApp();
+  const { isRTL, t } = useI18n();
   const router = useRouter();
   
   // 🔐 Redirect unauthenticated users to the login page
@@ -65,7 +67,9 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="text-muted-foreground animate-pulse font-medium">Initializing system...</p>
+          <p className="text-muted-foreground animate-pulse font-medium">
+            {t("common.loading", "Initializing system...")}
+          </p>
         </div>
       </div>
     );
@@ -81,7 +85,12 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <UserProfileContext.Provider value={contextValue}>
       <SidebarProvider defaultOpen>
-        <Sidebar variant="sidebar" collapsible="icon" className="border-r">
+        <Sidebar
+          variant="sidebar"
+          collapsible="icon"
+          side={isRTL ? "right" : "left"}
+          className={isRTL ? "border-l" : "border-r"}
+        >
           <SidebarHeader>
             <AppLogo />
           </SidebarHeader>

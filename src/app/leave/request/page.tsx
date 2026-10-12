@@ -31,11 +31,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { storage, db } from "@/lib/firebase/config";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { collection, getDocs, query, where, limit, doc, getDoc } from "firebase/firestore";
-import { nanoid } from "nanoid";
 import { useActionState } from "react";
+import { useI18n } from "@/lib/i18n";
 
 function LeaveRequestForm() {
   const { toast } = useToast();
+  const { t, tText, isRTL } = useI18n();
   const formRef = useRef<HTMLFormElement>(null);
 
   const { profile, user, loading: isLoadingProfile } = useUserProfile();
@@ -486,10 +487,10 @@ if (endDate) {
     <div className="max-w-2xl mx-auto">
       <header className="mb-8">
         <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-          Submit Leave Request
+          {t("leave.submit_request", "Submit Leave Request")}
         </h1>
         <p className="text-muted-foreground">
-          Fill out the form to request time off.
+          {t("leave.submit_request_subtitle", "Fill out the form to request time off.")}
         </p>
       </header>
 
@@ -506,9 +507,12 @@ if (endDate) {
           <div className="rounded-xl border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" />
             <div>
-              <p className="font-semibold">No Reporting Line Assigned</p>
+              <p className="font-semibold">{tText("No Reporting Line Assigned", "لا يوجد مدير مباشر معين")}</p>
               <p className="mt-0.5 text-xs sm:text-sm">
-                No Reporting Line is assigned to your employee profile. Please contact HR.
+                {tText(
+                  "No Reporting Line is assigned to your employee profile. Please contact HR.",
+                  "لم يتم تعيين مدير مباشر لملفك الوظيفي. يرجى التواصل مع إدارة الموارد البشرية."
+                )}
               </p>
             </div>
           </div>
@@ -517,17 +521,23 @@ if (endDate) {
             <div className="flex items-center justify-between">
               <Label htmlFor="reportingLineApprover" className="flex items-center gap-1.5 font-semibold text-sm">
                 <UserCheck className="h-4 w-4 text-primary" />
-                <span>Reporting Line Approver <span className="text-destructive">*</span></span>
+                <span>
+                  {tText("Reporting Line Approver", "المدير المسؤول للاعتماد")}{" "}
+                  <span className="text-destructive">*</span>
+                </span>
               </Label>
               <Badge
                 variant={selectedApproverIds.length === 2 ? "default" : selectedApproverIds.length === 1 ? "secondary" : "outline"}
                 className="text-xs"
               >
-                {selectedApproverIds.length} / 2 selected
+                {selectedApproverIds.length} / 2 {tText("selected", "محدد")}
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground">
-              Select up to 2 Reporting Lines who have authority to Approve or Reject this request (1 or 2). All assigned reporting lines will receive notifications for visibility.
+              {tText(
+                "Select up to 2 Reporting Lines who have authority to Approve or Reject this request (1 or 2). All assigned reporting lines will receive notifications for visibility.",
+                "اختر حتى اثنين من المديرين المسؤولين الذين يملكون صلاحية قبول أو رفض هذا الطلب. سيتلقى جميع المسؤولين إشعارات للمتابعة."
+              )}
             </p>
 
             <Popover open={isApproverPopoverOpen} onOpenChange={setIsApproverPopoverOpen}>
@@ -653,7 +663,7 @@ if (endDate) {
 
         {/* Leave Type */}
         <div className="space-y-2">
-          <Label htmlFor="leaveType">Leave Type</Label>
+          <Label htmlFor="leaveType">{t("leave.leave_type", "Leave Type")}</Label>
           <Select
             name="leaveType"
             value={selectedLeaveType}
@@ -662,7 +672,7 @@ if (endDate) {
             required
           >
             <SelectTrigger id="leaveType">
-              <SelectValue placeholder="Select a leave type" />
+              <SelectValue placeholder={t("leave.select_leave_type", "Select a leave type")} />
             </SelectTrigger>
 
             <SelectContent>
@@ -712,7 +722,7 @@ if (endDate) {
           {/* Start Date */}
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex min-h-5 items-center">
-              <Label>Start Date</Label>
+              <Label>{t("leave.start_date", "Start Date")}</Label>
             </div>
             <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
               <PopoverTrigger asChild>
@@ -723,7 +733,7 @@ if (endDate) {
                     !startDate && "text-muted-foreground"
                   )}
                 >
-                  {startDate ? format(startDate, "MM/dd/yyyy") : "Pick a date"}
+                  {startDate ? format(startDate, "MM/dd/yyyy") : tText("Pick a date", "اختر تاريخاً")}
                   <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -749,16 +759,16 @@ if (endDate) {
           {/* End Date */}
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex min-h-5 items-center justify-between gap-2">
-              <Label>End Date</Label>
+              <Label>{t("leave.end_date", "End Date")}</Label>
               {isMaternityHour && (
                 <span className="text-xs font-semibold text-sky-700 bg-sky-100 dark:bg-sky-900/40 dark:text-sky-300 px-2 py-0.5 rounded flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  1 Hour / Day (ساعة يومياً)
+                  {tText("1 Hour / Day", "ساعة واحدة يومياً")}
                 </span>
               )}
               {isFullMaternity && (
                 <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
-                  120 Days (Auto)
+                  {tText("120 Days (Auto)", "120 يوماً (تلقائي)")}
                 </span>
               )}
             </div>
@@ -824,13 +834,13 @@ if (endDate) {
 
         {/* Reason */}
         <div className="space-y-2">
-          <Label htmlFor="reason">Reason for Leave</Label>
+          <Label htmlFor="reason">{t("leave.reason", "Reason for Leave")}</Label>
           <Textarea
             id="reason"
             name="reason"
             required
             disabled={isPending}
-            placeholder="Explain the reason"
+            placeholder={t("leave.reason_placeholder", "Explain the reason")}
           />
           {serverState?.errors?.reason && (
             <p className="text-sm text-destructive">{serverState.errors.reason[0]}</p>
@@ -839,7 +849,7 @@ if (endDate) {
 
         {/* Attachment */}
         <div className="space-y-2">
-          <Label htmlFor="attachment">Attachment (Optional)</Label>
+          <Label htmlFor="attachment">{tText("Attachment (Optional)", "مرفق (اختياري)")}</Label>
           <Input
             id="attachment"
             name="attachment"
@@ -857,7 +867,7 @@ if (endDate) {
         {/* Form errors */}
         {serverState?.errors?.form && (
           <div className="flex items-center text-sm text-destructive">
-            <AlertTriangle className="mr-2 h-4 w-4" />
+            <AlertTriangle className={isRTL ? "ml-2 h-4 w-4" : "mr-2 h-4 w-4"} />
             <p>{serverState.errors.form.join(", ")}</p>
           </div>
         )}
@@ -869,13 +879,13 @@ if (endDate) {
         >
           {(isPending || isSubmittingFile) ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Submitting...
+              <Loader2 className={isRTL ? "ml-2 h-4 w-4 animate-spin" : "mr-2 h-4 w-4 animate-spin"} />
+              {tText("Submitting...", "جاري الإرسال...")}
             </>
           ) : (
             <>
-              <Send className="mr-2 h-4 w-4" />
-              Submit Request
+              <Send className={isRTL ? "ml-2 h-4 w-4" : "mr-2 h-4 w-4"} />
+              {t("leave.submit_request", "Submit Request")}
             </>
           )}
         </Button>

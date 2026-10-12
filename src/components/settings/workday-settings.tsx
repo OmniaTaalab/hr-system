@@ -12,6 +12,8 @@ import {
   type WorkdaySettingsState,
 } from "@/app/actions/settings-actions";
 import { Loader2, AlertCircle, Save } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
+import { cn } from '@/lib/utils';
 
 const initialWorkdayState: WorkdaySettingsState = { success: false, message: null, errors: {} };
 
@@ -20,30 +22,37 @@ interface WorkdaySettingsProps {
 }
 
 export function WorkdaySettings({ initialWorkdayHours }: WorkdaySettingsProps) {
+  const { isRTL } = useI18n();
   const { toast } = useToast();
   const [updateWorkdayState, updateWorkdayAction, isUpdateWorkdayPending] = useActionState(updateWorkdaySettingsAction, initialWorkdayState);
   
   useEffect(() => {
     if (updateWorkdayState?.message) {
       toast({
-        title: updateWorkdayState.success ? "Success" : "Error",
+        title: updateWorkdayState.success ? (isRTL ? "نجاح" : "Success") : (isRTL ? "خطأ" : "Error"),
         description: updateWorkdayState.message,
         variant: updateWorkdayState.success ? "default" : "destructive",
       });
     }
-  }, [updateWorkdayState, toast]);
+  }, [updateWorkdayState, toast, isRTL]);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Workday Settings</CardTitle>
-        <CardDescription>Define the standard number of working hours in a day. This affects various calculations.</CardDescription>
+        <CardTitle>{isRTL ? "إعدادات ساعات يوم العمل" : "Workday Settings"}</CardTitle>
+        <CardDescription>
+          {isRTL
+            ? "تحديد ساعات العمل القياسية في اليوم الواحد، والتي تؤثر على حسابات الحضور والإجازات."
+            : "Define the standard number of working hours in a day. This affects various calculations."}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form action={updateWorkdayAction}>
             <div className="space-y-4 max-w-sm">
                 <div className="space-y-2">
-                <Label htmlFor="workday-hours">Standard Workday Duration (hours)</Label>
+                <Label htmlFor="workday-hours">
+                  {isRTL ? "ساعات يوم العمل القياسي (بالساعات)" : "Standard Workday Duration (hours)"}
+                </Label>
                 <Input 
                     id="workday-hours" 
                     name="hours" 
@@ -60,13 +69,13 @@ export function WorkdaySettings({ initialWorkdayHours }: WorkdaySettingsProps) {
                 </div>
                 {updateWorkdayState?.errors?.form &&
                 <div className="flex items-center text-sm text-destructive">
-                    <AlertCircle className="mr-2 h-4 w-4" />
+                    <AlertCircle className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
                     {updateWorkdayState.errors.form[0]}
                 </div>
                 }
                 <Button type="submit" disabled={isUpdateWorkdayPending}>
-                {isUpdateWorkdayPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
-                Save Workday Hours
+                {isUpdateWorkdayPending ? <Loader2 className={cn("h-4 w-4 animate-spin", isRTL ? "ml-2" : "mr-2")}/> : <Save className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />}
+                {isRTL ? "حفظ ساعات يوم العمل" : "Save Workday Hours"}
                 </Button>
             </div>
         </form>

@@ -14,7 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, FileText, Download, AlertTriangle } from "lucide-react";
 import { format } from 'date-fns';
-import { useRouter } from "next/navigation";
+import { useI18n } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 interface JobApplication {
   id: string;
@@ -29,6 +30,7 @@ interface JobApplication {
 }
 
 function JobApplicationsContent() {
+  const { isRTL, tText } = useI18n();
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -98,17 +100,19 @@ function JobApplicationsContent() {
       <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h1 className="font-headline text-3xl font-bold tracking-tight md:text-4xl">
-            Job Applications
+            {isRTL ? "طلبات التوظيف" : "Job Applications"}
           </h1>
           <p className="text-muted-foreground">
-            Review and manage all applications submitted for job openings.
+            {isRTL
+              ? "مراجعة وإدارة جميع طلبات التوظيف المقدمة لشغل الوظائف الشاغرة."
+              : "Review and manage all applications submitted for job openings."}
           </p>
         </div>
       </header>
 
       <Card className="shadow-lg">
           <CardHeader>
-              <CardTitle>Received Applications</CardTitle>
+              <CardTitle>{isRTL ? "الطلبات المستلمة" : "Received Applications"}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -119,19 +123,23 @@ function JobApplicationsContent() {
                 </div>
             ) : applications.length === 0 ? (
                 <div className="text-center text-muted-foreground py-10 border-2 border-dashed rounded-lg">
-                    <h3 className="text-xl font-semibold">No Applications Received</h3>
-                    <p className="mt-2">There are currently no job applications to display.</p>
+                    <h3 className="text-xl font-semibold">
+                      {isRTL ? "لم يتم استلام أي طلبات" : "No Applications Received"}
+                    </h3>
+                    <p className="mt-2">
+                      {isRTL ? "لا توجد طلبات توظيف معروضة في الوقت الحالي." : "There are currently no job applications to display."}
+                    </p>
                 </div>
             ) : (
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Applicant Name</TableHead>
-                            <TableHead>Applying For</TableHead>
-                            <TableHead>Expected Salary</TableHead>
-                            <TableHead>Expected Net Salary</TableHead>
-                            <TableHead>Submitted On</TableHead>
-                            <TableHead className="text-right">Resume</TableHead>
+                            <TableHead>{isRTL ? "اسم المتقدم" : "Applicant Name"}</TableHead>
+                            <TableHead>{isRTL ? "الوظيفة المتقدم لها" : "Applying For"}</TableHead>
+                            <TableHead>{isRTL ? "الراتب المتوقع" : "Expected Salary"}</TableHead>
+                            <TableHead>{isRTL ? "صافي الراتب المتوقع" : "Expected Net Salary"}</TableHead>
+                            <TableHead>{isRTL ? "تاريخ التقديم" : "Submitted On"}</TableHead>
+                            <TableHead className={isRTL ? "text-left" : "text-right"}>{isRTL ? "السيرة الذاتية" : "Resume"}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -148,11 +156,11 @@ function JobApplicationsContent() {
                                 <TableCell>
                                     {app.submittedAt ? format(app.submittedAt.toDate(), 'MM/dd/yyyy p') : '-'}
                                 </TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className={isRTL ? "text-left" : "text-right"}>
                                     <Button asChild variant="outline" size="sm">
                                         <a href={app.resumeURL} target="_blank" rel="noopener noreferrer">
-                                            <Download className="mr-2 h-4 w-4"/>
-                                            View CV
+                                            <Download className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")}/>
+                                            {isRTL ? "عرض السيرة الذاتية" : "View CV"}
                                         </a>
                                     </Button>
                                 </TableCell>
