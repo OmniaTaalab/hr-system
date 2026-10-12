@@ -1,356 +1,706 @@
 
+
 "use client";
 
+
+
 import React, { useState, useEffect, useActionState, useMemo, useRef } from 'react';
+
 import { useToast } from "@/hooks/use-toast";
+
 import { db } from '@/lib/firebase/config';
+
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+
 import { 
+
     manageListItemAction, type ManageListItemState, 
+
     syncCampusesFromEmployeesAction,
+
     syncGroupNamesFromEmployeesAction, 
+
     syncReportLine1FromEmployeesAction,
+
     syncReportLine2FromEmployeesAction,
+
     syncRolesFromEmployeesAction,
+
     syncStagesFromEmployeesAction,
+
     syncSubjectsFromEmployeesAction,
+
     syncMachineNamesFromAttendanceLogsAction,
+
     syncPositionClassesFromEmployeesAction,
+
     syncSystemsFromEmployeesAction,
+
     type SyncState 
+
 } from "@/app/actions/settings-actions";
 
+
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
 import { Button } from "@/components/ui/button";
+
 import { Input } from "@/components/ui/input";
+
 import { Label } from "@/components/ui/label";
+
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
+
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+
 import { Loader2, PlusCircle, Edit, Trash2, Search, RefreshCw } from 'lucide-react';
+
 import { Skeleton } from '../ui/skeleton';
+import { useI18n } from '@/lib/i18n';
+
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 
+
+
 interface ListItem {
+
   id: string;
+
   name: string;
+
 }
+
+
 
 interface ListManagerProps {
+
   title: string;
+
   collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage" | "subjects" | "machineNames" | "reportLines1" | "reportLines2" | "positionClasses";
+
 }
 
+
+
 const initialManageState: ManageListItemState = { success: false, message: null, errors: {} };
+
 const initialSyncState: SyncState = { success: false, message: null };
 
+
+
 export function ListManager({ title, collectionName }: ListManagerProps) {
+
   const { toast } = useToast();
+  const { isRTL } = useI18n();
+  const t = (en: string, ar: string) => isRTL ? ar : en;
+
   const [items, setItems] = useState<ListItem[]>([]);
+
   const [isLoading, setIsLoading] = useState(true);
+
   const [searchTerm, setSearchTerm] = useState("");
-  
+
+
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+
 
   const [selectedItem, setSelectedItem] = useState<ListItem | null>(null);
 
+
+
   const [addState, addAction, isAddPending] = useActionState(manageListItemAction, initialManageState);
+
   const [editState, editAction, isEditPending] = useActionState(manageListItemAction, initialManageState);
+
   const [deleteState, deleteAction, isDeletePending] = useActionState(manageListItemAction, initialManageState);
-  
+
+
+
   const [syncGroupState, syncGroupAction, isSyncGroupPending] = useActionState(syncGroupNamesFromEmployeesAction, initialSyncState);
+
   const [syncCampusState, syncCampusAction, isSyncCampusPending] = useActionState(syncCampusesFromEmployeesAction, initialSyncState);
+
   const [syncReportLine1State, syncReportLine1Action, isSyncReportLine1Pending] = useActionState(syncReportLine1FromEmployeesAction, initialSyncState);
+
   const [syncReportLine2State, syncReportLine2Action, isSyncReportLine2Pending] = useActionState(syncReportLine2FromEmployeesAction, initialSyncState);
+
   const [syncRolesState, syncRolesAction, isSyncRolesPending] = useActionState(syncRolesFromEmployeesAction, initialSyncState);
+
   const [syncStagesState, syncStagesAction, isSyncStagesPending] = useActionState(syncStagesFromEmployeesAction, initialSyncState);
+
   const [syncSubjectsState, syncSubjectsAction, isSyncSubjectsPending] = useActionState(syncSubjectsFromEmployeesAction, initialSyncState);
+
   const [syncMachineNamesState, syncMachineNamesAction, isSyncMachineNamesPending] = useActionState(syncMachineNamesFromAttendanceLogsAction, initialSyncState);
+
   const [syncPositionClassesState, syncPositionClassesAction, isSyncPositionClassesPending] = useActionState(syncPositionClassesFromEmployeesAction, initialSyncState);
+
   const [syncSystemsState, syncSystemsAction, isSyncSystemsPending] = useActionState(syncSystemsFromEmployeesAction, initialSyncState);
 
 
+
+
+
   const addFormRef = useRef<HTMLFormElement>(null);
+
   const editFormRef = useRef<HTMLFormElement>(null);
-  
+
+
+
   const isEmailList = collectionName === "reportLines1" || collectionName === "reportLines2";
+
   const fieldLabel = isEmailList ? "Email" : "Name";
+  const fieldLabelLocalized = isRTL ? (isEmailList ? "البريد الإلكتروني" : "الاسم") : fieldLabel;
+
   const fieldType = isEmailList ? "email" : "text";
 
+
+
   useEffect(() => {
+
     setIsLoading(true);
+
     const q = query(collection(db, collectionName), orderBy("name"));
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
+
       setItems(snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+
       setIsLoading(false);
+
     }, (error) => {
+
       console.error(`Error fetching ${collectionName}:`, error);
-      toast({ variant: 'destructive', title: 'Error', description: `Could not load ${title}.` });
+
+      toast({ variant: 'destructive', title: t("Error", "خطأ"), description: isRTL ? `تعذر تحميل ${title}.` : `Could not load ${title}.` });
+
       setIsLoading(false);
+
     });
+
     return () => unsubscribe();
+
   }, [collectionName, title, toast]);
 
+
+
   useEffect(() => {
+
       if (addState?.message) {
-        toast({ title: addState.success ? "Success" : "Error", description: addState.message, variant: addState.success ? "default" : "destructive" });
+
+        toast({ title: addState.success ? t("Success", "تم بنجاح") : t("Error", "خطأ"), description: addState.message, variant: addState.success ? "default" : "destructive" });
+
         if (addState.success) {
+
             setIsAddDialogOpen(false);
+
             addFormRef.current?.reset();
+
         };
+
       }
-  }, [addState, toast]);
+
+  }, [addState, toast, isRTL]);
+
+
 
   useEffect(() => {
+
       if (editState?.message) {
-        toast({ title: editState.success ? "Success" : "Error", description: editState.message, variant: editState.success ? "default" : "destructive" });
+
+        toast({ title: editState.success ? t("Success", "تم بنجاح") : t("Error", "خطأ"), description: editState.message, variant: editState.success ? "default" : "destructive" });
+
         if (editState.success) {
+
             setIsEditDialogOpen(false);
+
             setSelectedItem(null);
+
         };
+
       }
-  }, [editState, toast]);
+
+  }, [editState, toast, isRTL]);
+
+
 
   useEffect(() => {
+
       if (deleteState?.message) {
-        toast({ title: deleteState.success ? "Success" : "Error", description: deleteState.message, variant: deleteState.success ? "default" : "destructive" });
+
+        toast({ title: deleteState.success ? t("Success", "تم بنجاح") : t("Error", "خطأ"), description: deleteState.message, variant: deleteState.success ? "default" : "destructive" });
+
         if (deleteState.success) {
+
             setIsDeleteDialogOpen(false);
+
             setSelectedItem(null);
+
         };
+
       }
-  }, [deleteState, toast]);
+
+  }, [deleteState, toast, isRTL]);
+
+
 
   useEffect(() => {
+
     const states = [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState, syncReportLine2State, syncPositionClassesState, syncSystemsState];
+
     states.forEach(state => {
+
         if (state?.message) {
+
             toast({
-                title: state.success ? "Sync Complete" : "Sync Failed",
+
+                title: state.success ? t("Sync Complete", "اكتملت المزامنة") : t("Sync Failed", "فشلت المزامنة"),
+
                 description: state.message,
+
                 variant: state.success ? "default" : "destructive"
+
             });
+
         }
+
     });
-  }, [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState, syncReportLine2State, syncPositionClassesState, syncSystemsState, toast]);
+
+  }, [syncGroupState, syncCampusState, syncReportLine1State, syncRolesState, syncStagesState, syncSubjectsState, syncMachineNamesState, syncReportLine2State, syncPositionClassesState, syncSystemsState, toast, isRTL]);
+
+
+
 
 
   const filteredItems = useMemo(() => {
+
     const lowercasedFilter = searchTerm.toLowerCase();
+
     if (!searchTerm.trim()) {
+
       return items;
+
     }
+
     return items.filter(item =>
+
       item.name.toLowerCase().includes(lowercasedFilter)
+
     );
+
   }, [items, searchTerm]);
-  
+
+
+
   return (
-    <Card>
+
+    <Card dir={isRTL ? "rtl" : "ltr"}>
+
       <CardHeader className="pb-4">
-        <CardTitle className="flex justify-between items-center text-lg">
+
+        <CardTitle className="flex flex-wrap justify-between items-center gap-3 text-lg">
+
           {title}
+
           <div className="flex items-center gap-2">
+
             {collectionName === 'groupNames' && (
+
               <form action={syncGroupAction}>
+
                   <Button size="sm" variant="secondary" disabled={isSyncGroupPending}>
-                      {isSyncGroupPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync
+
+                      {isSyncGroupPending ? <Loader2 className="h-4 w-4 me-2 animate-spin"/> : <RefreshCw className="h-4 w-4 me-2" />}
+
+                      {t("Sync", "مزامنة")}
                   </Button>
+
               </form>
+
             )}
+
             {collectionName === 'campuses' && (
+
               <form action={syncCampusAction}>
+
                   <Button size="sm" variant="secondary" disabled={isSyncCampusPending}>
-                      {isSyncCampusPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync
+
+                      {isSyncCampusPending ? <Loader2 className="h-4 w-4 me-2 animate-spin"/> : <RefreshCw className="h-4 w-4 me-2" />}
+
+                      {t("Sync", "مزامنة")}
                   </Button>
+
               </form>
+
             )}
+
              {collectionName === 'reportLines1' && (
+
               <form action={syncReportLine1Action}>
+
                   <Button size="sm" variant="secondary" disabled={isSyncReportLine1Pending}>
-                      {isSyncReportLine1Pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync
+
+                      {isSyncReportLine1Pending ? <Loader2 className="h-4 w-4 me-2 animate-spin"/> : <RefreshCw className="h-4 w-4 me-2" />}
+
+                      {t("Sync", "مزامنة")}
                   </Button>
+
               </form>
+
             )}
+
             {collectionName === 'reportLines2' && (
+
               <form action={syncReportLine2Action}>
+
                   <Button size="sm" variant="secondary" disabled={isSyncReportLine2Pending}>
-                      {isSyncReportLine2Pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync
+
+                      {isSyncReportLine2Pending ? <Loader2 className="h-4 w-4 me-2 animate-spin"/> : <RefreshCw className="h-4 w-4 me-2" />}
+
+                      {t("Sync", "مزامنة")}
                   </Button>
+
               </form>
+
             )}
+
              {collectionName === 'roles' && (
+
               <form action={syncRolesAction}>
+
                   <Button size="sm" variant="secondary" disabled={isSyncRolesPending}>
-                      {isSyncRolesPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync
+
+                      {isSyncRolesPending ? <Loader2 className="h-4 w-4 me-2 animate-spin"/> : <RefreshCw className="h-4 w-4 me-2" />}
+
+                      {t("Sync", "مزامنة")}
                   </Button>
+
               </form>
+
             )}
+
              {collectionName === 'stage' && (
+
               <form action={syncStagesAction}>
+
                   <Button size="sm" variant="secondary" disabled={isSyncStagesPending}>
-                      {isSyncStagesPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync
+
+                      {isSyncStagesPending ? <Loader2 className="h-4 w-4 me-2 animate-spin"/> : <RefreshCw className="h-4 w-4 me-2" />}
+
+                      {t("Sync", "مزامنة")}
                   </Button>
+
               </form>
+
             )}
+
              {collectionName === 'subjects' && (
+
               <form action={syncSubjectsAction}>
+
                   <Button size="sm" variant="secondary" disabled={isSyncSubjectsPending}>
-                      {isSyncSubjectsPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync
+
+                      {isSyncSubjectsPending ? <Loader2 className="h-4 w-4 me-2 animate-spin"/> : <RefreshCw className="h-4 w-4 me-2" />}
+
+                      {t("Sync", "مزامنة")}
                   </Button>
+
               </form>
+
             )}
+
             {collectionName === 'machineNames' && (
+
               <form action={syncMachineNamesAction}>
+
                   <Button size="sm" variant="secondary" disabled={isSyncMachineNamesPending}>
-                      {isSyncMachineNamesPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync
+
+                      {isSyncMachineNamesPending ? <Loader2 className="h-4 w-4 me-2 animate-spin"/> : <RefreshCw className="h-4 w-4 me-2" />}
+
+                      {t("Sync", "مزامنة")}
                   </Button>
+
               </form>
+
             )}
+
             {collectionName === 'positionClasses' && (
+
               <form action={syncPositionClassesAction}>
+
                   <Button size="sm" variant="secondary" disabled={isSyncPositionClassesPending}>
-                      {isSyncPositionClassesPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync
+
+                      {isSyncPositionClassesPending ? <Loader2 className="h-4 w-4 me-2 animate-spin"/> : <RefreshCw className="h-4 w-4 me-2" />}
+
+                      {t("Sync", "مزامنة")}
                   </Button>
+
               </form>
+
             )}
+
             {collectionName === 'systems' && (
+
               <form action={syncSystemsAction}>
+
                   <Button size="sm" variant="secondary" disabled={isSyncSystemsPending}>
-                      {isSyncSystemsPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Sync
+
+                      {isSyncSystemsPending ? <Loader2 className="h-4 w-4 me-2 animate-spin"/> : <RefreshCw className="h-4 w-4 me-2" />}
+
+                      {t("Sync", "مزامنة")}
                   </Button>
+
               </form>
+
             )}
+
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+
                 <DialogTrigger asChild>
-                    <Button size="sm" variant="outline"><PlusCircle className="mr-2 h-4 w-4" /> Add New</Button>
+
+                    <Button size="sm" variant="outline"><PlusCircle className="h-4 w-4 me-2" /> {t("Add New", "إضافة جديد")}</Button>
+
                 </DialogTrigger>
-                <DialogContent>
+
+                <DialogContent dir={isRTL ? "rtl" : "ltr"}>
+
                     <form ref={addFormRef} action={addAction}>
+
                         <DialogHeader>
-                            <DialogTitle>Add New {title.slice(0, -1)}</DialogTitle>
-                            <DialogDescription>Enter the {fieldLabel.toLowerCase()} for the new item.</DialogDescription>
+
+                            <DialogTitle>{t("Add New", "إضافة عنصر جديد في")} {title}</DialogTitle>
+
+                            <DialogDescription>{isRTL ? `أدخلي ${fieldLabelLocalized} للعنصر الجديد.` : `Enter the ${fieldLabel.toLowerCase()} for the new item.`}</DialogDescription>
+
                         </DialogHeader>
+
                         <div className="py-4">
+
                             <input type="hidden" name="collectionName" value={collectionName} />
+
                             <input type="hidden" name="operation" value="add" />
-                            <Label htmlFor={`add-name-${collectionName}`}>{fieldLabel}</Label>
+
+                            <Label htmlFor={`add-name-${collectionName}`}>{fieldLabelLocalized}</Label>
+
                             <Input id={`add-name-${collectionName}`} name="name" type={fieldType} required/>
+
                             {addState?.errors?.name && <p className="text-sm text-destructive mt-1">{addState.errors.name.join(', ')}</p>}
+
                             {addState?.errors?.form && <p className="text-sm text-destructive mt-1">{addState.errors.form.join(', ')}</p>}
+
                         </div>
+
                         <DialogFooter>
-                            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+
+                            <DialogClose asChild><Button type="button" variant="outline">{t("Cancel", "إلغاء")}</Button></DialogClose>
+
                             <Button type="submit" disabled={isAddPending}>
-                                {isAddPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                                Add
+
+                                {isAddPending && <Loader2 className="h-4 w-4 me-2 animate-spin"/>}
+
+                                {t("Add", "إضافة")}
                             </Button>
+
                         </DialogFooter>
+
                     </form>
+
                 </DialogContent>
+
             </Dialog>
+
           </div>
+
         </CardTitle>
+
       </CardHeader>
+
       <CardContent>
+
         <div className="relative mb-4">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+
+            <Search className={`absolute top-2.5 h-4 w-4 text-muted-foreground ${isRTL ? "right-2.5" : "left-2.5"}`} />
+
             <Input
+
             type="search"
-            placeholder={`Search ${title}...`}
-            className="w-full pl-8"
+
+            placeholder={isRTL ? `بحث في ${title}...` : `Search ${title}...`}
+
+            className={isRTL ? "w-full pr-8 text-right" : "w-full pl-8 text-left"}
+
             value={searchTerm}
+
             onChange={(e) => setSearchTerm(e.target.value)}
+
             />
+
         </div>
+
         {isLoading ? (
+
           <div className="space-y-2">
+
             <Skeleton className="h-8 w-full" />
+
             <Skeleton className="h-8 w-full" />
+
             <Skeleton className="h-8 w-full" />
+
           </div>
+
         ) : filteredItems.length > 0 ? (
+
           <div className="border rounded-md max-h-60 overflow-y-auto">
+
             <Table>
+
               <TableBody>
+
                 {filteredItems.map(item => (
+
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="text-right space-x-0">
+
+                    <TableCell className="font-medium text-start">{item.name}</TableCell>
+
+                    <TableCell className={isRTL ? "text-left" : "text-right"}>
+
                       <Dialog open={isEditDialogOpen && selectedItem?.id === item.id} onOpenChange={(open) => { if (!open) setSelectedItem(null); setIsEditDialogOpen(open); }}>
+
                         <DialogTrigger asChild>
+
                             <Button variant="ghost" size="icon" onClick={() => { setSelectedItem(item); setIsEditDialogOpen(true); }}><Edit className="h-4 w-4" /></Button>
+
                         </DialogTrigger>
-                        <DialogContent>
+
+                        <DialogContent dir={isRTL ? "rtl" : "ltr"}>
+
                              <form ref={editFormRef} action={editAction}>
+
                                 <DialogHeader>
-                                    <DialogTitle>Edit {title.slice(0, -1)}</DialogTitle>
-                                    <DialogDescription>Update the {fieldLabel.toLowerCase()} of this item.</DialogDescription>
+
+                                    <DialogTitle>{t("Edit", "تعديل")} {title}</DialogTitle>
+
+                                    <DialogDescription>{isRTL ? `تعديل ${fieldLabelLocalized} لهذا العنصر.` : `Update the ${fieldLabel.toLowerCase()} of this item.`}</DialogDescription>
+
                                 </DialogHeader>
+
                                 <div className="py-4">
+
                                     <input type="hidden" name="collectionName" value={collectionName} />
+
                                     <input type="hidden" name="operation" value="update" />
+
                                     <input type="hidden" name="id" value={item.id} />
-                                    <Label htmlFor={`edit-name-${collectionName}`}>{fieldLabel}</Label>
+
+                                    <Label htmlFor={`edit-name-${collectionName}`}>{fieldLabelLocalized}</Label>
+
                                     <Input id={`edit-name-${collectionName}`} name="name" type={fieldType} defaultValue={item.name} required />
+
                                     {editState?.errors?.name && <p className="text-sm text-destructive mt-1">{editState.errors.name.join(', ')}</p>}
+
                                     {editState?.errors?.form && <p className="text-sm text-destructive mt-1">{editState.errors.form.join(', ')}</p>}
+
                                 </div>
+
                                 <DialogFooter>
-                                    <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+
+                                    <DialogClose asChild><Button type="button" variant="outline">{t("Cancel", "إلغاء")}</Button></DialogClose>
+
                                     <Button type="submit" disabled={isEditPending}>
-                                        {isEditPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                                        Save Changes
+
+                                        {isEditPending && <Loader2 className="h-4 w-4 me-2 animate-spin"/>}
+
+                                        {t("Save Changes", "حفظ التغييرات")}
+
                                     </Button>
+
                                 </DialogFooter>
+
                             </form>
+
                         </DialogContent>
+
                       </Dialog>
+
                       <AlertDialog open={isDeleteDialogOpen && selectedItem?.id === item.id} onOpenChange={(open) => { if (!open) setSelectedItem(null); setIsDeleteDialogOpen(open); }}>
+
                         <AlertDialogTrigger asChild>
+
                             <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => { setSelectedItem(item); setIsDeleteDialogOpen(true); }}><Trash2 className="h-4 w-4" /></Button>
+
                         </AlertDialogTrigger>
-                        <AlertDialogContent>
+
+                        <AlertDialogContent dir={isRTL ? "rtl" : "ltr"}>
+
                           <form action={deleteAction}>
+
                             <input type="hidden" name="collectionName" value={collectionName} />
+
                             <input type="hidden" name="operation" value="delete" />
+
                             <input type="hidden" name="id" value={item.id} />
+
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                              <AlertDialogDescription>This will permanently delete "{item.name}". This action cannot be undone.</AlertDialogDescription>
+
+                              <AlertDialogTitle>{t("Are you sure?", "هل أنتِ متأكدة؟")}</AlertDialogTitle>
+
+                              <AlertDialogDescription>{isRTL ? `سيتم حذف "${item.name}" نهائيًا، ولا يمكن التراجع عن هذا الإجراء.` : `This will permanently delete "${item.name}". This action cannot be undone.`}</AlertDialogDescription>
+
                             </AlertDialogHeader>
+
                             <AlertDialogFooter>
-                              <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+
+                              <AlertDialogCancel type="button">{t("Cancel", "إلغاء")}</AlertDialogCancel>
+
                               <AlertDialogAction type="submit" disabled={isDeletePending} className="bg-destructive hover:bg-destructive/90">
-                                {isDeletePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete"}
+
+                                {isDeletePending ? <Loader2 className="h-4 w-4 me-2 animate-spin" /> : t("Delete", "حذف")}
+
                               </AlertDialogAction>
+
                             </AlertDialogFooter>
+
                           </form>
+
                         </AlertDialogContent>
+
                       </AlertDialog>
+
                     </TableCell>
+
                   </TableRow>
+
                 ))}
+
               </TableBody>
+
             </Table>
+
           </div>
+
         ) : (
+
           <p className="text-center text-muted-foreground py-4">
-            {searchTerm ? `No results for "${searchTerm}"` : `No ${title.toLowerCase()} added yet.`}
+
+            {searchTerm
+                ? (isRTL ? `لا توجد نتائج للبحث عن "${searchTerm}"` : `No results for "${searchTerm}"`)
+                : (isRTL ? `لا توجد عناصر في ${title} حتى الآن.` : `No ${title.toLowerCase()} added yet.`)}
+
           </p>
+
         )}
+
       </CardContent>
+
     </Card>
+
   );
+
 }

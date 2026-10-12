@@ -207,6 +207,73 @@ const normalizeSystemName = (raw: string): string => {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 };
 
+
+// Display-only campus translations: keep original Firestore values for queries and chart selection.
+const CAMPUS_AR_LABELS: Record<string, string> = {
+  "1st settlement": "التجمع الأول",
+  "nasr city": "مدينة نصر",
+  "shorouk": "الشروق",
+  "new capital": "العاصمة الإدارية الجديدة",
+  "6th of october": "السادس من أكتوبر",
+  "new capital (girls only)": "العاصمة الإدارية الجديدة (بنات)",
+  "new capital girls only": "العاصمة الإدارية الجديدة (بنات)",
+  "porto said": "بورسعيد",
+  "port said": "بورسعيد",
+  "overhead": "الإدارة العامة",
+  "nasr city british": "مدينة نصر - البريطاني",
+  "tagamoa english school": "مدرسة التجمع الإنجليزية",
+  "tagamoa french school": "مدرسة التجمع الفرنسية",
+};
+
+function getCampusDisplayName(name: string, isRTL: boolean): string {
+  if (!isRTL) return name;
+  return CAMPUS_AR_LABELS[name.trim().toLowerCase()] ?? name;
+}
+
+function wrapCampusLabel(label: string, maxChars = 15): string[] {
+  const words = label.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    if (line && `${line} ${word}`.length > maxChars) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = line ? `${line} ${word}` : word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function CampusXAxisTick({ x, y, payload, isRTL }: {
+  x?: number;
+  y?: number;
+  payload?: { value: string };
+  isRTL: boolean;
+}) {
+  const label = getCampusDisplayName(String(payload?.value ?? ""), isRTL);
+  const lines = wrapCampusLabel(label, isRTL ? 13 : 16);
+  return (
+    <text
+      x={x ?? 0}
+      y={(y ?? 0) + 12}
+      textAnchor="middle"
+      direction={isRTL ? "rtl" : "ltr"}
+      fill="currentColor"
+      className="fill-muted-foreground"
+      fontSize={11}
+      fontWeight={500}
+    >
+      {lines.map((line, i) => (
+        <tspan key={i} x={x ?? 0} dy={i === 0 ? 0 : 15}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
+}
+
 const chartConfig = {
   employees: {
     label: "Employees",
@@ -1176,12 +1243,13 @@ return (
                   {/* View 1: Standard Campus Overview Bar Chart */}
                   {visualizationView === "overview" && (
                     <div className="space-y-4">
-                      <ChartContainer config={chartConfig} className="h-[370px] w-full">
+                      <div className="w-full overflow-x-auto pb-2">
+                        <ChartContainer config={chartConfig} className="h-[410px] w-full min-w-[850px] !aspect-auto">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart
                             accessibilityLayer
                             data={campusData}
-                            margin={{ top: 15, right: 10, left: -20, bottom: 85 }}
+                            margin={{ top: 15, right: 18, left: 0, bottom: 40 }}
                             onClick={(state) => {
                               if (state && state.activePayload && state.activePayload.length) {
                                 const clickedCampus = state.activePayload[0].payload as CampusData;
@@ -1194,13 +1262,10 @@ return (
                               dataKey="name"
                               tickLine={false}
                               axisLine={false}
-                              tickMargin={18}
-                              angle={-30}
-                              textAnchor="end"
+                              tickMargin={12}
                               interval={0}
-                              height={85}
-                              className="text-xs fill-muted-foreground font-medium"
-                              tickFormatter={(value) => value.length > 16 ? `${value.substring(0, 14)}...` : value}
+                              height={95}
+                              tick={(props: any) => <CampusXAxisTick {...props} isRTL={isRTL} />}
                             />
                             <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} className="text-xs fill-muted-foreground" />
                             <ChartTooltip
@@ -1276,7 +1341,8 @@ return (
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
-                      </ChartContainer>
+                        </ChartContainer>
+                      </div>
 
                       {/* Interactive campus legend chips */}
                       <div className="flex flex-wrap items-center justify-center gap-2 pt-3 border-t">
@@ -1300,7 +1366,7 @@ return (
                                 style={{ backgroundColor: CAMPUS_PALETTE[i % CAMPUS_PALETTE.length] }}
                               />
                               <span className={isSelected ? "text-primary-foreground" : "font-medium text-foreground"}>
-                                {c.name}:
+                                {getCampusDisplayName(c.name, isRTL)}:
                               </span>
                               <span className="font-semibold">{c.count}</span>
                             </button>
@@ -1313,12 +1379,13 @@ return (
                   {/* View 2: Stacked by System Bar Chart */}
                   {visualizationView === "stacked" && (
                     <div className="space-y-4">
-                      <ChartContainer config={chartConfig} className="h-[380px] w-full">
+                      <div className="w-full overflow-x-auto pb-2">
+                        <ChartContainer config={chartConfig} className="h-[410px] w-full min-w-[850px] !aspect-auto">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart
                             accessibilityLayer
                             data={campusData}
-                            margin={{ top: 15, right: 10, left: -20, bottom: 85 }}
+                            margin={{ top: 15, right: 18, left: 0, bottom: 40 }}
                             onClick={(state) => {
                               if (state && state.activePayload && state.activePayload.length) {
                                 const clickedCampus = state.activePayload[0].payload as CampusData;
@@ -1331,13 +1398,10 @@ return (
                               dataKey="name"
                               tickLine={false}
                               axisLine={false}
-                              tickMargin={18}
-                              angle={-30}
-                              textAnchor="end"
+                              tickMargin={12}
                               interval={0}
-                              height={85}
-                              className="text-xs fill-muted-foreground font-medium"
-                              tickFormatter={(value) => value.length > 16 ? `${value.substring(0, 14)}...` : value}
+                              height={95}
+                              tick={(props: any) => <CampusXAxisTick {...props} isRTL={isRTL} />}
                             />
                             <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} className="text-xs fill-muted-foreground" />
                             <ChartTooltip
@@ -1397,7 +1461,8 @@ return (
                             ))}
                           </BarChart>
                         </ResponsiveContainer>
-                      </ChartContainer>
+                        </ChartContainer>
+                      </div>
 
                       {/* System Legend Chips with total counts */}
                       <div className="pt-3 border-t">

@@ -535,8 +535,8 @@ if (endDate) {
             </div>
             <p className="text-xs text-muted-foreground">
               {tText(
-                "Select up to 2 Reporting Lines who have authority to Approve or Reject this request (1 or 2). All assigned reporting lines will receive notifications for visibility.",
-                "اختر حتى اثنين من المديرين المسؤولين الذين يملكون صلاحية قبول أو رفض هذا الطلب. سيتلقى جميع المسؤولين إشعارات للمتابعة."
+                "Select 2 Reporting Lines to approve or reject this request. If you only have 1 Reporting Line, select that person. All Reporting Lines will be notified.",
+                "اختر 2 (للمسؤولين المباشرين) للموافقة على هذا الطلب أو رفضه. إذا كان لديك مسار وظيفي واحد فقط، فاختر ذلك الشخص. سيتم إشعار جميع المسؤولين المباشرين المعنيين."
               )}
             </p>
 

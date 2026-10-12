@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { useI18n } from "@/lib/i18n";
-
+import { cn } from "@/lib/utils";
 function DocumentRequestsContent() {
   const { isRTL, tText } = useI18n();
   const searchParams = useSearchParams();
