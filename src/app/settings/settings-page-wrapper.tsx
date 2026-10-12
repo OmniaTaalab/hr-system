@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
+import { useUserProfile } from '@/components/layout/app-layout';
 
 const settingsNavItems = [
   { titleEn: "General", titleAr: "عام", href: "/settings/general" },

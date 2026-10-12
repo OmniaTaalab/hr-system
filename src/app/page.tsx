@@ -1176,12 +1176,12 @@ return (
                   {/* View 1: Standard Campus Overview Bar Chart */}
                   {visualizationView === "overview" && (
                     <div className="space-y-4">
-                      <ChartContainer config={chartConfig} className="h-[350px] w-full">
+                      <ChartContainer config={chartConfig} className="h-[370px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart
                             accessibilityLayer
                             data={campusData}
-                            margin={{ top: 15, right: 10, left: -20, bottom: 65 }}
+                            margin={{ top: 15, right: 10, left: -20, bottom: 85 }}
                             onClick={(state) => {
                               if (state && state.activePayload && state.activePayload.length) {
                                 const clickedCampus = state.activePayload[0].payload as CampusData;
@@ -1194,11 +1194,11 @@ return (
                               dataKey="name"
                               tickLine={false}
                               axisLine={false}
-                              tickMargin={10}
+                              tickMargin={18}
                               angle={-30}
                               textAnchor="end"
                               interval={0}
-                              height={70}
+                              height={85}
                               className="text-xs fill-muted-foreground font-medium"
                               tickFormatter={(value) => value.length > 16 ? `${value.substring(0, 14)}...` : value}
                             />
@@ -1313,12 +1313,12 @@ return (
                   {/* View 2: Stacked by System Bar Chart */}
                   {visualizationView === "stacked" && (
                     <div className="space-y-4">
-                      <ChartContainer config={chartConfig} className="h-[360px] w-full">
+                      <ChartContainer config={chartConfig} className="h-[380px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart
                             accessibilityLayer
                             data={campusData}
-                            margin={{ top: 15, right: 10, left: -20, bottom: 65 }}
+                            margin={{ top: 15, right: 10, left: -20, bottom: 85 }}
                             onClick={(state) => {
                               if (state && state.activePayload && state.activePayload.length) {
                                 const clickedCampus = state.activePayload[0].payload as CampusData;
@@ -1331,11 +1331,11 @@ return (
                               dataKey="name"
                               tickLine={false}
                               axisLine={false}
-                              tickMargin={10}
+                              tickMargin={18}
                               angle={-30}
                               textAnchor="end"
                               interval={0}
-                              height={70}
+                              height={85}
                               className="text-xs fill-muted-foreground font-medium"
                               tickFormatter={(value) => value.length > 16 ? `${value.substring(0, 14)}...` : value}
                             />
