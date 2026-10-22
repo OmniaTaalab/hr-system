@@ -387,24 +387,13 @@ const employeeEmail = (
       }
     }
 
-    if (selectedIdsList.length === 0) {
+    if (selectedIdsList.length !== 2) {
       return {
         errors: {
-          selectedApproverId: ["Please select at least one Reporting Line approver (up to 2)."],
-          form: ["Please select at least one Reporting Line approver (up to 2)."],
+          selectedApproverId: ["You must select exactly 2 Reporting Line approvers."],
+          form: ["You must select exactly 2 Reporting Line approvers."],
         },
-        message: "Please select at least one Reporting Line approver (up to 2).",
-        success: false,
-      };
-    }
-
-    if (selectedIdsList.length > 2) {
-      return {
-        errors: {
-          selectedApproverId: ["You can select a maximum of 2 Reporting Lines."],
-          form: ["You can select a maximum of 2 Reporting Lines."],
-        },
-        message: "You can select a maximum of 2 Reporting Lines.",
+        message: "You must select exactly 2 Reporting Line approvers.",
         success: false,
       };
     }

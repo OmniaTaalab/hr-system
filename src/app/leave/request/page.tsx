@@ -67,12 +67,12 @@ function LeaveRequestForm() {
       return typeof v === "string" ? v.trim() : "";
     };
     return [
-      { key: "reportLine1", label: "ReportLine 1", val: getVal(1) },
-      { key: "reportLine2", label: "ReportLine 2", val: getVal(2) },
-      { key: "reportLine3", label: "ReportLine 3", val: getVal(3) },
-      { key: "reportLine4", label: "ReportLine 4", val: getVal(4) },
-      { key: "reportLine5", label: "ReportLine 5", val: getVal(5) },
-      { key: "reportLine6", label: "ReportLine 6", val: getVal(6) },
+      { key: "reportLine1", label: "Reporting Line 1", val: getVal(1) },
+      { key: "reportLine2", label: "Reporting Line 2", val: getVal(2) },
+      { key: "reportLine3", label: "Reporting Line 3", val: getVal(3) },
+      { key: "reportLine4", label: "Reporting Line 4", val: getVal(4) },
+      { key: "reportLine5", label: "Reporting Line 5", val: getVal(5) },
+      { key: "reportLine6", label: "Reporting Line 6", val: getVal(6) },
     ].filter((item) => item.val.length > 0);
   }, [freshEmployee, profile]);
 
@@ -373,20 +373,11 @@ function LeaveRequestForm() {
       return;
     }
 
-    if (selectedApproverIds.length === 0) {
+    if (selectedApproverIds.length !== 2) {
       toast({
         variant: "destructive",
-        title: "Reporting Line Approver Required",
-        description: "Please select at least one Reporting Line approver (up to 2).",
-      });
-      return;
-    }
-
-    if (selectedApproverIds.length > 2) {
-      toast({
-        variant: "destructive",
-        title: "Too Many Approvers Selected",
-        description: "You can select a maximum of 2 Reporting Lines.",
+        title: "Exactly 2 Approvers Required",
+        description: "You must select exactly 2 Reporting Line approvers.",
       });
       return;
     }
@@ -874,7 +865,7 @@ if (endDate) {
 
         <Button
           type="submit"
-          disabled={isPending || isSubmittingFile || !hasReportingLines || selectedApproverIds.length === 0}
+          disabled={isPending || isSubmittingFile || !hasReportingLines || selectedApproverIds.length !== 2}
           className="w-full md:w-auto"
         >
           {(isPending || isSubmittingFile) ? (
