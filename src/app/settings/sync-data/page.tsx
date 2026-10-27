@@ -1,4 +1,4 @@
-
+"use client";
 
 import React, { useActionState, useEffect } from "react";
 import SettingsPageWrapper from '../settings-page-wrapper';
