@@ -203,6 +203,7 @@ function EmployeeProfileContent() {
   const router = useRouter();
   const identifier = params.id as string;
   const { profile: currentUserProfile, loading: profileLoading } = useUserProfile();
+  const userRole = currentUserProfile?.role?.trim().toLowerCase();
   const { toast } = useToast();
 
   const [employee, setEmployee] = useState<Employee | null>(null);
@@ -226,7 +227,6 @@ function EmployeeProfileContent() {
     if (!name) return "U";
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
-
    
   const fetchEmployeeData = useCallback(async () => {
     if (!identifier) return;
@@ -442,9 +442,7 @@ function EmployeeProfileContent() {
   
   const canView = useMemo(() => {
     if (profileLoading || !currentUserProfile || !employee) return false;
-  
-    const userRole = currentUserProfile.role?.toLowerCase();
-    const userEmail = currentUserProfile.email;
+      const userEmail = currentUserProfile.email;
   
 if (
   userRole === "admin" ||
@@ -466,8 +464,7 @@ if (
     }
   
     return false;
-  }, [profileLoading, currentUserProfile, employee]);
-
+}, [profileLoading, currentUserProfile, employee, userRole]);
   useEffect(() => {
     if (!loading && !profileLoading && !canView) {
       router.replace('/');
@@ -829,17 +826,30 @@ const getAttendancePointValue = (entry: any): number => {
                         </div>
                       )}
                   </div>
-                   <div className="flex flex-col items-center gap-2">
-                      <Button onClick={() => setIsEditDialogOpen(true)} size="sm">
-                          <Edit3 className="mr-2 h-4 w-4" />
-                          Edit Profile
-                      </Button>
+
+              {(
+  userRole === 'admin' ||
+  userRole === 'hr' ||
+  userRole === 'human resource director' ||
+  userRole === 'human resource director international schools' ||
+  userRole === 'personnal director' ||
+  userRole === 'recruitment and onbording manager' ||
+  userRole === 'human resource executive' ||
+  userRole === 'recruitment and onboarding executive' ||
+  userRole === 'personnel executive'
+) && (
+  <div className="flex flex-col items-center gap-2">
+    <Button onClick={() => setIsEditDialogOpen(true)} size="sm">
+      <Edit3 className="mr-2 h-4 w-4" />
+      Edit Profile
+    </Button>
+  </div>
+)}
                       {employee.isExemptFromAttendance && (
                             <Badge variant="warning" className="flex items-center gap-2">
                                 <UserX className="h-4 w-4" /> Attendance Exempt
                             </Badge>
                        )}
-                   </div>
               </CardHeader>
               <CardContent className="p-6">
                 {String(employee.status ?? '').trim().toLowerCase() === 'deactivated' && (
