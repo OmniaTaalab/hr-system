@@ -1439,3 +1439,275 @@ export async function deleteLeaveRequestAction(
     };
   }
 }
+
+const RetroactiveLeaveSchema = z.object({
+  requestingEmployeeDocId: z.string().min(1),
+  leaveType: z.string().min(1),
+  datesJson: z.string().min(1),
+  reason: z.string().min(3).max(500),
+  actorId: z.string().optional(),
+  actorEmail: z.string().optional(),
+  actorRole: z.string().optional(),
+});
+
+export type SubmitRetroactiveLeaveState = {
+  errors?: {
+    requestingEmployeeDocId?: string[];
+    leaveType?: string[];
+    datesJson?: string[];
+    reason?: string[];
+    form?: string[];
+  };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function submitRetroactiveLeaveAction(
+  prevState: SubmitRetroactiveLeaveState,
+  formData: FormData
+): Promise<SubmitRetroactiveLeaveState> {
+  const validatedFields = RetroactiveLeaveSchema.safeParse({
+    requestingEmployeeDocId: formData.get('requestingEmployeeDocId'),
+    leaveType: formData.get('leaveType'),
+    datesJson: formData.get('datesJson'),
+    reason: formData.get('reason'),
+    actorId: formData.get('actorId') || undefined,
+    actorEmail: formData.get('actorEmail') || undefined,
+    actorRole: formData.get('actorRole') || undefined,
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Validation failed.',
+      success: false,
+    };
+  }
+
+  const { requestingEmployeeDocId, leaveType, datesJson, reason, actorId, actorEmail, actorRole } = validatedFields.data;
+
+  const roleLower = (actorRole || "").trim().toLowerCase();
+  const privilegedRoles = [
+    'admin', 'hr', 'director', 'superadmin', 'human resource director',
+    'human resource director international schools', 'personnal director',
+    'recruitment and onbording manager', 'human resource executive',
+    'recruitment and onboarding executive', 'personnel executive'
+  ];
+  
+  let isPrivileged = privilegedRoles.includes(roleLower);
+  if (!isPrivileged && actorId) {
+    try {
+      const empSnap = await getDoc(doc(db, "employee", actorId));
+      if (empSnap.exists()) {
+        const empRole = (empSnap.data().role || "").trim().toLowerCase();
+        if (privilegedRoles.includes(empRole)) isPrivileged = true;
+      }
+    } catch {}
+  }
+  if (!isPrivileged && actorEmail) {
+    try {
+      const qEmail = query(collection(db, "employee"), where("email", "==", actorEmail), limit(1));
+      const snap = await getDocs(qEmail);
+      if (!snap.empty) {
+        const empRole = (snap.docs[0].data().role || "").trim().toLowerCase();
+        if (privilegedRoles.includes(empRole)) isPrivileged = true;
+      }
+    } catch {}
+  }
+
+  if (!isPrivileged) {
+    return {
+      errors: { form: ["Permission denied: Only authorized HR users can create retroactive leaves."] },
+      message: "Permission denied.",
+      success: false,
+    };
+  }
+
+  let dateStrings: string[] = [];
+  try {
+    dateStrings = JSON.parse(datesJson);
+  } catch {
+    return { errors: { datesJson: ["Invalid dates selection."] }, success: false };
+  }
+
+  if (!Array.isArray(dateStrings) || dateStrings.length === 0) {
+    return { errors: { datesJson: ["Please select at least one date."] }, success: false };
+  }
+
+  try {
+    const employeeDocRef = doc(db, "employee", requestingEmployeeDocId);
+    const employeeSnap = await getDoc(employeeDocRef);
+    if (!employeeSnap.exists()) {
+      return { errors: { form: ["Employee record not found."] }, success: false };
+    }
+
+    const employeeData = employeeSnap.data();
+    const employeeName = employeeData.name ?? "Unknown Employee";
+    const employeeEmail = (employeeData.nisEmail || employeeData.email || "").trim();
+
+    const existingReqsSnap = await getDocs(query(
+      collection(db, "leaveRequests"),
+      where("requestingEmployeeDocId", "==", requestingEmployeeDocId)
+    ));
+
+    const existingLeaveDates = new Set<string>();
+    existingReqsSnap.docs.forEach(d => {
+      const data = d.data();
+      if (data.status === "Approved" || data.status === "Pending") {
+        const sDate = data.startDate?.toDate ? data.startDate.toDate() : null;
+        const eDate = data.endDate?.toDate ? data.endDate.toDate() : null;
+        if (sDate) {
+          let cur = new Date(sDate);
+          const end = eDate ? new Date(eDate) : new Date(sDate);
+          while (cur <= end) {
+            existingLeaveDates.add(format(cur, "yyyy-MM-dd"));
+            cur.setDate(cur.getDate() + 1);
+          }
+        }
+      }
+    });
+
+    const parsedDates: Date[] = [];
+    for (const dStr of dateStrings) {
+      const dt = new Date(dStr);
+      if (isNaN(dt.getTime())) continue;
+      const fmtStr = format(dt, "yyyy-MM-dd");
+      if (existingLeaveDates.has(fmtStr)) {
+        return {
+          errors: { form: [`Employee already has a leave request on ${fmtStr}. Overlapping leaves are not allowed.`] },
+          message: `Overlapping leave on ${fmtStr}.`,
+          success: false,
+        };
+      }
+      parsedDates.push(dt);
+    }
+
+    if (parsedDates.length === 0) {
+      return { errors: { datesJson: ["No valid dates selected."] }, success: false };
+    }
+
+    let verifiedHrName = "";
+    let verifiedHrId = actorId || "";
+    let verifiedHrEmail = actorEmail || "";
+
+    if (actorId) {
+      try {
+        const aDoc = await getDoc(doc(db, "employee", actorId));
+        if (aDoc.exists()) {
+          const aData = aDoc.data();
+          if (aData.name) verifiedHrName = String(aData.name).trim();
+          if (aData.employeeId) verifiedHrId = String(aData.employeeId).trim();
+          if (aData.email || aData.nisEmail) verifiedHrEmail = (aData.nisEmail || aData.email).trim();
+        }
+      } catch {}
+    }
+
+    if (!verifiedHrName && actorId) {
+      try {
+        const qId = query(collection(db, "employee"), where("employeeId", "==", actorId), limit(1));
+        const snap = await getDocs(qId);
+        if (!snap.empty) {
+          const aData = snap.docs[0].data();
+          if (aData.name) verifiedHrName = String(aData.name).trim();
+          if (aData.email || aData.nisEmail) verifiedHrEmail = (aData.nisEmail || aData.email).trim();
+        }
+      } catch {}
+    }
+
+    if (!verifiedHrName && actorEmail) {
+      try {
+        const qEmail = query(collection(db, "employee"), where("email", "==", actorEmail), limit(1));
+        const snap = await getDocs(qEmail);
+        if (!snap.empty) {
+          const aData = snap.docs[0].data();
+          if (aData.name) verifiedHrName = String(aData.name).trim();
+          verifiedHrId = aData.employeeId ? String(aData.employeeId) : snap.docs[0].id;
+        }
+      } catch {}
+
+      if (!verifiedHrName) {
+        try {
+          const qNis = query(collection(db, "employee"), where("nisEmail", "==", actorEmail.toLowerCase()), limit(1));
+          const snapNis = await getDocs(qNis);
+          if (!snapNis.empty) {
+            const aData = snapNis.docs[0].data();
+            if (aData.name) verifiedHrName = String(aData.name).trim();
+            verifiedHrId = aData.employeeId ? String(aData.employeeId) : snapNis.docs[0].id;
+          }
+        } catch {}
+      }
+    }
+
+    if (!verifiedHrName && actorId) {
+      try {
+        const uDoc = await getDoc(doc(db, "users", actorId));
+        if (uDoc.exists()) {
+          const uData = uDoc.data();
+          if (uData.displayName || uData.name) {
+            verifiedHrName = String(uData.displayName || uData.name).trim();
+          }
+        }
+      } catch {}
+    }
+
+    const creatorDisplayName = verifiedHrName || null;
+    const createdDocIds: string[] = [];
+
+    for (const dt of parsedDates) {
+      const utcDate = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()));
+      const timestamp = Timestamp.fromDate(utcDate);
+
+      const newDocRef = await addDoc(collection(db, "leaveRequests"), {
+        requestingEmployeeDocId,
+        employeeId: employeeData.employeeId ? String(employeeData.employeeId) : requestingEmployeeDocId,
+        employeeName,
+        employeeEmail: employeeEmail || employeeData.email || "",
+        employeeStage: employeeData.stage ?? null,
+        employeeCampus: employeeData.campus ?? null,
+        leaveType,
+        startDate: timestamp,
+        endDate: timestamp,
+        reason,
+        numberOfDays: 1,
+        status: "Approved",
+        submittedAt: serverTimestamp(),
+        isRetroactive: true,
+        managerNotes: "Created retroactively by HR.",
+        currentApprover: creatorDisplayName,
+        hrCreatorName: creatorDisplayName,
+        hrCreatorId: verifiedHrId || null,
+        hrCreatorEmail: verifiedHrEmail || null,
+        createdByName: creatorDisplayName,
+        createdById: verifiedHrId || null,
+        approvedRejectedByName: creatorDisplayName,
+        approvedRejectedById: verifiedHrId || null,
+        approvedRejectedAt: serverTimestamp(),
+        approvedBy: creatorDisplayName ? [creatorDisplayName] : [],
+      });
+      createdDocIds.push(newDocRef.id);
+    }
+
+    await logSystemEvent("Create Retroactive Leave", {
+      actorId: verifiedHrId || actorId,
+      actorEmail: verifiedHrEmail || actorEmail,
+      actorRole,
+      hrCreatorName: creatorDisplayName,
+      employeeName,
+      recordCount: parsedDates.length,
+      leaveRequestIds: createdDocIds,
+      leaveType,
+    });
+
+    return {
+      message: `${parsedDates.length} retroactive leave record(s) created successfully.`,
+      success: true,
+    };
+  } catch (error: any) {
+    console.error("Retroactive Leave Error:", error);
+    return {
+      errors: { form: [`Failed to create retroactive leave records: ${error.message}`] },
+      success: false,
+    };
+  }
+}
+

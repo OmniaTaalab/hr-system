@@ -60,6 +60,9 @@ interface LeaveRequestEntry {
   approvedRejectedById?: string;
   approvedRejectedByName?: string;
   approvedRejectedAt?: Timestamp;
+  isRetroactive?: boolean;
+  hrCreatorName?: string;
+  hrCreatorId?: string;
 }
 const initialUpdateStatusState: UpdateLeaveStatusState = { message: null, errors: {}, success: false };
 
@@ -312,11 +315,17 @@ function LeaveRequestDetailContent() {
                 </DetailItem>
                 <DetailItem
                   icon={UserCheck}
-                  label={isRTL ? "المسؤولون عن اعتماد الطلب" : "Reporting Line Approver(s)"}
+                  label={
+                    request.isRetroactive
+                      ? (isRTL ? "مسؤول الموارد البشرية المنشئ" : "Created By (HR)")
+                      : (isRTL ? "المسؤولون عن اعتماد الطلب" : "Reporting Line Approver(s)")
+                  }
                   value={
-                    request.selectedApproverName
-                      ? `${request.selectedApproverName}${request.selectedApproverEmail ? ` (${request.selectedApproverEmail})` : ''}`
-                      : request.currentApprover || (isRTL ? "غير متاح" : "N/A")
+                    request.isRetroactive
+                      ? (request.hrCreatorName || request.approvedRejectedByName || request.currentApprover || (isRTL ? "غير متاح" : "N/A"))
+                      : (request.selectedApproverName
+                          ? `${request.selectedApproverName}${request.selectedApproverEmail ? ` (${request.selectedApproverEmail})` : ''}`
+                          : request.currentApprover || (isRTL ? "غير متاح" : "N/A"))
                   }
                 />
                 {assignedReportingLines.length > 0 && (
