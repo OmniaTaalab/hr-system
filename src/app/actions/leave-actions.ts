@@ -1223,13 +1223,95 @@ if (isFinalDecision) {
   }
 }
 
+// Helper to verify HR privileges server-side against employee and user collections
+async function verifyHrPrivilege(
+  actorId?: string,
+  actorEmail?: string,
+  actorRole?: string
+): Promise<{ isPrivileged: boolean; actorName?: string; verifiedActorId?: string }> {
+  const privilegedRoles = [
+    'admin', 'hr', 'director', 'superadmin', 'human resource director',
+    'human resource director international schools', 'personnal director',
+    'recruitment and onbording manager', 'human resource executive',
+    'recruitment and onboarding executive', 'personnel executive'
+  ];
+
+  let isPrivileged = false;
+  let actorName = "";
+  let verifiedActorId = actorId || "";
+
+  // 1. Check actorId in employee collection
+  if (actorId) {
+    try {
+      const empSnap = await getDoc(doc(db, "employee", actorId));
+      if (empSnap.exists()) {
+        const empData = empSnap.data();
+        const empRole = (empData.role || "").trim().toLowerCase();
+        if (privilegedRoles.includes(empRole)) isPrivileged = true;
+        if (empData.name) actorName = empData.name;
+        if (empData.employeeId) verifiedActorId = String(empData.employeeId);
+      }
+    } catch {}
+  }
+
+  // 2. Check actorEmail in employee collection
+  if (!isPrivileged && actorEmail) {
+    try {
+      const qEmail = query(collection(db, "employee"), where("email", "==", actorEmail.trim()), limit(1));
+      const snap = await getDocs(qEmail);
+      if (!snap.empty) {
+        const empData = snap.docs[0].data();
+        const empRole = (empData.role || "").trim().toLowerCase();
+        if (privilegedRoles.includes(empRole)) isPrivileged = true;
+        if (empData.name && !actorName) actorName = empData.name;
+        if (empData.employeeId && !verifiedActorId) verifiedActorId = String(empData.employeeId);
+      } else {
+        const qNis = query(collection(db, "employee"), where("nisEmail", "==", actorEmail.trim().toLowerCase()), limit(1));
+        const snapNis = await getDocs(qNis);
+        if (!snapNis.empty) {
+          const empData = snapNis.docs[0].data();
+          const empRole = (empData.role || "").trim().toLowerCase();
+          if (privilegedRoles.includes(empRole)) isPrivileged = true;
+          if (empData.name && !actorName) actorName = empData.name;
+          if (empData.employeeId && !verifiedActorId) verifiedActorId = String(empData.employeeId);
+        }
+      }
+    } catch {}
+  }
+
+  // 3. Check users collection
+  if (!isPrivileged && actorId) {
+    try {
+      const uSnap = await getDoc(doc(db, "users", actorId));
+      if (uSnap.exists()) {
+        const uData = uSnap.data();
+        const uRole = (uData.role || "").trim().toLowerCase();
+        if (privilegedRoles.includes(uRole)) isPrivileged = true;
+        if ((uData.displayName || uData.name) && !actorName) {
+          actorName = uData.displayName || uData.name;
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Role validation if actor exists
+  if (!isPrivileged && actorRole) {
+    const roleLower = actorRole.trim().toLowerCase();
+    if (privilegedRoles.includes(roleLower) && (actorEmail || actorId)) {
+      isPrivileged = true;
+    }
+  }
+
+  return { isPrivileged, actorName, verifiedActorId };
+}
+
 // Schema for editing a leave request
 const EditLeaveRequestFormSchema = z.object({
   requestId: z.string().min(1, "Request ID is required."),
   leaveType: z.string().min(1, "Leave type is required."),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." }),
-  reason: z.string().min(10, "Reason must be at least 10 characters.").max(500, "Reason must be at most 500 characters."),
+  reason: z.string().min(3, "Reason must be at least 3 characters.").max(500, "Reason must be at most 500 characters."),
   status: z.enum(["Pending", "Approved", "Rejected"], { required_error: "Status is required." }),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
@@ -1281,7 +1363,25 @@ export async function editLeaveRequestAction(
 
   const { requestId, leaveType, startDate, endDate, reason, status, actorId, actorEmail, actorRole } = validatedFields.data;
 
+  // Server-side HR authorization check
+  const { isPrivileged, actorName, verifiedActorId } = await verifyHrPrivilege(actorId, actorEmail, actorRole);
+  if (!isPrivileged) {
+    return {
+      errors: { form: ["Permission denied: Only authorized HR users can edit leave requests."] },
+      message: "Permission denied.",
+      success: false,
+    };
+  }
+
   try {
+    const requestRef = doc(db, "leaveRequests", requestId);
+    const existingReqSnap = await getDoc(requestRef);
+    if (!existingReqSnap.exists()) {
+      return { errors: { form: ["Leave request not found."] }, success: false };
+    }
+    const existingReqData = existingReqSnap.data();
+
+    // Maternity leave checks
     const lowerLeaveType = leaveType.trim().toLowerCase();
     const isMaternityHour =
       lowerLeaveType.includes("hour") ||
@@ -1312,12 +1412,6 @@ export async function editLeaveRequestAction(
       lowerLeaveType.includes("رعاية طفل") ||
       lowerLeaveType.includes("رعايه طفل");
 
-    const requestRef = doc(db, "leaveRequests", requestId);
-    const existingReqSnap = await getDoc(requestRef);
-    if (!existingReqSnap.exists()) {
-      return { errors: { form: ["Leave request not found."] }, success: false };
-    }
-    const existingReqData = existingReqSnap.data();
     if (existingReqData?.requestingEmployeeDocId) {
       const empSnap = await getDoc(doc(db, "employee", existingReqData.requestingEmployeeDocId));
       if (empSnap.exists()) {
@@ -1333,6 +1427,7 @@ export async function editLeaveRequestAction(
         }
       }
     }
+
     let effectiveEndDate = endDate;
     if (isFullMaternity) {
       const computedEnd = new Date(startDate);
@@ -1340,18 +1435,52 @@ export async function editLeaveRequestAction(
       effectiveEndDate = computedEnd;
     }
 
+    // Overlapping leave validation
+    if (existingReqData?.requestingEmployeeDocId && (status === "Approved" || status === "Pending")) {
+      const otherReqsSnap = await getDocs(query(
+        collection(db, "leaveRequests"),
+        where("requestingEmployeeDocId", "==", existingReqData.requestingEmployeeDocId)
+      ));
+
+      const newStartUtc = new Date(Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()));
+      const newEndUtc = new Date(Date.UTC(effectiveEndDate.getFullYear(), effectiveEndDate.getMonth(), effectiveEndDate.getDate()));
+
+      for (const dSnap of otherReqsSnap.docs) {
+        if (dSnap.id === requestId) continue; // Skip self
+        const otherData = dSnap.data();
+        if (otherData.status === "Approved" || otherData.status === "Pending") {
+          const otherStart = otherData.startDate?.toDate ? otherData.startDate.toDate() : null;
+          const otherEnd = otherData.endDate?.toDate ? otherData.endDate.toDate() : null;
+          if (otherStart && otherEnd) {
+            const oStartUtc = new Date(Date.UTC(otherStart.getFullYear(), otherStart.getMonth(), otherStart.getDate()));
+            const oEndUtc = new Date(Date.UTC(otherEnd.getFullYear(), otherEnd.getMonth(), otherEnd.getDate()));
+            if (newStartUtc <= oEndUtc && newEndUtc >= oStartUtc) {
+              const overlapText = `${format(otherStart, "MM/dd/yyyy")} - ${format(otherEnd, "MM/dd/yyyy")}`;
+              return {
+                errors: {
+                  form: [`Employee already has an active ${otherData.leaveType} (${overlapText}) overlapping with the selected dates.`]
+                },
+                message: `Overlapping leave request detected with ${otherData.leaveType}.`,
+                success: false,
+              };
+            }
+          }
+        }
+      }
+    }
+
     const workingDays = await calculateWorkingDays(startDate, effectiveEndDate);
     const numberOfDays = isFullMaternity ? 120 : workingDays;
     const hoursPerDay = isMaternityHour ? 1 : null;
     const durationHours = isMaternityHour ? workingDays * 1 : null;
 
-    await updateDoc(requestRef, {
+    const updates: Record<string, any> = {
       leaveType,
       startDate: Timestamp.fromDate(startDate),
       endDate: Timestamp.fromDate(effectiveEndDate),
       reason,
       status,
-      numberOfDays, // Recalculate and update working days
+      numberOfDays,
       hoursPerDay: hoursPerDay ?? null,
       durationHours: durationHours ?? null,
       isHourly: isMaternityHour,
@@ -1359,20 +1488,84 @@ export async function editLeaveRequestAction(
         ? `${workingDays} working day(s) (1 hour/day = ${durationHours}h total)`
         : `${numberOfDays} day(s)`,
       updatedAt: serverTimestamp(),
-    });
+      lastModifiedBy: actorName || "HR",
+      lastModifiedAt: serverTimestamp(),
+    };
 
+    // Preserve retroactive attributes
+    const isRetro = Boolean(
+      existingReqData.isRetroactive ||
+      existingReqData.managerNotes?.includes("retroactive") ||
+      existingReqData.managerNotes?.includes("رجعية")
+    );
+
+    if (isRetro) {
+      updates.isRetroactive = true;
+      if (existingReqData.hrCreatorName) updates.hrCreatorName = existingReqData.hrCreatorName;
+      if (existingReqData.hrCreatorId) updates.hrCreatorId = existingReqData.hrCreatorId;
+      if (existingReqData.hrCreatorEmail) updates.hrCreatorEmail = existingReqData.hrCreatorEmail;
+      if (existingReqData.createdByName) updates.createdByName = existingReqData.createdByName;
+      if (existingReqData.createdById) updates.createdById = existingReqData.createdById;
+    }
+
+    // Handle status transitions
+    if (status === "Approved") {
+      updates.approvedRejectedByName = actorName || "HR";
+      updates.approvedRejectedById = verifiedActorId || actorId || null;
+      updates.approvedRejectedAt = serverTimestamp();
+      updates.approvedBy = Array.from(new Set([...(existingReqData.approvedBy || []), actorName || "HR"]));
+      if (isRetro) {
+        updates.currentApprover = existingReqData.hrCreatorName || existingReqData.currentApprover || actorName || "HR";
+      } else {
+        updates.currentApprover = null;
+      }
+    } else if (status === "Rejected") {
+      updates.rejectedBy = Array.from(new Set([...(existingReqData.rejectedBy || []), actorName || "HR"]));
+      updates.approvedRejectedByName = actorName || "HR";
+      updates.approvedRejectedById = verifiedActorId || actorId || null;
+      updates.approvedRejectedAt = serverTimestamp();
+      updates.currentApprover = null;
+    } else if (status === "Pending") {
+      if (!isRetro) {
+        updates.currentApprover = existingReqData.selectedApproverEmail || existingReqData.reportLine1 || null;
+      }
+    }
+
+    await updateDoc(requestRef, updates);
+
+    // Audit log previous vs updated values
     await logSystemEvent("Edit Leave Request", {
-        actorId,
-        actorEmail,
-        actorRole,
-        leaveRequestId: requestId,
+      actorId: verifiedActorId || actorId,
+      actorEmail,
+      actorRole,
+      actorName: actorName || "HR",
+      leaveRequestId: requestId,
+      employeeId: existingReqData.employeeId || existingReqData.requestingEmployeeDocId,
+      employeeName: existingReqData.employeeName,
+      previousValues: {
+        leaveType: existingReqData.leaveType,
+        startDate: existingReqData.startDate?.toDate ? format(existingReqData.startDate.toDate(), "yyyy-MM-dd") : null,
+        endDate: existingReqData.endDate?.toDate ? format(existingReqData.endDate.toDate(), "yyyy-MM-dd") : null,
+        numberOfDays: existingReqData.numberOfDays,
+        status: existingReqData.status,
+        reason: existingReqData.reason,
+      },
+      updatedValues: {
+        leaveType,
+        startDate: format(startDate, "yyyy-MM-dd"),
+        endDate: format(effectiveEndDate, "yyyy-MM-dd"),
+        numberOfDays,
+        status,
+        reason,
+      },
+      timestamp: new Date().toISOString(),
     });
 
     return { message: "Leave request updated successfully.", success: true };
   } catch (error: any) {
     console.error('Firestore Edit Leave Request Error:', error);
     return {
-      errors: { form: ["Failed to update leave request. An unexpected error occurred."] },
+      errors: { form: [`Failed to update leave request: ${error.message}`] },
       message: 'Failed to update leave request.',
       success: false,
     };
@@ -1418,16 +1611,53 @@ export async function deleteLeaveRequestAction(
 
   const { requestId, actorId, actorEmail, actorRole } = validatedFields.data;
 
+  // Server-side HR authorization check
+  const { isPrivileged, actorName, verifiedActorId } = await verifyHrPrivilege(actorId, actorEmail, actorRole);
+  if (!isPrivileged) {
+    return {
+      errors: { form: ["Permission denied: Only authorized HR users can delete leave requests."] },
+      message: "Permission denied.",
+      success: false,
+    };
+  }
+
   try {
     const requestRef = doc(db, "leaveRequests", requestId);
-    await deleteDoc(requestRef);
+    const existingReqSnap = await getDoc(requestRef);
+    if (!existingReqSnap.exists()) {
+      return {
+        errors: { form: ["Leave request not found."] },
+        message: "Leave request not found.",
+        success: false,
+      };
+    }
+    const originalReqData = existingReqSnap.data();
 
+    // Log the complete original details prior to deletion
     await logSystemEvent("Delete Leave Request", {
-        actorId,
-        actorEmail,
-        actorRole,
-        leaveRequestId: requestId,
+      actorId: verifiedActorId || actorId,
+      actorEmail,
+      actorRole,
+      actorName: actorName || "HR",
+      leaveRequestId: requestId,
+      employeeId: originalReqData.employeeId || originalReqData.requestingEmployeeDocId,
+      employeeName: originalReqData.employeeName,
+      originalRequest: {
+        leaveType: originalReqData.leaveType,
+        startDate: originalReqData.startDate?.toDate ? format(originalReqData.startDate.toDate(), "yyyy-MM-dd") : null,
+        endDate: originalReqData.endDate?.toDate ? format(originalReqData.endDate.toDate(), "yyyy-MM-dd") : null,
+        numberOfDays: originalReqData.numberOfDays,
+        status: originalReqData.status,
+        reason: originalReqData.reason,
+        isRetroactive: Boolean(originalReqData.isRetroactive),
+        currentApprover: originalReqData.currentApprover,
+        submittedAt: originalReqData.submittedAt?.toDate ? format(originalReqData.submittedAt.toDate(), "yyyy-MM-dd HH:mm:ss") : null,
+      },
+      timestamp: new Date().toISOString(),
     });
+
+    // Delete the document from Firestore
+    await deleteDoc(requestRef);
 
     return { message: "Leave request deleted successfully.", success: true };
   } catch (error: any) {

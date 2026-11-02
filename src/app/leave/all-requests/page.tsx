@@ -35,6 +35,9 @@ import {
   Filter,
   FileDown,
   Eye,
+  Pencil,
+  Trash2,
+  AlertTriangle,
   PlusCircle,
   X,
   Check,
@@ -54,8 +57,10 @@ import {
 } from "firebase/firestore";
 import {
   deleteLeaveRequestAction,
+  editLeaveRequestAction,
   submitRetroactiveLeaveAction,
   type DeleteLeaveRequestState,
+  type EditLeaveRequestState,
   type SubmitRetroactiveLeaveState,
 } from "@/app/actions/leave-actions";
 import * as XLSX from "xlsx";
@@ -107,6 +112,12 @@ export interface LeaveRequestEntry {
 }
 
 const initialDeleteState: DeleteLeaveRequestState = {
+  message: null,
+  errors: {},
+  success: false,
+};
+
+const initialEditState: EditLeaveRequestState = {
   message: null,
   errors: {},
   success: false,
@@ -192,6 +203,32 @@ function AllLeaveRequestsContent() {
     deleteLeaveRequestAction,
     initialDeleteState
   );
+
+  // Edit leave request state
+  const [selectedRequestToEdit, setSelectedRequestToEdit] =
+    useState<LeaveRequestEntry | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editLeaveType, setEditLeaveType] = useState("");
+  const [editStartDate, setEditStartDate] = useState("");
+  const [editEndDate, setEditEndDate] = useState("");
+  const [editReason, setEditReason] = useState("");
+  const [editStatus, setEditStatus] = useState<"Pending" | "Approved" | "Rejected">("Pending");
+  const [editServerState, editFormAction, isEditPending] = useActionState(
+    editLeaveRequestAction,
+    initialEditState
+  );
+
+  const handleOpenEdit = (req: LeaveRequestEntry) => {
+    setSelectedRequestToEdit(req);
+    setEditLeaveType(req.leaveType || "");
+    const sDate = req.startDate?.toDate ? req.startDate.toDate() : new Date();
+    const eDate = req.endDate?.toDate ? req.endDate.toDate() : new Date();
+    setEditStartDate(format(sDate, "yyyy-MM-dd"));
+    setEditEndDate(format(eDate, "yyyy-MM-dd"));
+    setEditReason(req.reason || "");
+    setEditStatus(req.status || "Pending");
+    setIsEditDialogOpen(true);
+  };
 
   // Retroactive leave state
   const [isRetroactiveModalOpen, setIsRetroactiveModalOpen] = useState(false);
@@ -522,19 +559,39 @@ const isPrivileged =
   useEffect(() => {
     if (deleteServerState?.message) {
       if (deleteServerState.success) {
-        toast({ title: "Success", description: deleteServerState.message });
+        toast({ title: isRTL ? "تم بنجاح" : "Success", description: deleteServerState.message });
         closeDeleteDialog();
+        fetchData();
       } else {
         toast({
           variant: "destructive",
-          title: "Error",
+          title: isRTL ? "خطأ" : "Error",
           description:
             deleteServerState.errors?.form?.join(", ") ||
             deleteServerState.message,
         });
       }
     }
-  }, [deleteServerState, toast]);
+  }, [deleteServerState, toast, isRTL, fetchData]);
+
+  useEffect(() => {
+    if (editServerState?.message) {
+      if (editServerState.success) {
+        toast({ title: isRTL ? "تم بنجاح" : "Success", description: editServerState.message });
+        setIsEditDialogOpen(false);
+        setSelectedRequestToEdit(null);
+        fetchData();
+      } else {
+        toast({
+          variant: "destructive",
+          title: isRTL ? "خطأ" : "Error",
+          description:
+            editServerState.errors?.form?.join(", ") ||
+            editServerState.message,
+        });
+      }
+    }
+  }, [editServerState, toast, isRTL, fetchData]);
 
   const requestCounts = useMemo(() => {
     return allRequests.reduce(
@@ -982,10 +1039,62 @@ const isPrivileged =
                           })()}
                         </TableCell>
                         <TableCell className={isRTL ? "text-left" : "text-right"}>
-                          <Button variant="ghost" size="sm">
-                            <Eye className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-                            {isRTL ? "عرض" : "View"}
-                          </Button>
+                          {!isPrivileged ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/leave/all-requests/${r.id}`);
+                              }}
+                            >
+                              <Eye className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                              {isRTL ? "عرض" : "View"}
+                            </Button>
+                          ) : (
+                            <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/leave/all-requests/${r.id}`);
+                                }}
+                                title={isRTL ? "عرض التفاصيل" : "View Details"}
+                                className="h-8 px-2"
+                              >
+                                <Eye className="h-4 w-4" />
+                                <span className="sr-only">{isRTL ? "عرض" : "View"}</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEdit(r);
+                                }}
+                                title={isRTL ? "تعديل الطلب" : "Edit Request"}
+                                className="h-8 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40"
+                              >
+                                <Pencil className="h-4 w-4" />
+                                <span className="sr-only">{isRTL ? "تعديل" : "Edit"}</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedRequestToDelete(r);
+                                  setIsDeleteDialogOpen(true);
+                                }}
+                                title={isRTL ? "حذف الطلب" : "Delete Request"}
+                                className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">{isRTL ? "حذف" : "Delete"}</span>
+                              </Button>
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     );
@@ -1161,6 +1270,241 @@ const isPrivileged =
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+      {/* Delete Leave Request Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent dir={isRTL ? "rtl" : "ltr"}>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              {isRTL ? "حذف طلب الإجازة" : "Delete Leave Request"}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 pt-2 text-foreground">
+              <span className="text-sm text-muted-foreground block">
+                {isRTL
+                  ? "هل أنت متأكد من رغبتك في حذف طلب الإجازة هذا نهائيًا؟ هذا الإجراء لا يمكن التراجع عنه، وسيتم استعادة رصيد الإجازة تلقائيًا إذا كان الطلب معتمدًا."
+                  : "Are you sure you want to permanently delete this leave request? This action cannot be undone, and leave balances will be automatically restored if this request was approved."}
+              </span>
+              {selectedRequestToDelete && (
+                <div className="rounded-lg border bg-muted/40 p-3 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{isRTL ? "الموظف:" : "Employee:"}</span>
+                    <span className="font-semibold">{selectedRequestToDelete.employeeName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{isRTL ? "نوع الإجازة:" : "Leave Type:"}</span>
+                    <span className="font-medium">{selectedRequestToDelete.leaveType}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{isRTL ? "الفترة:" : "Dates:"}</span>
+                    <span>
+                      {selectedRequestToDelete.startDate?.toDate ? format(selectedRequestToDelete.startDate.toDate(), "MM/dd/yyyy") : ""} – {selectedRequestToDelete.endDate?.toDate ? format(selectedRequestToDelete.endDate.toDate(), "MM/dd/yyyy") : ""}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{isRTL ? "عدد الأيام:" : "Duration:"}</span>
+                    <span>{selectedRequestToDelete.numberOfDays ?? 0} {isRTL ? "أيام" : "day(s)"}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-1 border-t">
+                    <span className="text-muted-foreground">{isRTL ? "الحالة:" : "Status:"}</span>
+                    <LeaveStatusBadge status={selectedRequestToDelete.status} />
+                  </div>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <form action={deleteFormAction}>
+            <input type="hidden" name="requestId" value={selectedRequestToDelete?.id || ""} />
+            <input type="hidden" name="actorId" value={profile?.id || ""} />
+            <input type="hidden" name="actorEmail" value={profile?.nisEmail || profile?.email || ""} />
+            <input type="hidden" name="actorRole" value={profile?.role || ""} />
+
+            {deleteServerState?.errors?.form && (
+              <p className="text-sm font-medium text-destructive px-1 pb-2">
+                {deleteServerState.errors.form.join(", ")}
+              </p>
+            )}
+
+            <AlertDialogFooter className="mt-4 gap-2">
+              <AlertDialogCancel type="button" onClick={closeDeleteDialog} disabled={isDeletePending}>
+                {isRTL ? "إلغاء" : "Cancel"}
+              </AlertDialogCancel>
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={isDeletePending || !selectedRequestToDelete}
+                className="gap-2"
+              >
+                {isDeletePending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {isRTL ? "تأكيد الحذف" : "Delete Request"}
+              </Button>
+            </AlertDialogFooter>
+          </form>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Leave Request Modal */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir={isRTL ? "rtl" : "ltr"}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-blue-600" />
+              {isRTL ? "تعديل طلب الإجازة" : "Edit Leave Request"}
+            </DialogTitle>
+            <DialogDescription>
+              {isRTL
+                ? "تعديل بيانات طلب الإجازة وتواريخها وحالتها. سيتم تسجيل التعديل في سجل النظام وتسوية الأرصدة تلقائيًا."
+                : "Modify leave request details, dates, and status. Changes are audited and leave balances will be reconciled."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedRequestToEdit && (
+            <form action={editFormAction} className="space-y-4 mt-2">
+              <input type="hidden" name="requestId" value={selectedRequestToEdit.id} />
+              <input type="hidden" name="actorId" value={profile?.id || ""} />
+              <input type="hidden" name="actorEmail" value={profile?.nisEmail || profile?.email || ""} />
+              <input type="hidden" name="actorRole" value={profile?.role || ""} />
+              <input type="hidden" name="leaveType" value={editLeaveType} />
+              <input type="hidden" name="status" value={editStatus} />
+
+              {/* Employee Name (Read-only) */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-muted-foreground">
+                  {isRTL ? "الموظف (للقراءة فقط)" : "Employee (Read-Only)"}
+                </label>
+                <div className="flex items-center justify-between rounded-md border bg-muted/50 px-3 py-2 text-sm font-medium">
+                  <span>{selectedRequestToEdit.employeeName}</span>
+                  {selectedRequestToEdit.employeeId && (
+                    <Badge variant="outline" className="text-xs">
+                      ID: {selectedRequestToEdit.employeeId}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* Leave Type */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">
+                  {isRTL ? "نوع الإجازة" : "Leave Type"}
+                </label>
+                <Select value={editLeaveType} onValueChange={setEditLeaveType}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={isRTL ? "اختر نوع الإجازة" : "Select leave type"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {leaveTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.name}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {editServerState?.errors?.leaveType && (
+                  <p className="text-xs text-destructive">{editServerState.errors.leaveType.join(", ")}</p>
+                )}
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">
+                    {isRTL ? "تاريخ البدء" : "Start Date"}
+                  </label>
+                  <Input
+                    type="date"
+                    name="startDate"
+                    value={editStartDate}
+                    onChange={(e) => setEditStartDate(e.target.value)}
+                    required
+                  />
+                  {editServerState?.errors?.startDate && (
+                    <p className="text-xs text-destructive">{editServerState.errors.startDate.join(", ")}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">
+                    {isRTL ? "تاريخ الانتهاء" : "End Date"}
+                  </label>
+                  <Input
+                    type="date"
+                    name="endDate"
+                    value={editEndDate}
+                    onChange={(e) => setEditEndDate(e.target.value)}
+                    required
+                  />
+                  {editServerState?.errors?.endDate && (
+                    <p className="text-xs text-destructive">{editServerState.errors.endDate.join(", ")}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Status */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">
+                  {isRTL ? "حالة الطلب" : "Status"}
+                </label>
+                <Select value={editStatus} onValueChange={(val: any) => setEditStatus(val)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={isRTL ? "اختر الحالة" : "Select status"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pending">{isRTL ? "قيد المراجعة (Pending)" : "Pending"}</SelectItem>
+                    <SelectItem value="Approved">{isRTL ? "معتمد (Approved)" : "Approved"}</SelectItem>
+                    <SelectItem value="Rejected">{isRTL ? "مرفوض (Rejected)" : "Rejected"}</SelectItem>
+                  </SelectContent>
+                </Select>
+                {editServerState?.errors?.status && (
+                  <p className="text-xs text-destructive">{editServerState.errors.status.join(", ")}</p>
+                )}
+              </div>
+
+              {/* Reason / Notes */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">
+                  {isRTL ? "السبب / ملاحظات" : "Reason / Notes"}
+                </label>
+                <Textarea
+                  name="reason"
+                  rows={3}
+                  value={editReason}
+                  onChange={(e) => setEditReason(e.target.value)}
+                  placeholder={isRTL ? "اكتب سبب الإجازة أو الملاحظات..." : "Enter reason or notes..."}
+                  required
+                />
+                {editServerState?.errors?.reason && (
+                  <p className="text-xs text-destructive">{editServerState.errors.reason.join(", ")}</p>
+                )}
+              </div>
+
+              {/* Form-level errors */}
+              {editServerState?.errors?.form && (
+                <div className="rounded-md bg-destructive/10 p-3 text-sm font-medium text-destructive">
+                  {editServerState.errors.form.join(", ")}
+                </div>
+              )}
+
+              <DialogFooter className="pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                  disabled={isEditPending}
+                >
+                  {isRTL ? "إلغاء" : "Cancel"}
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isEditPending || !editLeaveType || !editStartDate || !editEndDate || !editReason.trim()}
+                  className="gap-2"
+                >
+                  {isEditPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isRTL ? "حفظ التغييرات" : "Save Changes"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>
