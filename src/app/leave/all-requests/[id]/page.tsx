@@ -5,7 +5,7 @@ import { AppLayout, useUserProfile } from '@/components/layout/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { db } from '@/lib/firebase/config';
 import { doc, getDoc, Timestamp, collection, query, where, limit, onSnapshot } from 'firebase/firestore';
-import { Loader2, ArrowLeft, AlertTriangle, User, FileText, Calendar as CalendarIcon, Hourglass, Paperclip, Send, Info, ShieldCheck, ShieldX, CheckCircle, XCircle, UserCheck, Users } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertTriangle, User, FileText, Calendar as CalendarIcon, Hourglass, Paperclip, Send, Info, ShieldCheck, ShieldX, CheckCircle, XCircle, UserCheck, Users, Clock } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -63,6 +63,31 @@ interface LeaveRequestEntry {
   isRetroactive?: boolean;
   hrCreatorName?: string;
   hrCreatorId?: string;
+  // Sequential 2-Stage Approval Workflow fields
+  approvalStage?: 1 | 2;
+  stage1Status?: "Pending" | "Approved" | "Rejected";
+  stage2Status?: "Waiting" | "Pending" | "Approved" | "Rejected" | "Cancelled";
+  missingSecondApprover?: boolean;
+  stage1ApproverId?: string;
+  stage1ApproverDocId?: string;
+  stage1ApproverName?: string;
+  stage1ApproverEmail?: string;
+  stage2ApproverId?: string;
+  stage2ApproverDocId?: string;
+  stage2ApproverName?: string;
+  stage2ApproverEmail?: string;
+  stage1ApprovedAt?: Timestamp;
+  stage1ApprovedBy?: string;
+  stage1ApprovedById?: string;
+  stage1Notes?: string;
+  stage1RejectedAt?: Timestamp;
+  stage1RejectedBy?: string;
+  stage2ApprovedAt?: Timestamp;
+  stage2ApprovedBy?: string;
+  stage2ApprovedById?: string;
+  stage2Notes?: string;
+  stage2RejectedAt?: Timestamp;
+  stage2RejectedBy?: string;
 }
 const initialUpdateStatusState: UpdateLeaveStatusState = { message: null, errors: {}, success: false };
 
@@ -86,6 +111,48 @@ function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
       return <Badge variant="outline" className="border-yellow-500 text-yellow-600 dark:border-yellow-400 dark:text-yellow-300"><Hourglass className="mr-1 h-3 w-3" />{isRTL ? "قيد الانتظار" : "Pending"}</Badge>;
     case "Rejected":
       return <Badge variant="destructive"><ShieldX className="mr-1 h-3 w-3" />{isRTL ? "مرفوض" : "Rejected"}</Badge>;
+    default:
+      return <Badge>{status}</Badge>;
+  }
+}
+
+function StageStatusBadge({ status }: { status: "Pending" | "Approved" | "Rejected" | "Waiting" | "Cancelled" }) {
+  const { isRTL } = useI18n();
+  switch (status) {
+    case "Approved":
+      return (
+        <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100 font-medium">
+          <CheckCircle className="mr-1 h-3 w-3" />
+          {isRTL ? "معتمد" : "Approved"}
+        </Badge>
+      );
+    case "Pending":
+      return (
+        <Badge variant="outline" className="border-yellow-500 text-yellow-600 dark:border-yellow-400 dark:text-yellow-300 font-medium">
+          <Hourglass className="mr-1 h-3 w-3 animate-pulse" />
+          {isRTL ? "قيد المراجعة" : "Pending"}
+        </Badge>
+      );
+    case "Waiting":
+      return (
+        <Badge variant="outline" className="border-slate-300 text-slate-500 bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:bg-slate-900 font-medium">
+          <Clock className="mr-1 h-3 w-3" />
+          {isRTL ? "في الانتظار" : "Waiting"}
+        </Badge>
+      );
+    case "Rejected":
+      return (
+        <Badge variant="destructive" className="font-medium">
+          <ShieldX className="mr-1 h-3 w-3" />
+          {isRTL ? "مرفوض" : "Rejected"}
+        </Badge>
+      );
+    case "Cancelled":
+      return (
+        <Badge variant="outline" className="border-slate-300 text-slate-400 font-medium">
+          {isRTL ? "ملغي" : "Cancelled"}
+        </Badge>
+      );
     default:
       return <Badge>{status}</Badge>;
   }
@@ -179,70 +246,156 @@ function LeaveRequestDetailContent() {
     });
     return () => unsub();
   }, [requestId, toast, isRTL]);
+
   const currentEmpId = profile?.employeeId ? String(profile.employeeId).trim() : null;
   const currentDocId = profile?.id ? String(profile.id).trim() : null;
   const currentEmail = (profile?.nisEmail || profile?.email || "").trim().toLowerCase();
-  const canTakeAction = useMemo(() => {
-    if (!profile || !request) return false;
-    if (request.status !== "Pending") return false;
-    // Allow Approve or Reject when currentUser matches ANY of the selected approvers (up to 2)
-    const validApproverIds = new Set<string>();
-    const validApproverEmails = new Set<string>();
-    if (Array.isArray(request.selectedApproverIds)) {
-      request.selectedApproverIds.forEach((id) => validApproverIds.add(String(id).trim().toLowerCase()));
-    }
-    if (Array.isArray(request.selectedApproverDocIds)) {
-      request.selectedApproverDocIds.forEach((id) => validApproverIds.add(String(id).trim().toLowerCase()));
-    }
-    if (request.selectedApproverId) {
-      String(request.selectedApproverId).split(',').forEach(id => validApproverIds.add(id.trim().toLowerCase()));
-    }
-    if (request.selectedApproverDocId) {
-      String(request.selectedApproverDocId).split(',').forEach(id => validApproverIds.add(id.trim().toLowerCase()));
-    }
-    if (Array.isArray(request.selectedApproverEmails)) {
-      request.selectedApproverEmails.forEach((e) => validApproverEmails.add(String(e).trim().toLowerCase()));
-    }
-    if (request.selectedApproverEmail) {
-      String(request.selectedApproverEmail).split(',').forEach(e => validApproverEmails.add(e.trim().toLowerCase()));
-    }
-    if (validApproverIds.size > 0 || validApproverEmails.size > 0) {
-      if (currentEmpId && validApproverIds.has(currentEmpId.toLowerCase())) return true;
-      if (currentDocId && validApproverIds.has(currentDocId.toLowerCase())) return true;
-      if (currentEmail && (validApproverEmails.has(currentEmail) || validApproverIds.has(currentEmail))) return true;
-      return false;
-    }
-    // Fallback for legacy requests without selectedApproverId
-    if (
-      currentEmail &&
-      request.currentApprover &&
-      currentEmail === request.currentApprover.trim().toLowerCase()
-    ) {
-      return true;
-    }
-    const userRole = profile.role?.toLowerCase();
-    const isPrivileged = [
+
+  const isPrivileged = useMemo(() => {
+    if (!profile) return false;
+    const userRole = profile.role?.toLowerCase() || "";
+    return [
       "admin", "hr", "director", "human resource director",
       "human resource director international schools", "personnal director",
       "recruitment and onbording manager", "human resource executive",
       "recruitment and onboarding executive", "personnel executive"
-    ].includes(userRole ?? "");
-    if (isPrivileged) return true;
+    ].includes(userRole);
+  }, [profile]);
+
+  // Sequential Stage Determination
+  const currentStage: 1 | 2 = useMemo(() => {
+    if (!request) return 1;
+    if (request.stage1Status === "Approved") return 2;
+    if (request.approvalStage === 2) return 2;
+    if (Array.isArray(request.approvedBy) && request.approvedBy.length >= 1) return 2;
+    return 1;
+  }, [request]);
+
+  const isActorStage1Approver = useMemo(() => {
+    if (!profile || !request) return false;
+    const validIds = new Set<string>();
+    const validEmails = new Set<string>();
+
+    if (request.stage1ApproverId) validIds.add(String(request.stage1ApproverId).trim().toLowerCase());
+    if (request.stage1ApproverDocId) validIds.add(String(request.stage1ApproverDocId).trim().toLowerCase());
+    if (request.stage1ApproverEmail) validEmails.add(request.stage1ApproverEmail.trim().toLowerCase());
+
+    if (request.reportLine1) {
+      if (request.reportLine1.includes("@")) validEmails.add(request.reportLine1.trim().toLowerCase());
+      else validIds.add(request.reportLine1.trim().toLowerCase());
+    }
+    if (request.selectedApproverIds?.[0]) validIds.add(String(request.selectedApproverIds[0]).trim().toLowerCase());
+    if (request.selectedApproverDocIds?.[0]) validIds.add(String(request.selectedApproverDocIds[0]).trim().toLowerCase());
+    if (request.selectedApproverEmails?.[0]) validEmails.add(request.selectedApproverEmails[0].trim().toLowerCase());
+
+    if (request.selectedApproverId && !request.selectedApproverIds) {
+      String(request.selectedApproverId).split(',').forEach(id => validIds.add(id.trim().toLowerCase()));
+    }
+    if (request.selectedApproverEmail && !request.selectedApproverEmails) {
+      String(request.selectedApproverEmail).split(',').forEach(e => validEmails.add(e.trim().toLowerCase()));
+    }
+
+    if (currentEmpId && validIds.has(currentEmpId.toLowerCase())) return true;
+    if (currentDocId && validIds.has(currentDocId.toLowerCase())) return true;
+    if (currentEmail && (validEmails.has(currentEmail) || validIds.has(currentEmail))) return true;
     return false;
   }, [profile, request, currentEmpId, currentDocId, currentEmail]);
-  const isOtherReportingLine = useMemo(() => {
-    if (!profile || !request || canTakeAction) return false;
-    if (request.status !== "Pending") return false;
-    // Check if the current user is the requester themselves
-    if (
-      (currentDocId && currentDocId === request.requestingEmployeeDocId) ||
-      (currentEmpId && currentEmpId === String(request.employeeId || "").trim()) ||
-      (currentEmail && currentEmail === (request.employeeEmail || "").trim().toLowerCase())
-    ) {
-      return false; // employee who created the request
+
+  const isActorStage2Approver = useMemo(() => {
+    if (!profile || !request) return false;
+    const validIds = new Set<string>();
+    const validEmails = new Set<string>();
+
+    if (request.stage2ApproverId) validIds.add(String(request.stage2ApproverId).trim().toLowerCase());
+    if (request.stage2ApproverDocId) validIds.add(String(request.stage2ApproverDocId).trim().toLowerCase());
+    if (request.stage2ApproverEmail) validEmails.add(request.stage2ApproverEmail.trim().toLowerCase());
+
+    if (request.reportLine2) {
+      if (request.reportLine2.includes("@")) validEmails.add(request.reportLine2.trim().toLowerCase());
+      else validIds.add(request.reportLine2.trim().toLowerCase());
     }
-    return true;
-  }, [profile, request, canTakeAction, currentDocId, currentEmpId, currentEmail]);
+    if (request.selectedApproverIds?.[1]) validIds.add(String(request.selectedApproverIds[1]).trim().toLowerCase());
+    if (request.selectedApproverDocIds?.[1]) validIds.add(String(request.selectedApproverDocIds[1]).trim().toLowerCase());
+    if (request.selectedApproverEmails?.[1]) validEmails.add(request.selectedApproverEmails[1].trim().toLowerCase());
+
+    if (currentEmpId && validIds.has(currentEmpId.toLowerCase())) return true;
+    if (currentDocId && validIds.has(currentDocId.toLowerCase())) return true;
+    if (currentEmail && (validEmails.has(currentEmail) || validIds.has(currentEmail))) return true;
+    return false;
+  }, [profile, request, currentEmpId, currentDocId, currentEmail]);
+
+  // Stage 1 & Stage 2 Display Status calculations
+  const stage1ComputedStatus = useMemo<"Pending" | "Approved" | "Rejected">(() => {
+    if (!request) return "Pending";
+    if (request.stage1Status) return request.stage1Status;
+    if (request.isRetroactive) return "Approved";
+    if (request.status === "Approved") return "Approved";
+    if (request.status === "Rejected") {
+      return (Array.isArray(request.approvedBy) && request.approvedBy.length >= 1) ? "Approved" : "Rejected";
+    }
+    return (Array.isArray(request.approvedBy) && request.approvedBy.length >= 1) ? "Approved" : "Pending";
+  }, [request]);
+
+  const stage2ComputedStatus = useMemo<"Waiting" | "Pending" | "Approved" | "Rejected" | "Cancelled">(() => {
+    if (!request) return "Waiting";
+    if (request.stage2Status) {
+      if (stage1ComputedStatus === "Pending" && request.stage2Status === "Pending") return "Waiting";
+      return request.stage2Status;
+    }
+    if (request.isRetroactive) return "Approved";
+    if (request.status === "Approved") return "Approved";
+    if (request.status === "Rejected") {
+      return stage1ComputedStatus === "Approved" ? "Rejected" : "Cancelled";
+    }
+    return stage1ComputedStatus === "Approved" ? "Pending" : "Waiting";
+  }, [request, stage1ComputedStatus]);
+
+  const currentActiveStage = useMemo<1 | 2 | null>(() => {
+    if (!request || request.status !== "Pending") return null;
+    return stage1ComputedStatus === "Approved" ? 2 : 1;
+  }, [request, stage1ComputedStatus]);
+
+  const stage1ApproverLabel = useMemo(() => {
+    if (!request) return "";
+    return request.stage1ApproverName
+      ? `${request.stage1ApproverName}${request.stage1ApproverEmail ? ` (${request.stage1ApproverEmail})` : ''}`
+      : (request.reportLine1 || (isRTL ? "خط التقارير 1" : "Reporting Line 1"));
+  }, [request, isRTL]);
+
+  const stage2ApproverLabel = useMemo(() => {
+    if (!request) return "";
+    return request.stage2ApproverName
+      ? `${request.stage2ApproverName}${request.stage2ApproverEmail ? ` (${request.stage2ApproverEmail})` : ''}`
+      : (request.reportLine2 || (isRTL ? "خط التقارير 2" : "Reporting Line 2"));
+  }, [request, isRTL]);
+
+  const currentApproverRequiredDisplay = useMemo(() => {
+    if (!request || request.status !== "Pending") return null;
+    if (currentActiveStage === 2) {
+      if (request.missingSecondApprover) {
+        return isRTL ? "مطلوب مراجعة الموارد البشرية (خط التقارير 2 مفقود)" : "HR Review Required (RL2 Missing)";
+      }
+      return stage2ApproverLabel;
+    }
+    return stage1ApproverLabel;
+  }, [request, currentActiveStage, stage1ApproverLabel, stage2ApproverLabel, isRTL]);
+
+  // Strictly enforce sequential approval authorization:
+  // - When Stage 1 is active, only RL1 (or privileged HR) can act
+  // - When Stage 2 is active, only RL2 (or privileged HR) can act
+  const canTakeAction = useMemo(() => {
+    if (!profile || !request) return false;
+    if (request.status !== "Pending") return false;
+    if (isPrivileged) return true;
+
+    if (currentActiveStage === 1) {
+      return isActorStage1Approver;
+    } else if (currentActiveStage === 2) {
+      return isActorStage2Approver;
+    }
+    return false;
+  }, [profile, request, currentActiveStage, isActorStage1Approver, isActorStage2Approver, isPrivileged]);
+
   const assignedReportingLines = useMemo(() => {
     if (!request) return [];
     return [
@@ -254,10 +407,12 @@ function LeaveRequestDetailContent() {
       { label: "ReportLine 6", val: request.reportLine6 },
     ].filter((item) => typeof item.val === "string" && item.val.trim().length > 0);
   }, [request]);
+
   const handleActionClick = (type: "Approved" | "Rejected") => {
     setActionType(type);
     setIsActionAlertOpen(true);
   };
+
   if (isLoading || isLoadingProfile) {
     return (
       <div className="flex justify-center items-center h-full">
@@ -265,6 +420,7 @@ function LeaveRequestDetailContent() {
       </div>
     );
   }
+
   if (!request) {
     return (
       <Card className="max-w-2xl mx-auto">
@@ -280,18 +436,28 @@ function LeaveRequestDetailContent() {
       </Card>
     );
   }
+
   return (
-    <div dir={isRTL ? "rtl" : "ltr"} className={cn("max-w-2xl mx-auto space-y-6", isRTL ? "text-right" : "text-left")}>
+    <div dir={isRTL ? "rtl" : "ltr"} className={cn("max-w-3xl mx-auto space-y-6", isRTL ? "text-right" : "text-left")}>
         <Button variant="outline" size="sm" onClick={() => router.back()}>
           <ArrowLeft className="me-2 h-4 w-4" />
           {isRTL ? "العودة إلى جميع الطلبات" : "Back to All Requests"}
         </Button>
+
         <Card className="shadow-lg">
             <CardHeader>
-                <CardTitle className="font-headline text-2xl">{isRTL ? "تفاصيل طلب الإجازة" : "Leave Request Details"}</CardTitle>
-                <CardDescription>
-                    {isRTL ? "تم تقديم الطلب" : "Submitted"} {formatDistanceToNow(request.submittedAt.toDate(), { addSuffix: true, locale: isRTL ? ar : enUS })}
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="font-headline text-2xl">{isRTL ? "تفاصيل طلب الإجازة" : "Leave Request Details"}</CardTitle>
+                    <CardDescription className="mt-1">
+                        {isRTL ? "تم تقديم الطلب" : "Submitted"} {formatDistanceToNow(request.submittedAt.toDate(), { addSuffix: true, locale: isRTL ? ar : enUS })}
+                    </CardDescription>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-xs text-muted-foreground">{isRTL ? "الحالة العامة" : "Overall Status"}</span>
+                    <LeaveStatusBadge status={request.status} />
+                  </div>
+                </div>
             </CardHeader>
             <CardContent className="space-y-4">
                 <DetailItem icon={User} label={isRTL ? "الموظف" : "Employee"} value={request.employeeName} />
@@ -310,26 +476,9 @@ function LeaveRequestDetailContent() {
                       : (isRTL ? `${request.numberOfDays ?? 0} يوم عمل` : ((request as any).durationText || `${request.numberOfDays ?? 0} working day(s)`))
                   }
                 />
-                <DetailItem icon={Info} label={isRTL ? "الحالة" : "Status"}>
-                   <LeaveStatusBadge status={request.status} />
-                </DetailItem>
-                <DetailItem
-                  icon={UserCheck}
-                  label={
-                    request.isRetroactive
-                      ? (isRTL ? "مسؤول الموارد البشرية المنشئ" : "Created By (HR)")
-                      : (isRTL ? "المسؤولون عن اعتماد الطلب" : "Reporting Line Approver(s)")
-                  }
-                  value={
-                    request.isRetroactive
-                      ? (request.hrCreatorName || request.approvedRejectedByName || request.currentApprover || (isRTL ? "غير متاح" : "N/A"))
-                      : (request.selectedApproverName
-                          ? `${request.selectedApproverName}${request.selectedApproverEmail ? ` (${request.selectedApproverEmail})` : ''}`
-                          : request.currentApprover || (isRTL ? "غير متاح" : "N/A"))
-                  }
-                />
+
                 {assignedReportingLines.length > 0 && (
-                  <DetailItem icon={Users} label={isRTL ? "خطوط التقارير التي تم إخطارها" : "Notified Reporting Lines"}>
+                  <DetailItem icon={Users} label={isRTL ? "خطوط التقارير المعينة" : "Assigned Reporting Lines"}>
                     <div className="flex flex-wrap gap-1.5 mt-1">
                       {assignedReportingLines.map((line, idx) => (
                         <Badge key={idx} variant="outline" className="text-xs font-normal">
@@ -339,11 +488,13 @@ function LeaveRequestDetailContent() {
                     </div>
                   </DetailItem>
                 )}
+
                 <Separator />
                 <div className="space-y-2">
                     <h3 className="text-sm font-semibold text-muted-foreground">{isRTL ? "السبب" : "Reason"}</h3>
                     <p className="p-3 bg-muted/50 rounded-md text-sm">{request.reason}</p>
                 </div>
+
                 {request.attachmentURL && (
                     <div className="space-y-2">
                         <h3 className="text-sm font-semibold text-muted-foreground">{isRTL ? "المرفق" : "Attachment"}</h3>
@@ -352,71 +503,264 @@ function LeaveRequestDetailContent() {
                         </Button>
                     </div>
                 )}
-                 {request.managerNotes && (
+
+                {request.managerNotes && (
                     <div className="space-y-2">
                         <h3 className="text-sm font-semibold text-muted-foreground">{isRTL ? "ملاحظات المدير" : "Manager Notes"}</h3>
                         <p className="p-3 bg-muted/50 rounded-md text-sm border">{request.managerNotes}</p>
                     </div>
                 )}
-                 <Separator />
-                <div className="space-y-2">
-                    <h3 className="text-sm font-semibold text-muted-foreground">{isRTL ? "مسار الموافقة" : "Approval Flow"}</h3>
-                    {request.status === 'Pending' && (
-                        <p className="text-sm text-yellow-600 flex items-center gap-2">
-                          <Hourglass className="h-4 w-4" />
-                          <span>
-                            {isRTL ? "في انتظار موافقة:" : "Awaiting approval from:"} <strong>{request.selectedApproverName || request.currentApprover || (isRTL ? "المسؤول المحدد" : "Assigned Approver")}</strong>
-                          </span>
-                        </p>
-                    )}
-                    {request.status === 'Approved' && (
-                        <div className="text-sm text-green-600 flex items-start gap-2">
-                            <ShieldCheck className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            <div>
-                                <p className="font-medium">{isRTL ? "تمت الموافقة على الطلب." : "Request fully approved."}</p>
-                                {request.approvedRejectedByName && (
-                                  <p className="text-xs text-muted-foreground mt-0.5">
-                                    {isRTL ? "تمت الموافقة بواسطة:" : "Approved by:"} <strong>{request.approvedRejectedByName}</strong>
-                                    {request.approvedRejectedAt?.toDate ? ` ${isRTL ? "بتاريخ" : "on"} ${format(request.approvedRejectedAt.toDate(), "dd/MM/yyyy h:mm a", { locale: isRTL ? ar : enUS })}` : ""}
-                                  </p>
-                                )}
-                            </div>
+
+                <Separator />
+
+                {/* Sequential 2-Stage Approval Workflow Section */}
+                <div className="space-y-4 pt-1">
+                    <div className="flex items-center justify-between pb-2">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-5 w-5 text-primary" />
+                        <h3 className="text-base font-semibold">{isRTL ? "مسار الموافقة المتتابع (مرحلتان)" : "Sequential Approval Workflow"}</h3>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {isRTL ? "ترتيب إلزامي: خط التقارير 1 ← خط التقارير 2" : "Order: Reporting Line 1 → Reporting Line 2"}
+                      </Badge>
+                    </div>
+
+                    {request.isRetroactive ? (
+                      <div className="rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 p-4 text-sm flex items-start gap-3">
+                        <ShieldCheck className="h-5 w-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="font-semibold text-purple-900 dark:text-purple-200">{isRTL ? "إجازة بأثر رجعي — معتمدة مباشرة من الموارد البشرية" : "Retroactive Leave — Direct HR Approval"}</p>
+                          <p className="text-xs text-purple-700 dark:text-purple-300 mt-1">
+                            {isRTL ? `أنشئت واعتمدت مباشرة بواسطة: ${request.hrCreatorName || "مسؤول الموارد البشرية"}` : `Created and approved directly by: ${request.hrCreatorName || "HR Administrator"}`}
+                          </p>
                         </div>
-                    )}
-                    {request.status === 'Rejected' && (
-                        <div className="text-sm text-red-600 flex items-start gap-2">
-                            <ShieldX className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            <div>
-                                <p className="font-medium">{isRTL ? "تم رفض الطلب." : "Request rejected."}</p>
-                                {request.approvedRejectedByName && (
-                                  <p className="text-xs text-muted-foreground mt-0.5">
-                                    {isRTL ? "تم الرفض بواسطة:" : "Rejected by:"} <strong>{request.approvedRejectedByName}</strong>
-                                    {request.approvedRejectedAt?.toDate ? ` ${isRTL ? "بتاريخ" : "on"} ${format(request.approvedRejectedAt.toDate(), "dd/MM/yyyy h:mm a", { locale: isRTL ? ar : enUS })}` : ""}
-                                  </p>
-                                )}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Stage 1 Card */}
+                        <div className={cn(
+                          "p-4 rounded-lg border transition-all",
+                          stage1ComputedStatus === "Approved" ? "bg-green-50/60 dark:bg-green-950/20 border-green-200 dark:border-green-800" :
+                          stage1ComputedStatus === "Pending" ? "bg-yellow-50/60 dark:bg-yellow-950/20 border-yellow-300 dark:border-yellow-700 ring-1 ring-yellow-400/40" :
+                          stage1ComputedStatus === "Rejected" ? "bg-red-50/60 dark:bg-red-950/20 border-red-200 dark:border-red-800" :
+                          "bg-muted/30 border-muted"
+                        )}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={cn(
+                                "flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold shrink-0",
+                                stage1ComputedStatus === "Approved" ? "bg-green-600 text-white" :
+                                stage1ComputedStatus === "Pending" ? "bg-yellow-500 text-white" :
+                                stage1ComputedStatus === "Rejected" ? "bg-red-600 text-white" :
+                                "bg-muted text-muted-foreground"
+                              )}>
+                                1
+                              </div>
+                              <div>
+                                <div className="text-sm font-semibold flex items-center gap-2">
+                                  <span>{isRTL ? "خط التقارير 1 (المرحلة الأولى)" : "Reporting Line 1 (Stage 1)"}</span>
+                                  {currentActiveStage === 1 && (
+                                    <Badge variant="outline" className="text-[10px] bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-200 animate-pulse font-normal">
+                                      {isRTL ? "المرحلة الحالية المطلوبة" : "Action Required Now"}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-0.5">{stage1ApproverLabel}</p>
+                              </div>
                             </div>
+                            <StageStatusBadge status={stage1ComputedStatus} />
+                          </div>
+
+                          {(request.stage1ApprovedBy || request.stage1ApprovedAt || request.stage1RejectedBy || request.stage1Notes) && (
+                            <div className="mt-3 pt-2.5 border-t border-dashed text-xs text-muted-foreground space-y-1">
+                              {request.stage1ApprovedBy && (
+                                <p className="text-green-700 dark:text-green-300">
+                                  {isRTL ? "تم الاعتماد بواسطة: " : "Approved by: "}<span className="font-semibold text-foreground">{request.stage1ApprovedBy}</span> {request.stage1ApprovedAt?.toDate ? `(${format(request.stage1ApprovedAt.toDate(), "dd/MM/yyyy h:mm a", { locale: isRTL ? ar : enUS })})` : ""}
+                                </p>
+                              )}
+                              {request.stage1RejectedBy && (
+                                <p className="text-destructive">
+                                  {isRTL ? "تم الرفض بواسطة: " : "Rejected by: "}<span className="font-semibold">{request.stage1RejectedBy}</span> {request.stage1RejectedAt?.toDate ? `(${format(request.stage1RejectedAt.toDate(), "dd/MM/yyyy h:mm a", { locale: isRTL ? ar : enUS })})` : ""}
+                                </p>
+                              )}
+                              {request.stage1Notes && (
+                                <p><span className="font-medium">{isRTL ? "ملاحظات: " : "Notes: "}</span>{request.stage1Notes}</p>
+                              )}
+                            </div>
+                          )}
                         </div>
+
+                        {/* Stage 2 Card */}
+                        <div className={cn(
+                          "p-4 rounded-lg border transition-all",
+                          stage2ComputedStatus === "Approved" ? "bg-green-50/60 dark:bg-green-950/20 border-green-200 dark:border-green-800" :
+                          stage2ComputedStatus === "Pending" ? "bg-yellow-50/60 dark:bg-yellow-950/20 border-yellow-300 dark:border-yellow-700 ring-1 ring-yellow-400/40" :
+                          stage2ComputedStatus === "Rejected" ? "bg-red-50/60 dark:bg-red-950/20 border-red-200 dark:border-red-800" :
+                          "bg-muted/20 border-muted opacity-85"
+                        )}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={cn(
+                                "flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold shrink-0",
+                                stage2ComputedStatus === "Approved" ? "bg-green-600 text-white" :
+                                stage2ComputedStatus === "Pending" ? "bg-yellow-500 text-white" :
+                                stage2ComputedStatus === "Rejected" ? "bg-red-600 text-white" :
+                                "bg-muted text-muted-foreground"
+                              )}>
+                                2
+                              </div>
+                              <div>
+                                <div className="text-sm font-semibold flex items-center gap-2">
+                                  <span>{isRTL ? "خط التقارير 2 (المرحلة الثانية)" : "Reporting Line 2 (Stage 2)"}</span>
+                                  {currentActiveStage === 2 && (
+                                    <Badge variant="outline" className="text-[10px] bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-200 animate-pulse font-normal">
+                                      {isRTL ? "المرحلة الحالية المطلوبة" : "Action Required Now"}
+                                    </Badge>
+                                  )}
+                                  {request.missingSecondApprover && (
+                                    <Badge variant="destructive" className="text-[10px]">
+                                      {isRTL ? "مفقود" : "Missing"}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {request.missingSecondApprover
+                                    ? (isRTL ? "لم يتم تعيين خط التقارير 2 للموظف — يتطلب مراجعة الموارد البشرية" : "No Reporting Line 2 assigned to employee — HR review required")
+                                    : stage2ApproverLabel}
+                                </p>
+                              </div>
+                            </div>
+                            <StageStatusBadge status={stage2ComputedStatus} />
+                          </div>
+
+                          {(request.stage2ApprovedBy || request.stage2ApprovedAt || request.stage2RejectedBy || request.stage2Notes) && (
+                            <div className="mt-3 pt-2.5 border-t border-dashed text-xs text-muted-foreground space-y-1">
+                              {request.stage2ApprovedBy && (
+                                <p className="text-green-700 dark:text-green-300">
+                                  {isRTL ? "تم الاعتماد النهائي بواسطة: " : "Final Approval by: "}<span className="font-semibold text-foreground">{request.stage2ApprovedBy}</span> {request.stage2ApprovedAt?.toDate ? `(${format(request.stage2ApprovedAt.toDate(), "dd/MM/yyyy h:mm a", { locale: isRTL ? ar : enUS })})` : ""}
+                                </p>
+                              )}
+                              {request.stage2RejectedBy && (
+                                <p className="text-destructive">
+                                  {isRTL ? "تم الرفض بواسطة: " : "Rejected by: "}<span className="font-semibold">{request.stage2RejectedBy}</span> {request.stage2RejectedAt?.toDate ? `(${format(request.stage2RejectedAt.toDate(), "dd/MM/yyyy h:mm a", { locale: isRTL ? ar : enUS })})` : ""}
+                                </p>
+                              )}
+                              {request.stage2Notes && (
+                                <p><span className="font-medium">{isRTL ? "ملاحظات: " : "Notes: "}</span>{request.stage2Notes}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Summary & Current Approver Indicator */}
+                        <div className="p-3 bg-muted/40 rounded-lg text-xs space-y-1.5 border">
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">{isRTL ? "المعتمد الحالي المطلوب:" : "Current Approver:"}</span>
+                            <span className="font-semibold text-foreground">
+                              {request.status === "Pending" ? (currentApproverRequiredDisplay || (isRTL ? "غير محدد" : "N/A")) : (isRTL ? "اكتمل مسار الطلب" : "Completed")}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">{isRTL ? "الحالة الإجمالية:" : "Overall Request Status:"}</span>
+                            <span className="font-semibold">
+                              {request.status === "Approved" ? (isRTL ? "معتمد نهائياً" : "Fully Approved") :
+                               request.status === "Rejected" ? (isRTL ? "مرفوض" : "Rejected") :
+                               (isRTL ? `قيد المراجعة (المرحلة ${currentActiveStage})` : `Pending (Stage ${currentActiveStage})`)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     )}
                 </div>
             </CardContent>
-             {canTakeAction && request.status === "Pending" && (
+
+            {/* Action Buttons: Display ONLY when the authenticated user is the designated approver for the CURRENT stage */}
+            {canTakeAction && request.status === "Pending" && (
                 <CardContent>
                     <Separator className="mb-4" />
-                    <div className="flex justify-end gap-2">
-                        <Button variant="destructive" onClick={() => handleActionClick("Rejected")}>{isRTL ? "رفض" : "Reject"}</Button>
-                        <Button onClick={() => handleActionClick("Approved")}>{isRTL ? "موافقة" : "Approve"}</Button>
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-primary/5 p-4 rounded-lg border border-primary/20">
+                        <div className="text-sm">
+                          <p className="font-semibold text-foreground">
+                            {isRTL
+                              ? `طلب الإجازة بانتظار قرارك (المرحلة ${currentActiveStage}: ${currentActiveStage === 1 ? "خط التقارير 1" : "خط التقارير 2"})`
+                              : `This leave request is awaiting your decision (Stage ${currentActiveStage}: ${currentActiveStage === 1 ? "Reporting Line 1" : "Reporting Line 2"})`}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {currentActiveStage === 1
+                              ? (isRTL ? "عند الموافقة، سينتقل الطلب تلقائياً للمرحلة الثانية دون تطبيق خصم الرصيد النهائي." : "Upon approval, the request will advance to Stage 2 without applying final deductions.")
+                              : (isRTL ? "الموافقة في هذه المرحلة تعني الاعتماد النهائي وتطبيق الرصيد المطلوب." : "Approval at this stage finalizes the request and updates leave balances.")}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <Button variant="destructive" onClick={() => handleActionClick("Rejected")}>{isRTL ? "رفض" : "Reject"}</Button>
+                            <Button onClick={() => handleActionClick("Approved")}>{isRTL ? "موافقة" : "Approve"}</Button>
+                        </div>
                     </div>
                 </CardContent>
             )}
-            {isOtherReportingLine && request.status === "Pending" && (
+
+            {/* Informational notices when action cannot be taken */}
+            {!canTakeAction && request.status === "Pending" && (
                 <CardContent>
                     <Separator className="mb-4" />
-                    <div className="rounded-lg border border-amber-500/30 bg-amber-50/70 dark:bg-amber-950/20 p-4 text-sm text-amber-900 dark:text-amber-200 flex items-center gap-3">
-                      <Info className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-                      <p className="font-medium">
-                        {isRTL ? "للعرض فقط — تم اختيار مسؤول آخر من خطوط التقارير لاعتماد هذا الطلب." : "View only — another Reporting Line was selected as the approver for this request."}
-                      </p>
-                    </div>
+                    {isActorStage2Approver && currentActiveStage === 1 && !isPrivileged && (
+                      <div className="rounded-lg border border-blue-500/30 bg-blue-50/70 dark:bg-blue-950/20 p-4 text-sm text-blue-900 dark:text-blue-200 flex items-center gap-3">
+                        <Info className="h-5 w-5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+                        <div>
+                          <p className="font-semibold">
+                            {isRTL ? "بانتظار موافقة خط التقارير 1 أولاً" : "Awaiting Reporting Line 1 Approval First"}
+                          </p>
+                          <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
+                            {isRTL
+                              ? `أنت المسؤول عن المرحلة الثانية (${stage2ApproverLabel}). لا يمكنك اتخاذ إجراء حتى يقوم خط التقارير 1 (${stage1ApproverLabel}) بالموافقة أولاً.`
+                              : `You are the Reporting Line 2 approver. Per company policy, Reporting Line 1 (${stage1ApproverLabel}) must approve before you can review this request.`}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {isActorStage1Approver && currentActiveStage === 2 && !isActorStage2Approver && !isPrivileged && (
+                      <div className="rounded-lg border border-green-500/30 bg-green-50/70 dark:bg-green-950/20 p-4 text-sm text-green-900 dark:text-green-200 flex items-center gap-3">
+                        <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 dark:text-green-400" />
+                        <div>
+                          <p className="font-semibold">
+                            {isRTL ? "تم اعتماد المرحلة الأولى بنجاح من قبلك" : "Stage 1 Approved by You"}
+                          </p>
+                          <p className="text-xs text-green-700 dark:text-green-300 mt-0.5">
+                            {isRTL
+                              ? `الطلب الآن بانتظار الموافقة النهائية من خط التقارير 2 (${stage2ApproverLabel}).`
+                              : `The request is now awaiting final approval from Reporting Line 2 (${stage2ApproverLabel}).`}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {request.missingSecondApprover && isPrivileged && (
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-50/70 dark:bg-amber-950/20 p-4 text-sm text-amber-900 dark:text-amber-200 flex items-center gap-3">
+                        <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                        <div>
+                          <p className="font-semibold">
+                            {isRTL ? "تنبيه إداري للموارد البشرية: خط التقارير 2 مفقود" : "HR Administrative Alert: Missing Reporting Line 2"}
+                          </p>
+                          <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                            {isRTL
+                              ? "تمت الموافقة في المرحلة الأولى ولكن ملف الموظف لا يحتوي على خط تقارير ثانٍ. بصفتك مسؤول موارد بشرية، يمكنك مراجعة واتخاذ القرار."
+                              : "Stage 1 has approved, but no Reporting Line 2 is configured for this employee. As an HR Administrator, you can review and decide on this request."}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {!isActorStage1Approver && !isActorStage2Approver && !isPrivileged && (
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-50/70 dark:bg-amber-950/20 p-4 text-sm text-amber-900 dark:text-amber-200 flex items-center gap-3">
+                        <Info className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                        <p className="font-medium">
+                          {isRTL
+                            ? `للعرض فقط — هذا الطلب بانتظار موافقة: ${currentApproverRequiredDisplay || "المعتمد المحدد"}.`
+                            : `View only — this request is currently awaiting approval from: ${currentApproverRequiredDisplay || "Assigned Approver"}.`}
+                        </p>
+                      </div>
+                    )}
                 </CardContent>
             )}
         </Card>

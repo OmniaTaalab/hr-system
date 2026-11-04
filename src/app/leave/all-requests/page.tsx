@@ -109,6 +109,22 @@ export interface LeaveRequestEntry {
   currentApprover?: string | null;
   approvedBy?: string[];
   isRetroactive?: boolean;
+  approvalStage?: 1 | 2;
+  stage1Status?: "Pending" | "Approved" | "Rejected";
+  stage2Status?: "Waiting" | "Pending" | "Approved" | "Rejected" | "Cancelled";
+  missingSecondApprover?: boolean;
+  stage1ApproverId?: string;
+  stage1ApproverDocId?: string;
+  stage1ApproverName?: string;
+  stage1ApproverEmail?: string;
+  stage2ApproverId?: string;
+  stage2ApproverDocId?: string;
+  stage2ApproverName?: string;
+  stage2ApproverEmail?: string;
+  stage1ApprovedAt?: any;
+  stage1ApprovedBy?: string;
+  stage2ApprovedAt?: any;
+  stage2ApprovedBy?: string;
 }
 
 const initialDeleteState: DeleteLeaveRequestState = {
@@ -405,8 +421,112 @@ function AllLeaveRequestsContent() {
       return null;
     }
 
+    if (r.status === "Pending") {
+      const isStage2 = r.stage1Status === "Approved" || r.approvalStage === 2 || (Array.isArray(r.approvedBy) && r.approvedBy.length >= 1);
+      if (isStage2) {
+        if (r.missingSecondApprover) {
+          return isRTL ? "مطلوب مراجعة الموارد البشرية" : "HR Review Required (RL2 Missing)";
+        }
+        const approverName = r.stage2ApproverName || r.reportLine2 || r.currentApprover || (isRTL ? "خط التقارير 2" : "Reporting Line 2");
+        return isRTL ? `${approverName} (المرحلة 2: خط التقارير 2)` : `${approverName} (Stage 2: RL 2)`;
+      } else {
+        const approverName = r.stage1ApproverName || r.reportLine1 || r.currentApprover || r.selectedApproverName || (isRTL ? "خط التقارير 1" : "Reporting Line 1");
+        return isRTL ? `${approverName} (المرحلة 1: خط التقارير 1)` : `${approverName} (Stage 1: RL 1)`;
+      }
+    }
+
+    if (r.status === "Approved") {
+      const approverName = r.stage2ApprovedBy || r.stage1ApprovedBy || r.approvedRejectedByName || r.selectedApproverName;
+      if (approverName) {
+        return isRTL ? `${approverName} (معتمد)` : `${approverName} (Approved)`;
+      }
+      return isRTL ? "معتمد" : "Approved";
+    }
+
+    if (r.status === "Rejected") {
+      const rejecterName = r.approvedRejectedByName || r.stage1ApprovedBy;
+      if (rejecterName) {
+        return isRTL ? `${rejecterName} (مرفوض)` : `${rejecterName} (Rejected)`;
+      }
+      return isRTL ? "مرفوض" : "Rejected";
+    }
+
     return r.selectedApproverName || r.currentApprover || null;
-  }, [employeeMap, auditLogMap]);
+  }, [employeeMap, auditLogMap, isRTL]);
+
+  const checkIsPendingUserApproval = useCallback((item: LeaveRequestEntry): boolean => {
+    if (!profile || !item || item.status !== "Pending") return false;
+
+    const empId = profile.employeeId ? String(profile.employeeId).trim().toLowerCase() : null;
+    const docId = profile.id ? String(profile.id).trim().toLowerCase() : null;
+    const email = (profile.email || "").trim().toLowerCase();
+    const nis = (profile.nisEmail || "").trim().toLowerCase();
+
+    const isStage2 = item.stage1Status === "Approved" || item.approvalStage === 2 || (Array.isArray(item.approvedBy) && item.approvedBy.length >= 1);
+
+    if (!isStage2) {
+      // Stage 1 active: only Stage 1 approver matches
+      const validIds = new Set<string>();
+      const validEmails = new Set<string>();
+
+      if (item.stage1ApproverId) validIds.add(String(item.stage1ApproverId).trim().toLowerCase());
+      if (item.stage1ApproverDocId) validIds.add(String(item.stage1ApproverDocId).trim().toLowerCase());
+      if (item.stage1ApproverEmail) validEmails.add(item.stage1ApproverEmail.trim().toLowerCase());
+
+      if (item.reportLine1) {
+        if (item.reportLine1.includes("@")) validEmails.add(item.reportLine1.trim().toLowerCase());
+        else validIds.add(item.reportLine1.trim().toLowerCase());
+      }
+      if (item.selectedApproverIds?.[0]) validIds.add(String(item.selectedApproverIds[0]).trim().toLowerCase());
+      if (item.selectedApproverDocIds?.[0]) validIds.add(String(item.selectedApproverDocIds[0]).trim().toLowerCase());
+      if (item.selectedApproverEmails?.[0]) validEmails.add(item.selectedApproverEmails[0].trim().toLowerCase());
+
+      if (item.selectedApproverId && !item.selectedApproverIds) {
+        String(item.selectedApproverId).split(',').forEach(id => validIds.add(id.trim().toLowerCase()));
+      }
+      if (item.selectedApproverEmail && !item.selectedApproverEmails) {
+        String(item.selectedApproverEmail).split(',').forEach(e => validEmails.add(e.trim().toLowerCase()));
+      }
+
+      if (empId && validIds.has(empId)) return true;
+      if (docId && validIds.has(docId)) return true;
+      if (email && (validEmails.has(email) || validIds.has(email))) return true;
+      if (nis && (validEmails.has(nis) || validIds.has(nis))) return true;
+
+      const currApp = (item.currentApprover || "").trim().toLowerCase();
+      if (currApp && email && currApp.includes(email)) return true;
+      if (currApp && nis && currApp.includes(nis)) return true;
+
+      return false;
+    } else {
+      // Stage 2 active: only Stage 2 approver matches
+      const validIds = new Set<string>();
+      const validEmails = new Set<string>();
+
+      if (item.stage2ApproverId) validIds.add(String(item.stage2ApproverId).trim().toLowerCase());
+      if (item.stage2ApproverDocId) validIds.add(String(item.stage2ApproverDocId).trim().toLowerCase());
+      if (item.stage2ApproverEmail) validEmails.add(item.stage2ApproverEmail.trim().toLowerCase());
+
+      if (item.reportLine2) {
+        if (item.reportLine2.includes("@")) validEmails.add(item.reportLine2.trim().toLowerCase());
+        else validIds.add(item.reportLine2.trim().toLowerCase());
+      }
+      if (item.selectedApproverIds?.[1]) validIds.add(String(item.selectedApproverIds[1]).trim().toLowerCase());
+      if (item.selectedApproverDocIds?.[1]) validIds.add(String(item.selectedApproverDocIds[1]).trim().toLowerCase());
+      if (item.selectedApproverEmails?.[1]) validEmails.add(item.selectedApproverEmails[1].trim().toLowerCase());
+
+      if (empId && validIds.has(empId)) return true;
+      if (docId && validIds.has(docId)) return true;
+      if (email && (validEmails.has(email) || validIds.has(email))) return true;
+      if (nis && (validEmails.has(nis) || validIds.has(nis))) return true;
+
+      const currApp = (item.currentApprover || "").trim().toLowerCase();
+      if (currApp && email && currApp.includes(email)) return true;
+      if (currApp && nis && currApp.includes(nis)) return true;
+
+      return false;
+    }
+  }, [profile]);
 
 
 
@@ -596,45 +716,26 @@ const isPrivileged =
   const requestCounts = useMemo(() => {
     return allRequests.reduce(
       (acc, request) => {
-        if (request.status === "Pending") acc.pending++;
+        if (request.status === "Pending") {
+          acc.pending++;
+          if (checkIsPendingUserApproval(request)) {
+            acc.myPending++;
+          }
+        }
         else if (request.status === "Approved") acc.approved++;
         else if (request.status === "Rejected") acc.rejected++;
         return acc;
       },
-      { pending: 0, approved: 0, rejected: 0 }
+      { pending: 0, approved: 0, rejected: 0, myPending: 0 }
     );
-  }, [allRequests]);
+  }, [allRequests, checkIsPendingUserApproval]);
 
   const filteredRequests = useMemo(() => {
     let requests = allRequests;
 
     if (statusFilter !== "All") {
       if (statusFilter === "MyPending") {
-        requests = requests.filter((item) => {
-          if (item.status !== "Pending") return false;
-          const empId = profile?.employeeId ? String(profile.employeeId).trim() : null;
-          const docId = profile?.id || null;
-          const email = profile?.email?.trim().toLowerCase() || null;
-          const nis = profile?.nisEmail?.trim().toLowerCase() || null;
-
-          const approverIds: string[] = Array.isArray(item.selectedApproverIds)
-            ? item.selectedApproverIds.map(String)
-            : (item.selectedApproverId ? String(item.selectedApproverId).split(',') : []);
-          const approverDocIds: string[] = Array.isArray(item.selectedApproverDocIds)
-            ? item.selectedApproverDocIds.map(String)
-            : [];
-          const approverEmails: string[] = Array.isArray(item.selectedApproverEmails)
-            ? item.selectedApproverEmails.map((s) => String(s).trim().toLowerCase())
-            : (item.selectedApproverEmail ? String(item.selectedApproverEmail).toLowerCase().split(',') : []);
-          const currApp = (item.currentApprover || "").trim().toLowerCase();
-
-          if (empId && approverIds.some((id) => id.trim() === empId)) return true;
-          if (docId && (approverIds.some((id) => id.trim() === docId) || approverDocIds.some((id) => id.trim() === docId))) return true;
-          if (email && approverEmails.some((e) => e.trim() === email)) return true;
-          if (currApp && email && currApp.includes(email)) return true;
-          if (currApp && nis && currApp.includes(nis)) return true;
-          return false;
-        });
+        requests = requests.filter((item) => checkIsPendingUserApproval(item));
       } else {
         requests = requests.filter((item) => item.status === statusFilter);
       }
@@ -973,30 +1074,7 @@ const isPrivileged =
               <TableBody>
                 {filteredRequests.length > 0 ? (
                   filteredRequests.map((r) => {
-                    const empId = profile?.employeeId ? String(profile.employeeId).trim() : null;
-                    const docId = profile?.id || null;
-                    const email = profile?.email?.trim().toLowerCase() || null;
-                    const nis = profile?.nisEmail?.trim().toLowerCase() || null;
-                    const approverIds: string[] = Array.isArray(r.selectedApproverIds)
-                      ? r.selectedApproverIds.map(String)
-                      : (r.selectedApproverId ? String(r.selectedApproverId).split(',') : []);
-                    const approverDocIds: string[] = Array.isArray(r.selectedApproverDocIds)
-                      ? r.selectedApproverDocIds.map(String)
-                      : [];
-                    const approverEmails: string[] = Array.isArray(r.selectedApproverEmails)
-                      ? r.selectedApproverEmails.map((s) => String(s).trim().toLowerCase())
-                      : (r.selectedApproverEmail ? String(r.selectedApproverEmail).toLowerCase().split(',') : []);
-                    const currApp = (r.currentApprover || "").trim().toLowerCase();
-
-                    const isPendingMyApproval =
-                      r.status === "Pending" &&
-                      (
-                        (empId && approverIds.some((id) => id.trim() === empId)) ||
-                        (docId && (approverIds.some((id) => id.trim() === docId) || approverDocIds.some((id) => id.trim() === docId))) ||
-                        (email && approverEmails.some((e) => e.trim() === email)) ||
-                        (currApp && email && currApp.includes(email)) ||
-                        (currApp && nis && currApp.includes(nis))
-                      );
+                    const isPendingMyApproval = checkIsPendingUserApproval(r);
                     return (
                       <TableRow
                         key={r.id}
