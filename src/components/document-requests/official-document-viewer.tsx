@@ -177,7 +177,7 @@ export function OfficialDocumentViewer({
           </div>
         );
 
-      case "Social Insurance Statement":
+      case "Letter to Social Insurance":
         return (
           <div className="space-y-4 text-sm leading-relaxed text-slate-800">
             <p>

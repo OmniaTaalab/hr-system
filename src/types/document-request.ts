@@ -2,7 +2,7 @@ import { Timestamp } from "firebase/firestore";
 
 export const DOCUMENT_REQUEST_TYPES = [
   "HR Letter",
-  "Social Insurance Statement",
+  "Letter to Social Insurance",
   "Pay Slip",
   "Contract Copy",
 ] as const;
@@ -28,8 +28,8 @@ export const DOCUMENT_REQUEST_TYPE_DETAILS: Record<
   
 
  
-  "Social Insurance Statement": {
-    arName: "برنت تأمينات / بيان تأميني",
+  "Letter to Social Insurance": {
+    arName: "خطاب للتأمينات الاجتماعية",
     description: "Statement of social insurance registration number and insurance wage details.",
     commonAddressedTo: ["Social Insurance Authority", "Bank / Mortgage", "To Whom It May Concern"],
     suggestedNotesPlaceholder: "Add your National ID or social insurance number if known...",

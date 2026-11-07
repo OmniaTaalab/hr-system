@@ -591,9 +591,9 @@ export default function HowToUsePage() {
       title: "Request an official HR document",
       titleAr: "طلب مستند رسمي أو شهادة من الموارد البشرية",
       summary:
-        "Ask HR for a salary certificate, HR letter, experience letter, bank or embassy letter, social insurance statement, pay slip or contract copy.",
+        "Ask HR for a salary certificate, HR letter, experience letter, bank or embassy letter, Letter to Social Insurance, pay slip or contract copy.",
       summaryAr:
-        "طلب شهادة راتب، خطاب موجه للبنك أو السفارة، شهادة خبرة، برنت تأمينات، مفردات مرتب، أو صورة عقد.",
+        "طلب شهادة راتب، خطاب موجه للبنك أو السفارة، شهادة خبرة، خطاب للتأمينات الاجتماعية. مفردات مرتب، أو صورة عقد.",
       pageRoute: "/document-requests",
       steps: [
         {

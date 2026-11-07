@@ -493,164 +493,163 @@ if (endDate) {
           value={profile?.id || ""}
         />
 
-        {/* Reporting Line Approver */}
-        {!hasReportingLines ? (
-          <div className="rounded-xl border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="font-semibold">{tText("No Reporting Line Assigned", "لا يوجد مدير مباشر معين")}</p>
-              <p className="mt-0.5 text-xs sm:text-sm">
+        {/* Select Leave Approvers Section */}
+        <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4 md:p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <UserCheck className="h-5 w-5 text-primary" />
+              <h3 className="font-semibold text-sm md:text-base">
+                {tText("Select Leave Approvers", "تحديد معتمدي طلب الإجازة")}
+              </h3>
+            </div>
+            {resolvedApprovers.length === 1 && (
+              <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                {tText("1 Approval Required", "مطلوب موافقة واحدة")}
+              </Badge>
+            )}
+            {resolvedApprovers.length >= 2 && (
+              <Badge variant="outline" className="text-xs border-primary/30">
+                {tText("2 Sequential Approvals Required", "مطلوب موافقتان متتاليتان")}
+              </Badge>
+            )}
+          </div>
+
+          {/* Case 4: ZERO Reporting Lines */}
+          {!hasReportingLines || resolvedApprovers.length === 0 ? (
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-semibold">{tText("No Reporting Line Assigned", "لا يوجد مدير مباشر معين")}</p>
+                <p className="mt-0.5 text-xs sm:text-sm">
+                  {tText(
+                    "No Reporting Line is assigned to your profile. Please contact HR.",
+                    "لم يتم تعيين مدير مباشر لملفك الوظيفي. يرجى التواصل مع إدارة الموارد البشرية."
+                  )}
+                </p>
+              </div>
+            </div>
+          ) : resolvedApprovers.length === 1 ? (
+            /* Case 1: Exactly ONE Reporting Line (Read-only + direct submit) */
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
                 {tText(
-                  "No Reporting Line is assigned to your employee profile. Please contact HR.",
-                  "لم يتم تعيين مدير مباشر لملفك الوظيفي. يرجى التواصل مع إدارة الموارد البشرية."
+                  "You have 1 assigned Reporting Line. Your leave request requires only one approval. Once this manager approves, the request becomes Approved immediately.",
+                  "لديك مسار وظيفي مباشر واحد معين. يتطلب طلبك موافقة واحدة فقط، وبمجرد اعتماد هذا المدير يصبح الطلب معتمداً نهائياً مباشرة."
                 )}
               </p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="reportingLineApprover" className="flex items-center gap-1.5 font-semibold text-sm">
-                <UserCheck className="h-4 w-4 text-primary" />
-                <span>
-                  {tText("Reporting Line Approver", "المدير المسؤول للاعتماد")}{" "}
-                  <span className="text-destructive">*</span>
-                </span>
-              </Label>
-              <Badge
-                variant={selectedApproverIds.length === 2 ? "default" : selectedApproverIds.length === 1 ? "secondary" : "outline"}
-                className="text-xs"
-              >
-                {selectedApproverIds.length} / 2 {tText("selected", "محدد")}
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {tText(
-                "Select 2 Reporting Lines to approve or reject this request. If you only have 1 Reporting Line, select that person. All Reporting Lines will be notified.",
-                "اختر 2 (للمسؤولين المباشرين) للموافقة على هذا الطلب أو رفضه. إذا كان لديك مسار وظيفي واحد فقط، فاختر ذلك الشخص. سيتم إشعار جميع المسؤولين المباشرين المعنيين."
-              )}
-            </p>
 
-            <Popover open={isApproverPopoverOpen} onOpenChange={setIsApproverPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  id="reportingLineApprover"
-                  type="button"
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={isApproverPopoverOpen}
-                  disabled={isPending || isSubmittingFile || isLoadingApprovers}
-                  className="w-full justify-between bg-background text-left font-normal h-auto min-h-10 py-2"
-                >
-                  <div className="flex flex-wrap items-center gap-1.5 truncate">
-                    {isLoadingApprovers ? (
-                      <span className="text-muted-foreground">Loading reporting lines...</span>
-                    ) : selectedApproverIds.length === 0 ? (
-                      <span className="text-muted-foreground">Select up to 2 Reporting Lines...</span>
-                    ) : (
-                      selectedApproverIds.map((id) => {
-                        const app = resolvedApprovers.find((a) => a.id === id);
-                        return (
-                          <span key={id} className="font-medium text-xs bg-muted px-2 py-0.5 rounded">
-                            {app?.name || id} ({app?.label})
-                          </span>
-                        );
-                      })
+              <div className="flex items-center justify-between p-3.5 rounded-lg border bg-background shadow-xs">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-bold text-sm shrink-0">
+                    <UserCheck className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm truncate">{resolvedApprovers[0].name}</span>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal shrink-0">
+                        {resolvedApprovers[0].label}
+                      </Badge>
+                    </div>
+                    {resolvedApprovers[0].email && (
+                      <p className="text-xs text-muted-foreground truncate">{resolvedApprovers[0].email}</p>
                     )}
                   </div>
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-
-              <PopoverContent className="w-[--radix-popover-trigger-width] p-2" align="start">
-                <div className="space-y-1">
-                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground flex justify-between items-center">
-                    <span>Available Reporting Lines</span>
-                    <span>Can select up to 2</span>
-                  </div>
-                  {resolvedApprovers.map((approver) => {
-                    const isChecked = selectedApproverIds.includes(approver.id);
-                    const isMaxReached = !isChecked && selectedApproverIds.length >= 2;
-
-                    return (
-                      <div
-                        key={approver.id}
-                        onClick={() => {
-                          if (!isMaxReached) {
-                            toggleApprover(approver.id);
-                          } else {
-                            toast({
-                              title: "Maximum 2 Approvers Allowed",
-                              description: "You can select up to 2 reporting lines. Unselect one first to select another.",
-                            });
-                          }
-                        }}
-                        className={cn(
-                          "flex items-start gap-2.5 rounded-md p-2 text-sm cursor-pointer select-none transition-colors",
-                          isChecked ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted",
-                          isMaxReached && "opacity-50 cursor-not-allowed hover:bg-transparent"
-                        )}
-                      >
-                        <Checkbox
-                          checked={isChecked}
-                          disabled={isMaxReached}
-                          className="mt-0.5"
-                          onCheckedChange={() => toggleApprover(approver.id)}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="truncate">{approver.name}</span>
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal">
-                              {approver.label}
-                            </Badge>
-                          </div>
-                          {approver.email && (
-                            <p className="text-xs text-muted-foreground truncate">{approver.email}</p>
-                          )}
-                        </div>
-                        {isMaxReached && (
-                          <span className="text-[10px] text-muted-foreground self-center">Max 2</span>
-                        )}
-                      </div>
-                    );
-                  })}
                 </div>
-              </PopoverContent>
-            </Popover>
-
-            {/* Selected badges with removable action */}
-            {selectedApproverIds.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                <span className="text-xs text-muted-foreground mr-1">Selected approver(s):</span>
-                {selectedApproverIds.map((id) => {
-                  const approver = resolvedApprovers.find((a) => a.id === id);
-                  if (!approver) return null;
-                  return (
-                    <Badge key={id} variant="secondary" className="text-xs py-0.5 pl-2.5 pr-1 flex items-center gap-1">
-                      <span>{approver.name} ({approver.label})</span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          toggleApprover(id);
-                        }}
-                        className="rounded-full hover:bg-muted p-0.5 inline-flex items-center justify-center text-muted-foreground hover:text-foreground"
-                        aria-label={`Remove ${approver.name}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  );
-                })}
+                <Badge variant="secondary" className="text-xs font-normal text-muted-foreground shrink-0">
+                  {tText("Assigned Approver (Read-only)", "المعتمد المعين (للقراءة فقط)")}
+                </Badge>
               </div>
-            )}
+            </div>
+          ) : (
+            /* Case 2 & 3: Two or More Reporting Lines */
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  {resolvedApprovers.length === 2
+                    ? tText(
+                        "You have 2 assigned Reporting Lines. Both managers are required in sequential order (First Approver must approve before Second Approver is notified).",
+                        "لديك مساران وظيفيان معنيان. كلا المديرين مطلوبان بتسلسل مرحلي (يجب أن يعتمد المعتمد الأول قبل إشعار المعتمد الثاني)."
+                      )
+                    : tText(
+                        "You have multiple assigned Reporting Lines. Select exactly 2 distinct managers to review your request in sequential order.",
+                        "لديك عدة خطوط تقارير معينة. يرجى اختيار مديرين اثنين مختلفين لمراجعة طلبك بترتيب تتابعي."
+                      )}
+                </p>
 
-            {serverState?.errors?.selectedApproverId && (
-              <p className="text-sm text-destructive">{serverState.errors.selectedApproverId[0]}</p>
-            )}
-          </div>
-        )}
+                {/* Display assigned reporting lines chips when > 2 lines */}
+                {resolvedApprovers.length > 2 && (
+                  <div className="pt-1">
+                    <span className="text-[11px] text-muted-foreground">{tText("Your assigned lines:", "خطوط التقارير المتاحة لك:")}</span>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {resolvedApprovers.map((app) => (
+                        <Badge key={app.id} variant="secondary" className="text-[11px] font-normal py-0.5">
+                          <span className="font-medium mr-1">{app.label}:</span> {app.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Two Searchable Dropdowns */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                <SearchableApproverSelect
+                  id="firstApprover"
+                  label={tText("First Approver", "المعتمد الأول")}
+                  stageNumber={1}
+                  placeholder={tText("Select First Approver...", "اختر المعتمد الأول...")}
+                  value={firstApproverId}
+                  onChange={(id) => {
+                    setFirstApproverId(id);
+                    if (id === secondApproverId) setSecondApproverId("");
+                  }}
+                  approvers={resolvedApprovers}
+                  disabledApproverId={secondApproverId}
+                  disabledApproverReason={tText("Selected as 2nd", "محدد كمعتمد ثانٍ")}
+                  disabled={isPending || isSubmittingFile || isLoadingApprovers}
+                  required
+                />
+
+                <SearchableApproverSelect
+                  id="secondApprover"
+                  label={tText("Second Approver", "المعتمد الثاني")}
+                  stageNumber={2}
+                  placeholder={tText("Select Second Approver...", "اختر المعتمد الثاني...")}
+                  value={secondApproverId}
+                  onChange={(id) => {
+                    setSecondApproverId(id);
+                    if (id === firstApproverId) setFirstApproverId("");
+                  }}
+                  approvers={resolvedApprovers}
+                  disabledApproverId={firstApproverId}
+                  disabledApproverReason={tText("Selected as 1st", "محدد كمعتمد أول")}
+                  disabled={isPending || isSubmittingFile || isLoadingApprovers}
+                  required
+                />
+              </div>
+
+              {/* Sequential order visual indicator */}
+              <div className="rounded-lg bg-background/80 border p-2.5 text-xs text-muted-foreground flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-foreground">
+                    1. {resolvedApprovers.find(a => a.id === firstApproverId)?.name || tText("First Approver", "المعتمد الأول")}
+                  </span>
+                  <span className="text-muted-foreground">→</span>
+                  <span className="font-semibold text-foreground">
+                    2. {resolvedApprovers.find(a => a.id === secondApproverId)?.name || tText("Second Approver", "المعتمد الثاني")}
+                  </span>
+                </div>
+                <span className="text-[11px] text-muted-foreground italic">
+                  {tText("Strictly sequential", "تسلسل إلزامي")}
+                </span>
+              </div>
+
+              {serverState?.errors?.selectedApproverId && (
+                <p className="text-sm text-destructive">{serverState.errors.selectedApproverId[0]}</p>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Leave Type */}
         <div className="space-y-2">
@@ -865,7 +864,7 @@ if (endDate) {
 
         <Button
           type="submit"
-          disabled={isPending || isSubmittingFile || !hasReportingLines || selectedApproverIds.length !== 2}
+          disabled={isPending || isSubmittingFile || !hasReportingLines || !isApproverSelectionValid}
           className="w-full md:w-auto"
         >
           {(isPending || isSubmittingFile) ? (

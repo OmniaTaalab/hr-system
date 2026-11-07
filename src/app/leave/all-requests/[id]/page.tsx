@@ -63,7 +63,8 @@ interface LeaveRequestEntry {
   isRetroactive?: boolean;
   hrCreatorName?: string;
   hrCreatorId?: string;
-  // Sequential 2-Stage Approval Workflow fields
+  // Sequential Approval Workflow fields
+  requiredApprovals?: 1 | 2;
   approvalStage?: 1 | 2;
   stage1Status?: "Pending" | "Approved" | "Rejected";
   stage2Status?: "Waiting" | "Pending" | "Approved" | "Rejected" | "Cancelled";
@@ -262,14 +263,23 @@ function LeaveRequestDetailContent() {
     ].includes(userRole);
   }, [profile]);
 
+  const requiredApprovals: 1 | 2 = useMemo(() => {
+    if (!request) return 2;
+    if (request.requiredApprovals === 1 || request.stage2Status === "NotRequired") {
+      return 1;
+    }
+    return 2;
+  }, [request]);
+
   // Sequential Stage Determination
   const currentStage: 1 | 2 = useMemo(() => {
     if (!request) return 1;
+    if (requiredApprovals === 1) return 1;
     if (request.stage1Status === "Approved") return 2;
     if (request.approvalStage === 2) return 2;
     if (Array.isArray(request.approvedBy) && request.approvedBy.length >= 1) return 2;
     return 1;
-  }, [request]);
+  }, [request, requiredApprovals]);
 
   const isActorStage1Approver = useMemo(() => {
     if (!profile || !request) return false;
@@ -352,8 +362,9 @@ function LeaveRequestDetailContent() {
 
   const currentActiveStage = useMemo<1 | 2 | null>(() => {
     if (!request || request.status !== "Pending") return null;
+    if (requiredApprovals === 1) return 1;
     return stage1ComputedStatus === "Approved" ? 2 : 1;
-  }, [request, stage1ComputedStatus]);
+  }, [request, stage1ComputedStatus, requiredApprovals]);
 
   const stage1ApproverLabel = useMemo(() => {
     if (!request) return "";
@@ -513,15 +524,21 @@ function LeaveRequestDetailContent() {
 
                 <Separator />
 
-                {/* Sequential 2-Stage Approval Workflow Section */}
+                {/* Sequential Approval Workflow Section */}
                 <div className="space-y-4 pt-1">
                     <div className="flex items-center justify-between pb-2">
                       <div className="flex items-center gap-2">
                         <Users className="h-5 w-5 text-primary" />
-                        <h3 className="text-base font-semibold">{isRTL ? "مسار الموافقة المتتابع (مرحلتان)" : "Sequential Approval Workflow"}</h3>
+                        <h3 className="text-base font-semibold">
+                          {requiredApprovals === 1
+                            ? (isRTL ? "مسار الاعتماد (مدير مباشر واحد)" : "Leave Approval Workflow")
+                            : (isRTL ? "مسار الموافقة المتتابع (مرحلتان)" : "Sequential Approval Workflow")}
+                        </h3>
                       </div>
                       <Badge variant="outline" className="text-xs">
-                        {isRTL ? "ترتيب إلزامي: خط التقارير 1 ← خط التقارير 2" : "Order: Reporting Line 1 → Reporting Line 2"}
+                        {requiredApprovals === 1
+                          ? (isRTL ? "مطلوب موافقة مدير مباشر واحد" : "1 Approver Required (Direct Approval)")
+                          : (isRTL ? "ترتيب إلزامي: خط التقارير 1 ← خط التقارير 2" : "Order: Reporting Line 1 → Reporting Line 2")}
                       </Badge>
                     </div>
 
@@ -554,11 +571,15 @@ function LeaveRequestDetailContent() {
                                 stage1ComputedStatus === "Rejected" ? "bg-red-600 text-white" :
                                 "bg-muted text-muted-foreground"
                               )}>
-                                1
+                                {requiredApprovals === 1 ? <UserCheck className="h-4 w-4" /> : 1}
                               </div>
                               <div>
                                 <div className="text-sm font-semibold flex items-center gap-2">
-                                  <span>{isRTL ? "خط التقارير 1 (المرحلة الأولى)" : "Reporting Line 1 (Stage 1)"}</span>
+                                  <span>
+                                    {requiredApprovals === 1
+                                      ? (isRTL ? "المدير المباشر المسؤول" : "Reporting Line Approver")
+                                      : (isRTL ? "خط التقارير 1 (المرحلة الأولى)" : "Reporting Line 1 (Stage 1)")}
+                                  </span>
                                   {currentActiveStage === 1 && (
                                     <Badge variant="outline" className="text-[10px] bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-200 animate-pulse font-normal">
                                       {isRTL ? "المرحلة الحالية المطلوبة" : "Action Required Now"}
@@ -590,67 +611,69 @@ function LeaveRequestDetailContent() {
                           )}
                         </div>
 
-                        {/* Stage 2 Card */}
-                        <div className={cn(
-                          "p-4 rounded-lg border transition-all",
-                          stage2ComputedStatus === "Approved" ? "bg-green-50/60 dark:bg-green-950/20 border-green-200 dark:border-green-800" :
-                          stage2ComputedStatus === "Pending" ? "bg-yellow-50/60 dark:bg-yellow-950/20 border-yellow-300 dark:border-yellow-700 ring-1 ring-yellow-400/40" :
-                          stage2ComputedStatus === "Rejected" ? "bg-red-50/60 dark:bg-red-950/20 border-red-200 dark:border-red-800" :
-                          "bg-muted/20 border-muted opacity-85"
-                        )}>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className={cn(
-                                "flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold shrink-0",
-                                stage2ComputedStatus === "Approved" ? "bg-green-600 text-white" :
-                                stage2ComputedStatus === "Pending" ? "bg-yellow-500 text-white" :
-                                stage2ComputedStatus === "Rejected" ? "bg-red-600 text-white" :
-                                "bg-muted text-muted-foreground"
-                              )}>
-                                2
-                              </div>
-                              <div>
-                                <div className="text-sm font-semibold flex items-center gap-2">
-                                  <span>{isRTL ? "خط التقارير 2 (المرحلة الثانية)" : "Reporting Line 2 (Stage 2)"}</span>
-                                  {currentActiveStage === 2 && (
-                                    <Badge variant="outline" className="text-[10px] bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-200 animate-pulse font-normal">
-                                      {isRTL ? "المرحلة الحالية المطلوبة" : "Action Required Now"}
-                                    </Badge>
-                                  )}
-                                  {request.missingSecondApprover && (
-                                    <Badge variant="destructive" className="text-[10px]">
-                                      {isRTL ? "مفقود" : "Missing"}
-                                    </Badge>
-                                  )}
+                        {/* Stage 2 Card (Only rendered when 2 approvers required) */}
+                        {requiredApprovals === 2 && (
+                          <div className={cn(
+                            "p-4 rounded-lg border transition-all",
+                            stage2ComputedStatus === "Approved" ? "bg-green-50/60 dark:bg-green-950/20 border-green-200 dark:border-green-800" :
+                            stage2ComputedStatus === "Pending" ? "bg-yellow-50/60 dark:bg-yellow-950/20 border-yellow-300 dark:border-yellow-700 ring-1 ring-yellow-400/40" :
+                            stage2ComputedStatus === "Rejected" ? "bg-red-50/60 dark:bg-red-950/20 border-red-200 dark:border-red-800" :
+                            "bg-muted/20 border-muted opacity-85"
+                          )}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className={cn(
+                                  "flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold shrink-0",
+                                  stage2ComputedStatus === "Approved" ? "bg-green-600 text-white" :
+                                  stage2ComputedStatus === "Pending" ? "bg-yellow-500 text-white" :
+                                  stage2ComputedStatus === "Rejected" ? "bg-red-600 text-white" :
+                                  "bg-muted text-muted-foreground"
+                                )}>
+                                  2
                                 </div>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  {request.missingSecondApprover
-                                    ? (isRTL ? "لم يتم تعيين خط التقارير 2 للموظف — يتطلب مراجعة الموارد البشرية" : "No Reporting Line 2 assigned to employee — HR review required")
-                                    : stage2ApproverLabel}
-                                </p>
+                                <div>
+                                  <div className="text-sm font-semibold flex items-center gap-2">
+                                    <span>{isRTL ? "خط التقارير 2 (المرحلة الثانية)" : "Reporting Line 2 (Stage 2)"}</span>
+                                    {currentActiveStage === 2 && (
+                                      <Badge variant="outline" className="text-[10px] bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-200 animate-pulse font-normal">
+                                        {isRTL ? "المرحلة الحالية المطلوبة" : "Action Required Now"}
+                                      </Badge>
+                                    )}
+                                    {request.missingSecondApprover && (
+                                      <Badge variant="destructive" className="text-[10px]">
+                                        {isRTL ? "مفقود" : "Missing"}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {request.missingSecondApprover
+                                      ? (isRTL ? "لم يتم تعيين خط التقارير 2 للموظف — يتطلب مراجعة الموارد البشرية" : "No Reporting Line 2 assigned to employee — HR review required")
+                                      : stage2ApproverLabel}
+                                  </p>
+                                </div>
                               </div>
+                              <StageStatusBadge status={stage2ComputedStatus} />
                             </div>
-                            <StageStatusBadge status={stage2ComputedStatus} />
-                          </div>
 
-                          {(request.stage2ApprovedBy || request.stage2ApprovedAt || request.stage2RejectedBy || request.stage2Notes) && (
-                            <div className="mt-3 pt-2.5 border-t border-dashed text-xs text-muted-foreground space-y-1">
-                              {request.stage2ApprovedBy && (
-                                <p className="text-green-700 dark:text-green-300">
-                                  {isRTL ? "تم الاعتماد النهائي بواسطة: " : "Final Approval by: "}<span className="font-semibold text-foreground">{request.stage2ApprovedBy}</span> {request.stage2ApprovedAt?.toDate ? `(${format(request.stage2ApprovedAt.toDate(), "dd/MM/yyyy h:mm a", { locale: isRTL ? ar : enUS })})` : ""}
-                                </p>
-                              )}
-                              {request.stage2RejectedBy && (
-                                <p className="text-destructive">
-                                  {isRTL ? "تم الرفض بواسطة: " : "Rejected by: "}<span className="font-semibold">{request.stage2RejectedBy}</span> {request.stage2RejectedAt?.toDate ? `(${format(request.stage2RejectedAt.toDate(), "dd/MM/yyyy h:mm a", { locale: isRTL ? ar : enUS })})` : ""}
-                                </p>
-                              )}
-                              {request.stage2Notes && (
-                                <p><span className="font-medium">{isRTL ? "ملاحظات: " : "Notes: "}</span>{request.stage2Notes}</p>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                            {(request.stage2ApprovedBy || request.stage2ApprovedAt || request.stage2RejectedBy || request.stage2Notes) && (
+                              <div className="mt-3 pt-2.5 border-t border-dashed text-xs text-muted-foreground space-y-1">
+                                {request.stage2ApprovedBy && (
+                                  <p className="text-green-700 dark:text-green-300">
+                                    {isRTL ? "تم الاعتماد النهائي بواسطة: " : "Final Approval by: "}<span className="font-semibold text-foreground">{request.stage2ApprovedBy}</span> {request.stage2ApprovedAt?.toDate ? `(${format(request.stage2ApprovedAt.toDate(), "dd/MM/yyyy h:mm a", { locale: isRTL ? ar : enUS })})` : ""}
+                                  </p>
+                                )}
+                                {request.stage2RejectedBy && (
+                                  <p className="text-destructive">
+                                    {isRTL ? "تم الرفض بواسطة: " : "Rejected by: "}<span className="font-semibold">{request.stage2RejectedBy}</span> {request.stage2RejectedAt?.toDate ? `(${format(request.stage2RejectedAt.toDate(), "dd/MM/yyyy h:mm a", { locale: isRTL ? ar : enUS })})` : ""}
+                                  </p>
+                                )}
+                                {request.stage2Notes && (
+                                  <p><span className="font-medium">{isRTL ? "ملاحظات: " : "Notes: "}</span>{request.stage2Notes}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Summary & Current Approver Indicator */}
                         <div className="p-3 bg-muted/40 rounded-lg text-xs space-y-1.5 border">
@@ -665,6 +688,7 @@ function LeaveRequestDetailContent() {
                             <span className="font-semibold">
                               {request.status === "Approved" ? (isRTL ? "معتمد نهائياً" : "Fully Approved") :
                                request.status === "Rejected" ? (isRTL ? "مرفوض" : "Rejected") :
+                               requiredApprovals === 1 ? (isRTL ? "قيد المراجعة" : "Pending") :
                                (isRTL ? `قيد المراجعة (المرحلة ${currentActiveStage})` : `Pending (Stage ${currentActiveStage})`)}
                             </span>
                           </div>
@@ -682,13 +706,19 @@ function LeaveRequestDetailContent() {
                         <div className="text-sm">
                           <p className="font-semibold text-foreground">
                             {isRTL
-                              ? `طلب الإجازة بانتظار قرارك (المرحلة ${currentActiveStage}: ${currentActiveStage === 1 ? "خط التقارير 1" : "خط التقارير 2"})`
-                              : `This leave request is awaiting your decision (Stage ${currentActiveStage}: ${currentActiveStage === 1 ? "Reporting Line 1" : "Reporting Line 2"})`}
+                              ? requiredApprovals === 1
+                                ? "طلب الإجازة بانتظار قرارك (المدير المباشر المسؤول)"
+                                : `طلب الإجازة بانتظار قرارك (المرحلة ${currentActiveStage}: ${currentActiveStage === 1 ? "خط التقارير 1" : "خط التقارير 2"})`
+                              : requiredApprovals === 1
+                                ? "This leave request is awaiting your decision (Reporting Line Approver)"
+                                : `This leave request is awaiting your decision (Stage ${currentActiveStage}: ${currentActiveStage === 1 ? "Reporting Line 1" : "Reporting Line 2"})`}
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {currentActiveStage === 1
-                              ? (isRTL ? "عند الموافقة، سينتقل الطلب تلقائياً للمرحلة الثانية دون تطبيق خصم الرصيد النهائي." : "Upon approval, the request will advance to Stage 2 without applying final deductions.")
-                              : (isRTL ? "الموافقة في هذه المرحلة تعني الاعتماد النهائي وتطبيق الرصيد المطلوب." : "Approval at this stage finalizes the request and updates leave balances.")}
+                            {requiredApprovals === 1
+                              ? (isRTL ? "الموافقة ستعتمد الطلب نهائياً وتطبق خصم الرصيد المطلوب." : "Approval finalizes the request and updates leave balances.")
+                              : currentActiveStage === 1
+                                ? (isRTL ? "عند الموافقة، سينتقل الطلب تلقائياً للمرحلة الثانية دون تطبيق خصم الرصيد النهائي." : "Upon approval, the request will advance to Stage 2 without applying final deductions.")
+                                : (isRTL ? "الموافقة في هذه المرحلة تعني الاعتماد النهائي وتطبيق الرصيد المطلوب." : "Approval at this stage finalizes the request and updates leave balances.")}
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">

@@ -109,6 +109,7 @@ export interface LeaveRequestEntry {
   currentApprover?: string | null;
   approvedBy?: string[];
   isRetroactive?: boolean;
+  requiredApprovals?: 1 | 2;
   approvalStage?: 1 | 2;
   stage1Status?: "Pending" | "Approved" | "Rejected";
   stage2Status?: "Waiting" | "Pending" | "Approved" | "Rejected" | "Cancelled";
@@ -422,6 +423,12 @@ function AllLeaveRequestsContent() {
     }
 
     if (r.status === "Pending") {
+      const isSingleApprover = r.requiredApprovals === 1 || r.stage2Status === "NotRequired";
+      if (isSingleApprover) {
+        const approverName = r.stage1ApproverName || r.reportLine1 || r.currentApprover || r.selectedApproverName || (isRTL ? "المدير المباشر" : "Reporting Line");
+        return isRTL ? `${approverName} (المدير المباشر)` : `${approverName} (Reporting Line)`;
+      }
+
       const isStage2 = r.stage1Status === "Approved" || r.approvalStage === 2 || (Array.isArray(r.approvedBy) && r.approvedBy.length >= 1);
       if (isStage2) {
         if (r.missingSecondApprover) {
