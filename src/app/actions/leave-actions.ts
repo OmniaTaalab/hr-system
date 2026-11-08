@@ -1468,6 +1468,17 @@ export async function updateLeaveRequestStatusAction(
       }
     }
 
+
+  } catch (error: any) {
+    console.error("Update Leave Request Status Error:", error);
+    return {
+      message: "Failed to update leave request status.",
+      errors: { form: [error instanceof Error ? error.message : "An unexpected error occurred."] },
+      success: false,
+    };
+  }
+}
+
 // Helper to verify HR privileges server-side against employee and user collections
 async function verifyHrPrivilege(
   actorId?: string,
