@@ -34,6 +34,97 @@ import { collection, getDocs, query, where, limit, doc, getDoc } from "firebase/
 import { useActionState } from "react";
 import { useI18n } from "@/lib/i18n";
 
+type ResolvedApprover = {
+  id: string;
+  docId: string;
+  employeeId: string;
+  name: string;
+  email: string;
+  label: string;
+};
+
+function SearchableApproverSelect({
+  id, label, stageNumber, placeholder, value, onChange, approvers,
+  disabledApproverId, disabledApproverReason, disabled, required,
+}: {
+  id: string;
+  label: string;
+  stageNumber: number;
+  placeholder: string;
+  value: string;
+  onChange: (id: string) => void;
+  approvers: ResolvedApprover[];
+  disabledApproverId?: string;
+  disabledApproverReason?: string;
+  disabled?: boolean;
+  required?: boolean;
+}) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const selected = approvers.find((approver) => approver.id === value);
+  const filtered = approvers.filter((approver) =>
+    `${approver.name} ${approver.email} ${approver.label} ${approver.employeeId}`
+      .toLowerCase().includes(search.trim().toLowerCase())
+  );
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{stageNumber}. {label}{required ? " *" : ""}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            id={id}
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            disabled={disabled}
+            className="w-full justify-between font-normal min-w-0"
+          >
+            <span className="truncate">{selected ? `${selected.name} (${selected.label})` : placeholder}</span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-[min(90vw,360px)] p-2">
+          <Input
+            autoFocus
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search by name, email or reporting line..."
+            className="mb-2"
+          />
+          <div className="max-h-60 overflow-y-auto space-y-1">
+            {filtered.length === 0 && <p className="px-2 py-3 text-sm text-muted-foreground">No matching managers</p>}
+            {filtered.map((approver) => {
+              const unavailable = approver.id === disabledApproverId;
+              return (
+                <Button
+                  key={approver.id}
+                  type="button"
+                  variant="ghost"
+                  disabled={unavailable}
+                  className="w-full h-auto justify-start text-left py-2"
+                  onClick={() => {
+                    onChange(approver.id);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                >
+                  <Check className={cn("mr-2 h-4 w-4 shrink-0", value === approver.id ? "opacity-100" : "opacity-0")} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm">{approver.name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{unavailable ? disabledApproverReason : `${approver.label}${approver.email ? ` · ${approver.email}` : ""}`}</span>
+                  </span>
+                </Button>
+              );
+            })}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 function LeaveRequestForm() {
   const { toast } = useToast();
   const { t, tText, isRTL } = useI18n();
@@ -78,40 +169,27 @@ function LeaveRequestForm() {
 
   const hasReportingLines = rawAssignedLines.length > 0;
 
-  interface ResolvedApprover {
-    id: string;
-    docId: string;
-    employeeId: string;
-    name: string;
-    email: string;
-    label: string;
-  }
-
   const [resolvedApprovers, setResolvedApprovers] = useState<ResolvedApprover[]>([]);
   const [isLoadingApprovers, setIsLoadingApprovers] = useState(false);
-  const [selectedApproverIds, setSelectedApproverIds] = useState<string[]>([]);
-  const [isApproverPopoverOpen, setIsApproverPopoverOpen] = useState(false);
-
-  const toggleApprover = (id: string) => {
-    setSelectedApproverIds((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((item) => item !== id);
-      }
-      if (prev.length >= 2) {
-        toast({
-          title: "Maximum of 2 Approvers",
-          description: "You can select up to 2 reporting lines. Deselect one first to choose another.",
-        });
-        return prev;
-      }
-      return [...prev, id];
-    });
-  };
+  const [firstApproverId, setFirstApproverId] = useState("");
+  const [secondApproverId, setSecondApproverId] = useState("");
+  const selectedApproverIds = resolvedApprovers.length === 1
+    ? [resolvedApprovers[0].id]
+    : [firstApproverId, secondApproverId].filter(Boolean);
+  const isApproverSelectionValid = !isLoadingApprovers && (
+    resolvedApprovers.length === 1
+      ? !!resolvedApprovers[0]?.id
+      : resolvedApprovers.length >= 2 && !!firstApproverId && !!secondApproverId &&
+        firstApproverId !== secondApproverId &&
+        resolvedApprovers.some(a => a.id === firstApproverId) &&
+        resolvedApprovers.some(a => a.id === secondApproverId)
+  );
 
   useEffect(() => {
     if (!hasReportingLines) {
       setResolvedApprovers([]);
-      setSelectedApproverIds([]);
+      setFirstApproverId("");
+      setSecondApproverId("");
       return;
     }
 
@@ -177,12 +255,12 @@ function LeaveRequestForm() {
 
         if (isMounted) {
           setResolvedApprovers(list);
-          if (list.length > 0) {
-            setSelectedApproverIds((prev) => {
-              const valid = prev.filter((id) => list.some((a) => a.id === id));
-              return valid.length > 0 ? valid : [list[0].id];
-            });
-          }
+          setFirstApproverId((prev) =>
+            list.length === 1 ? list[0].id : list.some(a => a.id === prev) ? prev : list[0]?.id || ""
+          );
+          setSecondApproverId((prev) =>
+            list.length < 2 ? "" : list.some(a => a.id === prev) ? prev : list.length === 2 ? list[1].id : ""
+          );
         }
       } catch (err) {
         console.error("Error resolving reporting line details:", err);
@@ -373,11 +451,13 @@ function LeaveRequestForm() {
       return;
     }
 
-    if (selectedApproverIds.length !== 2) {
+    if (!isApproverSelectionValid) {
       toast({
         variant: "destructive",
-        title: "Exactly 2 Approvers Required",
-        description: "You must select exactly 2 Reporting Line approvers.",
+        title: "Invalid Approver Selection",
+        description: resolvedApprovers.length === 1
+          ? "The assigned manager is unavailable. Please contact HR."
+          : "Please select two different Reporting Line managers.",
       });
       return;
     }
@@ -394,17 +474,23 @@ function LeaveRequestForm() {
       return;
     }
 
-    const chosenApprovers = resolvedApprovers.filter((a) => selectedApproverIds.includes(a.id));
+    // Preserve selected approval order rather than the order of the employee's stored lines.
+    const chosenApprovers = selectedApproverIds.map((id) => resolvedApprovers.find(a => a.id === id));
+    if (chosenApprovers.some(a => !a)) {
+      setIsSubmittingFile(false);
+      return;
+    }
+    const approvers = chosenApprovers.filter((a): a is ResolvedApprover => !!a);
 
     const formData = new FormData(currentForm);
     formData.set("selectedApproverIds", JSON.stringify(selectedApproverIds));
     formData.set("selectedApproverId", selectedApproverIds.join(","));
-    if (chosenApprovers.length > 0) {
-      formData.set("selectedApproverNames", JSON.stringify(chosenApprovers.map(a => a.name)));
-      formData.set("selectedApproverName", chosenApprovers.map(a => a.name).join(", "));
-      formData.set("selectedApproverEmails", JSON.stringify(chosenApprovers.map(a => a.email).filter(Boolean)));
-      formData.set("selectedApproverEmail", chosenApprovers.map(a => a.email).filter(Boolean).join(","));
-      formData.set("selectedApproverDocIds", JSON.stringify(chosenApprovers.map(a => a.docId)));
+    if (approvers.length > 0) {
+      formData.set("selectedApproverNames", JSON.stringify(approvers.map(a => a.name)));
+      formData.set("selectedApproverName", approvers.map(a => a.name).join(", "));
+      formData.set("selectedApproverEmails", JSON.stringify(approvers.map(a => a.email).filter(Boolean)));
+      formData.set("selectedApproverEmail", approvers.map(a => a.email).filter(Boolean).join(","));
+      formData.set("selectedApproverDocIds", JSON.stringify(approvers.map(a => a.docId)));
     }
   
     if (selectedLeaveType) {
@@ -441,7 +527,7 @@ if (endDate) {
     if (attachment) {
       try {
         const ext = attachment.name.split(".").pop();
-        const fileName = `leave-attachments/${user.uid}/${nanoid()}.${ext}`;
+        const fileName = `leave-attachments/${user.uid}/${crypto.randomUUID()}.${ext}`;
         const fileRef = ref(storage, fileName);
   
         const snapshot = await uploadBytes(fileRef, attachment);
@@ -451,6 +537,11 @@ if (endDate) {
         formData.delete("attachment");
       } catch (error) {
         console.error("UPLOAD ERROR:", error);
+        toast({
+          variant: "destructive",
+          title: "Attachment Upload Failed",
+          description: "The attachment could not be uploaded. Please try again.",
+        });
         setIsSubmittingFile(false);
         return;
       }
