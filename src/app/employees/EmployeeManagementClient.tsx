@@ -27,7 +27,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall, UserRoundCheck, X, Plus, CheckCircle2, Copy } from "lucide-react";
+import { MoreHorizontal, Search, Users, PlusCircle, Edit3, Trash2, AlertCircle, Loader2, UserCheck, UserX, Clock, DollarSign, Calendar as CalendarIcon, CheckIcon, ChevronsUpDown, UserPlus, ShieldCheck, UserMinus, Eye, EyeOff, KeyRound, UploadCloud, File, Download, Filter, ArrowLeft, ArrowRight, UserCircle2, Phone, Briefcase, FileDown, MailWarning, PhoneCall, UserRoundCheck, X, Plus, CheckCircle2, Copy, Sparkles } from "lucide-react";
 import React, {
   useState,
   useEffect,
@@ -76,7 +76,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import * as XLSX from 'xlsx';
 import { MultiSelectFilter, type OptionType } from "@/components/multi-select";
 import type { BatchCreateEmployeesState } from "@/lib/firebase/admin-actions";
-import { countDigits, sanitizeEmployeeIdInput, validateOptionalFourDigitEmployeeId } from "@/lib/employee-id";
+import { countDigits, sanitizeEmployeeIdInput, validateOptionalFourDigitEmployeeId, validateMandatoryFourDigitEmployeeId } from "@/lib/employee-id";
+import { GenerateEmployeeIdModal } from "@/components/employee/GenerateEmployeeIdModal";
 
 
 export interface EmployeeFile {
@@ -545,20 +546,36 @@ const validateAddEmployeeForm = (form: HTMLFormElement) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="add-employeeId">Employee ID</Label>
+                    <Label
+                      htmlFor="add-employeeId"
+                      className={employeeIdError || fieldErrors.employeeId ? "text-destructive" : ""}
+                    >
+                      Employee ID *
+                    </Label>
                     <Input
                       id="add-employeeId"
                       name="employeeId"
+                      data-field="employeeId"
                       value={typedEmployeeId}
                       inputMode="numeric"
                       autoComplete="off"
                       spellCheck={false}
                       maxLength={4}
-                      placeholder="Leave empty to auto-generate"
-                      aria-invalid={Boolean(employeeIdError || addState?.errors?.employeeId)}
+                      placeholder="e.g. 1042"
+                      className={
+                        employeeIdError || fieldErrors.employeeId
+                          ? "border-destructive border-2 focus-visible:ring-destructive"
+                          : ""
+                      }
+                      aria-invalid={Boolean(employeeIdError || fieldErrors.employeeId || addState?.errors?.employeeId)}
                       onChange={(event) => applyEmployeeIdInput(event.target.value)}
                       onBlur={() => {
-                        setEmployeeIdError(validateOptionalFourDigitEmployeeId(typedEmployeeId).error ?? null);
+                        const trimmed = typedEmployeeId.trim();
+                        if (!trimmed) {
+                          setEmployeeIdError("Employee ID is required.");
+                        } else {
+                          setEmployeeIdError(validateMandatoryFourDigitEmployeeId(trimmed).error ?? null);
+                        }
                       }}
                       onPaste={(event) => {
                         const pasted = event.clipboardData.getData("text");
@@ -575,11 +592,11 @@ const validateAddEmployeeForm = (form: HTMLFormElement) => {
                       }}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Type a 4-digit ID (1000-9999), or leave empty to generate one automatically.
+                      Enter a unique 4-digit Employee ID (1000-9999).
                     </p>
-                    {(employeeIdError || addState?.errors?.employeeId) && (
+                    {(employeeIdError || fieldErrors.employeeId || addState?.errors?.employeeId) && (
                       <p className="text-sm text-destructive">
-                        {employeeIdError || addState.errors?.employeeId?.join(", ")}
+                        {employeeIdError || fieldErrors.employeeId || addState.errors?.employeeId?.join(", ")}
                       </p>
                     )}
                 </div>
@@ -2419,6 +2436,7 @@ export default function EmployeeManagementContent() {
 
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isGenerateIdDialogOpen, setIsGenerateIdDialogOpen] = useState(false);
   const [addFormKey, setAddFormKey] = useState(0);
   const [createdEmployee, setCreatedEmployee] = useState<{ employeeId: string; name: string } | null>(null);
   const [copiedEmployeeId, setCopiedEmployeeId] = useState(false);
@@ -3074,23 +3092,40 @@ if (
   userRole === 'human resource executive' ||
   userRole === 'recruitment and onboarding executive' ||
   userRole === 'personnel executive'
-) && (                          <Dialog
-                            open={isAddDialogOpen}
-                            onOpenChange={(open) => {
-                              setIsAddDialogOpen(open);
-                              if (open) setAddFormKey((key) => key + 1);
-                            }}
-                          >
-                            <DialogTrigger asChild>
-                              <Button className="w-full">
-                                  <PlusCircle className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-                                  {isRTL ? "إضافة موظف جديد" : "Add New Employee"}
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-3xl">
-                              <AddEmployeeFormContent key={addFormKey} onSuccess={handleEmployeeCreated} />
-                            </DialogContent>
-                          </Dialog>
+) && (                          <>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full sm:w-auto"
+                              onClick={() => setIsGenerateIdDialogOpen(true)}
+                            >
+                              <Sparkles className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2 text-amber-500")} />
+                              {isRTL ? "توليد كود موظف" : "Generate Employee ID"}
+                            </Button>
+                            <Dialog
+                              open={isAddDialogOpen}
+                              onOpenChange={(open) => {
+                                setIsAddDialogOpen(open);
+                                if (open) setAddFormKey((key) => key + 1);
+                              }}
+                            >
+                              <DialogTrigger asChild>
+                                <Button className="w-full">
+                                    <PlusCircle className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                                    {isRTL ? "إضافة موظف جديد" : "Add New Employee"}
+                                  </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-3xl">
+                                <AddEmployeeFormContent key={addFormKey} onSuccess={handleEmployeeCreated} />
+                              </DialogContent>
+                            </Dialog>
+                            <GenerateEmployeeIdModal
+                              isOpen={isGenerateIdDialogOpen}
+                              onOpenChange={setIsGenerateIdDialogOpen}
+                              actorId={profile?.id}
+                              actorEmail={profile?.email}
+                            />
+                          </>
                         )}
                     </div>
                 )}

@@ -10,7 +10,9 @@ import {
   shouldRejectEmployeeIdPaste,
   toNumericEmployeeId,
   validateOptionalFourDigitEmployeeId,
+  validateMandatoryFourDigitEmployeeId,
 } from "./employee-id";
+
 
 const FOUR_DIGIT_ERROR = "Employee ID must be exactly 4 digits (1000-9999).";
 const DUPLICATE_ERROR = "This Employee ID is already in use.";
@@ -191,6 +193,23 @@ test("typed ID is not replaced by auto-generate when it is valid and free", () =
   if (result.action === "use") {
     assertEqual(result.employeeId, "2500", "uses 2500 not 9823");
   }
+});
+
+test("validateMandatoryFourDigitEmployeeId requires non-empty 4-digit ID", () => {
+  assertEqual(validateMandatoryFourDigitEmployeeId("").error, "Employee ID is required.", "empty string error");
+  assertEqual(validateMandatoryFourDigitEmployeeId("   ").error, "Employee ID is required.", "whitespace error");
+  assertEqual(validateMandatoryFourDigitEmployeeId(undefined).error, "Employee ID is required.", "undefined error");
+  assertEqual(validateMandatoryFourDigitEmployeeId(null).error, "Employee ID is required.", "null error");
+
+  assertEqual(validateMandatoryFourDigitEmployeeId("123").error, FOUR_DIGIT_ERROR, "3 digits");
+  assertEqual(validateMandatoryFourDigitEmployeeId("12345").error, FOUR_DIGIT_ERROR, "5 digits");
+  assertEqual(validateMandatoryFourDigitEmployeeId("0999").error, FOUR_DIGIT_ERROR, "under 1000");
+  assertEqual(validateMandatoryFourDigitEmployeeId("10000").error, FOUR_DIGIT_ERROR, "over 9999");
+  assertEqual(validateMandatoryFourDigitEmployeeId("abcd").error, FOUR_DIGIT_ERROR, "non-numeric");
+
+  assertEqual(validateMandatoryFourDigitEmployeeId("1000").employeeId, "1000", "min valid");
+  assertEqual(validateMandatoryFourDigitEmployeeId("9999").employeeId, "9999", "max valid");
+  assertEqual(validateMandatoryFourDigitEmployeeId(" 4821 ").employeeId, "4821", "trimmed valid");
 });
 
 console.log("");

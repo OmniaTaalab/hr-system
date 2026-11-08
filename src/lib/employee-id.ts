@@ -38,6 +38,27 @@ export function validateOptionalFourDigitEmployeeId(value: string | undefined | 
   return { employeeId: String(numericId) };
 }
 
+export function validateMandatoryFourDigitEmployeeId(value: string | undefined | null): {
+  employeeId?: string;
+  error?: string;
+} {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return { error: "Employee ID is required." };
+  }
+
+  if (!/^\d{4}$/.test(trimmed)) {
+    return { error: FOUR_DIGIT_ID_MESSAGE };
+  }
+
+  const numericId = Number(trimmed);
+  if (!Number.isInteger(numericId) || numericId < MIN_FOUR_DIGIT_EMPLOYEE_ID || numericId > MAX_FOUR_DIGIT_EMPLOYEE_ID) {
+    return { error: FOUR_DIGIT_ID_MESSAGE };
+  }
+
+  return { employeeId: String(numericId) };
+}
+
 export function sameEmployeeId(left: unknown, right: unknown): boolean {
   const leftNumeric = toNumericEmployeeId(left);
   const rightNumeric = toNumericEmployeeId(right);

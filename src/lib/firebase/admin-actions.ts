@@ -53,6 +53,253 @@ async function loadUsedNumericEmployeeIds(): Promise<Set<number>> {
   return used;
 }
 
+export async function isEmployeeIdAssignedToExistingEmployee(employeeId: string): Promise<boolean> {
+  const normalized = String(employeeId || "").trim();
+  if (!normalized) return false;
+  const numericId = toNumericEmployeeId(normalized);
+
+  if (adminDb) {
+    const employeeCol = adminDb.collection("employee");
+    const asString = await employeeCol.where("employeeId", "==", normalized).limit(1).get();
+    if (!asString.empty) return true;
+
+    if (numericId !== null) {
+      const asNumber = await employeeCol.where("employeeId", "==", numericId).limit(1).get();
+      if (!asNumber.empty) return true;
+
+      const canonical = String(numericId);
+      if (canonical !== normalized) {
+        const asCanonical = await employeeCol.where("employeeId", "==", canonical).limit(1).get();
+        if (!asCanonical.empty) return true;
+      }
+    }
+    return false;
+  } else {
+    const employeeCol = collection(db, "employee");
+    const qStr = query(employeeCol, where("employeeId", "==", normalized), limit(1));
+    const snapStr = await getDocs(qStr);
+    if (!snapStr.empty) return true;
+
+    if (numericId !== null) {
+      const qNum = query(employeeCol, where("employeeId", "==", numericId), limit(1));
+      const snapNum = await getDocs(qNum);
+      if (!snapNum.empty) return true;
+    }
+    return false;
+  }
+}
+
+const PRIVILEGED_HR_ROLES = [
+  'admin',
+  'hr',
+  'director',
+  'superadmin',
+  'human resource director',
+  'human resource director international schools',
+  'personnal director',
+  'recruitment and onbording manager',
+  'human resource executive',
+  'recruitment and onboarding executive',
+  'personnel executive',
+];
+
+export async function verifyServerHrPrivilege(params?: {
+  idToken?: string;
+  actorId?: string;
+  actorEmail?: string;
+}): Promise<{ isPrivileged: boolean; actorName?: string; verifiedActorId?: string }> {
+  // 1. If Firebase Auth ID token is provided, cryptographically verify with Admin SDK
+  if (params?.idToken && adminAuthSrv) {
+    try {
+      const decoded = await adminAuthSrv.verifyIdToken(params.idToken);
+      const uid = decoded.uid;
+      const email = decoded.email;
+
+      if (adminDb) {
+        if (uid) {
+          const byUid = await adminDb.collection("employee").where("userId", "==", uid).limit(1).get();
+          if (!byUid.empty) {
+            const data = byUid.docs[0].data();
+            const role = (data.role || "").trim().toLowerCase();
+            if (PRIVILEGED_HR_ROLES.includes(role)) {
+              return { isPrivileged: true, actorName: data.name, verifiedActorId: String(data.employeeId || byUid.docs[0].id) };
+            }
+          }
+        }
+        if (email) {
+          const byEmail = await adminDb.collection("employee").where("nisEmail", "==", email.toLowerCase()).limit(1).get();
+          if (!byEmail.empty) {
+            const data = byEmail.docs[0].data();
+            const role = (data.role || "").trim().toLowerCase();
+            if (PRIVILEGED_HR_ROLES.includes(role)) {
+              return { isPrivileged: true, actorName: data.name, verifiedActorId: String(data.employeeId || byEmail.docs[0].id) };
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Could not verify idToken on server:", err);
+    }
+  }
+
+  // 2. Direct Firestore DB check for actorId (reads the role field stored on the database document, never trusting client parameters)
+  if (params?.actorId) {
+    try {
+      if (adminDb) {
+        const docSnap = await adminDb.collection("employee").doc(params.actorId).get();
+        if (docSnap.exists) {
+          const data = docSnap.data() || {};
+          const role = (data.role || "").trim().toLowerCase();
+          if (PRIVILEGED_HR_ROLES.includes(role)) {
+            return { isPrivileged: true, actorName: data.name, verifiedActorId: String(data.employeeId || docSnap.id) };
+          }
+        }
+      } else {
+        const docSnap = await getDoc(doc(db, "employee", params.actorId));
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          const role = (data.role || "").trim().toLowerCase();
+          if (PRIVILEGED_HR_ROLES.includes(role)) {
+            return { isPrivileged: true, actorName: data.name, verifiedActorId: String(data.employeeId || docSnap.id) };
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 3. Direct Firestore DB check for actorEmail
+  if (params?.actorEmail) {
+    try {
+      const emailLower = params.actorEmail.trim().toLowerCase();
+      if (adminDb) {
+        const snap = await adminDb.collection("employee").where("nisEmail", "==", emailLower).limit(1).get();
+        if (!snap.empty) {
+          const data = snap.docs[0].data();
+          const role = (data.role || "").trim().toLowerCase();
+          if (PRIVILEGED_HR_ROLES.includes(role)) {
+            return { isPrivileged: true, actorName: data.name, verifiedActorId: String(data.employeeId || snap.docs[0].id) };
+          }
+        }
+      }
+    } catch {}
+  }
+
+  return { isPrivileged: false };
+}
+
+export type GenerateEmployeeIdResult =
+  | { success: true; employeeId: string }
+  | { success: false; message: string };
+
+export async function generateAvailableEmployeeIdAction(params?: {
+  idToken?: string;
+  actorId?: string;
+  actorEmail?: string;
+}): Promise<GenerateEmployeeIdResult> {
+  // Step 1: Verify HR permissions on the server
+  const authCheck = await verifyServerHrPrivilege(params);
+  if (!authCheck.isPrivileged) {
+    return {
+      success: false,
+      message: "Unauthorized: Only authorized HR users can generate Employee IDs.",
+    };
+  }
+
+  try {
+    // Step 2: Load used numeric IDs from Firestore employee collection
+    const used = await loadUsedNumericEmployeeIds();
+
+    // Step 3: Inspect existing counter to start sequence continuation (read-only; no modification)
+    let startAfter = MIN_FOUR_DIGIT_EMPLOYEE_ID - 1;
+    if (adminDb) {
+      try {
+        const counterSnap = await adminDb.collection("counters").doc("employeeId").get();
+        const stored = counterSnap.exists ? Number(counterSnap.data()?.lastId ?? 0) : 0;
+        if (isValidFourDigitCounter(stored)) {
+          startAfter = stored;
+        } else {
+          startAfter = maxUsedFourDigitId(used);
+        }
+      } catch {
+        startAfter = maxUsedFourDigitId(used);
+      }
+    } else {
+      startAfter = maxUsedFourDigitId(used);
+    }
+
+    // Step 4: Bounded retry loop to find an unused candidate and verify against Firestore employee collection
+    let currentStart = startAfter;
+    const maxAttempts = MAX_FOUR_DIGIT_EMPLOYEE_ID - MIN_FOUR_DIGIT_EMPLOYEE_ID + 1;
+
+    for (let attempt = 0; attempt < Math.min(maxAttempts, 1000); attempt++) {
+      const candidateNum = nextFreeFourDigitId(used, currentStart);
+      if (candidateNum === null) {
+        return {
+          success: false,
+          message: "All 4-digit Employee IDs (1000-9999) are currently assigned to employees.",
+        };
+      }
+
+      const candidateStr = String(candidateNum);
+
+      // CRITICAL REQUIREMENT: Verify directly against Firestore employee collection
+      // Check that this Employee ID is not assigned to any existing employee
+      const isAssigned = await isEmployeeIdAssignedToExistingEmployee(candidateStr);
+      if (!isAssigned) {
+        // Unused candidate found!
+        // NOTE: Generating an Employee ID does NOT create an employee, does NOT reserve the ID,
+        // does NOT save in Firestore, and does NOT modify any existing documents.
+        return {
+          success: true,
+          employeeId: candidateStr,
+        };
+      }
+
+      // If already assigned, mark as used and advance to generate another candidate
+      used.add(candidateNum);
+      currentStart = candidateNum;
+    }
+
+    return {
+      success: false,
+      message: "Could not find an available Employee ID within search bounds. Please try again.",
+    };
+  } catch (error: any) {
+    console.error("Error generating available employee ID:", error);
+    return {
+      success: false,
+      message: error?.message || "An unexpected error occurred while generating an Employee ID.",
+    };
+  }
+}
+
+export async function checkEmployeeIdAvailabilityAction(employeeId: string): Promise<{
+  isAvailable: boolean;
+  message?: string;
+}> {
+  const trimmed = String(employeeId || "").trim();
+  if (!trimmed) {
+    return { isAvailable: false, message: "Employee ID is required." };
+  }
+  if (!/^\d{4}$/.test(trimmed)) {
+    return { isAvailable: false, message: "Employee ID must be exactly 4 digits (1000-9999)." };
+  }
+  const numericId = Number(trimmed);
+  if (!Number.isInteger(numericId) || numericId < MIN_FOUR_DIGIT_EMPLOYEE_ID || numericId > MAX_FOUR_DIGIT_EMPLOYEE_ID) {
+    return { isAvailable: false, message: "Employee ID must be exactly 4 digits (1000-9999)." };
+  }
+
+  const isAssigned = await isEmployeeIdAssignedToExistingEmployee(trimmed);
+  if (isAssigned) {
+    return {
+      isAvailable: false,
+      message: "This Employee ID is already assigned to another employee. Please enter a different ID.",
+    };
+  }
+
+  return { isAvailable: true };
+}
+
 async function isEmployeeIdTaken(employeeId: string, used?: Set<number>): Promise<boolean> {
   if (!adminDb) {
     throw new Error("Firebase Admin SDK is not configured.");
@@ -85,6 +332,7 @@ async function isEmployeeIdTaken(employeeId: string, used?: Set<number>): Promis
 
   return false;
 }
+
 
 async function isEmployeeIdTakenByOther(employeeId: string, currentDocId: string): Promise<boolean> {
   if (!adminDb) {
@@ -162,49 +410,40 @@ async function resolveCreateEmployeeId(typedEmployeeId: string | undefined): Pro
   | { employeeId: string; claimed: true }
   | { error: string; field: "employeeId" | "form" }
 > {
-  const used = await loadUsedNumericEmployeeIds();
-  const choice = chooseCreateEmployeeId(typedEmployeeId, used);
-
-  if (choice.action === "reject") {
-    return { error: choice.error, field: "employeeId" };
+  const trimmed = String(typedEmployeeId || "").trim();
+  if (!trimmed) {
+    return { error: "Employee ID is required.", field: "employeeId" };
   }
 
-  if (choice.action === "use") {
-    if (await isEmployeeIdTaken(choice.employeeId, used)) {
-      return { error: "This Employee ID is already in use.", field: "employeeId" };
-    }
-    const claimed = await claimEmployeeId(choice.employeeId);
-    if (!claimed) {
-      return { error: "This Employee ID is already in use.", field: "employeeId" };
-    }
-    return { employeeId: choice.employeeId, claimed: true };
+  if (!/^\d{4}$/.test(trimmed)) {
+    return { error: "Employee ID must be exactly 4 digits (1000-9999).", field: "employeeId" };
   }
 
-  for (let attempt = 0; attempt < 20; attempt++) {
-    let employeeId: string;
-    try {
-      employeeId = await allocateUniqueEmployeeId(used);
-    } catch (error: any) {
-      return {
-        error: error?.message || "Could not assign a unique 4-digit Employee ID. Please try again.",
-        field: "form",
-      };
-    }
-    if (!/^\d{4}$/.test(employeeId) || Number(employeeId) < MIN_FOUR_DIGIT_EMPLOYEE_ID || Number(employeeId) > MAX_FOUR_DIGIT_EMPLOYEE_ID) {
-      used.add(Number(employeeId));
-      continue;
-    }
-    const claimed = await claimEmployeeId(employeeId);
-    if (claimed) {
-      return { employeeId, claimed: true };
-    }
-    used.add(Number(employeeId));
+  const numericId = Number(trimmed);
+  if (!Number.isInteger(numericId) || numericId < MIN_FOUR_DIGIT_EMPLOYEE_ID || numericId > MAX_FOUR_DIGIT_EMPLOYEE_ID) {
+    return { error: "Employee ID must be exactly 4 digits (1000-9999).", field: "employeeId" };
   }
 
-  return {
-    error: "Could not assign a unique 4-digit Employee ID. Please try again.",
-    field: "form",
-  };
+  const employeeId = String(numericId);
+
+  // Check if ID is already assigned to an existing employee in Firestore
+  if (await isEmployeeIdAssignedToExistingEmployee(employeeId)) {
+    return {
+      error: "This Employee ID is already assigned to another employee. Please enter a different ID.",
+      field: "employeeId",
+    };
+  }
+
+  // Atomic claim to prevent concurrent submissions with the same Employee ID
+  const claimed = await claimEmployeeId(employeeId);
+  if (!claimed) {
+    return {
+      error: "This Employee ID is already assigned to another employee. Please enter a different ID.",
+      field: "employeeId",
+    };
+  }
+
+  return { employeeId, claimed: true };
 }
 
 // Helper for date string validation (MM/DD/YYYY)
@@ -232,13 +471,20 @@ const CreateEmployeeFormSchema = z.object({
   lastName: z.string().optional(),
   nisEmail: z.string().email({ message: "A valid NIS email is required." }).transform((val) => val.replace(/\s/g, '').toLowerCase()),
   employeeId: z.preprocess(
-    (val) => (val === "" || val === null || val === undefined ? undefined : String(val).trim()),
-    z.string().optional()
+    (val) => (val === "" || val === null || val === undefined ? "" : String(val).trim()),
+    z.string()
+      .min(1, { message: "Employee ID is required." })
+      .regex(/^\d{4}$/, { message: "Employee ID must be exactly 4 digits (1000-9999)." })
+      .refine((val) => {
+        const num = Number(val);
+        return Number.isInteger(num) && num >= MIN_FOUR_DIGIT_EMPLOYEE_ID && num <= MAX_FOUR_DIGIT_EMPLOYEE_ID;
+      }, { message: "Employee ID must be exactly 4 digits (1000-9999)." })
   ),
   gender: z.preprocess(
     (val) => (val === "" || val === null || val === undefined ? undefined : val),
     z.enum(["Male", "Female", "Other"]).optional()
   ),
+
   role: z.preprocess(
     (val) => (val === "" || val === null || val === undefined ? null : String(val).trim()),
     z.string().optional().nullable()
@@ -395,6 +641,25 @@ export async function createEmployeeAction(
     };
 
     const docRef = await addDoc(employeeCollection, newEmployeeDoc);
+
+    // Advance sequence counter if newly assigned ID is higher than current lastId
+    if (adminDb) {
+      try {
+        const numId = Number(employeeId);
+        if (Number.isFinite(numId) && numId >= MIN_FOUR_DIGIT_EMPLOYEE_ID && numId <= MAX_FOUR_DIGIT_EMPLOYEE_ID) {
+          const counterRef = EMPLOYEE_ID_COUNTER_REF();
+          await adminDb.runTransaction(async (tx) => {
+            const snap = await tx.get(counterRef);
+            const currentLast = snap.exists ? Number(snap.data()?.lastId ?? 0) : 0;
+            if (numId > currentLast) {
+              tx.set(counterRef, { lastId: numId }, { merge: true });
+            }
+          });
+        }
+      } catch (counterErr) {
+        console.warn("Could not advance employeeId counter:", counterErr);
+      }
+    }
 
     await logSystemEvent("Create Employee", {
         actorId, actorEmail, actorRole,
