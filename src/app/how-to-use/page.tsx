@@ -605,7 +605,7 @@ export default function HowToUsePage() {
           textAr: "اضغط على تبويب 'New Request'.",
         },
         {
-          text: "Select Document Type: Choose Salary Certificate, HR Letter (for Bank/Visa/Embassy), Experience Certificate, Pay Slip, or To Whom It May Concern.",
+          text: "Select Document Type: Choose Salary Certificate, HR Letter (for Bank/Visa/Embassy), Experience Certificate, Pay Slip.",
           textAr: "اختر نوع المستند: شهادة راتب، خطاب موجه للبنك أو السفارة، شهادة خبرة، مفردات مرتب، أو إلى من يهمه الأمر.",
         },
         {

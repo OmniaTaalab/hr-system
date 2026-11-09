@@ -35,6 +35,7 @@ export type DocumentRequestFormState = {
     numberOfCopies?: string[];
     deliveryMethod?: string[];
     collectionCampus?: string[];
+    attachments?: string[];
     requesterNote?: string[];
     rejectionReason?: string[];
     form?: string[];
@@ -48,7 +49,8 @@ const SubmitDocumentRequestSchema = z.object({
   documentType: z.enum(DOCUMENT_REQUEST_TYPES as unknown as [string, ...string[]]),
   numberOfCopies: z.coerce.number().min(1).max(10).default(1),
   deliveryMethod: z.enum(["soft_copy", "hard_copy"]),
-  collectionCampus: z.string().min(1, "Collection campus is required."),
+  collectionCampus: z.string().optional().nullable().default(""),
+  attachments: z.string().optional().nullable(),
   requesterNote: z.string().optional().nullable(),
   addressedTo: z.string().optional().nullable(),
   requestingEmployeeDocId: z.string().min(1, "Employee profile is required."),
@@ -72,7 +74,8 @@ export async function submitDocumentRequestAction(
     documentType: formData.get("documentType") as string,
     numberOfCopies: formData.get("numberOfCopies") as string,
     deliveryMethod: formData.get("deliveryMethod") as string,
-    collectionCampus: formData.get("collectionCampus") as string,
+    collectionCampus: (formData.get("collectionCampus") as string) || "",
+    attachments: formData.get("attachments") as string | null,
     requesterNote: formData.get("requesterNote") as string | null,
     addressedTo: formData.get("addressedTo") as string | null,
     requestingEmployeeDocId: formData.get("requestingEmployeeDocId") as string,
@@ -102,6 +105,7 @@ export async function submitDocumentRequestAction(
     numberOfCopies,
     deliveryMethod,
     collectionCampus,
+    attachments: attachmentsRaw,
     requesterNote,
     addressedTo,
     requestingEmployeeDocId,
@@ -117,6 +121,34 @@ export async function submitDocumentRequestAction(
     actorRole,
   } = validated.data;
 
+  // Validate attachments: required for HR Letter and Letter to Social Insurance
+  const isAttachmentRequired =
+    documentType === "HR Letter" || documentType === "Letter to Social Insurance";
+
+  let parsedAttachments: Array<{ name: string; url: string; size?: number; type?: string }> = [];
+  if (attachmentsRaw) {
+    try {
+      const parsed = JSON.parse(attachmentsRaw);
+      if (Array.isArray(parsed)) {
+        parsedAttachments = parsed.filter(item => item && typeof item.url === "string" && typeof item.name === "string");
+      }
+    } catch {
+      parsedAttachments = [];
+    }
+  }
+
+  if (isAttachmentRequired && parsedAttachments.length === 0) {
+    return {
+      errors: {
+        attachments: [
+          "At least one attachment (image or PDF) is required for HR Letter and Letter to Social Insurance.",
+        ],
+      },
+      message: "At least one attachment (image or PDF) is required for this document type.",
+      success: false,
+    };
+  }
+
   try {
     const year = new Date().getFullYear();
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -127,14 +159,15 @@ export async function submitDocumentRequestAction(
       documentType: documentType as DocumentRequestType,
       numberOfCopies,
       deliveryMethod: deliveryMethod as DeliveryMethod,
-      collectionCampus,
+      collectionCampus: collectionCampus || employeeCampus || "",
+      attachments: parsedAttachments,
       requesterNote: requesterNote?.trim() || "",
       addressedTo: addressedTo?.trim() || "",
       requestingEmployeeDocId,
       employeeId: employeeId || "",
       employeeName,
       employeeEmail,
-      employeeCampus: employeeCampus || collectionCampus,
+      employeeCampus: employeeCampus || collectionCampus || "",
       employeeDivision: employeeDivision || "",
       employeePosition: employeePosition || "",
       userId: userId || "",

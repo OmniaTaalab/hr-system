@@ -28,8 +28,10 @@ import {
   Printer,
   ChevronRight,
   Eye,
-  RefreshCw,
   Info,
+  Paperclip,
+  ExternalLink,
+  Image as ImageIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -360,6 +362,38 @@ export function MyRequestsView() {
                       </div>
                     )}
                   </div>
+
+                  {/* Supporting Attachments */}
+                  {req.attachments && req.attachments.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                        <Paperclip className="h-3 w-3 text-primary" />
+                        Attached Documents ({req.attachments.length}):
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {req.attachments.map((att, idx) => {
+                          const isPdf = att.name.toLowerCase().endsWith(".pdf") || att.type === "application/pdf";
+                          return (
+                            <a
+                              key={idx}
+                              href={att.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-muted/60 hover:bg-muted text-xs font-medium text-foreground transition-colors border"
+                            >
+                              {isPdf ? (
+                                <FileText className="h-3.5 w-3.5 text-red-500" />
+                              ) : (
+                                <ImageIcon className="h-3.5 w-3.5 text-blue-500" />
+                              )}
+                              <span className="max-w-[170px] truncate">{att.name}</span>
+                              <ExternalLink className="h-3 w-3 text-muted-foreground ml-0.5" />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Prominent Rejection Reason alert if rejected */}
                   {req.status === "Rejected" && req.rejectionReason && (

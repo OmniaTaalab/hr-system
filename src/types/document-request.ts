@@ -79,15 +79,23 @@ export interface IssuedDocumentInfo {
   collectionRoomOrDesk?: string;
 }
 
+export interface DocumentAttachment {
+  name: string;
+  url: string;
+  size?: number;
+  type?: string;
+}
+
 export interface DocumentRequest {
   id: string;
   requestNumber: string;
   documentType: DocumentRequestType;
   numberOfCopies: number;
   deliveryMethod: DeliveryMethod;
-  collectionCampus: string;
+  collectionCampus?: string;
   requesterNote?: string;
   addressedTo?: string;
+  attachments?: DocumentAttachment[];
 
   // Requester details
   requestingEmployeeDocId: string;

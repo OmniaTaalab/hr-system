@@ -195,6 +195,8 @@ export async function generateAvailableEmployeeIdAction(params?: {
   idToken?: string;
   actorId?: string;
   actorEmail?: string;
+  excludeIds?: string[];
+  lastGeneratedId?: string;
 }): Promise<GenerateEmployeeIdResult> {
   // Step 1: Verify HR permissions on the server
   const authCheck = await verifyServerHrPrivilege(params);
@@ -209,14 +211,36 @@ export async function generateAvailableEmployeeIdAction(params?: {
     // Step 2: Load used numeric IDs from Firestore employee collection
     const used = await loadUsedNumericEmployeeIds();
 
-    // Step 3: Inspect existing counter to start sequence continuation (read-only; no modification)
+    // Exclude previously generated IDs in this session
+    if (params?.excludeIds && Array.isArray(params.excludeIds)) {
+      for (const exId of params.excludeIds) {
+        const num = toNumericEmployeeId(exId);
+        if (num !== null) used.add(num);
+      }
+    }
+    if (params?.lastGeneratedId) {
+      const num = toNumericEmployeeId(params.lastGeneratedId);
+      if (num !== null) used.add(num);
+    }
+
+    // Step 3: Inspect existing counter and generation sequence in Firestore
     let startAfter = MIN_FOUR_DIGIT_EMPLOYEE_ID - 1;
     if (adminDb) {
       try {
         const counterSnap = await adminDb.collection("counters").doc("employeeId").get();
-        const stored = counterSnap.exists ? Number(counterSnap.data()?.lastId ?? 0) : 0;
-        if (isValidFourDigitCounter(stored)) {
-          startAfter = stored;
+        if (counterSnap.exists) {
+          const data = counterSnap.data();
+          const storedLastId = Number(data?.lastId ?? 0);
+          const storedLastGen = Number(data?.lastGeneratedId ?? 0);
+          const highestCounter = Math.max(
+            isValidFourDigitCounter(storedLastId) ? storedLastId : 0,
+            isValidFourDigitCounter(storedLastGen) ? storedLastGen : 0
+          );
+          if (highestCounter > 0) {
+            startAfter = highestCounter;
+          } else {
+            startAfter = maxUsedFourDigitId(used);
+          }
         } else {
           startAfter = maxUsedFourDigitId(used);
         }
@@ -225,6 +249,13 @@ export async function generateAvailableEmployeeIdAction(params?: {
       }
     } else {
       startAfter = maxUsedFourDigitId(used);
+    }
+
+    if (params?.lastGeneratedId) {
+      const num = toNumericEmployeeId(params.lastGeneratedId);
+      if (num !== null && num > startAfter) {
+        startAfter = num;
+      }
     }
 
     // Step 4: Bounded retry loop to find an unused candidate and verify against Firestore employee collection
@@ -247,8 +278,19 @@ export async function generateAvailableEmployeeIdAction(params?: {
       const isAssigned = await isEmployeeIdAssignedToExistingEmployee(candidateStr);
       if (!isAssigned) {
         // Unused candidate found!
-        // NOTE: Generating an Employee ID does NOT create an employee, does NOT reserve the ID,
-        // does NOT save in Firestore, and does NOT modify any existing documents.
+        // Advance the sequence counter so that subsequent generations will never return this same ID again
+        if (adminDb) {
+          try {
+            await adminDb.collection("counters").doc("employeeId").set({
+              lastGeneratedId: candidateNum,
+              lastId: candidateNum,
+              updatedAt: new Date(),
+            }, { merge: true });
+          } catch (counterUpdateErr) {
+            console.warn("Could not advance lastGeneratedId in counters/employeeId:", counterUpdateErr);
+          }
+        }
+
         return {
           success: true,
           employeeId: candidateStr,

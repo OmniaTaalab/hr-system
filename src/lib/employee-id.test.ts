@@ -212,6 +212,25 @@ test("validateMandatoryFourDigitEmployeeId requires non-empty 4-digit ID", () =>
   assertEqual(validateMandatoryFourDigitEmployeeId(" 4821 ").employeeId, "4821", "trimmed valid");
 });
 
+test("consecutive generations with exclusions never repeat candidates", () => {
+  const used = new Set<number>([1000, 1001]);
+  let lastGenerated = 1001;
+  const history: number[] = [];
+
+  for (let i = 0; i < 5; i++) {
+    const next = nextFreeFourDigitId(used, lastGenerated);
+    assert(next !== null, "candidate found");
+    assert(!used.has(next!), "not in used");
+    assert(!history.includes(next!), "not in previously generated history");
+    history.push(next!);
+    used.add(next!);
+    lastGenerated = next!;
+  }
+
+  assertEqual(history.length, 5, "5 unique IDs generated");
+  assertEqual(new Set(history).size, 5, "no duplicates in history");
+});
+
 console.log("");
 console.log(`Result: ${passed} passed, ${failed} failed, ${passed + failed} total`);
 if (failures.length) {

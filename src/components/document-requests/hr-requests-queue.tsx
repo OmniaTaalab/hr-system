@@ -70,6 +70,9 @@ import {
   Info,
   Send,
   Loader2,
+  Paperclip,
+  ExternalLink,
+  Image as ImageIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
@@ -619,6 +622,38 @@ export function HrRequestsQueue() {
                     <p className="text-foreground italic bg-background p-2 rounded border mt-0.5">
                       "{selectedRequest.requesterNote}"
                     </p>
+                  </div>
+                )}
+
+                {/* Supporting Attachments submitted by employee */}
+                {selectedRequest.attachments && selectedRequest.attachments.length > 0 && (
+                  <div className="border-t pt-2">
+                    <span className="text-muted-foreground block text-xs font-semibold mb-1.5 flex items-center gap-1">
+                      <Paperclip className="h-3.5 w-3.5 text-primary" />
+                      {isRTL ? "المرفقات المرفوعة مع الطلب:" : "Supporting Attachments:"} ({selectedRequest.attachments.length})
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedRequest.attachments.map((att, idx) => {
+                        const isPdf = att.name.toLowerCase().endsWith(".pdf") || att.type === "application/pdf";
+                        return (
+                          <a
+                            key={idx}
+                            href={att.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-muted hover:bg-muted/80 text-xs font-medium text-foreground transition-colors border"
+                          >
+                            {isPdf ? (
+                              <FileText className="h-4 w-4 text-red-500" />
+                            ) : (
+                              <ImageIcon className="h-4 w-4 text-blue-500" />
+                            )}
+                            <span className="max-w-[190px] truncate">{att.name}</span>
+                            <ExternalLink className="h-3 w-3 text-muted-foreground ml-0.5" />
+                          </a>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>

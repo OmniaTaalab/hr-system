@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -50,7 +50,10 @@ export function GenerateEmployeeIdModal({
   const [error, setError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
-  const generateId = useCallback(async () => {
+  // Keep history of all generated IDs to guarantee no repeats
+  const generatedHistoryRef = useRef<string[]>([]);
+
+  const generateId = useCallback(async (currentIdToExclude?: string) => {
     setIsLoading(true);
     setError(null);
     setIsCopied(false);
@@ -66,14 +69,25 @@ export function GenerateEmployeeIdModal({
         console.warn("Could not retrieve idToken for employee ID generation:", tokenErr);
       }
 
+      const excludeList = Array.from(new Set([
+        ...generatedHistoryRef.current,
+        ...(currentIdToExclude ? [currentIdToExclude] : []),
+        ...(generatedId ? [generatedId] : []),
+      ]));
+
       const result = await generateAvailableEmployeeIdAction({
         idToken,
         actorId,
         actorEmail,
+        excludeIds: excludeList,
+        lastGeneratedId: currentIdToExclude || generatedId || undefined,
       });
 
       if (result.success) {
         setGeneratedId(result.employeeId);
+        if (!generatedHistoryRef.current.includes(result.employeeId)) {
+          generatedHistoryRef.current.push(result.employeeId);
+        }
       } else {
         setGeneratedId(null);
         setError(result.message || "Failed to generate an Employee ID.");
@@ -85,7 +99,7 @@ export function GenerateEmployeeIdModal({
     } finally {
       setIsLoading(false);
     }
-  }, [actorId, actorEmail]);
+  }, [actorId, actorEmail, generatedId]);
 
   // When modal is opened, generate an initial ID if one hasn't been generated yet
   useEffect(() => {
@@ -177,7 +191,7 @@ export function GenerateEmployeeIdModal({
                 variant="outline"
                 size="sm"
                 className="w-full border-destructive/30 text-destructive hover:bg-destructive/10"
-                onClick={generateId}
+                onClick={() => generateId(generatedId || undefined)}
               >
                 <RotateCw className={cn("h-3.5 w-3.5", isRTL ? "ml-1.5" : "mr-1.5")} />
                 {isRTL ? "إعادة المحاولة" : "Try Again"}
@@ -245,7 +259,7 @@ export function GenerateEmployeeIdModal({
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={generateId}
+                  onClick={() => generateId(generatedId || undefined)}
                   disabled={isLoading}
                   className="w-full"
                 >

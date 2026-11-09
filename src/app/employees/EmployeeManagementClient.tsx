@@ -235,7 +235,7 @@ function AddEmployeeFormContent({
   const [role, setRole] = useState("");
   const [campus, setCampus] = useState("");
   const [stage, setStage] = useState("");
-  const [positionClass, setPositionClass] = useState("");
+  const [positionClassesSelected, setPositionClassesSelected] = useState<string[]>([]);
   const [system, setSystem] = useState("");
   const [reportLineCount, setReportLineCount] = useState(2);
   const [typedEmployeeId, setTypedEmployeeId] = useState("");
@@ -411,7 +411,7 @@ const validateAddEmployeeForm = (form: HTMLFormElement) => {
         <input type="hidden" name="actorId" value={profile?.id ?? ''} />
         <input type="hidden" name="actorEmail" value={profile?.email ?? ''} />
         <input type="hidden" name="actorRole" value={profile?.role ?? ''} />
-        <input type="hidden" name="positionClass" value={positionClass || ''} />
+        <input type="hidden" name="positionClass" value={positionClassesSelected.join(", ")} />
         <input type="hidden" name="system" value={system || ''} />
         
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
@@ -683,10 +683,16 @@ const validateAddEmployeeForm = (form: HTMLFormElement) => {
 </div>
                 <div className="space-y-2">
                     <Label className={fieldErrors.positionClass ? "text-destructive" : ""}>Position class</Label>
-                    <Select value={positionClass} onValueChange={(val) => { setPositionClass(val); clearFieldError("positionClass"); }} disabled={isLoadingLists}>
-                        <SelectTrigger data-field="positionClass" className={fieldErrors.positionClass ? "border-destructive border-2 ring-1 ring-destructive focus:ring-destructive" : ""}><SelectValue placeholder={isLoadingLists ? "Loading..." : "Select Position class"} /></SelectTrigger>
-                        <SelectContent>{positionClasses?.map(pc => <SelectItem key={pc.id} value={pc.name}>{pc.name}</SelectItem>)}</SelectContent>
-                    </Select>
+                    <MultiSelectFilter
+                        options={positionClasses?.map(pc => ({ label: pc.name, value: pc.name })) || []}
+                        selected={positionClassesSelected}
+                        onChange={(val) => {
+                            setPositionClassesSelected(val);
+                            clearFieldError("positionClass");
+                        }}
+                        placeholder={isLoadingLists ? "Loading..." : "Select Position class (Multiple)..."}
+                        className="w-full"
+                    />
                     {fieldErrors.positionClass && (
                       <p className="text-sm text-destructive">{fieldErrors.positionClass}</p>
                     )}
@@ -890,9 +896,10 @@ export function EditEmployeeFormContent({
   const [campus, setCampus] = useState(employee.campus || "");
   const [gender, setGender] = useState(employee.gender || "");
   const [stage, setStage] = useState(employee.stage || "");
-  const [positionClass, setPositionClass] = useState(
-    employee.positionClass || ""
-  );
+  const [positionClassesSelected, setPositionClassesSelected] = useState<string[]>(() => {
+    if (!employee.positionClass) return [];
+    return employee.positionClass.split(",").map((s: string) => s.trim()).filter(Boolean);
+  });
 
   const [childrenAtNIS, setChildrenAtNIS] = useState<"Yes" | "No">(
     employee.childrenAtNIS || "No"
@@ -1150,7 +1157,7 @@ export function EditEmployeeFormContent({
         <input
           type="hidden"
           name="positionClass"
-          value={positionClass}
+          value={positionClassesSelected.join(", ")}
         />
 
         <ScrollArea className="flex-grow min-h-[150px] max-h-[60vh]">
@@ -1832,42 +1839,20 @@ export function EditEmployeeFormContent({
               <div className="space-y-2">
                 <Label className={fieldErrors.positionClass ? "text-destructive" : ""}>Position class</Label>
 
-                <Select
-                  value={positionClass}
-                  onValueChange={(val) => {
-                    setPositionClass(val);
+                <MultiSelectFilter
+                  options={positionClasses?.map((pc) => ({ label: pc.name, value: pc.name })) || []}
+                  selected={positionClassesSelected}
+                  onChange={(val) => {
+                    setPositionClassesSelected(val);
                     clearFieldError("positionClass");
                   }}
-                  disabled={isLoadingLists}
-                >
-                  <SelectTrigger
-                    data-field="positionClass"
-                    className={
-                      fieldErrors.positionClass
-                        ? "border-destructive border-2 ring-1 ring-destructive focus:ring-destructive"
-                        : ""
-                    }
-                  >
-                    <SelectValue
-                      placeholder={
-                        isLoadingLists
-                          ? "Loading..."
-                          : "Select Position class"
-                      }
-                    />
-                  </SelectTrigger>
-
-                  <SelectContent>
-                    {positionClasses?.map((pc) => (
-                      <SelectItem
-                        key={pc.id}
-                        value={pc.name}
-                      >
-                        {pc.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder={
+                    isLoadingLists
+                      ? "Loading..."
+                      : "Select Position class (Multiple)..."
+                  }
+                  className="w-full"
+                />
 
                 {fieldErrors.positionClass && (
                   <p className="text-sm text-destructive">

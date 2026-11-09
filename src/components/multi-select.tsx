@@ -28,7 +28,7 @@ export type OptionType = {
 interface MultiSelectProps {
   options: OptionType[];
   selected: string[];
-  onChange: React.Dispatch<React.SetStateAction<string[]>>;
+  onChange: ((selected: string[]) => void) | React.Dispatch<React.SetStateAction<string[]>>;
   className?: string;
   placeholder?: string;
 }
@@ -50,11 +50,12 @@ function MultiSelectFilter({
     <Popover open={open} onOpenChange={setOpen} {...props}>
       <PopoverTrigger asChild>
         <Button
+          type="button"
           variant="outline"
           role="combobox"
           aria-expanded={open}
           className={`w-full justify-between ${
-            selected.length > 1 ? "h-full" : "h-10"
+            selected.length > 1 ? "h-full min-h-10 py-1.5" : "h-10"
           }`}
           onClick={() => setOpen(!open)}
         >
