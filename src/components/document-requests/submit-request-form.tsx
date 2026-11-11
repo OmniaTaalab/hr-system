@@ -243,31 +243,6 @@ export function SubmitRequestForm({ onSuccess }: SubmitRequestFormProps) {
                   ))}
                 </SelectContent>
               </Select>
-
-              {/* Helpful dynamic helper banner for chosen type */}
-              {currentTypeDetails && (
-                <div className="flex items-start gap-2.5 p-3 rounded-lg bg-sky-50/70 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900 text-xs text-sky-900 dark:text-sky-200">
-                  <Info className="h-4 w-4 shrink-0 text-sky-600 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="font-medium">{currentTypeDetails.description}</p>
-                    {currentTypeDetails.commonAddressedTo.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                        <span className="text-muted-foreground text-[11px]">Quick destinations:</span>
-                        {currentTypeDetails.commonAddressedTo.map((dst) => (
-                          <button
-                            key={dst}
-                            type="button"
-                            onClick={() => setAddressedTo(dst)}
-                            className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border text-[11px] hover:border-primary transition-colors"
-                          >
-                            {dst}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Field 2: Addressed To (Destination Entity) */}
