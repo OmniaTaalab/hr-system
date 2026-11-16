@@ -203,7 +203,7 @@ function UpdateStatusForm({ request, actionType, onClose }: { request: LeaveRequ
       </AlertDialogHeader>
       <div className="my-4 space-y-2">
         <Label htmlFor={`managerNotes-${request.id}`}>{isRTL ? "ملاحظات المدير (اختياري)" : "Manager Notes (Optional)"}</Label>
-        <Textarea id={`managerNotes-${request.id}`} name="managerNotes" value={managerNotes} onChange={(e) => setManagerNotes(e.target.value)} placeholder={isRTL ? "أدخل ملاحظاتك بخصوص هذا الطلب..." : `Notes for ${actionType.toLowerCase()} this request...`} rows={3} />
+        <Textarea id={`managerNotes-${request.id}`} name="managerNotes" value={managerNotes} onChange={(e) => setManagerNotes(e.target.value)} placeholder={isRTL ? "أدخل ملاحظاتك بخصوص هذا الطلب..." : `Notes for Approvel this request...`} rows={3} />
         {serverState?.errors?.managerNotes && <p className="text-sm text-destructive">{serverState.errors.managerNotes.join(', ')}</p>}
       </div>
        {serverState?.errors?.form && <p className="text-sm font-medium text-destructive mb-2">{serverState.errors.form.join(", ")}</p>}
