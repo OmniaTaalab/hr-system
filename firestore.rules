@@ -51,6 +51,42 @@ service cloud.firestore {
       allow read: if request.auth != null && (resource == null || resource.data.userId == request.auth.uid || resource.data.requestingEmployeeDocId == request.auth.uid);
     }
 
+    // Leave Types, Shared Allowance Groups, Holidays, and Settings:
+    // - Authenticated employees can read active HR leave policies.
+    // - Only HR / Admins can write policies (also enforced via server actions).
+    match /leaveTypes/{leaveTypeId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin(request.auth.uid);
+    }
+
+    match /sharedLeaveGroups/{groupId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin(request.auth.uid);
+    }
+
+    match /holidays/{holidayId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin(request.auth.uid);
+    }
+
+    match /settings/{settingId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin(request.auth.uid);
+    }
+
+    // Leave Requests:
+    // - Authenticated users can read (dashboard/reporting line queries);
+    // - Writes are restricted to admins/HR in client SDK (employee submissions & balance checks run via Admin SDK transactions).
+    match /leaveRequests/{requestId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin(request.auth.uid);
+    }
+
+    // Concurrency locks used strictly by Firebase Admin SDK transactions
+    match /leaveBalanceLocks/{lockId} {
+      allow read, write: if false;
+    }
+
     // All other collections are locked down by default and require admin access.
     match /{document=**} {
       allow read, write: if request.auth != null && isAdmin(request.auth.uid);

@@ -2,6 +2,7 @@
 "use client";
 
 import { ListManager } from '@/components/settings/list-manager';
+import { SharedLeaveGroupsManager } from '@/components/settings/shared-leave-groups-manager';
 import {
   Card,
   CardContent,
@@ -127,6 +128,8 @@ export default function OrganizationSettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          <SharedLeaveGroupsManager />
         </div>
       </SettingsPageWrapper>
     </div>

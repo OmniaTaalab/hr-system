@@ -20,19 +20,28 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Send, Loader2, AlertTriangle, Clock, UserCheck, Check, ChevronsUpDown, X, Users } from "lucide-react";
+import { CalendarIcon, Send, Loader2, AlertTriangle, Clock, UserCheck, Check, ChevronsUpDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { submitLeaveRequestAction, type SubmitLeaveRequestState } from "@/app/actions/leave-actions";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
+import { useSharedLeaveGroups } from "@/hooks/use-shared-leave-groups";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { storage, db } from "@/lib/firebase/config";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { collection, getDocs, query, where, limit, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, query, where, limit, doc, getDoc, onSnapshot } from "firebase/firestore";
 import { useActionState } from "react";
 import { useI18n } from "@/lib/i18n";
+import { LEAVE_BALANCE_EXCEEDED_MESSAGE, type LeaveRequestRecord } from "@/types/leave-policy";
+import {
+  calculatePolicyBalance,
+  canConsumeFromBalance,
+  isMaternityHourName,
+  isMaternityLeaveName,
+  resolveEffectiveLeavePolicy,
+  roundLeaveAmount,
+} from "@/lib/leave-policy";
 
 type ResolvedApprover = {
   id: string;
@@ -132,9 +141,13 @@ function LeaveRequestForm() {
 
   const { profile, user, loading: isLoadingProfile } = useUserProfile();
   const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
+  const { sharedGroups } = useSharedLeaveGroups();
 
   // Fresh employee record from Firestore
   const [freshEmployee, setFreshEmployee] = useState<any>(null);
+  const [employeeLeaveRequests, setEmployeeLeaveRequests] = useState<LeaveRequestRecord[]>([]);
+  const [holidaysSet, setHolidaysSet] = useState<Set<string>>(new Set());
+  const [weekendDays, setWeekendDays] = useState<number[]>([5, 6]);
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -148,6 +161,70 @@ function LeaveRequestForm() {
     });
     return () => { isMounted = false; };
   }, [profile?.id]);
+
+  useEffect(() => {
+    if (!profile?.id) {
+      setEmployeeLeaveRequests([]);
+      return;
+    }
+    const qReqs = query(
+      collection(db, "leaveRequests"),
+      where("requestingEmployeeDocId", "==", profile.id)
+    );
+    const unsub = onSnapshot(
+      qReqs,
+      (snap) => {
+        const list: LeaveRequestRecord[] = snap.docs.map((d) => {
+          const raw = d.data();
+          return {
+            id: d.id,
+            leaveType: raw.leaveType ?? null,
+            leaveTypeId: raw.leaveTypeId ?? null,
+            sharedGroupId: raw.sharedGroupId ?? null,
+            startDate: raw.startDate,
+            endDate: raw.endDate,
+            status: raw.status ?? null,
+            numberOfDays: typeof raw.numberOfDays === "number" ? raw.numberOfDays : null,
+            durationHours: typeof raw.durationHours === "number" ? raw.durationHours : null,
+            hours: typeof raw.hours === "number" ? raw.hours : null,
+            hoursPerDay: typeof raw.hoursPerDay === "number" ? raw.hoursPerDay : null,
+            isHourly: typeof raw.isHourly === "boolean" ? raw.isHourly : null,
+            workDurationMinutes: typeof raw.workDurationMinutes === "number" ? raw.workDurationMinutes : null,
+          };
+        });
+        setEmployeeLeaveRequests(list);
+      },
+      (err) => {
+        console.error("Error subscribing to employee leave requests:", err);
+      }
+    );
+    return () => unsub();
+  }, [profile?.id]);
+
+  useEffect(() => {
+    getDocs(collection(db, "holidays")).then((snap) => {
+      const dates = new Set<string>();
+      snap.forEach((dDoc) => {
+        const d = dDoc.data().date;
+        if (d?.toDate) {
+          const dt = d.toDate();
+          dates.add(`${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`);
+        } else if (typeof d === "string") {
+          const dt = new Date(d);
+          if (!isNaN(dt.getTime())) {
+            dates.add(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`);
+          }
+        }
+      });
+      setHolidaysSet(dates);
+    }).catch(console.error);
+
+    getDoc(doc(db, "settings", "weekend")).then((snap) => {
+      if (snap.exists() && Array.isArray(snap.data()?.days)) {
+        setWeekendDays(snap.data()?.days);
+      }
+    }).catch(console.error);
+  }, []);
 
   // Retrieve all Reporting Lines assigned to the employee (ReportLine1 - ReportLine6)
   const rawAssignedLines = useMemo(() => {
@@ -276,51 +353,56 @@ function LeaveRequestForm() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [selectedLeaveType, setSelectedLeaveType] = useState<string>("");
+  const [requestedHours, setRequestedHours] = useState<string>("");
 
-  const rawGender = (profile?.gender || "").trim().toLowerCase();
+  const employeePolicyContext = useMemo(() => {
+    const p = freshEmployee || profile;
+    if (!p) return null;
+    return {
+      id: profile?.id,
+      docId: profile?.id,
+      employeeId: p.employeeId,
+      role: p.role,
+      positionClass: p.positionClass,
+      gender: p.gender,
+      email: p.email,
+      nisEmail: p.nisEmail,
+    };
+  }, [freshEmployee, profile]);
+
+  const rawGender = (freshEmployee?.gender || profile?.gender || "").trim().toLowerCase();
   const isMale = ["male", "m", "ذكر"].includes(rawGender);
 
-  const isMaternityLeaveType = (typeName: string) => {
-    if (!typeName) return false;
-    const lower = typeName.trim().toLowerCase();
-    return (
-      lower.includes("maternity") ||
-      lower.includes("maternal") ||
-      lower.includes("وضع") ||
-      lower.includes("أمومة") ||
-      lower.includes("امومة") ||
-      lower.includes("ولادة") ||
-      lower.includes("رضاعة") ||
-      lower.includes("رعاية طفل") ||
-      lower.includes("رعايه طفل")
-    );
-  };
+  const isMaternityLeaveType = (typeName: string) => isMaternityLeaveName(typeName);
 
-  const availableLeaveTypes = leaveTypes.filter((type) => {
-    if (isMale && isMaternityLeaveType(type.name)) {
-      return false;
-    }
-    return true;
-  });
+  const availableLeaveTypes = useMemo(() => {
+    return leaveTypes.filter((type) => {
+      const policy = resolveEffectiveLeavePolicy({
+        leaveTypeNameOrId: type.name,
+        leaveTypes,
+        sharedGroups,
+        employee: employeePolicyContext,
+      });
+      if (isMale && (policy.genderRestriction === "female" || isMaternityLeaveName(type.name))) {
+        return false;
+      }
+      return true;
+    });
+  }, [leaveTypes, sharedGroups, employeePolicyContext, isMale]);
 
-  const lowerSelectedType = selectedLeaveType.trim().toLowerCase();
-  const isMaternityHour =
-    !isMale &&
-    (lowerSelectedType.includes("hour") ||
-      lowerSelectedType.includes("ساعة") ||
-      lowerSelectedType.includes("ساعه") ||
-      lowerSelectedType.includes("رضاعة") ||
-      lowerSelectedType.includes("رعاية"));
+  const selectedPolicy = useMemo(() => {
+    if (!selectedLeaveType) return null;
+    return resolveEffectiveLeavePolicy({
+      leaveTypeNameOrId: selectedLeaveType,
+      leaveTypes,
+      sharedGroups,
+      employee: employeePolicyContext,
+    });
+  }, [selectedLeaveType, leaveTypes, sharedGroups, employeePolicyContext]);
 
-  const isFullMaternity =
-    !isMale &&
-    !isMaternityHour &&
-    (lowerSelectedType.includes("maternity") ||
-      lowerSelectedType.includes("maternal") ||
-      lowerSelectedType.includes("وضع") ||
-      lowerSelectedType.includes("أمومة") ||
-      lowerSelectedType.includes("امومة") ||
-      lowerSelectedType.includes("ولادة"));
+  const isMaternityHour = !isMale && isMaternityHourName(selectedLeaveType);
+  const isFullMaternity = !isMale && !isMaternityHour && isMaternityLeaveName(selectedLeaveType);
+  const isGenericHourly = Boolean(selectedPolicy && selectedPolicy.unit === "hours" && !isMaternityHour);
 
   const calculateMaternityEndDate = (start: Date): Date => {
     const end = new Date(start);
@@ -328,8 +410,77 @@ function LeaveRequestForm() {
     return end;
   };
 
+  const calculatedWorkingDays = useMemo(() => {
+    if (!startDate) return 0;
+    const effectiveEnd = isFullMaternity
+      ? calculateMaternityEndDate(startDate)
+      : (endDate && endDate >= startDate ? endDate : startDate);
+
+    const weekendSet = new Set(weekendDays);
+    let count = 0;
+    const cur = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const last = new Date(effectiveEnd.getFullYear(), effectiveEnd.getMonth(), effectiveEnd.getDate());
+    while (cur <= last) {
+      const dayOfWeek = cur.getDay();
+      const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+      if (!weekendSet.has(dayOfWeek) && !holidaysSet.has(dateStr)) {
+        count++;
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+    return count;
+  }, [startDate, endDate, isFullMaternity, weekendDays, holidaysSet]);
+
+  const requestedAmount = useMemo(() => {
+    if (!selectedPolicy) return 0;
+    if (isMaternityHour) {
+      return startDate ? roundLeaveAmount(Math.max(1, calculatedWorkingDays) * 1) : 0;
+    }
+    if (selectedPolicy.unit === "hours") {
+      const parsed = parseFloat(requestedHours);
+      return Number.isFinite(parsed) && parsed > 0 ? roundLeaveAmount(parsed) : 0;
+    }
+    if (isFullMaternity) {
+      return 120;
+    }
+    return startDate ? calculatedWorkingDays : 0;
+  }, [selectedPolicy, isMaternityHour, isFullMaternity, startDate, calculatedWorkingDays, requestedHours]);
+
+  const selectedBalance = useMemo(() => {
+    if (!selectedPolicy) return null;
+    return calculatePolicyBalance({
+      policy: selectedPolicy,
+      requests: employeeLeaveRequests,
+      anchorDate: startDate || new Date(),
+    });
+  }, [selectedPolicy, employeeLeaveRequests, startDate]);
+
+  const balanceCheck = useMemo(() => {
+    if (!selectedBalance) return { allowed: true, remainingAfter: null as number | null };
+    if (selectedBalance.policy.isUnlimited) return { allowed: true, remainingAfter: null as number | null };
+    if ((selectedBalance.remaining ?? 0) <= 0) {
+      return { allowed: false, remainingAfter: 0 };
+    }
+    if (requestedAmount <= 0) {
+      return { allowed: true, remainingAfter: selectedBalance.remaining };
+    }
+    return canConsumeFromBalance({ balance: selectedBalance, requestedAmount });
+  }, [selectedBalance, requestedAmount]);
+
+  const isBalanceExceeded = Boolean(
+    selectedBalance &&
+    !selectedBalance.policy.isUnlimited &&
+    ((selectedBalance.remaining ?? 0) <= 0 || (requestedAmount > 0 && !balanceCheck.allowed))
+  );
+
   const handleLeaveTypeChange = (val: string) => {
-    if (isMale && isMaternityLeaveType(val)) {
+    const candidatePolicy = resolveEffectiveLeavePolicy({
+      leaveTypeNameOrId: val,
+      leaveTypes,
+      sharedGroups,
+      employee: employeePolicyContext,
+    });
+    if (isMale && (candidatePolicy.genderRestriction === "female" || isMaternityLeaveType(val))) {
       toast({
         variant: "destructive",
         title: "Ineligible Leave Type",
@@ -338,18 +489,13 @@ function LeaveRequestForm() {
       return;
     }
     setSelectedLeaveType(val);
-    const lower = val.trim().toLowerCase();
-    const isHour =
-      lower.includes("hour") ||
-      lower.includes("ساعة") ||
-      lower.includes("ساعه") ||
-      lower.includes("رضاعة") ||
-      lower.includes("رعاية");
-    const isFull = !isHour && (lower.includes("maternity") || lower.includes("وضع") || lower.includes("أمومة") || lower.includes("امومة") || lower.includes("ولادة"));
+    setRequestedHours("");
+    const isHour = isMaternityHourName(val);
+    const isFull = !isHour && isMaternityLeaveName(val);
 
     if (isFull && startDate) {
       setEndDate(calculateMaternityEndDate(startDate));
-    } else if (isHour && startDate && (!endDate || endDate.getTime() === calculateMaternityEndDate(startDate).getTime())) {
+    } else if ((isHour || candidatePolicy.unit === "hours") && startDate && (!endDate || endDate.getTime() === calculateMaternityEndDate(startDate).getTime())) {
       setEndDate(startDate);
     }
   };
@@ -396,6 +542,7 @@ function LeaveRequestForm() {
 
         formRef.current?.reset();
         setSelectedLeaveType("");
+        setRequestedHours("");
         setStartDate(undefined);
         setEndDate(undefined);
         setAttachment(null);
@@ -464,11 +611,44 @@ function LeaveRequestForm() {
   
     setIsSubmittingFile(true);
   
-    if (isMale && (isMaternityLeaveType(selectedLeaveType) || isFullMaternity || isMaternityHour)) {
+    if (isMale && (selectedPolicy?.genderRestriction === "female" || isMaternityLeaveType(selectedLeaveType) || isFullMaternity || isMaternityHour)) {
       toast({
         variant: "destructive",
         title: "Ineligible Leave Type",
         description: "Male employees cannot submit Maternity Leave or Maternity Hour requests.",
+      });
+      setIsSubmittingFile(false);
+      return;
+    }
+
+    if (selectedPolicy && !selectedPolicy.isEligible) {
+      toast({
+        variant: "destructive",
+        title: "Ineligible Leave Type",
+        description: "You are not eligible to submit this leave type.",
+      });
+      setIsSubmittingFile(false);
+      return;
+    }
+
+    if (isGenericHourly) {
+      const parsedHours = parseFloat(requestedHours);
+      if (!Number.isFinite(parsedHours) || parsedHours <= 0) {
+        toast({
+          variant: "destructive",
+          title: "Requested Hours Required",
+          description: "Please enter a valid number of hours greater than 0.",
+        });
+        setIsSubmittingFile(false);
+        return;
+      }
+    }
+
+    if (isBalanceExceeded) {
+      toast({
+        variant: "destructive",
+        title: "Balance Exceeded",
+        description: LEAVE_BALANCE_EXCEEDED_MESSAGE,
       });
       setIsSubmittingFile(false);
       return;
@@ -521,6 +701,8 @@ if (endDate) {
     if (isMaternityHour) {
       formData.set("hoursPerDay", "1");
       formData.set("maternityCalculationMode", "1_hour_per_day");
+    } else if (isGenericHourly && requestedHours) {
+      formData.set("requestedHours", requestedHours);
     }
   
     // File Upload
@@ -768,6 +950,88 @@ if (endDate) {
             </SelectContent>
           </Select>
 
+          {selectedBalance && (
+            <div className={cn(
+              "rounded-lg border p-3.5 text-xs md:text-sm space-y-2.5",
+              isBalanceExceeded
+                ? "border-destructive/50 bg-destructive/5"
+                : "border-border bg-muted/30"
+            )}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-semibold">
+                  <span>{selectedBalance.policy.title}</span>
+                  {selectedBalance.policy.kind === "shared_group" && (
+                    <Badge variant="secondary" className="text-[11px]">
+                      {tText("Shared Balance", "رصيد مشترك")}
+                    </Badge>
+                  )}
+                  {selectedBalance.policy.matchedOverride && (
+                    <Badge variant="outline" className="text-[11px]">
+                      {selectedBalance.policy.matchedOverride.targetLabel || selectedBalance.policy.matchedOverride.targetValue}
+                    </Badge>
+                  )}
+                </div>
+                <Badge variant="outline" className="text-[11px]">
+                  {selectedBalance.policy.isUnlimited
+                    ? tText("Unlimited", "غير محدود")
+                    : selectedBalance.period.shortLabel}
+                </Badge>
+              </div>
+
+              {selectedBalance.policy.kind === "shared_group" && selectedBalance.policy.linkedLeaveTypeNames.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {tText("Shared across:", "يشترك في الرصيد:")}{" "}
+                  {selectedBalance.policy.linkedLeaveTypeNames.join(", ")}
+                </p>
+              )}
+
+              {selectedBalance.policy.isUnlimited ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>{tText("No fixed limit for this leave type.", "لا يوجد حد أقصى ثابت لهذا النوع.")}</span>
+                  <span>
+                    {tText("Used:", "المستخدم:")}{" "}
+                    <strong className="text-foreground">
+                      {selectedBalance.used} {selectedBalance.policy.unit}
+                    </strong>
+                    {selectedBalance.pending > 0 && (
+                      <span className="text-amber-600 dark:text-amber-400 ml-1">
+                        ({selectedBalance.pending} {tText("pending", "معلق")})
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2 text-center rounded-md bg-background/80 border p-2">
+                  <div>
+                    <div className="text-[11px] text-muted-foreground">{tText("Allowed", "المتاح")}</div>
+                    <div className="font-semibold text-sm">{selectedBalance.allowed} {selectedBalance.policy.unit === "hours" ? "h" : "d"}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-muted-foreground">{tText("Used", "المستخدم")}</div>
+                    <div className="font-semibold text-sm">{selectedBalance.used} {selectedBalance.policy.unit === "hours" ? "h" : "d"}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-muted-foreground">{tText("Pending", "معلق")}</div>
+                    <div className="font-semibold text-sm text-amber-600 dark:text-amber-400">{selectedBalance.pending} {selectedBalance.policy.unit === "hours" ? "h" : "d"}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-muted-foreground">{tText("Remaining", "المتبقي")}</div>
+                    <div className={cn("font-bold text-sm", (selectedBalance.remaining ?? 0) > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
+                      {selectedBalance.remaining} {selectedBalance.policy.unit === "hours" ? "h" : "d"}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isBalanceExceeded && (
+                <div className="flex items-center gap-2 text-destructive font-medium text-xs md:text-sm pt-1">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>{LEAVE_BALANCE_EXCEEDED_MESSAGE}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {isMaternityHour && (
             <div className="rounded-md border border-sky-500/25 bg-sky-50/70 dark:bg-sky-950/30 p-3.5 text-xs md:text-sm text-sky-900 dark:text-sky-200">
               <div className="flex items-center gap-2 font-semibold">
@@ -797,6 +1061,36 @@ if (endDate) {
             </p>
           )}
         </div>
+
+        {/* Requested Hours (for Hour-based Leave Types configured in HR Settings) */}
+        {isGenericHourly && (
+          <div className="space-y-2">
+            <Label htmlFor="requestedHours">
+              {tText("Requested Hours *", "عدد الساعات المطلوبة *")}
+            </Label>
+            <Input
+              id="requestedHours"
+              name="requestedHours"
+              type="number"
+              step="any"
+              min="0.25"
+              value={requestedHours}
+              onChange={(e) => setRequestedHours(e.target.value)}
+              disabled={isPending || isSubmittingFile}
+              placeholder={tText("e.g. 0.5, 1.5, 2", "مثال: 0.5 أو 1.5 أو 2")}
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              {tText(
+                "Fractional hours are supported (e.g., 0.5 for 30 minutes, 1.5 for 1 hour 30 minutes).",
+                "يتم دعم كسور الساعات (مثال: 0.5 لنصف ساعة، 1.5 لساعة ونصف)."
+              )}
+            </p>
+            {serverState?.errors?.requestedHours && (
+              <p className="text-sm text-destructive">{serverState.errors.requestedHours[0]}</p>
+            )}
+          </div>
+        )}
 
         {/* Dates */}
         <div className="flex flex-row items-start gap-4">
@@ -955,7 +1249,7 @@ if (endDate) {
 
         <Button
           type="submit"
-          disabled={isPending || isSubmittingFile || !hasReportingLines || !isApproverSelectionValid}
+          disabled={isPending || isSubmittingFile || !hasReportingLines || !isApproverSelectionValid || isBalanceExceeded}
           className="w-full md:w-auto"
         >
           {(isPending || isSubmittingFile) ? (

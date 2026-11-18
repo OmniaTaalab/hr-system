@@ -20,7 +20,7 @@ import { format, differenceInCalendarDays, startOfMonth, endOfMonth, max, min, g
 import { db } from "@/lib/firebase/config";
 import { collection, onSnapshot, query, where, Timestamp, orderBy, DocumentData, getDocs, doc, getDoc } from 'firebase/firestore';
 import { cn } from "@/lib/utils";
-import { CalendarOff, ListChecks, Loader2, Clock, AlertTriangle, Stethoscope, Baby, Info, ShieldCheck } from "lucide-react"; 
+import { CalendarOff, ListChecks, Loader2, Clock, AlertTriangle, Stethoscope, Baby, Info, ShieldCheck, Layers, Infinity as InfinityIcon } from "lucide-react"; 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useSearchParams } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
+import { useLeaveTypes } from "@/hooks/use-leave-types";
+import { useSharedLeaveGroups } from "@/hooks/use-shared-leave-groups";
+import type { LeaveBalanceResult, LeaveRequestRecord } from "@/types/leave-policy";
+import {
+  buildWorkAndLeaveSummary,
+  getAcademicTermWindow,
+  isMaternityHourName,
+  normalizeName,
+  toCalendarDate,
+} from "@/lib/leave-policy";
 
 interface AttendanceRecord {
   id: string;
@@ -46,13 +56,23 @@ export interface LeaveRequestEntry {
   requestingEmployeeDocId?: string;
   employeeName: string; 
   leaveType: string;
+  leaveTypeId?: string | null;
+  sharedGroupId?: string | null;
   startDate: Timestamp;
   endDate: Timestamp;
   reason: string;
-  status: "Pending" | "Approved" | "Rejected";
+  status: "Pending" | "Approved" | "Rejected" | "Cancelled";
   submittedAt: Timestamp;
   managerNotes?: string;
   updatedAt?: Timestamp;
+  numberOfDays?: number | null;
+  durationHours?: number | null;
+  hours?: number | null;
+  hoursPerDay?: number | null;
+  isHourly?: boolean | null;
+  requestedAmount?: number | null;
+  requestedUnit?: "days" | "hours" | null;
+  workDurationMinutes?: number | null;
 }
 
 function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
@@ -223,6 +243,54 @@ function getAcademicTerm(date: Date): AcademicTermInfo {
   }
 }
 
+function getCardVisualMeta(item: LeaveBalanceResult) {
+  const { policy } = item;
+  const lower = normalizeName(policy.title);
+
+  if (policy.kind === "shared_group") {
+    return {
+      Icon: policy.unit === "hours" ? Clock : Layers,
+      iconClass: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    };
+  }
+  if (policy.isUnlimited) {
+    return {
+      Icon: InfinityIcon,
+      iconClass: "bg-slate-500/10 text-slate-600 dark:text-slate-300",
+    };
+  }
+  if (lower.includes("maternity") || lower.includes("وضع") || lower.includes("أمومة") || lower.includes("رضاعة")) {
+    return {
+      Icon: Baby,
+      iconClass: policy.isEligible
+        ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+        : "bg-muted text-muted-foreground",
+    };
+  }
+  if (lower.includes("medical") || lower.includes("sick") || lower.includes("مرض") || lower.includes("طب")) {
+    return {
+      Icon: Stethoscope,
+      iconClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    };
+  }
+  if (lower.includes("emergency") || lower.includes("عارض") || lower.includes("طارئ")) {
+    return {
+      Icon: AlertTriangle,
+      iconClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    };
+  }
+  if (policy.unit === "hours") {
+    return {
+      Icon: Clock,
+      iconClass: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    };
+  }
+  return {
+    Icon: ShieldCheck,
+    iconClass: "bg-primary/10 text-primary",
+  };
+}
+
 function getProgressIndicatorColor(remaining: number, total: number): string {
   if (total <= 0) return "bg-muted-foreground/30";
   const ratio = remaining / total;
@@ -233,6 +301,8 @@ function getProgressIndicatorColor(remaining: number, total: number): string {
 
 function MyRequestsContent() {
   const { profile: currentEmployee } = useUserProfile();
+  const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
+  const { sharedGroups, isLoading: isLoadingSharedGroups } = useSharedLeaveGroups();
   const { t, tText, isRTL } = useI18n();
   const currentEmployeeId = currentEmployee?.id;
   const searchParams = useSearchParams();
@@ -488,222 +558,40 @@ function MyRequestsContent() {
      fetchSpecificDayData();
   }, [currentEmployeeId, specificDayForSnapshot, toast]);
   
-  const academicTerm = useMemo(() => getAcademicTerm(currentMonthDate), [currentMonthDate]);
+  const academicTerm = useMemo(() => getAcademicTermWindow(currentMonthDate), [currentMonthDate]);
 
-  const leaveBalances = useMemo(() => {
-    const selectedYear = currentMonthDate.getFullYear();
-    const monthStart = startOfMonth(currentMonthDate);
-    const monthEnd = dateFnsEndOfDay(endOfMonth(currentMonthDate));
-    const termStart = academicTerm.startDate;
-    const termEnd = academicTerm.endDate;
-
-    let earlyLateApprovedHours = 0;
-    let earlyLatePendingHours = 0;
-    let earlyLateApprovedCount = 0;
-    let earlyLatePendingCount = 0;
-
-    let emergencyApprovedDays = 0;
-    let emergencyPendingDays = 0;
-
-    let medicalApprovedDays = 0;
-    let medicalPendingDays = 0;
-
-    let maternityApprovedDays = 0;
-    let maternityPendingDays = 0;
-    let maternityHourApprovedDays = 0;
-    let maternityHourApprovedHours = 0;
-    let maternityHourPendingDays = 0;
-    let maternityHourPendingHours = 0;
-
-    allUserLeaveRequests.forEach((leave) => {
-      const status = leave.status;
-      if (status === "Rejected") return;
-
-      const rawStartDate = leave.startDate?.toDate ? leave.startDate.toDate() : new Date(leave.startDate);
-      const rawEndDate = leave.endDate?.toDate ? leave.endDate.toDate() : new Date(leave.endDate || leave.startDate);
-      const typeLower = (leave.leaveType || "").trim().toLowerCase();
-
-      // 1. Early Dismissal & Late Arrival (4 hours / month, 8 hours for Editor)
-      const isEarlyLate =
-        typeLower.includes("early dismissal") ||
-        typeLower.includes("late arrival") ||
-        typeLower.includes("early") ||
-        typeLower.includes("late") ||
-        typeLower.includes("إذن") ||
-        typeLower.includes("تأخير") ||
-        typeLower.includes("انصراف");
-
-      if (isEarlyLate) {
-        if (rawStartDate >= monthStart && rawStartDate <= monthEnd) {
-          const hours =
-            (leave as any).hours ??
-            (leave as any).durationHours ??
-            ((leave as any).workDurationMinutes ? Math.round((leave as any).workDurationMinutes / 60) : 2);
-          if (status === "Approved") {
-            earlyLateApprovedHours += hours;
-            earlyLateApprovedCount += 1;
-          } else if (status === "Pending") {
-            earlyLatePendingHours += hours;
-            earlyLatePendingCount += 1;
-          }
-        }
-      }
-
-      // 2. Emergency Leave (1 day per term)
-      const isEmergency =
-        typeLower.includes("emergency") ||
-        typeLower.includes("عارضة") ||
-        typeLower.includes("طارئة") ||
-        typeLower.includes("طارئ");
-
-      if (isEmergency) {
-        if (rawStartDate >= termStart && rawStartDate <= termEnd) {
-          const days =
-            typeof (leave as any).numberOfDays === "number" && (leave as any).numberOfDays > 0
-              ? (leave as any).numberOfDays
-              : 1;
-          if (status === "Approved") {
-            emergencyApprovedDays += days;
-          } else if (status === "Pending") {
-            emergencyPendingDays += days;
-          }
-        }
-      }
-
-      // 3. Medical Leave (7 days per year)
-      const isMedical =
-        typeLower.includes("medical") ||
-        typeLower.includes("sick") ||
-        typeLower.includes("مرضية") ||
-        typeLower.includes("مرضي") ||
-        typeLower.includes("طبي");
-
-      if (isMedical) {
-        if (rawStartDate.getFullYear() === selectedYear) {
-          const days =
-            typeof (leave as any).numberOfDays === "number" && (leave as any).numberOfDays > 0
-              ? (leave as any).numberOfDays
-              : Math.max(1, differenceInCalendarDays(rawEndDate, rawStartDate) + 1);
-          if (status === "Approved") {
-            medicalApprovedDays += days;
-          } else if (status === "Pending") {
-            medicalPendingDays += days;
-          }
-        }
-      }
-
-      // 4. Maternity Leave & Maternity Hour (1 hour per day)
-      const isMaternity =
-        typeLower.includes("maternity") ||
-        typeLower.includes("وضع") ||
-        typeLower.includes("أمومة") ||
-        typeLower.includes("امومة") ||
-        typeLower.includes("ولادة");
-
-      const isMaternityHour =
-        isMaternity &&
-        (typeLower.includes("hour") ||
-          typeLower.includes("ساعة") ||
-          typeLower.includes("ساعه") ||
-          typeLower.includes("رضاعة") ||
-          typeLower.includes("رعاية") ||
-          (leave as any).hoursPerDay === 1 ||
-          (leave as any).isHourly === true);
-
-      const isFullMaternity = isMaternity && !isMaternityHour;
-
-      if (isMaternityHour) {
-        const workingDays =
-          typeof (leave as any).numberOfDays === "number" && (leave as any).numberOfDays > 0
-            ? (leave as any).numberOfDays
-            : 1;
-        const hours = (leave as any).durationHours ?? workingDays * 1;
-        if (status === "Approved") {
-          maternityHourApprovedDays += workingDays;
-          maternityHourApprovedHours += hours;
-        } else if (status === "Pending") {
-          maternityHourPendingDays += workingDays;
-          maternityHourPendingHours += hours;
-        }
-      } else if (isFullMaternity) {
-        const days =
-          typeof (leave as any).numberOfDays === "number" && (leave as any).numberOfDays > 0
-            ? (leave as any).numberOfDays
-            : 120;
-        if (status === "Approved") {
-          maternityApprovedDays += days;
-        } else if (status === "Pending") {
-          maternityPendingDays += days;
-        }
-      }
+  const dynamicLeaveBalances = useMemo(() => {
+    return buildWorkAndLeaveSummary({
+      leaveTypes,
+      sharedGroups,
+      requests: allUserLeaveRequests as LeaveRequestRecord[],
+      employee: {
+        id: currentEmployeeId,
+        docId: currentEmployeeId,
+        employeeId: currentEmployee?.employeeId,
+        role: currentEmployee?.role,
+        positionClass: employeePositionClass || currentEmployee?.positionClass,
+        gender: employeeGender || currentEmployee?.gender,
+        email: currentEmployee?.email,
+        nisEmail: currentEmployee?.nisEmail,
+      },
+      anchorDate: currentMonthDate,
     });
-
-    const rawGender = (employeeGender || currentEmployee?.gender || "").trim().toLowerCase();
-    const isFemale = ["female", "f", "أنثى", "انثى"].includes(rawGender);
-    const isMale = ["male", "m", "ذكر"].includes(rawGender);
-
-    const positionClass = (employeePositionClass || currentEmployee?.positionClass || "").trim().toLowerCase();
-    const isEditor = positionClass === "editor" || positionClass.includes("editor") || positionClass === "slt" || positionClass.includes("slt");
-    const earlyLateAllowedHours = isEditor ? 8 : 4;
-
-    const earlyLateTotalUsed = earlyLateApprovedHours + earlyLatePendingHours;
-    const earlyLateRemaining = Math.max(0, earlyLateAllowedHours - earlyLateTotalUsed);
-
-    const emergencyTotalUsed = emergencyApprovedDays + emergencyPendingDays;
-    const emergencyRemaining = Math.max(0, 1 - emergencyTotalUsed);
-
-    const medicalTotalUsed = medicalApprovedDays + medicalPendingDays;
-    const medicalRemaining = Math.max(0, 7 - medicalTotalUsed);
-
-    const maternityTotalUsed = maternityApprovedDays + maternityPendingDays;
-    const maternityAllowed = isFemale ? 120 : 0;
-    const maternityRemaining = isFemale ? Math.max(0, 120 - maternityTotalUsed) : 0;
-
-    return {
-      earlyLate: {
-        allowedHours: earlyLateAllowedHours,
-        isEditor,
-        approvedHours: earlyLateApprovedHours,
-        pendingHours: earlyLatePendingHours,
-        totalUsedHours: earlyLateTotalUsed,
-        remainingHours: earlyLateRemaining,
-        approvedCount: earlyLateApprovedCount,
-        pendingCount: earlyLatePendingCount,
-      },
-      emergency: {
-        allowedDays: 1,
-        approvedDays: emergencyApprovedDays,
-        pendingDays: emergencyPendingDays,
-        totalUsedDays: emergencyTotalUsed,
-        remainingDays: emergencyRemaining,
-        termName: academicTerm.termName,
-      },
-      medical: {
-        allowedDays: 7,
-        approvedDays: medicalApprovedDays,
-        pendingDays: medicalPendingDays,
-        totalUsedDays: medicalTotalUsed,
-        remainingDays: medicalRemaining,
-        year: selectedYear,
-      },
-      maternity: {
-        isEligible: isFemale,
-        isMale,
-        gender: (employeeGender || currentEmployee?.gender || "Not Specified"),
-        allowedDays: maternityAllowed,
-        approvedDays: maternityApprovedDays,
-        pendingDays: maternityPendingDays,
-        totalUsedDays: maternityTotalUsed,
-        remainingDays: maternityRemaining,
-        // Maternity hour (1 hour per day)
-        hourApprovedDays: maternityHourApprovedDays,
-        hourApprovedHours: maternityHourApprovedHours,
-        hourPendingDays: maternityHourPendingDays,
-        hourPendingHours: maternityHourPendingHours,
-        hourTotalHours: maternityHourApprovedHours + maternityHourPendingHours,
-      },
-    };
-  }, [allUserLeaveRequests, currentMonthDate, academicTerm, employeeGender, currentEmployee?.gender, employeePositionClass, currentEmployee?.positionClass]);
+  }, [
+    leaveTypes,
+    sharedGroups,
+    allUserLeaveRequests,
+    currentEmployeeId,
+    currentEmployee?.employeeId,
+    currentEmployee?.role,
+    employeePositionClass,
+    currentEmployee?.positionClass,
+    employeeGender,
+    currentEmployee?.gender,
+    currentEmployee?.email,
+    currentEmployee?.nisEmail,
+    currentMonthDate,
+  ]);
 
   const handleYearChange = (yearString: string) => {
     const year = parseInt(yearString, 10);
@@ -788,7 +676,7 @@ function MyRequestsContent() {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoadingLeaveRequests ? (
+            {isLoadingLeaveRequests || isLoadingLeaveTypes || isLoadingSharedGroups ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className="p-5 rounded-xl border border-border bg-card space-y-3">
@@ -799,305 +687,183 @@ function MyRequestsContent() {
                   </div>
                 ))}
               </div>
+            ) : dynamicLeaveBalances.length === 0 ? (
+              <div className="text-center py-6 text-sm text-muted-foreground">
+                {isRTL
+                  ? "لم يتم إعداد سياسات الإجازات في إعدادات الموارد البشرية بعد."
+                  : "No leave policies have been configured in HR Settings yet."}
+              </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* 1. Early Dismissal + Late Arrival */}
-                <div className="relative flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm transition-all hover:shadow-md">
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center space-x-2">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                          <Clock className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-sm leading-tight text-foreground">
-                            {isRTL ? "إذن تأخير وانصراف مبكر" : "Early & Late Excuse"}
-                          </h4>
-                          <span className="text-xs text-muted-foreground">
-                            {isRTL ? "Early & Late Excuse" : "إذن تأخير وانصراف مبكر"}
-                          </span>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="text-[11px] font-semibold whitespace-nowrap bg-muted/50">
-                        {leaveBalances.earlyLate.allowedHours} {isRTL ? "س/شهر" : "h / month"}
-                      </Badge>
-                    </div>
+                {dynamicLeaveBalances.map((item) => {
+                  const { policy, period, allowed, used, pending, remaining } = item;
+                  const { Icon, iconClass } = getCardVisualMeta(item);
+                  const isHours = policy.unit === "hours";
+                  const unitShort = isRTL ? (isHours ? "س" : "ي") : (isHours ? "h" : "d");
+                  const unitWord = (val: number) => {
+                    if (isRTL) {
+                      return isHours ? (val === 1 ? "ساعة" : "ساعات") : (val === 1 ? "يوم" : "أيام");
+                    }
+                    return isHours ? (val === 1 ? "hour" : "hours") : (val === 1 ? "day" : "days");
+                  };
+                  const resetLabelShort =
+                    policy.resetPeriod === "monthly"
+                      ? (isRTL ? "شهر" : "month")
+                      : policy.resetPeriod === "academic_term"
+                        ? (isRTL ? "ترم" : "term")
+                        : policy.resetPeriod === "yearly"
+                          ? (isRTL ? "سنة" : "year")
+                          : (isRTL ? "مفتوح" : "all time");
 
-                    <div className="mt-4 mb-2">
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className={`text-3xl font-bold tracking-tight ${leaveBalances.earlyLate.remainingHours > 0 ? "text-foreground" : "text-rose-600 dark:text-rose-400"}`}>
-                          {leaveBalances.earlyLate.remainingHours}
-                        </span>
-                        <span className="text-sm font-medium text-muted-foreground">
-                          {isRTL
-                            ? (leaveBalances.earlyLate.remainingHours === 1 ? "ساعة متبقية" : "ساعات متبقية")
-                            : (leaveBalances.earlyLate.remainingHours === 1 ? "hour remaining" : "hours remaining")}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {isRTL
-                          ? `المسموح: ${leaveBalances.earlyLate.allowedHours} ساعات في ${format(currentMonthDate, "MMMM")}${leaveBalances.earlyLate.isEditor ? " (محرر)" : ""}`
-                          : `Allowed: ${leaveBalances.earlyLate.allowedHours} hours in ${format(currentMonthDate, "MMMM")}${leaveBalances.earlyLate.isEditor ? " (Editor)" : ""}`}
-                      </p>
-                    </div>
+                  const badgeText = !policy.isEligible
+                    ? (isRTL ? "للإناث فقط" : "Female only")
+                    : policy.isUnlimited
+                      ? (isRTL ? "غير محدود" : "Unlimited")
+                      : `${allowed ?? 0} ${unitShort} / ${resetLabelShort}`;
 
-                    <div className="mt-3">
-                      <Progress
-                        value={(leaveBalances.earlyLate.remainingHours / leaveBalances.earlyLate.allowedHours) * 100}
-                        className="h-2 bg-muted"
-                        indicatorClassName={getProgressIndicatorColor(leaveBalances.earlyLate.remainingHours, leaveBalances.earlyLate.allowedHours)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">
-                      {isRTL ? "المستخدم: " : "Used: "}<strong className="text-foreground font-medium">{leaveBalances.earlyLate.totalUsedHours}{isRTL ? "س" : "h"}</strong>
-                      {leaveBalances.earlyLate.pendingHours > 0 && (
-                        <span className="text-amber-600 dark:text-amber-400 font-normal ml-1">
-                          ({leaveBalances.earlyLate.pendingHours}{isRTL ? "س معلق" : "h pending"})
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-muted-foreground font-medium truncate max-w-[120px]">
-                      {format(currentMonthDate, "MMM yyyy")}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 2. Emergency Leave */}
-                <div className="relative flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm transition-all hover:shadow-md">
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center space-x-2">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                          <AlertTriangle className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-sm leading-tight text-foreground">
-                            {isRTL ? "إجازة عارضة" : "Emergency Leave"}
-                          </h4>
-                          <span className="text-xs text-muted-foreground">
-                            {isRTL ? "Emergency Leave" : "إجازة عارضة"}
-                          </span>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="text-[11px] font-semibold whitespace-nowrap bg-muted/50">
-                        {isRTL ? "1 يوم / ترم" : "1 day / term"}
-                      </Badge>
-                    </div>
-
-                    <div className="mt-4 mb-2">
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className={`text-3xl font-bold tracking-tight ${leaveBalances.emergency.remainingDays > 0 ? "text-foreground" : "text-rose-600 dark:text-rose-400"}`}>
-                          {leaveBalances.emergency.remainingDays}
-                        </span>
-                        <span className="text-sm font-medium text-muted-foreground">
-                          {isRTL
-                            ? (leaveBalances.emergency.remainingDays === 1 ? "يوم متبقي" : "أيام متبقية")
-                            : (leaveBalances.emergency.remainingDays === 1 ? "day remaining" : "days remaining")}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {isRTL
-                          ? `المسموح: يوم واحد لكل فصل دراسي (${academicTerm.termName})`
-                          : `Allowed: 1 day per term (${academicTerm.termName})`}
-                      </p>
-                    </div>
-
-                    <div className="mt-3">
-                      <Progress
-                        value={(leaveBalances.emergency.remainingDays / 1) * 100}
-                        className="h-2 bg-muted"
-                        indicatorClassName={getProgressIndicatorColor(leaveBalances.emergency.remainingDays, 1)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">
-                      {isRTL ? "المستخدم: " : "Used: "}<strong className="text-foreground font-medium">{leaveBalances.emergency.totalUsedDays} {isRTL ? "يوم" : "day"}</strong>
-                      {leaveBalances.emergency.pendingDays > 0 && (
-                        <span className="text-amber-600 dark:text-amber-400 font-normal ml-1">
-                          ({leaveBalances.emergency.pendingDays} {isRTL ? "معلق" : "pending"})
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-muted-foreground font-medium truncate max-w-[130px]" title={academicTerm.termName}>
-                      {academicTerm.termName}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 3. Medical Leave */}
-                <div className="relative flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm transition-all hover:shadow-md">
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center space-x-2">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                          <Stethoscope className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-sm leading-tight text-foreground">
-                            {isRTL ? "إجازة مرضية" : "Medical Leave"}
-                          </h4>
-                          <span className="text-xs text-muted-foreground">
-                            {isRTL ? "Medical Leave" : "إجازة مرضية"}
-                          </span>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="text-[11px] font-semibold whitespace-nowrap bg-muted/50">
-                        {isRTL ? "7 أيام / سنة" : "7 days / year"}
-                      </Badge>
-                    </div>
-
-                    <div className="mt-4 mb-2">
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className={`text-3xl font-bold tracking-tight ${leaveBalances.medical.remainingDays > 0 ? "text-foreground" : "text-rose-600 dark:text-rose-400"}`}>
-                          {leaveBalances.medical.remainingDays}
-                        </span>
-                        <span className="text-sm font-medium text-muted-foreground">
-                          {isRTL
-                            ? (leaveBalances.medical.remainingDays === 1 ? "يوم متبقي" : "أيام متبقية")
-                            : (leaveBalances.medical.remainingDays === 1 ? "day remaining" : "days remaining")}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {isRTL
-                          ? `المسموح: 7 أيام في السنة (${leaveBalances.medical.year})`
-                          : `Allowed: 7 days per year (${leaveBalances.medical.year})`}
-                      </p>
-                    </div>
-
-                    <div className="mt-3">
-                      <Progress
-                        value={(leaveBalances.medical.remainingDays / 7) * 100}
-                        className="h-2 bg-muted"
-                        indicatorClassName={getProgressIndicatorColor(leaveBalances.medical.remainingDays, 7)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">
-                      {isRTL ? "المستخدم: " : "Used: "}<strong className="text-foreground font-medium">{leaveBalances.medical.totalUsedDays} {isRTL ? "يوم" : "day(s)"}</strong>
-                      {leaveBalances.medical.pendingDays > 0 && (
-                        <span className="text-amber-600 dark:text-amber-400 font-normal ml-1">
-                          ({leaveBalances.medical.pendingDays} {isRTL ? "معلق" : "pending"})
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-muted-foreground font-medium truncate max-w-[120px]">
-                      {isRTL ? `عام ${leaveBalances.medical.year}` : `Year ${leaveBalances.medical.year}`}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 4. Maternity Leave */}
-                <div className="relative flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm transition-all hover:shadow-md">
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center space-x-2">
-                        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${leaveBalances.maternity.isEligible ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" : "bg-muted text-muted-foreground"}`}>
-                          <Baby className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-sm leading-tight text-foreground">
-                            {isRTL ? "إجازة وضع" : "Maternity Leave"}
-                          </h4>
-                          <span className="text-xs text-muted-foreground">
-                            {isRTL ? "Maternity Leave" : "إجازة وضع"}
-                          </span>
-                        </div>
-                      </div>
-                      <Badge
-                        variant={leaveBalances.maternity.isEligible ? "outline" : "secondary"}
-                        className="text-[11px] font-semibold whitespace-nowrap bg-muted/50"
-                      >
-                        {leaveBalances.maternity.isEligible ? (isRTL ? "120 يوماً" : "120 days") : (isRTL ? "للإناث فقط" : "Female only")}
-                      </Badge>
-                    </div>
-
-                    <div className="mt-4 mb-2">
-                      {leaveBalances.maternity.isEligible ? (
-                        <>
-                          <div className="flex items-baseline space-x-1.5">
-                            <span className={`text-3xl font-bold tracking-tight ${leaveBalances.maternity.remainingDays > 0 ? "text-foreground" : "text-rose-600 dark:text-rose-400"}`}>
-                              {leaveBalances.maternity.remainingDays}
-                            </span>
-                            <span className="text-sm font-medium text-muted-foreground">
-                              {isRTL
-                                ? (leaveBalances.maternity.remainingDays === 1 ? "يوم متبقي" : "أيام متبقية")
-                                : (leaveBalances.maternity.remainingDays === 1 ? "day remaining" : "days remaining")}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {isRTL ? "المسموح: 120 يوماً (للإناث)" : "Allowed: 120 days (Female gender)"}
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex items-baseline space-x-1.5">
-                            <span className="text-3xl font-bold tracking-tight text-muted-foreground">
-                              {isRTL ? "غير متاح" : "N/A"}
-                            </span>
-                            <span className="text-sm font-medium text-muted-foreground">
-                              {isRTL ? "غير مؤهلة" : "Not eligible"}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {leaveBalances.maternity.isMale
-                              ? (isRTL ? "مخصصة للموظفات الإناث فقط" : "Applicable to female employees only")
-                              : (isRTL ? "تتطلب تحديد جنس أنثى" : "Female gender required")}
-                          </p>
-                        </>
-                      )}
-                    </div>
-
-                    <div className="mt-3">
-                      <Progress
-                        value={leaveBalances.maternity.isEligible ? (leaveBalances.maternity.remainingDays / 120) * 100 : 0}
-                        className="h-2 bg-muted"
-                        indicatorClassName={leaveBalances.maternity.isEligible ? getProgressIndicatorColor(leaveBalances.maternity.remainingDays, 120) : "bg-muted-foreground/30"}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-border/60 flex flex-col gap-1 text-xs">
-                    {leaveBalances.maternity.isEligible ? (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">
-                            {isRTL ? "إجازة كاملة: " : "Full Leave: "}<strong className="text-foreground font-medium">{leaveBalances.maternity.totalUsedDays} {isRTL ? "يوم" : "day(s)"}</strong>
-                            {leaveBalances.maternity.pendingDays > 0 && (
-                              <span className="text-amber-600 dark:text-amber-400 font-normal ml-1">
-                                ({leaveBalances.maternity.pendingDays} {isRTL ? "معلق" : "pending"})
+                  return (
+                    <div
+                      key={policy.key}
+                      className="relative flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm transition-all hover:shadow-md"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", iconClass)}>
+                              <Icon className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="font-semibold text-sm leading-tight text-foreground truncate" title={policy.title}>
+                                {policy.title}
+                              </h4>
+                              <span className="text-xs text-muted-foreground block truncate" title={policy.linkedLeaveTypeNames.join(" + ")}>
+                                {policy.kind === "shared_group"
+                                  ? policy.linkedLeaveTypeNames.join(" + ")
+                                  : policy.isUnlimited
+                                    ? (isRTL ? "بدون حد أقصى ثابت" : "No fixed limit")
+                                    : period.shortLabel}
                               </span>
-                            )}
-                          </span>
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-emerald-600 border-emerald-300 dark:text-emerald-400">
-                            {isRTL ? "مؤهلة" : "Eligible"}
+                            </div>
+                          </div>
+                          <Badge
+                            variant={policy.isEligible ? "outline" : "secondary"}
+                            className="text-[11px] font-semibold whitespace-nowrap bg-muted/50 shrink-0"
+                          >
+                            {badgeText}
                           </Badge>
                         </div>
-                        {leaveBalances.maternity.hourTotalHours > 0 && (
-                          <div className="text-[11px] text-sky-700 dark:text-sky-400 font-medium">
-                            {isRTL ? "ساعة رعاية الطفل: " : "Maternity Hour: "}{leaveBalances.maternity.hourApprovedHours}{isRTL ? "س" : "h"} ({leaveBalances.maternity.hourApprovedDays} {isRTL ? "أيام بواقع 1س/يوم" : "days @ 1h/day"})
-                            {leaveBalances.maternity.hourPendingHours > 0 && ` • ${leaveBalances.maternity.hourPendingHours}${isRTL ? "س معلق" : "h pending"}`}
+
+                        <div className="mt-4 mb-2">
+                          {!policy.isEligible ? (
+                            <>
+                              <div className="flex items-baseline gap-1.5">
+                                <span className="text-3xl font-bold tracking-tight text-muted-foreground">
+                                  {isRTL ? "غير متاح" : "N/A"}
+                                </span>
+                                <span className="text-sm font-medium text-muted-foreground">
+                                  {isRTL ? "غير مؤهل" : "Not eligible"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {policy.isMale
+                                  ? (isRTL ? "مخصصة للموظفات الإناث فقط" : "Applicable to female employees only")
+                                  : (isRTL ? "تتطلب تحديد جنس أنثى" : "Female gender required")}
+                              </p>
+                            </>
+                          ) : policy.isUnlimited ? (
+                            <>
+                              <div className="flex items-baseline gap-1.5">
+                                <span className="text-2xl font-bold tracking-tight text-foreground">
+                                  {isRTL ? "غير محدود" : "Unlimited"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {isRTL
+                                  ? "لا يخضع لحد رصيد ثابت من إعدادات الموارد البشرية"
+                                  : "No fixed allowance limit configured in HR Settings"}
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex items-baseline gap-1.5">
+                                <span
+                                  className={cn(
+                                    "text-3xl font-bold tracking-tight",
+                                    (remaining ?? 0) > 0 ? "text-foreground" : "text-rose-600 dark:text-rose-400"
+                                  )}
+                                >
+                                  {remaining ?? 0}
+                                </span>
+                                <span className="text-sm font-medium text-muted-foreground">
+                                  {unitWord(remaining ?? 0)} {isRTL ? "متبقية" : "remaining"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {isRTL
+                                  ? `المتاح: ${allowed ?? 0} ${unitWord(allowed ?? 0)} (${period.label})`
+                                  : `Allowed: ${allowed ?? 0} ${unitWord(allowed ?? 0)} (${period.label})`}
+                                {policy.matchedOverride && (
+                                  <span className="ml-1 font-medium text-primary">
+                                    ({policy.matchedOverride.targetLabel || policy.matchedOverride.targetValue})
+                                  </span>
+                                )}
+                              </p>
+                            </>
+                          )}
+                        </div>
+
+                        {policy.isEligible && !policy.isUnlimited && (
+                          <div className="mt-3">
+                            <Progress
+                              value={allowed && allowed > 0 ? ((remaining ?? 0) / allowed) * 100 : 0}
+                              className="h-2 bg-muted"
+                              indicatorClassName={getProgressIndicatorColor(remaining ?? 0, allowed ?? 0)}
+                            />
                           </div>
                         )}
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-muted-foreground">
-                          {isRTL ? "الحالة: " : "Status: "}<strong className="text-foreground font-medium">{leaveBalances.maternity.isMale ? (isRTL ? "ذكر" : "Male") : (isRTL ? "غير محدد" : "Not Set")}</strong>
-                        </span>
-                        <span className="text-muted-foreground text-[11px]">
-                          {isRTL ? "غير مؤهل" : "Ineligible"}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-border/60 space-y-1.5 text-xs">
+                        {policy.isEligible ? (
+                          <>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-muted-foreground">
+                                {isRTL ? "المستخدم: " : "Used: "}
+                                <strong className="text-foreground font-medium">{used}{unitShort}</strong>
+                                {pending > 0 && (
+                                  <span className="text-amber-600 dark:text-amber-400 font-normal ml-1">
+                                    ({pending}{unitShort} {isRTL ? "معلق" : "pending"})
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-muted-foreground font-medium truncate max-w-[125px]" title={period.label}>
+                                {policy.isUnlimited ? (isRTL ? "بدون حد" : "No Limit") : period.shortLabel}
+                              </span>
+                            </div>
+                            {!policy.isUnlimited && (
+                              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                <span>{isRTL ? `المتاح: ${allowed}${unitShort}` : `Allowed: ${allowed}${unitShort}`}</span>
+                                <span>{isRTL ? `المتبقي: ${remaining}${unitShort}` : `Remaining: ${remaining}${unitShort}`}</span>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">
+                              {isRTL ? "الحالة: " : "Status: "}
+                              <strong className="text-foreground font-medium">
+                                {policy.isMale ? (isRTL ? "ذكر" : "Male") : (isRTL ? "غير مؤهل" : "Ineligible")}
+                              </strong>
+                            </span>
+                            <span className="text-muted-foreground text-[11px]">
+                              {isRTL ? "غير متاح" : "Ineligible"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -1106,11 +872,31 @@ function MyRequestsContent() {
               <div className="flex items-start sm:items-center gap-2">
                 <Info className="h-4 w-4 text-primary flex-shrink-0 mt-0.5 sm:mt-0" />
                 <span>
-                  <strong>{isRTL ? "الحدود الرسمية للائحة:" : "Official Policy Limits:"}</strong> {isRTL ? "أذونات التأخير والانصراف: 4 ساعات/شهر (8 ساعات للمحرر، 2س لكل إذن) • العارضة: يوم واحد/ترم • المرضية: 7 أيام/سنة • الوضع: 120 يوماً (للإناث)." : "Early & Late Excuses: 4 hours/month (8 hours for Editor, 2h per excuse) • Emergency: 1 day/term • Medical: 7 days/year • Maternity: 120 days (Female)."}
+                  <strong>{isRTL ? "السياسات النشطة (إعدادات الموارد البشرية):" : "Active HR Leave Policies:"}</strong>{" "}
+                  {dynamicLeaveBalances.length > 0
+                    ? dynamicLeaveBalances
+                        .map((item) => {
+                          if (!item.policy.isEligible) {
+                            return `${item.policy.title}: ${isRTL ? "للإناث فقط" : "Female only"}`;
+                          }
+                          if (item.policy.isUnlimited) {
+                            return `${item.policy.title}: ${isRTL ? "غير محدود" : "Unlimited"}`;
+                          }
+                          const u = item.policy.unit === "hours" ? (isRTL ? "س" : "h") : (isRTL ? "ي" : "d");
+                          const r =
+                            item.policy.resetPeriod === "monthly"
+                              ? (isRTL ? "شهري" : "month")
+                              : item.policy.resetPeriod === "academic_term"
+                                ? (isRTL ? "ترم" : "term")
+                                : (isRTL ? "سنوي" : "year");
+                          return `${item.policy.title}: ${item.allowed}${u}/${r}`;
+                        })
+                        .join(" • ")
+                    : (isRTL ? "يتم تحميل السياسات من إعدادات الموارد البشرية." : "Configured dynamically from HR Settings.")}
                 </span>
               </div>
               <div className="text-muted-foreground/90 font-medium whitespace-nowrap self-end sm:self-auto">
-                {isRTL ? "رصيد الإجازات المتبقي" : "Remaining Leave Limits"}
+                {isRTL ? "رصيد الإجازات المتبقي" : "Dynamic Leave Policies"}
               </div>
             </div>
           </CardContent>
@@ -1386,18 +1172,20 @@ function MyRequestsContent() {
                               startOfMonth(currentMonthDate),
                               endOfMonth(currentMonthDate),
                               request.leaveType,
-                              request.numberOfDays,
+                              request.numberOfDays ?? undefined,
                               weekendDays,
                               holidaysSet
                             );
                             const isMaternityHour =
-                              (request as any).hoursPerDay === 1 ||
-                              (request as any).isHourly === true ||
-                              (request.leaveType || "").toLowerCase().includes("hour") ||
-                              (request.leaveType || "").toLowerCase().includes("ساعة") ||
-                              (request.leaveType || "").toLowerCase().includes("ساعه") ||
-                              (request.leaveType || "").toLowerCase().includes("رضاعة") ||
-                              (request.leaveType || "").toLowerCase().includes("رعاية");
+                              request.hoursPerDay === 1 ||
+                              isMaternityHourName(request.leaveType);
+                            const explicitHours =
+                              typeof request.durationHours === "number" && request.durationHours > 0
+                                ? request.durationHours
+                                : typeof request.hours === "number" && request.hours > 0
+                                  ? request.hours
+                                  : null;
+                            const isGenericHourRequest = !isMaternityHour && (Boolean(request.isHourly) || explicitHours !== null);
 
                             return (
                               <TableRow key={request.id}>
@@ -1407,7 +1195,9 @@ function MyRequestsContent() {
                                 <TableCell>
                                   {isMaternityHour
                                     ? `${daysInSelectedMonth > 0 ? daysInSelectedMonth : (request.numberOfDays ?? 1)}d (1h/d)`
-                                    : (daysInSelectedMonth > 0 ? daysInSelectedMonth : "-")}
+                                    : isGenericHourRequest && explicitHours !== null
+                                      ? (isRTL ? `${explicitHours} س` : `${explicitHours}h`)
+                                      : (daysInSelectedMonth > 0 ? daysInSelectedMonth : "-")}
                                 </TableCell>
                                 <TableCell className="max-w-xs truncate" title={request.reason}>{request.reason}</TableCell>
                                 <TableCell>{request.submittedAt ? format(request.submittedAt.toDate(), "MM/dd/yyyy p") : "-"}</TableCell>

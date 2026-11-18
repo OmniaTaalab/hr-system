@@ -67,12 +67,23 @@ import * as XLSX from "xlsx";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useOrganizationLists } from "@/hooks/use-organization-lists";
 import { useLeaveTypes } from "@/hooks/use-leave-types";
+import { useSharedLeaveGroups } from "@/hooks/use-shared-leave-groups";
 import { useI18n } from "@/lib/i18n";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { LEAVE_BALANCE_EXCEEDED_MESSAGE, type LeaveRequestRecord } from "@/types/leave-policy";
+import {
+  calculatePolicyBalance,
+  canConsumeFromBalance,
+  getPeriodWindow,
+  isMaternityHourName,
+  resolveEffectiveLeavePolicy,
+  roundLeaveAmount,
+  toCalendarDate,
+} from "@/lib/leave-policy";
 
 export interface LeaveRequestEntry {
   id: string;
@@ -97,6 +108,8 @@ export interface LeaveRequestEntry {
   notifiedReportingLineIds?: string[];
   notifiedReportingLineEmails?: string[];
   leaveType: string;
+  leaveTypeId?: string | null;
+  sharedGroupId?: string | null;
   startDate: any;
   endDate: any;
   reason: string;
@@ -105,14 +118,25 @@ export interface LeaveRequestEntry {
   managerNotes?: string;
   updatedAt?: any;
   numberOfDays?: number;
+  hours?: number | null;
+  durationHours?: number | null;
+  hoursPerDay?: number | null;
+  isHourly?: boolean | null;
   attachmentURL?: string;
   currentApprover?: string | null;
   approvedBy?: string[];
   isRetroactive?: boolean;
+  hrCreatorName?: string;
+  hrCreatorId?: string;
+  hrCreatorEmail?: string;
+  createdByName?: string;
+  createdById?: string;
+  approvedRejectedByName?: string;
+  approvedRejectedById?: string;
   requiredApprovals?: 1 | 2;
   approvalStage?: 1 | 2;
   stage1Status?: "Pending" | "Approved" | "Rejected";
-  stage2Status?: "Waiting" | "Pending" | "Approved" | "Rejected" | "Cancelled";
+  stage2Status?: "Waiting" | "Pending" | "Approved" | "Rejected" | "Cancelled" | "NotRequired";
   missingSecondApprover?: boolean;
   stage1ApproverId?: string;
   stage1ApproverDocId?: string;
@@ -212,6 +236,7 @@ function AllLeaveRequestsContent() {
   const { campuses, groupNames: stages, isLoading: isLoadingLists } =
     useOrganizationLists();
   const { leaveTypes, isLoading: isLoadingLeaveTypes } = useLeaveTypes();
+  const { sharedGroups } = useSharedLeaveGroups();
 
   const [selectedRequestToDelete, setSelectedRequestToDelete] =
     useState<LeaveRequestEntry | null>(null);
@@ -228,6 +253,7 @@ function AllLeaveRequestsContent() {
   const [editLeaveType, setEditLeaveType] = useState("");
   const [editStartDate, setEditStartDate] = useState("");
   const [editEndDate, setEditEndDate] = useState("");
+  const [editRequestedHours, setEditRequestedHours] = useState("");
   const [editReason, setEditReason] = useState("");
   const [editStatus, setEditStatus] = useState<"Pending" | "Approved" | "Rejected">("Pending");
   const [editServerState, editFormAction, isEditPending] = useActionState(
@@ -242,6 +268,10 @@ function AllLeaveRequestsContent() {
     const eDate = req.endDate?.toDate ? req.endDate.toDate() : new Date();
     setEditStartDate(format(sDate, "yyyy-MM-dd"));
     setEditEndDate(format(eDate, "yyyy-MM-dd"));
+    const existingHours = req.durationHours ?? req.hours;
+    setEditRequestedHours(
+      typeof existingHours === "number" && existingHours > 0 ? String(existingHours) : ""
+    );
     setEditReason(req.reason || "");
     setEditStatus(req.status || "Pending");
     setIsEditDialogOpen(true);
@@ -249,10 +279,21 @@ function AllLeaveRequestsContent() {
 
   // Retroactive leave state
   const [isRetroactiveModalOpen, setIsRetroactiveModalOpen] = useState(false);
-  const [employeesList, setEmployeesList] = useState<Array<{ id: string; name: string; employeeId: string; email?: string }>>([]);
+  const [employeesList, setEmployeesList] = useState<Array<{
+    id: string;
+    name: string;
+    employeeId: string;
+    email?: string;
+    nisEmail?: string;
+    userId?: string;
+    role?: string;
+    positionClass?: string;
+    gender?: string;
+  }>>([]);
   const [selectedEmployeeDocId, setSelectedEmployeeDocId] = useState("");
   const [selectedLeaveType, setSelectedLeaveType] = useState("");
   const [selectedDates, setSelectedDates] = useState<Date[] | undefined>([]);
+  const [retroRequestedHours, setRetroRequestedHours] = useState("");
   const [retroactiveReason, setRetroactiveReason] = useState("");
   const [openEmployeeCombo, setOpenEmployeeCombo] = useState(false);
 
@@ -276,6 +317,9 @@ function AllLeaveRequestsContent() {
             email: (data.email || "").trim(),
             nisEmail: (data.nisEmail || "").trim(),
             userId: (data.userId || "").trim(),
+            role: (data.role || "").trim(),
+            positionClass: (data.positionClass || "").trim(),
+            gender: (data.gender || "").trim(),
           };
         });
         list.sort((a, b) => a.name.localeCompare(b.name));
@@ -321,6 +365,7 @@ function AllLeaveRequestsContent() {
         setSelectedEmployeeDocId("");
         setSelectedLeaveType("");
         setSelectedDates([]);
+        setRetroRequestedHours("");
         setRetroactiveReason("");
         fetchData();
       } else {
@@ -332,6 +377,156 @@ function AllLeaveRequestsContent() {
       }
     }
   }, [retroState, toast, isRTL]);
+
+  const retroSelectedEmployee = useMemo(
+    () => employeesList.find((e) => e.id === selectedEmployeeDocId) || null,
+    [employeesList, selectedEmployeeDocId]
+  );
+
+  const retroSelectedPolicy = useMemo(() => {
+    if (!selectedLeaveType) return null;
+    return resolveEffectiveLeavePolicy({
+      leaveTypeNameOrId: selectedLeaveType,
+      leaveTypes,
+      sharedGroups,
+      employee: retroSelectedEmployee
+        ? {
+            id: retroSelectedEmployee.id,
+            docId: retroSelectedEmployee.id,
+            employeeId: retroSelectedEmployee.employeeId,
+            role: retroSelectedEmployee.role,
+            positionClass: retroSelectedEmployee.positionClass,
+            gender: retroSelectedEmployee.gender,
+            email: retroSelectedEmployee.email,
+            nisEmail: retroSelectedEmployee.nisEmail,
+          }
+        : null,
+    });
+  }, [selectedLeaveType, leaveTypes, sharedGroups, retroSelectedEmployee]);
+
+  const retroIsHourly = Boolean(
+    retroSelectedPolicy?.unit === "hours" && !isMaternityHourName(selectedLeaveType)
+  );
+
+  const retroBalanceCheck = useMemo(() => {
+    if (!retroSelectedPolicy || !selectedEmployeeDocId) {
+      return { balance: null, isExceeded: false };
+    }
+    const empRequests: LeaveRequestRecord[] = allRequests
+      .filter((r) => r.requestingEmployeeDocId === selectedEmployeeDocId)
+      .map((r) => ({
+        id: r.id,
+        leaveType: r.leaveType,
+        leaveTypeId: r.leaveTypeId ?? null,
+        sharedGroupId: r.sharedGroupId ?? null,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        status: r.status,
+        numberOfDays: r.numberOfDays ?? null,
+        durationHours: r.durationHours ?? null,
+        hours: r.hours ?? null,
+        hoursPerDay: r.hoursPerDay ?? null,
+        isHourly: r.isHourly ?? null,
+      }));
+
+    const datesToCheck =
+      selectedDates && selectedDates.length > 0 ? selectedDates : [new Date()];
+    const firstBalance = calculatePolicyBalance({
+      policy: retroSelectedPolicy,
+      requests: empRequests,
+      anchorDate: datesToCheck[0],
+    });
+
+    if (!selectedDates || selectedDates.length === 0) {
+      return { balance: firstBalance, isExceeded: false };
+    }
+
+    const parsedHours = Number(retroRequestedHours);
+    const perEntry =
+      retroSelectedPolicy.unit === "hours"
+        ? isMaternityHourName(selectedLeaveType)
+          ? parsedHours > 0
+            ? parsedHours
+            : 1
+          : parsedHours > 0
+          ? parsedHours
+          : 0
+        : 1;
+
+    if (retroSelectedPolicy.unit === "hours" && perEntry <= 0) {
+      return { balance: firstBalance, isExceeded: false };
+    }
+
+    const byPeriod = new Map<string, { anchorDate: Date; count: number }>();
+    for (const d of selectedDates) {
+      const cal = toCalendarDate(d);
+      const win = getPeriodWindow(retroSelectedPolicy.resetPeriod, cal);
+      const existing = byPeriod.get(win.key);
+      if (existing) existing.count += 1;
+      else byPeriod.set(win.key, { anchorDate: cal, count: 1 });
+    }
+
+    let isExceeded = false;
+    for (const grp of byPeriod.values()) {
+      const bal = calculatePolicyBalance({
+        policy: retroSelectedPolicy,
+        requests: empRequests,
+        anchorDate: grp.anchorDate,
+      });
+      const needed = roundLeaveAmount(perEntry * grp.count);
+      const check = canConsumeFromBalance({ balance: bal, requestedAmount: needed });
+      if (!check.allowed) {
+        isExceeded = true;
+        break;
+      }
+    }
+
+    return { balance: firstBalance, isExceeded };
+  }, [
+    retroSelectedPolicy,
+    selectedEmployeeDocId,
+    allRequests,
+    selectedDates,
+    selectedLeaveType,
+    retroRequestedHours,
+  ]);
+
+  const editEmployeeContext = useMemo(() => {
+    if (!selectedRequestToEdit) return null;
+    return (
+      employeesList.find(
+        (e) =>
+          e.id === selectedRequestToEdit.requestingEmployeeDocId ||
+          (selectedRequestToEdit.employeeId &&
+            e.employeeId === String(selectedRequestToEdit.employeeId))
+      ) || null
+    );
+  }, [employeesList, selectedRequestToEdit]);
+
+  const editSelectedPolicy = useMemo(() => {
+    if (!editLeaveType) return null;
+    return resolveEffectiveLeavePolicy({
+      leaveTypeNameOrId: editLeaveType,
+      leaveTypes,
+      sharedGroups,
+      employee: editEmployeeContext
+        ? {
+            id: editEmployeeContext.id,
+            docId: editEmployeeContext.id,
+            employeeId: editEmployeeContext.employeeId,
+            role: editEmployeeContext.role,
+            positionClass: editEmployeeContext.positionClass,
+            gender: editEmployeeContext.gender,
+            email: editEmployeeContext.email,
+            nisEmail: editEmployeeContext.nisEmail,
+          }
+        : null,
+    });
+  }, [editLeaveType, leaveTypes, sharedGroups, editEmployeeContext]);
+
+  const editIsHourly = Boolean(
+    editSelectedPolicy?.unit === "hours" && !isMaternityHourName(editLeaveType)
+  );
 
   const employeeMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -788,19 +983,23 @@ const isPrivileged =
       return;
     }
 
-    const dataToExport = filteredRequests.map((req) => ({
-      "Employee Name": req.employeeName,
-      Stage: req.employeeStage || "-",
-      Campus: req.employeeCampus || "-",
-      "Leave Type": req.leaveType,
-      "Start Date": format(req.startDate.toDate(), "yyyy-MM-dd"),
-      "End Date": format(req.endDate.toDate(), "yyyy-MM-dd"),
-      "Working Days": req.numberOfDays ?? 0,
-      Status: req.status,
-      Reason: req.reason,
-      "Manager Notes": req.managerNotes || "-",
-      "Submitted At": format(req.submittedAt.toDate(), "yyyy-MM-dd p"),
-    }));
+    const dataToExport = filteredRequests.map((req) => {
+      const explicitHours = req.durationHours ?? req.hours;
+      return {
+        "Employee Name": req.employeeName,
+        Stage: req.employeeStage || "-",
+        Campus: req.employeeCampus || "-",
+        "Leave Type": req.leaveType,
+        "Start Date": format(req.startDate.toDate(), "yyyy-MM-dd"),
+        "End Date": format(req.endDate.toDate(), "yyyy-MM-dd"),
+        "Working Days": req.numberOfDays ?? 0,
+        "Duration Hours": typeof explicitHours === "number" && explicitHours > 0 ? explicitHours : "-",
+        Status: req.status,
+        Reason: req.reason,
+        "Manager Notes": req.managerNotes || "-",
+        "Submitted At": format(req.submittedAt.toDate(), "yyyy-MM-dd p"),
+      };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
@@ -1106,13 +1305,24 @@ const isPrivileged =
                         <TableCell>{format(r.startDate.toDate(), "MM/dd/yyyy")}</TableCell>
                         <TableCell>{format(r.endDate.toDate(), "MM/dd/yyyy")}</TableCell>
                         <TableCell>
-                          {(r as any).hoursPerDay === 1 ||
-                          (r as any).isHourly ||
-                          (r.leaveType || "").toLowerCase().includes("hour") ||
-                          (r.leaveType || "").toLowerCase().includes("ساعة") ||
-                          (r.leaveType || "").toLowerCase().includes("رضاعة")
-                            ? (isRTL ? `${r.numberOfDays ?? 0} ي (1س/ي)` : `${r.numberOfDays ?? 0} d (1h/d)`)
-                            : (r.numberOfDays ?? 0)}
+                          {(() => {
+                            const explicitHours = r.durationHours ?? r.hours;
+                            const isMaternityHr =
+                              r.hoursPerDay === 1 || isMaternityHourName(r.leaveType);
+                            if (isMaternityHr) {
+                              return isRTL
+                                ? `${r.numberOfDays ?? 0} ي (1س/ي)`
+                                : `${r.numberOfDays ?? 0} d (1h/d)`;
+                            }
+                            if (
+                              (r.isHourly || typeof explicitHours === "number") &&
+                              typeof explicitHours === "number" &&
+                              explicitHours > 0
+                            ) {
+                              return isRTL ? `${explicitHours} س` : `${explicitHours}h`;
+                            }
+                            return r.numberOfDays ?? 0;
+                          })()}
                         </TableCell>
                         <TableCell>
                           <LeaveStatusBadge status={r.status} />
@@ -1210,7 +1420,11 @@ const isPrivileged =
           <form action={retroactiveFormAction} className="space-y-6 mt-4">
             <input type="hidden" name="requestingEmployeeDocId" value={selectedEmployeeDocId} />
             <input type="hidden" name="leaveType" value={selectedLeaveType} />
-            <input type="hidden" name="datesJson" value={JSON.stringify(selectedDates || [])} />
+            <input
+              type="hidden"
+              name="datesJson"
+              value={JSON.stringify((selectedDates || []).map((d) => format(d, "yyyy-MM-dd")))}
+            />
             <input type="hidden" name="actorId" value={profile?.id || ""} />
             <input type="hidden" name="actorEmail" value={profile?.nisEmail || profile?.email || ""} />
             <input type="hidden" name="actorRole" value={profile?.role || ""} />
@@ -1285,6 +1499,71 @@ const isPrivileged =
               </Select>
             </div>
 
+            {/* Dynamic Policy Balance Preview & Hourly Input */}
+            {retroSelectedPolicy && (
+              <div className="space-y-3">
+                {retroBalanceCheck.balance && (
+                  <div className="rounded-lg border bg-muted/40 p-3 text-xs space-y-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold text-foreground">
+                        {retroSelectedPolicy.title}
+                        {retroSelectedPolicy.sharedGroupName
+                          ? ` (${isRTL ? "رصيد مشترك" : "Shared Pool"})`
+                          : ""}
+                      </span>
+                      <Badge variant="outline" className="text-[11px]">
+                        {retroSelectedPolicy.isUnlimited
+                          ? (isRTL ? "غير محدود" : "Unlimited")
+                          : `${retroBalanceCheck.balance.remaining ?? 0} ${retroSelectedPolicy.unit} ${isRTL ? "متبقي" : "remaining"}`}
+                      </Badge>
+                    </div>
+                    {!retroSelectedPolicy.isUnlimited && (
+                      <div className="flex flex-wrap gap-3 text-muted-foreground">
+                        <span>{isRTL ? "المسموح:" : "Allowed:"} <strong className="text-foreground">{retroBalanceCheck.balance.allowed}</strong> {retroSelectedPolicy.unit}</span>
+                        <span>{isRTL ? "المستخدم:" : "Used:"} <strong className="text-foreground">{retroBalanceCheck.balance.used}</strong></span>
+                        <span>{isRTL ? "المعلق:" : "Pending:"} <strong className="text-foreground">{retroBalanceCheck.balance.pending}</strong></span>
+                        <span>{retroBalanceCheck.balance.period.shortLabel}</span>
+                      </div>
+                    )}
+                    {retroSelectedPolicy.linkedLeaveTypeNames.length > 1 && (
+                      <p className="text-[11px] text-muted-foreground">
+                        {isRTL ? "الأنواع المرتبطة:" : "Linked types:"} {retroSelectedPolicy.linkedLeaveTypeNames.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {retroIsHourly && (
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">
+                      {isRTL ? "عدد الساعات لكل تاريخ محدد *" : "Requested Hours (per selected date) *"}
+                    </label>
+                    <Input
+                      type="number"
+                      name="requestedHours"
+                      step="any"
+                      min="0.25"
+                      placeholder={isRTL ? "مثال: 1.5 أو 2" : "e.g., 1.5 or 2"}
+                      value={retroRequestedHours}
+                      onChange={(e) => setRetroRequestedHours(e.target.value)}
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {isRTL
+                        ? "يدعم الكسور العشرية للساعات (مثل 0.5، 1.5، 2.25)."
+                        : "Supports fractional hours (e.g., 0.5, 1.5, 2.25)."}
+                    </p>
+                  </div>
+                )}
+
+                {retroBalanceCheck.isExceeded && (
+                  <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-xs font-medium text-destructive">
+                    {LEAVE_BALANCE_EXCEEDED_MESSAGE}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Multi-Date Calendar */}
             <div className="space-y-2">
               <label className="text-sm font-medium">{isRTL ? "التواريخ (اضغط لاختيار أو إلغاء التحديد)" : "Select Dates (Click to select/deselect multiple dates)"}</label>
@@ -1348,7 +1627,17 @@ const isPrivileged =
               </Button>
               <Button
                 type="submit"
-                disabled={isRetroPending || !selectedEmployeeDocId || !selectedLeaveType || !selectedDates || selectedDates.length === 0 || !retroactiveReason.trim()}
+                disabled={
+                  isRetroPending ||
+                  !selectedEmployeeDocId ||
+                  !selectedLeaveType ||
+                  !selectedDates ||
+                  selectedDates.length === 0 ||
+                  !retroactiveReason.trim() ||
+                  (retroIsHourly && (!retroRequestedHours || Number(retroRequestedHours) <= 0)) ||
+                  retroBalanceCheck.isExceeded ||
+                  (retroSelectedPolicy ? !retroSelectedPolicy.isEligible : false)
+                }
               >
                 {isRetroPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isRTL ? `حفظ (${selectedDates?.length || 0}) سجلات رجعية` : `Save ${selectedDates?.length || 0} Retroactive Leave(s)`}
@@ -1388,8 +1677,13 @@ const isPrivileged =
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">{isRTL ? "عدد الأيام:" : "Duration:"}</span>
-                    <span>{selectedRequestToDelete.numberOfDays ?? 0} {isRTL ? "أيام" : "day(s)"}</span>
+                    <span className="text-muted-foreground">{isRTL ? "المدة:" : "Duration:"}</span>
+                    <span>
+                      {(selectedRequestToDelete.durationHours ?? selectedRequestToDelete.hours) &&
+                      !(selectedRequestToDelete.hoursPerDay === 1 || isMaternityHourName(selectedRequestToDelete.leaveType))
+                        ? `${selectedRequestToDelete.durationHours ?? selectedRequestToDelete.hours} ${isRTL ? "ساعة" : "hour(s)"}`
+                        : `${selectedRequestToDelete.numberOfDays ?? 0} ${isRTL ? "أيام" : "day(s)"}`}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center pt-1 border-t">
                     <span className="text-muted-foreground">{isRTL ? "الحالة:" : "Status:"}</span>
@@ -1524,6 +1818,27 @@ const isPrivileged =
                   )}
                 </div>
               </div>
+
+              {editIsHourly && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">
+                    {isRTL ? "عدد الساعات المطلوبة *" : "Requested Hours *"}
+                  </label>
+                  <Input
+                    type="number"
+                    name="requestedHours"
+                    step="any"
+                    min="0.25"
+                    placeholder={isRTL ? "مثال: 1.5 أو 2" : "e.g., 1.5 or 2"}
+                    value={editRequestedHours}
+                    onChange={(e) => setEditRequestedHours(e.target.value)}
+                    required
+                  />
+                  {editServerState?.errors?.requestedHours && (
+                    <p className="text-xs text-destructive">{editServerState.errors.requestedHours.join(", ")}</p>
+                  )}
+                </div>
+              )}
 
               {/* Status */}
               <div className="space-y-1.5">

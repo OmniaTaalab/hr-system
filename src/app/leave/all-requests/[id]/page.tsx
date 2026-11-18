@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { updateLeaveRequestStatusAction, type UpdateLeaveStatusState } from '@/app/actions/leave-actions';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { isMaternityHourName } from '@/lib/leave-policy';
 interface LeaveRequestEntry {
   id: string; 
   requestingEmployeeDocId: string;
@@ -67,7 +68,7 @@ interface LeaveRequestEntry {
   requiredApprovals?: 1 | 2;
   approvalStage?: 1 | 2;
   stage1Status?: "Pending" | "Approved" | "Rejected";
-  stage2Status?: "Waiting" | "Pending" | "Approved" | "Rejected" | "Cancelled";
+  stage2Status?: "Waiting" | "Pending" | "Approved" | "Rejected" | "Cancelled" | "NotRequired";
   missingSecondApprover?: boolean;
   stage1ApproverId?: string;
   stage1ApproverDocId?: string;
@@ -117,7 +118,7 @@ function LeaveStatusBadge({ status }: { status: LeaveRequestEntry["status"] }) {
   }
 }
 
-function StageStatusBadge({ status }: { status: "Pending" | "Approved" | "Rejected" | "Waiting" | "Cancelled" }) {
+function StageStatusBadge({ status }: { status: "Pending" | "Approved" | "Rejected" | "Waiting" | "Cancelled" | "NotRequired" }) {
   const { isRTL } = useI18n();
   switch (status) {
     case "Approved":
@@ -152,6 +153,12 @@ function StageStatusBadge({ status }: { status: "Pending" | "Approved" | "Reject
       return (
         <Badge variant="outline" className="border-slate-300 text-slate-400 font-medium">
           {isRTL ? "ملغي" : "Cancelled"}
+        </Badge>
+      );
+    case "NotRequired":
+      return (
+        <Badge variant="outline" className="border-slate-300 text-slate-400 font-medium">
+          {isRTL ? "غير مطلوب" : "Not Required"}
         </Badge>
       );
     default:
@@ -346,7 +353,7 @@ function LeaveRequestDetailContent() {
     return (Array.isArray(request.approvedBy) && request.approvedBy.length >= 1) ? "Approved" : "Pending";
   }, [request]);
 
-  const stage2ComputedStatus = useMemo<"Waiting" | "Pending" | "Approved" | "Rejected" | "Cancelled">(() => {
+  const stage2ComputedStatus = useMemo<"Waiting" | "Pending" | "Approved" | "Rejected" | "Cancelled" | "NotRequired">(() => {
     if (!request) return "Waiting";
     if (request.stage2Status) {
       if (stage1ComputedStatus === "Pending" && request.stage2Status === "Pending") return "Waiting";
@@ -477,15 +484,26 @@ function LeaveRequestDetailContent() {
                 <DetailItem
                   icon={Hourglass}
                   label={isRTL ? "المدة" : "Duration"}
-                  value={
-                    (request as any).hoursPerDay === 1 ||
-                    (request as any).isHourly ||
-                    (request.leaveType || "").toLowerCase().includes("hour") ||
-                    (request.leaveType || "").toLowerCase().includes("ساعة") ||
-                    (request.leaveType || "").toLowerCase().includes("رضاعة")
-                      ? (isRTL ? `${request.numberOfDays ?? 0} يوم عمل • ساعة يوميًا (الإجمالي ${request.numberOfDays ?? 0} ساعة)` : `${request.numberOfDays ?? 0} working day(s) • 1 hour/day (${request.numberOfDays ?? 0}h total)`)
-                      : (isRTL ? `${request.numberOfDays ?? 0} يوم عمل` : ((request as any).durationText || `${request.numberOfDays ?? 0} working day(s)`))
-                  }
+                  value={(() => {
+                    const explicitHours = (request as any).durationHours ?? (request as any).hours;
+                    if ((request as any).hoursPerDay === 1 || isMaternityHourName(request.leaveType)) {
+                      return isRTL
+                        ? `${request.numberOfDays ?? 0} يوم عمل • ساعة يوميًا (الإجمالي ${request.numberOfDays ?? 0} ساعة)`
+                        : `${request.numberOfDays ?? 0} working day(s) • 1 hour/day (${request.numberOfDays ?? 0}h total)`;
+                    }
+                    if (
+                      ((request as any).isHourly || typeof explicitHours === "number") &&
+                      typeof explicitHours === "number" &&
+                      explicitHours > 0
+                    ) {
+                      return isRTL
+                        ? `${explicitHours} ساعة`
+                        : `${explicitHours} hour(s)`;
+                    }
+                    return isRTL
+                      ? `${request.numberOfDays ?? 0} يوم عمل`
+                      : ((request as any).durationText || `${request.numberOfDays ?? 0} working day(s)`);
+                  })()}
                 />
 
                 {assignedReportingLines.length > 0 && (

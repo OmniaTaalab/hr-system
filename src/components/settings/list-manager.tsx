@@ -58,27 +58,29 @@ import { Loader2, PlusCircle, Edit, Trash2, Search, RefreshCw } from 'lucide-rea
 
 import { Skeleton } from '../ui/skeleton';
 import { useI18n } from '@/lib/i18n';
-
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
+import { Badge } from '../ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { useUserProfile } from '@/components/layout/app-layout';
+import { RoleAllowancesEditor } from './role-allowances-editor';
+import type {
+  AllowanceType,
+  GenderRestriction,
+  LeaveTypeConfig,
+  LeaveUnit,
+  ResetPeriod,
+  RoleAllowanceOverride,
+  SharedLeaveGroup,
+} from '@/types/leave-policy';
 
-
-
-interface ListItem {
-
+interface ListItem extends LeaveTypeConfig {
   id: string;
-
   name: string;
-
 }
 
-
-
 interface ListManagerProps {
-
   title: string;
-
   collectionName: "roles" | "groupNames" | "systems" | "campuses" | "leaveTypes" | "stage" | "subjects" | "machineNames" | "reportLines1" | "reportLines2" | "positionClasses";
-
 }
 
 
@@ -93,9 +95,13 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
 
   const { toast } = useToast();
   const { isRTL } = useI18n();
+  const { profile } = useUserProfile();
   const t = (en: string, ar: string) => isRTL ? ar : en;
 
+  const isLeaveTypes = collectionName === "leaveTypes";
+
   const [items, setItems] = useState<ListItem[]>([]);
+  const [sharedGroups, setSharedGroups] = useState<SharedLeaveGroup[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -112,6 +118,40 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
 
 
   const [selectedItem, setSelectedItem] = useState<ListItem | null>(null);
+
+  // Dynamic Leave Policy form state (used only when collectionName === "leaveTypes")
+  const [allowanceType, setAllowanceType] = useState<AllowanceType>("unlimited");
+  const [allowanceAmount, setAllowanceAmount] = useState<string>("");
+  const [unit, setUnit] = useState<LeaveUnit>("days");
+  const [resetPeriod, setResetPeriod] = useState<string>("none");
+  const [sharedGroupId, setSharedGroupId] = useState<string>("");
+  const [genderRestriction, setGenderRestriction] = useState<GenderRestriction>("all");
+  const [roleAllowances, setRoleAllowances] = useState<RoleAllowanceOverride[]>([]);
+
+  const resetLeavePolicyForm = () => {
+    setAllowanceType("unlimited");
+    setAllowanceAmount("");
+    setUnit("days");
+    setResetPeriod("none");
+    setSharedGroupId("");
+    setGenderRestriction("all");
+    setRoleAllowances([]);
+  };
+
+  const prefillLeavePolicyForm = (item: ListItem) => {
+    const type: AllowanceType = item.allowanceType || "unlimited";
+    setAllowanceType(type);
+    setAllowanceAmount(
+      typeof item.allowanceAmount === "number" ? String(item.allowanceAmount) : ""
+    );
+    setUnit(item.unit === "hours" ? "hours" : "days");
+    setResetPeriod(
+      item.resetPeriod || (type === "individual" ? "yearly" : "none")
+    );
+    setSharedGroupId(item.sharedGroupId || "");
+    setGenderRestriction(item.genderRestriction === "female" ? "female" : "all");
+    setRoleAllowances(Array.isArray(item.roleAllowances) ? item.roleAllowances : []);
+  };
 
 
 
@@ -170,7 +210,22 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
 
-      setItems(snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+      setItems(snapshot.docs.map(doc => {
+        const raw = doc.data();
+        return {
+          id: doc.id,
+          name: raw.name,
+          ...(isLeaveTypes ? {
+            allowanceType: raw.allowanceType,
+            allowanceAmount: typeof raw.allowanceAmount === "number" ? raw.allowanceAmount : null,
+            unit: raw.unit,
+            resetPeriod: raw.resetPeriod ?? null,
+            sharedGroupId: raw.sharedGroupId ?? null,
+            roleAllowances: Array.isArray(raw.roleAllowances) ? raw.roleAllowances : [],
+            genderRestriction: raw.genderRestriction,
+          } : {}),
+        } as ListItem;
+      }));
 
       setIsLoading(false);
 
@@ -184,9 +239,25 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
 
     });
 
-    return () => unsubscribe();
+    let unsubGroups: (() => void) | undefined;
+    if (isLeaveTypes) {
+      const gq = query(collection(db, "sharedLeaveGroups"), orderBy("name"));
+      unsubGroups = onSnapshot(gq, (snap) => {
+        setSharedGroups(snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<SharedLeaveGroup, "id">),
+        })));
+      }, (err) => {
+        console.warn("Could not load sharedLeaveGroups:", err);
+      });
+    }
 
-  }, [collectionName, title, toast]);
+    return () => {
+      unsubscribe();
+      if (unsubGroups) unsubGroups();
+    };
+
+  }, [collectionName, title, toast, isLeaveTypes]);
 
 
 
@@ -460,7 +531,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
 
             )}
 
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <Dialog open={isAddDialogOpen} onOpenChange={(open) => { if (open && isLeaveTypes) resetLeavePolicyForm(); setIsAddDialogOpen(open); }}>
 
                 <DialogTrigger asChild>
 
@@ -468,7 +539,7 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
 
                 </DialogTrigger>
 
-                <DialogContent dir={isRTL ? "rtl" : "ltr"}>
+                <DialogContent className={isLeaveTypes ? "max-w-lg max-h-[90vh] overflow-y-auto" : undefined} dir={isRTL ? "rtl" : "ltr"}>
 
                     <form ref={addFormRef} action={addAction}>
 
@@ -480,18 +551,148 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
 
                         </DialogHeader>
 
-                        <div className="py-4">
+                        <div className="py-4 space-y-4">
 
                             <input type="hidden" name="collectionName" value={collectionName} />
 
                             <input type="hidden" name="operation" value="add" />
+                            <input type="hidden" name="actorId" value={profile?.id || ""} />
+                            <input type="hidden" name="actorEmail" value={profile?.nisEmail || profile?.email || ""} />
+                            <input type="hidden" name="actorRole" value={profile?.role || ""} />
 
-                            <Label htmlFor={`add-name-${collectionName}`}>{fieldLabelLocalized}</Label>
+                            <div className="space-y-1.5">
+                              <Label htmlFor={`add-name-${collectionName}`}>{fieldLabelLocalized}</Label>
+                              <Input id={`add-name-${collectionName}`} name="name" type={fieldType} required/>
+                            </div>
 
-                            <Input id={`add-name-${collectionName}`} name="name" type={fieldType} required/>
+                            {isLeaveTypes && (
+                              <div className="space-y-3 border-t pt-3">
+                                <input type="hidden" name="allowanceType" value={allowanceType} />
+                                <input type="hidden" name="unit" value={unit} />
+                                <input type="hidden" name="resetPeriod" value={resetPeriod === "none" ? "" : resetPeriod} />
+                                <input type="hidden" name="sharedGroupId" value={sharedGroupId} />
+                                <input type="hidden" name="genderRestriction" value={genderRestriction} />
+                                <input type="hidden" name="roleAllowancesJson" value={JSON.stringify(roleAllowances)} />
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label>{t("Allowance Type", "نوع الرصيد")}</Label>
+                                    <Select
+                                      value={allowanceType}
+                                      onValueChange={(v) => {
+                                        const next = v as AllowanceType;
+                                        setAllowanceType(next);
+                                        if (next === "individual" && resetPeriod === "none") {
+                                          setResetPeriod("yearly");
+                                        }
+                                      }}
+                                    >
+                                      <SelectTrigger><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="unlimited">{t("Unlimited", "غير محدود")}</SelectItem>
+                                        <SelectItem value="individual">{t("Individual", "رصيد فردي")}</SelectItem>
+                                        <SelectItem value="shared">{t("Shared", "رصيد مشترك")}</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    <Label>{t("Gender Eligibility", "الأهلية حسب الجنس")}</Label>
+                                    <Select
+                                      value={genderRestriction}
+                                      onValueChange={(v) => setGenderRestriction(v as GenderRestriction)}
+                                    >
+                                      <SelectTrigger><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="all">{t("All Employees", "جميع الموظفين")}</SelectItem>
+                                        <SelectItem value="female">{t("Female Only", "للإناث فقط")}</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+
+                                {allowanceType === "shared" ? (
+                                  <div className="space-y-1.5">
+                                    <Label>{t("Shared Allowance Group", "مجموعة الرصيد المشترك")} *</Label>
+                                    <Select value={sharedGroupId} onValueChange={setSharedGroupId}>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder={t("Select shared group...", "اختر المجموعة المشتركة...")} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {sharedGroups.map((g) => (
+                                          <SelectItem key={g.id} value={g.id}>
+                                            {g.name} ({g.allowanceAmount} {g.unit === "hours" ? t("hrs", "س") : t("days", "يوم")})
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    {sharedGroups.length === 0 && (
+                                      <p className="text-xs text-muted-foreground">
+                                        {t("Create a Shared Group below first, or save as Unlimited for now.", "أنشئ مجموعة مشتركة بالأسفل أولاً، أو احفظ كنوع غير محدود حالياً.")}
+                                      </p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div className="space-y-1.5">
+                                      <Label>
+                                        {t("Allowance Amount", "الرصيد")}
+                                        {allowanceType === "unlimited" ? ` (${t("Optional", "اختياري")})` : " *"}
+                                      </Label>
+                                      <Input
+                                        name="allowanceAmount"
+                                        type="number"
+                                        step="any"
+                                        min="0.1"
+                                        value={allowanceAmount}
+                                        onChange={(e) => setAllowanceAmount(e.target.value)}
+                                        placeholder={allowanceType === "unlimited" ? t("Unlimited", "غير محدود") : "7"}
+                                        disabled={allowanceType === "unlimited"}
+                                        required={allowanceType === "individual"}
+                                      />
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                      <Label>{t("Unit", "الوحدة")}</Label>
+                                      <Select value={unit} onValueChange={(v) => setUnit(v as LeaveUnit)}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="days">{t("Days", "أيام")}</SelectItem>
+                                          <SelectItem value="hours">{t("Hours", "ساعات")}</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                      <Label>{t("Reset Period", "دورة التجديد")}</Label>
+                                      <Select value={resetPeriod} onValueChange={setResetPeriod}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                          {allowanceType === "unlimited" && (
+                                            <SelectItem value="none">{t("No Fixed Reset", "بدون تجديد محدد")}</SelectItem>
+                                          )}
+                                          <SelectItem value="monthly">{t("Monthly", "شهري")}</SelectItem>
+                                          <SelectItem value="academic_term">{t("Per Academic Term", "لكل فصل دراسي")}</SelectItem>
+                                          <SelectItem value="yearly">{t("Yearly", "سنوي")}</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {allowanceType === "individual" && (
+                                  <RoleAllowancesEditor
+                                    overrides={roleAllowances}
+                                    onChange={setRoleAllowances}
+                                    unit={unit}
+                                  />
+                                )}
+                              </div>
+                            )}
 
                             {addState?.errors?.name && <p className="text-sm text-destructive mt-1">{addState.errors.name.join(', ')}</p>}
-
+                            {addState?.errors?.allowanceAmount && <p className="text-sm text-destructive mt-1">{addState.errors.allowanceAmount.join(', ')}</p>}
+                            {addState?.errors?.sharedGroupId && <p className="text-sm text-destructive mt-1">{addState.errors.sharedGroupId.join(', ')}</p>}
                             {addState?.errors?.form && <p className="text-sm text-destructive mt-1">{addState.errors.form.join(', ')}</p>}
 
                         </div>
@@ -563,11 +764,46 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
 
               <TableBody>
 
-                {filteredItems.map(item => (
+                {filteredItems.map(item => {
+                  const matchedSharedGroup = isLeaveTypes
+                    ? sharedGroups.find(
+                        (g) =>
+                          g.id === item.sharedGroupId ||
+                          (Array.isArray(g.leaveTypeIds) && g.leaveTypeIds.includes(item.id))
+                      )
+                    : undefined;
+
+                  return (
 
                   <TableRow key={item.id}>
 
-                    <TableCell className="font-medium text-start">{item.name}</TableCell>
+                    <TableCell className="font-medium text-start">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{item.name}</span>
+                        {isLeaveTypes && (
+                          matchedSharedGroup || item.allowanceType === "shared" ? (
+                            <Badge variant="secondary" className="text-[11px] font-normal">
+                              {t("Shared", "مشترك")}: {matchedSharedGroup?.name || t("Linked Group", "مجموعة مرتبطة")}
+                              {matchedSharedGroup ? ` (${matchedSharedGroup.allowanceAmount}${matchedSharedGroup.unit === "hours" ? "h" : "d"})` : ""}
+                            </Badge>
+                          ) : item.allowanceType === "individual" && typeof item.allowanceAmount === "number" ? (
+                            <Badge variant="outline" className="text-[11px] font-normal">
+                              {item.allowanceAmount} {item.unit === "hours" ? t("hrs", "س") : t("days", "يوم")} •{" "}
+                              {item.resetPeriod === "monthly"
+                                ? t("Monthly", "شهري")
+                                : item.resetPeriod === "academic_term"
+                                ? t("Term", "فصل دراسي")
+                                : t("Yearly", "سنوي")}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[11px] font-normal text-muted-foreground">
+                              {t("Unlimited", "غير محدود")}
+                              {item.unit === "hours" ? ` • ${t("Hours", "ساعات")}` : ""}
+                            </Badge>
+                          )
+                        )}
+                      </div>
+                    </TableCell>
 
                     <TableCell className={isRTL ? "text-left" : "text-right"}>
 
@@ -575,11 +811,11 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
 
                         <DialogTrigger asChild>
 
-                            <Button variant="ghost" size="icon" onClick={() => { setSelectedItem(item); setIsEditDialogOpen(true); }}><Edit className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => { setSelectedItem(item); if (isLeaveTypes) prefillLeavePolicyForm(item); setIsEditDialogOpen(true); }}><Edit className="h-4 w-4" /></Button>
 
                         </DialogTrigger>
 
-                        <DialogContent dir={isRTL ? "rtl" : "ltr"}>
+                        <DialogContent className={isLeaveTypes ? "max-w-lg max-h-[90vh] overflow-y-auto" : undefined} dir={isRTL ? "rtl" : "ltr"}>
 
                              <form ref={editFormRef} action={editAction}>
 
@@ -591,20 +827,145 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
 
                                 </DialogHeader>
 
-                                <div className="py-4">
+                                <div className="py-4 space-y-4">
 
                                     <input type="hidden" name="collectionName" value={collectionName} />
 
                                     <input type="hidden" name="operation" value="update" />
 
                                     <input type="hidden" name="id" value={item.id} />
+                                    <input type="hidden" name="actorId" value={profile?.id || ""} />
+                                    <input type="hidden" name="actorEmail" value={profile?.nisEmail || profile?.email || ""} />
+                                    <input type="hidden" name="actorRole" value={profile?.role || ""} />
 
-                                    <Label htmlFor={`edit-name-${collectionName}`}>{fieldLabelLocalized}</Label>
+                                    <div className="space-y-1.5">
+                                      <Label htmlFor={`edit-name-${collectionName}`}>{fieldLabelLocalized}</Label>
+                                      <Input id={`edit-name-${collectionName}`} name="name" type={fieldType} defaultValue={item.name} required />
+                                    </div>
 
-                                    <Input id={`edit-name-${collectionName}`} name="name" type={fieldType} defaultValue={item.name} required />
+                                    {isLeaveTypes && (
+                                      <div className="space-y-3 border-t pt-3">
+                                        <input type="hidden" name="allowanceType" value={allowanceType} />
+                                        <input type="hidden" name="unit" value={unit} />
+                                        <input type="hidden" name="resetPeriod" value={resetPeriod === "none" ? "" : resetPeriod} />
+                                        <input type="hidden" name="sharedGroupId" value={sharedGroupId} />
+                                        <input type="hidden" name="genderRestriction" value={genderRestriction} />
+                                        <input type="hidden" name="roleAllowancesJson" value={JSON.stringify(roleAllowances)} />
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                          <div className="space-y-1.5">
+                                            <Label>{t("Allowance Type", "نوع الرصيد")}</Label>
+                                            <Select
+                                              value={allowanceType}
+                                              onValueChange={(v) => {
+                                                const next = v as AllowanceType;
+                                                setAllowanceType(next);
+                                                if (next === "individual" && resetPeriod === "none") {
+                                                  setResetPeriod("yearly");
+                                                }
+                                              }}
+                                            >
+                                              <SelectTrigger><SelectValue /></SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="unlimited">{t("Unlimited", "غير محدود")}</SelectItem>
+                                                <SelectItem value="individual">{t("Individual", "رصيد فردي")}</SelectItem>
+                                                <SelectItem value="shared">{t("Shared", "رصيد مشترك")}</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+
+                                          <div className="space-y-1.5">
+                                            <Label>{t("Gender Eligibility", "الأهلية حسب الجنس")}</Label>
+                                            <Select
+                                              value={genderRestriction}
+                                              onValueChange={(v) => setGenderRestriction(v as GenderRestriction)}
+                                            >
+                                              <SelectTrigger><SelectValue /></SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="all">{t("All Employees", "جميع الموظفين")}</SelectItem>
+                                                <SelectItem value="female">{t("Female Only", "للإناث فقط")}</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        </div>
+
+                                        {allowanceType === "shared" ? (
+                                          <div className="space-y-1.5">
+                                            <Label>{t("Shared Allowance Group", "مجموعة الرصيد المشترك")} *</Label>
+                                            <Select value={sharedGroupId} onValueChange={setSharedGroupId}>
+                                              <SelectTrigger>
+                                                <SelectValue placeholder={t("Select shared group...", "اختر المجموعة المشتركة...")} />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                {sharedGroups.map((g) => (
+                                                  <SelectItem key={g.id} value={g.id}>
+                                                    {g.name} ({g.allowanceAmount} {g.unit === "hours" ? t("hrs", "س") : t("days", "يوم")})
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        ) : (
+                                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                            <div className="space-y-1.5">
+                                              <Label>
+                                                {t("Allowance Amount", "الرصيد")}
+                                                {allowanceType === "unlimited" ? ` (${t("Optional", "اختياري")})` : " *"}
+                                              </Label>
+                                              <Input
+                                                name="allowanceAmount"
+                                                type="number"
+                                                step="any"
+                                                min="0.1"
+                                                value={allowanceAmount}
+                                                onChange={(e) => setAllowanceAmount(e.target.value)}
+                                                placeholder={allowanceType === "unlimited" ? t("Unlimited", "غير محدود") : "7"}
+                                                disabled={allowanceType === "unlimited"}
+                                                required={allowanceType === "individual"}
+                                              />
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                              <Label>{t("Unit", "الوحدة")}</Label>
+                                              <Select value={unit} onValueChange={(v) => setUnit(v as LeaveUnit)}>
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                  <SelectItem value="days">{t("Days", "أيام")}</SelectItem>
+                                                  <SelectItem value="hours">{t("Hours", "ساعات")}</SelectItem>
+                                                </SelectContent>
+                                              </Select>
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                              <Label>{t("Reset Period", "دورة التجديد")}</Label>
+                                              <Select value={resetPeriod} onValueChange={setResetPeriod}>
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                  {allowanceType === "unlimited" && (
+                                                    <SelectItem value="none">{t("No Fixed Reset", "بدون تجديد محدد")}</SelectItem>
+                                                  )}
+                                                  <SelectItem value="monthly">{t("Monthly", "شهري")}</SelectItem>
+                                                  <SelectItem value="academic_term">{t("Per Academic Term", "لكل فصل دراسي")}</SelectItem>
+                                                  <SelectItem value="yearly">{t("Yearly", "سنوي")}</SelectItem>
+                                                </SelectContent>
+                                              </Select>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {allowanceType === "individual" && (
+                                          <RoleAllowancesEditor
+                                            overrides={roleAllowances}
+                                            onChange={setRoleAllowances}
+                                            unit={unit}
+                                          />
+                                        )}
+                                      </div>
+                                    )}
 
                                     {editState?.errors?.name && <p className="text-sm text-destructive mt-1">{editState.errors.name.join(', ')}</p>}
-
+                                    {editState?.errors?.allowanceAmount && <p className="text-sm text-destructive mt-1">{editState.errors.allowanceAmount.join(', ')}</p>}
+                                    {editState?.errors?.sharedGroupId && <p className="text-sm text-destructive mt-1">{editState.errors.sharedGroupId.join(', ')}</p>}
                                     {editState?.errors?.form && <p className="text-sm text-destructive mt-1">{editState.errors.form.join(', ')}</p>}
 
                                 </div>
@@ -646,6 +1007,10 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
                             <input type="hidden" name="operation" value="delete" />
 
                             <input type="hidden" name="id" value={item.id} />
+                            <input type="hidden" name="name" value={item.name} />
+                            <input type="hidden" name="actorId" value={profile?.id || ""} />
+                            <input type="hidden" name="actorEmail" value={profile?.nisEmail || profile?.email || ""} />
+                            <input type="hidden" name="actorRole" value={profile?.role || ""} />
 
                             <AlertDialogHeader>
 
@@ -677,7 +1042,8 @@ export function ListManager({ title, collectionName }: ListManagerProps) {
 
                   </TableRow>
 
-                ))}
+                  );
+                })}
 
               </TableBody>
 

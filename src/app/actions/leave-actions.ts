@@ -12,9 +12,85 @@ import { getWeekendSettings } from './settings-actions';
 import { logSystemEvent } from '@/lib/system-log';
 import LeaveRequestNotificationEmail from '@/emails/leave-request-notification';
 import { render } from '@react-email/render';
-import { startOfMonth, endOfMonth } from 'date-fns';
 import { toAbsoluteAppUrl } from '@/lib/app-url';
 import { format } from "date-fns";
+import { adminDb } from '@/lib/firebase/admin-config';
+import { verifyServerHrPrivilege } from '@/lib/firebase/admin-actions';
+import { FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
+import {
+  LEAVE_BALANCE_EXCEEDED_MESSAGE,
+  LeaveRequestRecord,
+  LeaveTypeConfig,
+  SharedLeaveGroup,
+} from '@/types/leave-policy';
+import {
+  calculatePolicyBalance,
+  canConsumeFromBalance,
+  getPeriodWindow,
+  isMaternityHourName,
+  isMaternityLeaveName,
+  normalizeName,
+  resolveEffectiveLeavePolicy,
+  roundLeaveAmount,
+  toCalendarDate,
+} from '@/lib/leave-policy';
+
+class PolicyValidationError extends Error {
+  field?: string;
+  constructor(message: string, field?: string) {
+    super(message);
+    this.name = 'PolicyValidationError';
+    this.field = field;
+  }
+}
+
+function mapDocToLeaveTypeConfig(id: string, raw: Record<string, any>): LeaveTypeConfig {
+  return {
+    id,
+    name: raw.name || '',
+    allowanceType: raw.allowanceType,
+    allowanceAmount: typeof raw.allowanceAmount === 'number' ? raw.allowanceAmount : null,
+    unit: raw.unit,
+    resetPeriod: raw.resetPeriod ?? null,
+    sharedGroupId: raw.sharedGroupId ?? null,
+    roleAllowances: Array.isArray(raw.roleAllowances) ? raw.roleAllowances : [],
+    genderRestriction: raw.genderRestriction,
+  };
+}
+
+function mapDocToSharedGroup(id: string, raw: Record<string, any>): SharedLeaveGroup {
+  return {
+    id,
+    name: raw.name || '',
+    allowanceAmount: typeof raw.allowanceAmount === 'number' ? raw.allowanceAmount : 0,
+    unit: raw.unit === 'days' ? 'days' : 'hours',
+    resetPeriod:
+      raw.resetPeriod === 'academic_term' || raw.resetPeriod === 'yearly'
+        ? raw.resetPeriod
+        : 'monthly',
+    leaveTypeIds: Array.isArray(raw.leaveTypeIds) ? raw.leaveTypeIds : [],
+    leaveTypeNames: Array.isArray(raw.leaveTypeNames) ? raw.leaveTypeNames : [],
+    roleAllowances: Array.isArray(raw.roleAllowances) ? raw.roleAllowances : [],
+  };
+}
+
+function mapDocToLeaveRequestRecord(id: string, raw: Record<string, any>): LeaveRequestRecord {
+  return {
+    id,
+    leaveType: raw.leaveType ?? null,
+    leaveTypeId: raw.leaveTypeId ?? null,
+    sharedGroupId: raw.sharedGroupId ?? null,
+    startDate: raw.startDate,
+    endDate: raw.endDate,
+    status: raw.status ?? null,
+    numberOfDays: typeof raw.numberOfDays === 'number' ? raw.numberOfDays : null,
+    durationHours: typeof raw.durationHours === 'number' ? raw.durationHours : null,
+    hours: typeof raw.hours === 'number' ? raw.hours : null,
+    hoursPerDay: typeof raw.hoursPerDay === 'number' ? raw.hoursPerDay : null,
+    isHourly: typeof raw.isHourly === 'boolean' ? raw.isHourly : null,
+    workDurationMinutes: typeof raw.workDurationMinutes === 'number' ? raw.workDurationMinutes : null,
+  };
+}
 
 // Calculate working days excluding weekends/holidays
 async function calculateWorkingDays(startDate: Date, endDate: Date): Promise<number> {
@@ -59,6 +135,10 @@ const LeaveRequestFormSchema = z.object({
   leaveType: z.string().min(1),
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
+  requestedHours: z.preprocess(
+    (v) => (v === null || v === "" || v === undefined ? undefined : v),
+    z.coerce.number().positive("Requested hours must be greater than 0.").optional()
+  ),
   reason: z.string().min(10).max(500),
   attachmentURL: z.string().url().optional(),
   selectedApproverId: z.string().optional(),
@@ -78,6 +158,7 @@ export type SubmitLeaveRequestState = {
     leaveType?: string[];
     startDate?: string[];
     endDate?: string[];
+    requestedHours?: string[];
     reason?: string[];
     attachmentURL?: string[];
     selectedApproverId?: string[];
@@ -96,6 +177,7 @@ export async function submitLeaveRequestAction(
     leaveType: formData.get('leaveType'),
     startDate: formData.get('startDate'),
     endDate: formData.get('endDate'),
+    requestedHours: formData.get('requestedHours'),
     reason: formData.get('reason'),
     attachmentURL: formData.get('attachmentURL') || undefined,
     selectedApproverId: formData.get('selectedApproverId') || undefined,
@@ -119,119 +201,40 @@ export async function submitLeaveRequestAction(
     leaveType,
     startDate,
     endDate,
+    requestedHours,
     reason,
     attachmentURL,
-    selectedApproverId,
-    selectedApproverIds,
-    selectedApproverName,
-    selectedApproverEmail,
   } = validatedFields.data;
 
   try {
-    const employeeDocRef = doc(db, "employee", requestingEmployeeDocId);
-    const employeeSnap = await getDoc(employeeDocRef);
+    const employeeSnap = await getDoc(doc(db, "employee", requestingEmployeeDocId));
     if (!employeeSnap.exists()) {
       return { errors: { form: ["Employee record not found."] }, success: false };
     }
 
     const employeeData = employeeSnap.data();
     const employeeName = employeeData.name ?? "Unknown Employee";
-const employeeEmail = (
-  employeeData.nisEmail ||
-  employeeData.email ||
-  ""
-).trim();
-    const positionClass = (employeeData.positionClass || "").trim().toLowerCase();
-    const isEditor = positionClass === "editor" || positionClass.includes("editor") || positionClass === "slt" || positionClass.includes("slt");
-
-    // Late Arrival & Early Dismissal: 4-hour monthly limit (8 hours for Editor).
-    // Query by employee only (equality) and filter dates in memory so we
-    // don't need a composite Firestore index on requestingEmployeeDocId + startDate.
-    if (leaveType === "Late Arrival" || leaveType === "Early Dismissal") {
-      const monthStart = startOfMonth(startDate);
-      const monthEnd = endOfMonth(startDate);
-
-      const q = query(
-        collection(db, "leaveRequests"),
-        where("requestingEmployeeDocId", "==", requestingEmployeeDocId)
-      );
-
-      const snap = await getDocs(q);
-
-      const existingRequests = snap.docs.filter((docSnap) => {
-        const data = docSnap.data();
-        const requestStart: Date | undefined = data.startDate?.toDate?.();
-        if (!requestStart) return false;
-
-        return (
-          ["Late Arrival", "Early Dismissal"].includes(data.leaveType) &&
-          ["Pending", "Approved"].includes(data.status) &&
-          requestStart >= monthStart &&
-          requestStart <= monthEnd
-        );
-      });
-
-      const HOURS_PER_REQUEST = 2;
-      const MONTHLY_LIMIT = isEditor ? 8 : 4;
-      const usedHours = existingRequests.length * HOURS_PER_REQUEST;
-
-      if (usedHours >= MONTHLY_LIMIT) {
-        return {
-          errors: {
-            form: [
-              `You have already used your ${MONTHLY_LIMIT}-hour monthly excuse limit. Late Arrival and Early Dismissal are now disabled.`,
-            ],
-          },
-          success: false,
-        };
-      }
-
-      if (usedHours + HOURS_PER_REQUEST > MONTHLY_LIMIT) {
-        return {
-          errors: {
-            form: [
-              `You only have ${MONTHLY_LIMIT - usedHours} hours left this month. You cannot submit another "${leaveType}" request.`,
-            ],
-          },
-          success: false,
-        };
-      }
-    }
+    const employeeEmail = (
+      employeeData.nisEmail ||
+      employeeData.email ||
+      ""
+    ).trim();
 
     const rawGender = (employeeData.gender || "").trim().toLowerCase();
     const isMale = ["male", "m", "ذكر"].includes(rawGender);
 
-    const lowerLeaveType = leaveType.trim().toLowerCase();
     const isMaternityHour =
-      lowerLeaveType.includes("hour") ||
-      lowerLeaveType.includes("ساعة") ||
-      lowerLeaveType.includes("ساعه") ||
-      lowerLeaveType.includes("رضاعة") ||
-      lowerLeaveType.includes("رعاية") ||
+      isMaternityHourName(leaveType) ||
       formData.get('hoursPerDay') === '1' ||
       formData.get('maternityCalculationMode') === '1_hour_per_day';
 
     const isFullMaternity =
-      !isMaternityHour &&
-      (lowerLeaveType.includes("maternity") ||
-       lowerLeaveType.includes("maternal") ||
-       lowerLeaveType.includes("وضع") ||
-       lowerLeaveType.includes("أمومة") ||
-       lowerLeaveType.includes("امومة") ||
-       lowerLeaveType.includes("ولادة"));
+      !isMaternityHour && isMaternityLeaveName(leaveType);
 
     const isAnyMaternity =
       isFullMaternity ||
       isMaternityHour ||
-      lowerLeaveType.includes("maternity") ||
-      lowerLeaveType.includes("maternal") ||
-      lowerLeaveType.includes("وضع") ||
-      lowerLeaveType.includes("أمومة") ||
-      lowerLeaveType.includes("امومة") ||
-      lowerLeaveType.includes("ولادة") ||
-      lowerLeaveType.includes("رضاعة") ||
-      lowerLeaveType.includes("رعاية طفل") ||
-      lowerLeaveType.includes("رعايه طفل");
+      isMaternityLeaveName(leaveType);
 
     if (isMale && isAnyMaternity) {
       return {
@@ -479,7 +482,9 @@ const employeeEmail = (
     const combinedApproverNames = matchedApprovers.map(m => m.name).join(", ");
     const combinedApproverEmails = matchedApprovers.map(m => m.email).filter(Boolean).join(", ");
 
-    const newRequestRef = await addDoc(collection(db, "leaveRequests"), {
+    let newRequestId = "";
+
+    const baseRequestPayload = {
       requestingEmployeeDocId,
       employeeId: employeeData.employeeId ? String(employeeData.employeeId) : requestingEmployeeDocId,
       employeeName,
@@ -521,29 +526,245 @@ const employeeEmail = (
       currentApproverDocId: primaryApprover.docId,
       currentApproverEmail: primaryApprover.email,
       leaveType,
-      startDate: Timestamp.fromDate(startDate),
-      endDate: Timestamp.fromDate(effectiveEndDate),
       reason,
       attachmentURL: attachmentURL ?? null,
-      numberOfDays,
-      hoursPerDay: hoursPerDay ?? null,
-      durationHours: durationHours ?? null,
-      isHourly: isMaternityHour,
-      durationText: isMaternityHour
-        ? `${workingDays} working day(s) (1 hour/day = ${durationHours}h total)`
-        : `${numberOfDays} day(s)`,
       status: "Pending",
-      submittedAt: serverTimestamp(),
       managerNotes: "",
       approvedBy: [],
       rejectedBy: [],
-    });
+    };
+
+    const computeRequestDurations = (
+      unit: "days" | "hours",
+    ) => {
+      if (unit === "hours") {
+        let finalDurationHours: number;
+        let finalHoursPerDay: number | null = null;
+
+        if (isMaternityHour && (requestedHours == null || formData.get('maternityCalculationMode') === '1_hour_per_day')) {
+          finalDurationHours = roundLeaveAmount(Math.max(1, workingDays) * 1);
+          finalHoursPerDay = 1;
+        } else if (typeof requestedHours === "number" && requestedHours > 0) {
+          finalDurationHours = roundLeaveAmount(requestedHours);
+        } else {
+          throw new PolicyValidationError("Please enter the requested leave hours.", "requestedHours");
+        }
+
+        const finalNumberOfDays = workingDays > 0 ? workingDays : 1;
+        return {
+          finalNumberOfDays,
+          finalDurationHours,
+          finalHoursPerDay,
+          isHourlyFlag: true,
+          requestedAmount: finalDurationHours,
+          durationText: finalHoursPerDay === 1
+            ? `${finalNumberOfDays} working day(s) (1 hour/day = ${finalDurationHours}h total)`
+            : `${finalDurationHours} hour(s)`,
+        };
+      }
+
+      // Day-based leave type
+      const finalNumberOfDays = numberOfDays;
+      const finalHoursPerDay = hoursPerDay;
+      const finalDurationHours = durationHours;
+      const isHourlyFlag = isMaternityHour;
+      const requestedAmount = isMaternityHour && typeof finalDurationHours === "number"
+        ? finalDurationHours
+        : finalNumberOfDays;
+
+      return {
+        finalNumberOfDays,
+        finalDurationHours,
+        finalHoursPerDay,
+        isHourlyFlag,
+        requestedAmount,
+        durationText: isMaternityHour
+          ? `${workingDays} working day(s) (1 hour/day = ${finalDurationHours}h total)`
+          : `${finalNumberOfDays} day(s)`,
+      };
+    };
+
+    const dbAdmin = adminDb;
+    if (dbAdmin) {
+      newRequestId = await dbAdmin.runTransaction(async (tx) => {
+        const lockRef = dbAdmin.collection("leaveBalanceLocks").doc(requestingEmployeeDocId);
+        const empRef = dbAdmin.collection("employee").doc(requestingEmployeeDocId);
+
+        const [
+          _lockSnap,
+          txEmpSnap,
+          ltSnap,
+          sgSnap,
+          reqSnap,
+        ] = await Promise.all([
+          tx.get(lockRef),
+          tx.get(empRef),
+          tx.get(dbAdmin.collection("leaveTypes")),
+          tx.get(dbAdmin.collection("sharedLeaveGroups")),
+          tx.get(dbAdmin.collection("leaveRequests").where("requestingEmployeeDocId", "==", requestingEmployeeDocId)),
+        ]);
+
+        const txEmpData = txEmpSnap.exists ? (txEmpSnap.data() || {}) : employeeData;
+        const leaveTypes = ltSnap.docs.map((d) => mapDocToLeaveTypeConfig(d.id, d.data()));
+        const sharedGroups = sgSnap.docs.map((d) => mapDocToSharedGroup(d.id, d.data()));
+        const empRequests = reqSnap.docs.map((d) => mapDocToLeaveRequestRecord(d.id, d.data()));
+
+        const matchedLeaveType = leaveTypes.find(
+          (lt) => lt.id === leaveType || normalizeName(lt.name) === normalizeName(leaveType)
+        );
+
+        const policy = resolveEffectiveLeavePolicy({
+          leaveTypeNameOrId: leaveType,
+          leaveTypes,
+          sharedGroups,
+          employee: {
+            id: requestingEmployeeDocId,
+            docId: requestingEmployeeDocId,
+            employeeId: txEmpData.employeeId,
+            role: txEmpData.role,
+            positionClass: txEmpData.positionClass,
+            gender: txEmpData.gender,
+            email: txEmpData.email,
+            nisEmail: txEmpData.nisEmail,
+          },
+        });
+
+        if (!policy.isEligible) {
+          throw new PolicyValidationError(
+            "You are not eligible to submit this leave type.",
+            "leaveType"
+          );
+        }
+
+        const durations = computeRequestDurations(policy.unit);
+        const balance = calculatePolicyBalance({
+          policy,
+          requests: empRequests,
+          anchorDate: startDate,
+        });
+
+        const balanceCheck = canConsumeFromBalance({
+          balance,
+          requestedAmount: durations.requestedAmount,
+        });
+
+        if (!balanceCheck.allowed) {
+          throw new PolicyValidationError(LEAVE_BALANCE_EXCEEDED_MESSAGE);
+        }
+
+        const newReqRef = dbAdmin.collection("leaveRequests").doc();
+        tx.set(newReqRef, {
+          ...baseRequestPayload,
+          leaveType: matchedLeaveType?.name || leaveType,
+          leaveTypeId: matchedLeaveType?.id ?? null,
+          sharedGroupId: policy.sharedGroupId ?? null,
+          startDate: AdminTimestamp.fromDate(startDate),
+          endDate: AdminTimestamp.fromDate(effectiveEndDate),
+          numberOfDays: durations.finalNumberOfDays,
+          hoursPerDay: durations.finalHoursPerDay ?? null,
+          durationHours: durations.finalDurationHours ?? null,
+          hours: durations.finalDurationHours ?? null,
+          requestedAmount: durations.requestedAmount,
+          requestedUnit: policy.unit,
+          isHourly: durations.isHourlyFlag,
+          durationText: durations.durationText,
+          submittedAt: FieldValue.serverTimestamp(),
+        });
+
+        tx.set(
+          lockRef,
+          {
+            lastRequestId: newReqRef.id,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        return newReqRef.id;
+      });
+    } else {
+      const [ltSnap, sgSnap, reqSnap] = await Promise.all([
+        getDocs(collection(db, "leaveTypes")),
+        getDocs(collection(db, "sharedLeaveGroups")),
+        getDocs(query(collection(db, "leaveRequests"), where("requestingEmployeeDocId", "==", requestingEmployeeDocId))),
+      ]);
+      const leaveTypes = ltSnap.docs.map((d) => mapDocToLeaveTypeConfig(d.id, d.data()));
+      const sharedGroups = sgSnap.docs.map((d) => mapDocToSharedGroup(d.id, d.data()));
+      const empRequests = reqSnap.docs.map((d) => mapDocToLeaveRequestRecord(d.id, d.data()));
+
+      const matchedLeaveType = leaveTypes.find(
+        (lt) => lt.id === leaveType || normalizeName(lt.name) === normalizeName(leaveType)
+      );
+
+      const policy = resolveEffectiveLeavePolicy({
+        leaveTypeNameOrId: leaveType,
+        leaveTypes,
+        sharedGroups,
+        employee: {
+          id: requestingEmployeeDocId,
+          docId: requestingEmployeeDocId,
+          employeeId: employeeData.employeeId,
+          role: employeeData.role,
+          positionClass: employeeData.positionClass,
+          gender: employeeData.gender,
+          email: employeeData.email,
+          nisEmail: employeeData.nisEmail,
+        },
+      });
+
+      if (!policy.isEligible) {
+        return {
+          errors: { leaveType: ["You are not eligible to submit this leave type."], form: ["You are not eligible to submit this leave type."] },
+          message: "You are not eligible to submit this leave type.",
+          success: false,
+        };
+      }
+
+      const durations = computeRequestDurations(policy.unit);
+      const balance = calculatePolicyBalance({
+        policy,
+        requests: empRequests,
+        anchorDate: startDate,
+      });
+
+      const balanceCheck = canConsumeFromBalance({
+        balance,
+        requestedAmount: durations.requestedAmount,
+      });
+
+      if (!balanceCheck.allowed) {
+        return {
+          errors: { form: [LEAVE_BALANCE_EXCEEDED_MESSAGE] },
+          message: LEAVE_BALANCE_EXCEEDED_MESSAGE,
+          success: false,
+        };
+      }
+
+      const newRequestRef = await addDoc(collection(db, "leaveRequests"), {
+        ...baseRequestPayload,
+        leaveType: matchedLeaveType?.name || leaveType,
+        leaveTypeId: matchedLeaveType?.id ?? null,
+        sharedGroupId: policy.sharedGroupId ?? null,
+        startDate: Timestamp.fromDate(startDate),
+        endDate: Timestamp.fromDate(effectiveEndDate),
+        numberOfDays: durations.finalNumberOfDays,
+        hoursPerDay: durations.finalHoursPerDay ?? null,
+        durationHours: durations.finalDurationHours ?? null,
+        hours: durations.finalDurationHours ?? null,
+        requestedAmount: durations.requestedAmount,
+        requestedUnit: policy.unit,
+        isHourly: durations.isHourlyFlag,
+        durationText: durations.durationText,
+        submittedAt: serverTimestamp(),
+      });
+      newRequestId = newRequestRef.id;
+    }
 
     await logSystemEvent("Submit Leave Request", {
       actorId: employeeData.userId,
       actorEmail: employeeData.email,
       actorRole: employeeData.role,
-      leaveRequestId: newRequestRef.id,
+      leaveRequestId: newRequestId,
       leaveType,
       employeeName,
       requiredApprovals,
@@ -553,7 +774,7 @@ const employeeEmail = (
       stage2Approver: secondApprover?.name || null,
     });
 
-    const requestPath = `/leave/all-requests/${newRequestRef.id}`;
+    const requestPath = `/leave/all-requests/${newRequestId}`;
     const requestLink = toAbsoluteAppUrl(requestPath);
 
     const startStr = format(startDate, "MMMM d");
@@ -570,7 +791,7 @@ const employeeEmail = (
         title: "Leave Request Awaiting Your Approval",
         message: primaryNotificationMessage,
         link: requestPath,
-        requestId: newRequestRef.id,
+        requestId: newRequestId,
         stage: 1,
         isSelectedApprover: true,
         createdAt: serverTimestamp(),
@@ -581,7 +802,7 @@ const employeeEmail = (
         title: "Leave Request Awaiting Your Approval",
         message: `${primaryNotificationMessage} (Manager: ${primaryApprover.name || primaryApprover.email})`,
         link: requestPath,
-        requestId: newRequestRef.id,
+        requestId: newRequestId,
         stage: 1,
         isSelectedApprover: true,
         createdAt: serverTimestamp(),
@@ -620,6 +841,16 @@ const employeeEmail = (
 
     return { message: 'Leave request submitted successfully.', success: true };
   } catch (error: any) {
+    if (error instanceof PolicyValidationError) {
+      const errorsObj: SubmitLeaveRequestState['errors'] = { form: [error.message] };
+      if (error.field === 'leaveType') errorsObj.leaveType = [error.message];
+      if (error.field === 'requestedHours') errorsObj.requestedHours = [error.message];
+      return {
+        errors: errorsObj,
+        message: error.message,
+        success: false,
+      };
+    }
     console.error("Submit Leave Request Error:", error);
     return {
       errors: { form: [`Failed to submit leave request. ${error.message}`] },
@@ -956,17 +1187,9 @@ export async function updateLeaveRequestStatusAction(
           updates.approvedRejectedAt = serverTimestamp();
 
           // Maternity adjustment if applicable
-          const reqLower = (requestData.leaveType || "").trim().toLowerCase();
           const isMaternityHour =
-            requestData.hoursPerDay === 1 ||
-            requestData.isHourly === true ||
-            reqLower.includes("hour") ||
-            reqLower.includes("ساعة") ||
-            reqLower.includes("ساعه") ||
-            reqLower.includes("رضاعة") ||
-            reqLower.includes("رعاية");
-
-          const isFullMaternity = !isMaternityHour && reqLower.includes("maternity");
+            requestData.hoursPerDay === 1 || isMaternityHourName(requestData.leaveType);
+          const isFullMaternity = !isMaternityHour && isMaternityLeaveName(requestData.leaveType);
 
           if (isFullMaternity && requestData.startDate?.toDate) {
             const start = requestData.startDate.toDate();
@@ -1040,6 +1263,7 @@ export async function updateLeaveRequestStatusAction(
 
           return {
             message: "Leave request has been fully approved.",
+            errors: {},
             success: true,
           };
         } else {
@@ -1195,6 +1419,7 @@ export async function updateLeaveRequestStatusAction(
 
           return {
             message: `Stage 1 approved successfully. Request forwarded to ${approver2?.name || "Reporting Line 2"} for final approval.`,
+            errors: {},
             success: true,
           };
         }
@@ -1278,6 +1503,7 @@ export async function updateLeaveRequestStatusAction(
 
         return {
           message: "Leave request has been rejected at Stage 1.",
+          errors: {},
           success: true,
         };
       }
@@ -1299,17 +1525,9 @@ export async function updateLeaveRequestStatusAction(
         updates.approvedRejectedAt = serverTimestamp();
 
         // Maternity adjustment if applicable
-        const reqLower = (requestData.leaveType || "").trim().toLowerCase();
         const isMaternityHour =
-          requestData.hoursPerDay === 1 ||
-          requestData.isHourly === true ||
-          reqLower.includes("hour") ||
-          reqLower.includes("ساعة") ||
-          reqLower.includes("ساعه") ||
-          reqLower.includes("رضاعة") ||
-          reqLower.includes("رعاية");
-
-        const isFullMaternity = !isMaternityHour && reqLower.includes("maternity");
+          requestData.hoursPerDay === 1 || isMaternityHourName(requestData.leaveType);
+        const isFullMaternity = !isMaternityHour && isMaternityLeaveName(requestData.leaveType);
 
         if (isFullMaternity && requestData.startDate?.toDate) {
           const start = requestData.startDate.toDate();
@@ -1383,6 +1601,7 @@ export async function updateLeaveRequestStatusAction(
 
         return {
           message: "Leave request has been fully approved.",
+          errors: {},
           success: true,
         };
 
@@ -1463,6 +1682,7 @@ export async function updateLeaveRequestStatusAction(
 
         return {
           message: "Leave request has been rejected at Stage 2.",
+          errors: {},
           success: true,
         };
       }
@@ -1561,12 +1781,15 @@ async function verifyHrPrivilege(
   return { isPrivileged, actorName, verifiedActorId };
 }
 
-// Schema for editing a leave request
 const EditLeaveRequestFormSchema = z.object({
   requestId: z.string().min(1, "Request ID is required."),
   leaveType: z.string().min(1, "Leave type is required."),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." }),
+  requestedHours: z.preprocess(
+    (v) => (v === null || v === "" || v === undefined ? undefined : v),
+    z.coerce.number().positive("Requested hours must be greater than 0.").optional()
+  ),
   reason: z.string().min(3, "Reason must be at least 3 characters.").max(500, "Reason must be at most 500 characters."),
   status: z.enum(["Pending", "Approved", "Rejected"], { required_error: "Status is required." }),
   actorId: z.string().optional(),
@@ -1583,6 +1806,7 @@ export type EditLeaveRequestState = {
     leaveType?: string[];
     startDate?: string[];
     endDate?: string[];
+    requestedHours?: string[];
     reason?: string[];
     status?: string[];
     form?: string[];
@@ -1600,6 +1824,7 @@ export async function editLeaveRequestAction(
     leaveType: formData.get('leaveType'),
     startDate: formData.get('startDate') ? new Date(formData.get('startDate') as string) : undefined,
     endDate: formData.get('endDate') ? new Date(formData.get('endDate') as string) : undefined,
+    requestedHours: formData.get('requestedHours'),
     reason: formData.get('reason'),
     status: formData.get('status'),
     actorId: formData.get('actorId'),
@@ -1617,10 +1842,15 @@ export async function editLeaveRequestAction(
     };
   }
 
-  const { requestId, leaveType, startDate, endDate, reason, status, actorId, actorEmail, actorRole } = validatedFields.data;
+  const { requestId, leaveType, startDate, endDate, requestedHours, reason, status, actorId, actorEmail, actorRole } = validatedFields.data;
 
   // Server-side HR authorization check
-  const { isPrivileged, actorName, verifiedActorId } = await verifyHrPrivilege(actorId, actorEmail, actorRole);
+  const serverPrivilege = await verifyServerHrPrivilege({ actorId, actorEmail });
+  const fallbackPrivilege = serverPrivilege.isPrivileged
+    ? serverPrivilege
+    : await verifyHrPrivilege(actorId, actorEmail, actorRole);
+  const { isPrivileged, actorName, verifiedActorId } = fallbackPrivilege;
+
   if (!isPrivileged) {
     return {
       errors: { form: ["Permission denied: Only authorized HR users can edit leave requests."] },
@@ -1630,59 +1860,9 @@ export async function editLeaveRequestAction(
   }
 
   try {
-    const requestRef = doc(db, "leaveRequests", requestId);
-    const existingReqSnap = await getDoc(requestRef);
-    if (!existingReqSnap.exists()) {
-      return { errors: { form: ["Leave request not found."] }, success: false };
-    }
-    const existingReqData = existingReqSnap.data();
-
-    // Maternity leave checks
-    const lowerLeaveType = leaveType.trim().toLowerCase();
-    const isMaternityHour =
-      lowerLeaveType.includes("hour") ||
-      lowerLeaveType.includes("ساعة") ||
-      lowerLeaveType.includes("ساعه") ||
-      lowerLeaveType.includes("رضاعة") ||
-      lowerLeaveType.includes("رعاية");
-
-    const isFullMaternity =
-      !isMaternityHour &&
-      (lowerLeaveType.includes("maternity") ||
-       lowerLeaveType.includes("maternal") ||
-       lowerLeaveType.includes("وضع") ||
-       lowerLeaveType.includes("أمومة") ||
-       lowerLeaveType.includes("امومة") ||
-       lowerLeaveType.includes("ولادة"));
-
-    const isAnyMaternity =
-      isFullMaternity ||
-      isMaternityHour ||
-      lowerLeaveType.includes("maternity") ||
-      lowerLeaveType.includes("maternal") ||
-      lowerLeaveType.includes("وضع") ||
-      lowerLeaveType.includes("أمومة") ||
-      lowerLeaveType.includes("امومة") ||
-      lowerLeaveType.includes("ولادة") ||
-      lowerLeaveType.includes("رضاعة") ||
-      lowerLeaveType.includes("رعاية طفل") ||
-      lowerLeaveType.includes("رعايه طفل");
-
-    if (existingReqData?.requestingEmployeeDocId) {
-      const empSnap = await getDoc(doc(db, "employee", existingReqData.requestingEmployeeDocId));
-      if (empSnap.exists()) {
-        const empData = empSnap.data();
-        const rawGender = (empData.gender || "").trim().toLowerCase();
-        const isMale = ["male", "m", "ذكر"].includes(rawGender);
-        if (isMale && isAnyMaternity) {
-          return {
-            errors: { form: ["Male employees cannot have Maternity Leave or Maternity Hour requests."] },
-            message: "Male employees cannot have Maternity Leave or Maternity Hour requests.",
-            success: false,
-          };
-        }
-      }
-    }
+    const isMaternityHour = isMaternityHourName(leaveType);
+    const isFullMaternity = !isMaternityHour && isMaternityLeaveName(leaveType);
+    const isAnyMaternity = isFullMaternity || isMaternityHour || isMaternityLeaveName(leaveType);
 
     let effectiveEndDate = endDate;
     if (isFullMaternity) {
@@ -1691,103 +1871,387 @@ export async function editLeaveRequestAction(
       effectiveEndDate = computedEnd;
     }
 
-    // Overlapping leave validation
-    if (existingReqData?.requestingEmployeeDocId && (status === "Approved" || status === "Pending")) {
-      const otherReqsSnap = await getDocs(query(
-        collection(db, "leaveRequests"),
-        where("requestingEmployeeDocId", "==", existingReqData.requestingEmployeeDocId)
-      ));
+    const workingDays = await calculateWorkingDays(startDate, effectiveEndDate);
+    const numberOfDays = isFullMaternity ? 120 : workingDays;
 
-      const newStartUtc = new Date(Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()));
-      const newEndUtc = new Date(Date.UTC(effectiveEndDate.getFullYear(), effectiveEndDate.getMonth(), effectiveEndDate.getDate()));
+    let auditPreviousValues: Record<string, any> = {};
+    let auditMeta: { employeeId?: string; employeeName?: string; updatedNumberOfDays: number } = {
+      updatedNumberOfDays: numberOfDays,
+    };
 
-      for (const dSnap of otherReqsSnap.docs) {
-        if (dSnap.id === requestId) continue; // Skip self
-        const otherData = dSnap.data();
-        if (otherData.status === "Approved" || otherData.status === "Pending") {
-          const otherStart = otherData.startDate?.toDate ? otherData.startDate.toDate() : null;
-          const otherEnd = otherData.endDate?.toDate ? otherData.endDate.toDate() : null;
-          if (otherStart && otherEnd) {
-            const oStartUtc = new Date(Date.UTC(otherStart.getFullYear(), otherStart.getMonth(), otherStart.getDate()));
-            const oEndUtc = new Date(Date.UTC(otherEnd.getFullYear(), otherEnd.getMonth(), otherEnd.getDate()));
-            if (newStartUtc <= oEndUtc && newEndUtc >= oStartUtc) {
-              const overlapText = `${format(otherStart, "MM/dd/yyyy")} - ${format(otherEnd, "MM/dd/yyyy")}`;
-              return {
-                errors: {
-                  form: [`Employee already has an active ${otherData.leaveType} (${overlapText}) overlapping with the selected dates.`]
-                },
-                message: `Overlapping leave request detected with ${otherData.leaveType}.`,
-                success: false,
-              };
+    const buildEditUpdates = (
+      existingReqData: Record<string, any>,
+      policy: ReturnType<typeof resolveEffectiveLeavePolicy>,
+      matchedLeaveType?: LeaveTypeConfig
+    ) => {
+      let finalNumberOfDays = numberOfDays;
+      let finalHoursPerDay: number | null = isMaternityHour ? 1 : null;
+      let finalDurationHours: number | null = isMaternityHour ? roundLeaveAmount(workingDays * 1) : null;
+      let isHourlyFlag = isMaternityHour;
+      let requestedAmount = isMaternityHour && typeof finalDurationHours === "number" ? finalDurationHours : finalNumberOfDays;
+      let durationText = isMaternityHour
+        ? `${workingDays} working day(s) (1 hour/day = ${finalDurationHours}h total)`
+        : `${finalNumberOfDays} day(s)`;
+
+      if (policy.unit === "hours") {
+        isHourlyFlag = true;
+        finalNumberOfDays = workingDays > 0 ? workingDays : 1;
+        if (isMaternityHour && requestedHours == null) {
+          finalHoursPerDay = 1;
+          finalDurationHours = roundLeaveAmount(finalNumberOfDays * 1);
+          durationText = `${finalNumberOfDays} working day(s) (1 hour/day = ${finalDurationHours}h total)`;
+        } else {
+          const fallbackHours =
+            typeof requestedHours === "number" && requestedHours > 0
+              ? requestedHours
+              : typeof existingReqData.durationHours === "number" && existingReqData.durationHours > 0
+                ? existingReqData.durationHours
+                : typeof existingReqData.hours === "number" && existingReqData.hours > 0
+                  ? existingReqData.hours
+                  : undefined;
+
+          if (!fallbackHours || fallbackHours <= 0) {
+            throw new PolicyValidationError("Please enter requested hours for this hourly leave type.", "requestedHours");
+          }
+          finalHoursPerDay = null;
+          finalDurationHours = roundLeaveAmount(fallbackHours);
+          durationText = `${finalDurationHours} hour(s)`;
+        }
+        requestedAmount = finalDurationHours;
+      }
+
+      const updates: Record<string, any> = {
+        leaveType: matchedLeaveType?.name || leaveType,
+        leaveTypeId: matchedLeaveType?.id ?? null,
+        sharedGroupId: policy.sharedGroupId ?? null,
+        reason,
+        status,
+        numberOfDays: finalNumberOfDays,
+        hoursPerDay: finalHoursPerDay ?? null,
+        durationHours: finalDurationHours ?? null,
+        hours: finalDurationHours ?? null,
+        requestedAmount,
+        requestedUnit: policy.unit,
+        isHourly: isHourlyFlag,
+        durationText,
+        lastModifiedBy: actorName || "HR",
+      };
+
+      const isRetro = Boolean(
+        existingReqData.isRetroactive ||
+        existingReqData.managerNotes?.includes("retroactive") ||
+        existingReqData.managerNotes?.includes("رجعية")
+      );
+
+      if (isRetro) {
+        updates.isRetroactive = true;
+        if (existingReqData.hrCreatorName) updates.hrCreatorName = existingReqData.hrCreatorName;
+        if (existingReqData.hrCreatorId) updates.hrCreatorId = existingReqData.hrCreatorId;
+        if (existingReqData.hrCreatorEmail) updates.hrCreatorEmail = existingReqData.hrCreatorEmail;
+        if (existingReqData.createdByName) updates.createdByName = existingReqData.createdByName;
+        if (existingReqData.createdById) updates.createdById = existingReqData.createdById;
+      }
+
+      if (status === "Approved") {
+        updates.approvedRejectedByName = actorName || "HR";
+        updates.approvedRejectedById = verifiedActorId || actorId || null;
+        updates.approvedBy = Array.from(new Set([...(existingReqData.approvedBy || []), actorName || "HR"]));
+        if (isRetro) {
+          updates.currentApprover = existingReqData.hrCreatorName || existingReqData.currentApprover || actorName || "HR";
+        } else {
+          updates.currentApprover = null;
+        }
+      } else if (status === "Rejected") {
+        updates.rejectedBy = Array.from(new Set([...(existingReqData.rejectedBy || []), actorName || "HR"]));
+        updates.approvedRejectedByName = actorName || "HR";
+        updates.approvedRejectedById = verifiedActorId || actorId || null;
+        updates.currentApprover = null;
+      } else if (status === "Pending") {
+        if (!isRetro) {
+          updates.currentApprover = existingReqData.selectedApproverEmail || existingReqData.reportLine1 || null;
+        }
+      }
+
+      return { updates, requestedAmount, finalNumberOfDays, isRetro };
+    };
+
+    const dbAdmin = adminDb;
+    if (dbAdmin) {
+      await dbAdmin.runTransaction(async (tx) => {
+        const reqRef = dbAdmin.collection("leaveRequests").doc(requestId);
+        const existingReqSnap = await tx.get(reqRef);
+        if (!existingReqSnap.exists) {
+          throw new PolicyValidationError("Leave request not found.");
+        }
+        const existingReqData = existingReqSnap.data() || {};
+        const empDocId = existingReqData.requestingEmployeeDocId as string | undefined;
+
+        const [ltSnap, sgSnap] = await Promise.all([
+          tx.get(dbAdmin.collection("leaveTypes")),
+          tx.get(dbAdmin.collection("sharedLeaveGroups")),
+        ]);
+
+        let empData: Record<string, any> | null = null;
+        let otherReqsDocs: LeaveRequestRecord[] = [];
+        let lockRef: FirebaseFirestore.DocumentReference | null = null;
+
+        if (empDocId) {
+          lockRef = dbAdmin.collection("leaveBalanceLocks").doc(empDocId);
+          const empRef = dbAdmin.collection("employee").doc(empDocId);
+          const [_lockSnap, empSnap, otherReqsSnap] = await Promise.all([
+            tx.get(lockRef),
+            tx.get(empRef),
+            tx.get(dbAdmin.collection("leaveRequests").where("requestingEmployeeDocId", "==", empDocId)),
+          ]);
+          empData = empSnap.exists ? (empSnap.data() || {}) : null;
+
+          if (empData) {
+            const rawGender = (empData.gender || "").trim().toLowerCase();
+            const isMale = ["male", "m", "ذكر"].includes(rawGender);
+            if (isMale && isAnyMaternity) {
+              throw new PolicyValidationError("Male employees cannot have Maternity Leave or Maternity Hour requests.");
+            }
+          }
+
+          // Overlap validation
+          if (status === "Approved" || status === "Pending") {
+            const newStartUtc = new Date(Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()));
+            const newEndUtc = new Date(Date.UTC(effectiveEndDate.getFullYear(), effectiveEndDate.getMonth(), effectiveEndDate.getDate()));
+
+            for (const dSnap of otherReqsSnap.docs) {
+              if (dSnap.id === requestId) continue;
+              const otherData = dSnap.data();
+              if (otherData.status === "Approved" || otherData.status === "Pending") {
+                const otherStart = otherData.startDate?.toDate ? otherData.startDate.toDate() : null;
+                const otherEnd = otherData.endDate?.toDate ? otherData.endDate.toDate() : null;
+                if (otherStart && otherEnd) {
+                  const oStartUtc = new Date(Date.UTC(otherStart.getFullYear(), otherStart.getMonth(), otherStart.getDate()));
+                  const oEndUtc = new Date(Date.UTC(otherEnd.getFullYear(), otherEnd.getMonth(), otherEnd.getDate()));
+                  if (newStartUtc <= oEndUtc && newEndUtc >= oStartUtc) {
+                    const overlapText = `${format(otherStart, "MM/dd/yyyy")} - ${format(otherEnd, "MM/dd/yyyy")}`;
+                    throw new PolicyValidationError(
+                      `Employee already has an active ${otherData.leaveType} (${overlapText}) overlapping with the selected dates.`
+                    );
+                  }
+                }
+              }
+            }
+          }
+
+          otherReqsDocs = otherReqsSnap.docs.map((d) => mapDocToLeaveRequestRecord(d.id, d.data()));
+        }
+
+        const leaveTypes = ltSnap.docs.map((d) => mapDocToLeaveTypeConfig(d.id, d.data()));
+        const sharedGroups = sgSnap.docs.map((d) => mapDocToSharedGroup(d.id, d.data()));
+        const matchedLeaveType = leaveTypes.find(
+          (lt) => lt.id === leaveType || normalizeName(lt.name) === normalizeName(leaveType)
+        );
+
+        const policy = resolveEffectiveLeavePolicy({
+          leaveTypeNameOrId: leaveType,
+          leaveTypes,
+          sharedGroups,
+          employee: empData
+            ? {
+                id: empDocId,
+                docId: empDocId,
+                employeeId: empData.employeeId,
+                role: empData.role,
+                positionClass: empData.positionClass,
+                gender: empData.gender,
+                email: empData.email,
+                nisEmail: empData.nisEmail,
+              }
+            : null,
+        });
+
+        if (empData && !policy.isEligible) {
+          throw new PolicyValidationError("Employee is not eligible for this leave type.", "leaveType");
+        }
+
+        const { updates, requestedAmount, finalNumberOfDays } = buildEditUpdates(
+          existingReqData,
+          policy,
+          matchedLeaveType
+        );
+
+        if ((status === "Approved" || status === "Pending") && empDocId) {
+          const balance = calculatePolicyBalance({
+            policy,
+            requests: otherReqsDocs,
+            anchorDate: startDate,
+            excludeRequestId: requestId,
+          });
+          const check = canConsumeFromBalance({ balance, requestedAmount });
+          if (!check.allowed) {
+            throw new PolicyValidationError(LEAVE_BALANCE_EXCEEDED_MESSAGE);
+          }
+        }
+
+        updates.startDate = AdminTimestamp.fromDate(startDate);
+        updates.endDate = AdminTimestamp.fromDate(effectiveEndDate);
+        updates.updatedAt = FieldValue.serverTimestamp();
+        updates.lastModifiedAt = FieldValue.serverTimestamp();
+        if (status === "Approved" || status === "Rejected") {
+          updates.approvedRejectedAt = FieldValue.serverTimestamp();
+        }
+
+        tx.update(reqRef, updates);
+        if (lockRef) {
+          tx.set(lockRef, { lastRequestId: requestId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        }
+
+        auditPreviousValues = {
+          leaveType: existingReqData.leaveType,
+          startDate: existingReqData.startDate?.toDate ? format(existingReqData.startDate.toDate(), "yyyy-MM-dd") : null,
+          endDate: existingReqData.endDate?.toDate ? format(existingReqData.endDate.toDate(), "yyyy-MM-dd") : null,
+          numberOfDays: existingReqData.numberOfDays,
+          durationHours: existingReqData.durationHours ?? null,
+          status: existingReqData.status,
+          reason: existingReqData.reason,
+        };
+        auditMeta = {
+          employeeId: existingReqData.employeeId || existingReqData.requestingEmployeeDocId,
+          employeeName: existingReqData.employeeName,
+          updatedNumberOfDays: finalNumberOfDays,
+        };
+      });
+    } else {
+      const requestRef = doc(db, "leaveRequests", requestId);
+      const existingReqSnap = await getDoc(requestRef);
+      if (!existingReqSnap.exists()) {
+        return { errors: { form: ["Leave request not found."] }, success: false };
+      }
+      const existingReqData = existingReqSnap.data();
+
+      const [ltSnap, sgSnap] = await Promise.all([
+        getDocs(collection(db, "leaveTypes")),
+        getDocs(collection(db, "sharedLeaveGroups")),
+      ]);
+      const leaveTypes = ltSnap.docs.map((d) => mapDocToLeaveTypeConfig(d.id, d.data()));
+      const sharedGroups = sgSnap.docs.map((d) => mapDocToSharedGroup(d.id, d.data()));
+      const matchedLeaveType = leaveTypes.find(
+        (lt) => lt.id === leaveType || normalizeName(lt.name) === normalizeName(leaveType)
+      );
+
+      let empData: Record<string, any> | null = null;
+      let otherReqsDocs: LeaveRequestRecord[] = [];
+      if (existingReqData?.requestingEmployeeDocId) {
+        const empSnap = await getDoc(doc(db, "employee", existingReqData.requestingEmployeeDocId));
+        if (empSnap.exists()) {
+          empData = empSnap.data();
+          const rawGender = (empData.gender || "").trim().toLowerCase();
+          const isMale = ["male", "m", "ذكر"].includes(rawGender);
+          if (isMale && isAnyMaternity) {
+            return {
+              errors: { form: ["Male employees cannot have Maternity Leave or Maternity Hour requests."] },
+              message: "Male employees cannot have Maternity Leave or Maternity Hour requests.",
+              success: false,
+            };
+          }
+        }
+
+        const otherReqsSnap = await getDocs(query(
+          collection(db, "leaveRequests"),
+          where("requestingEmployeeDocId", "==", existingReqData.requestingEmployeeDocId)
+        ));
+
+        if (status === "Approved" || status === "Pending") {
+          const newStartUtc = new Date(Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()));
+          const newEndUtc = new Date(Date.UTC(effectiveEndDate.getFullYear(), effectiveEndDate.getMonth(), effectiveEndDate.getDate()));
+
+          for (const dSnap of otherReqsSnap.docs) {
+            if (dSnap.id === requestId) continue;
+            const otherData = dSnap.data();
+            if (otherData.status === "Approved" || otherData.status === "Pending") {
+              const otherStart = otherData.startDate?.toDate ? otherData.startDate.toDate() : null;
+              const otherEnd = otherData.endDate?.toDate ? otherData.endDate.toDate() : null;
+              if (otherStart && otherEnd) {
+                const oStartUtc = new Date(Date.UTC(otherStart.getFullYear(), otherStart.getMonth(), otherStart.getDate()));
+                const oEndUtc = new Date(Date.UTC(otherEnd.getFullYear(), otherEnd.getMonth(), otherEnd.getDate()));
+                if (newStartUtc <= oEndUtc && newEndUtc >= oStartUtc) {
+                  const overlapText = `${format(otherStart, "MM/dd/yyyy")} - ${format(otherEnd, "MM/dd/yyyy")}`;
+                  return {
+                    errors: {
+                      form: [`Employee already has an active ${otherData.leaveType} (${overlapText}) overlapping with the selected dates.`]
+                    },
+                    message: `Overlapping leave request detected with ${otherData.leaveType}.`,
+                    success: false,
+                  };
+                }
+              }
             }
           }
         }
+        otherReqsDocs = otherReqsSnap.docs.map((d) => mapDocToLeaveRequestRecord(d.id, d.data()));
       }
-    }
 
-    const workingDays = await calculateWorkingDays(startDate, effectiveEndDate);
-    const numberOfDays = isFullMaternity ? 120 : workingDays;
-    const hoursPerDay = isMaternityHour ? 1 : null;
-    const durationHours = isMaternityHour ? workingDays * 1 : null;
+      const policy = resolveEffectiveLeavePolicy({
+        leaveTypeNameOrId: leaveType,
+        leaveTypes,
+        sharedGroups,
+        employee: empData
+          ? {
+              id: existingReqData.requestingEmployeeDocId,
+              docId: existingReqData.requestingEmployeeDocId,
+              employeeId: empData.employeeId,
+              role: empData.role,
+              positionClass: empData.positionClass,
+              gender: empData.gender,
+              email: empData.email,
+              nisEmail: empData.nisEmail,
+            }
+          : null,
+      });
 
-    const updates: Record<string, any> = {
-      leaveType,
-      startDate: Timestamp.fromDate(startDate),
-      endDate: Timestamp.fromDate(effectiveEndDate),
-      reason,
-      status,
-      numberOfDays,
-      hoursPerDay: hoursPerDay ?? null,
-      durationHours: durationHours ?? null,
-      isHourly: isMaternityHour,
-      durationText: isMaternityHour
-        ? `${workingDays} working day(s) (1 hour/day = ${durationHours}h total)`
-        : `${numberOfDays} day(s)`,
-      updatedAt: serverTimestamp(),
-      lastModifiedBy: actorName || "HR",
-      lastModifiedAt: serverTimestamp(),
-    };
+      const { updates, requestedAmount, finalNumberOfDays } = buildEditUpdates(
+        existingReqData,
+        policy,
+        matchedLeaveType
+      );
 
-    // Preserve retroactive attributes
-    const isRetro = Boolean(
-      existingReqData.isRetroactive ||
-      existingReqData.managerNotes?.includes("retroactive") ||
-      existingReqData.managerNotes?.includes("رجعية")
-    );
-
-    if (isRetro) {
-      updates.isRetroactive = true;
-      if (existingReqData.hrCreatorName) updates.hrCreatorName = existingReqData.hrCreatorName;
-      if (existingReqData.hrCreatorId) updates.hrCreatorId = existingReqData.hrCreatorId;
-      if (existingReqData.hrCreatorEmail) updates.hrCreatorEmail = existingReqData.hrCreatorEmail;
-      if (existingReqData.createdByName) updates.createdByName = existingReqData.createdByName;
-      if (existingReqData.createdById) updates.createdById = existingReqData.createdById;
-    }
-
-    // Handle status transitions
-    if (status === "Approved") {
-      updates.approvedRejectedByName = actorName || "HR";
-      updates.approvedRejectedById = verifiedActorId || actorId || null;
-      updates.approvedRejectedAt = serverTimestamp();
-      updates.approvedBy = Array.from(new Set([...(existingReqData.approvedBy || []), actorName || "HR"]));
-      if (isRetro) {
-        updates.currentApprover = existingReqData.hrCreatorName || existingReqData.currentApprover || actorName || "HR";
-      } else {
-        updates.currentApprover = null;
+      if ((status === "Approved" || status === "Pending") && existingReqData?.requestingEmployeeDocId) {
+        const balance = calculatePolicyBalance({
+          policy,
+          requests: otherReqsDocs,
+          anchorDate: startDate,
+          excludeRequestId: requestId,
+        });
+        const check = canConsumeFromBalance({ balance, requestedAmount });
+        if (!check.allowed) {
+          return {
+            errors: { form: [LEAVE_BALANCE_EXCEEDED_MESSAGE] },
+            message: LEAVE_BALANCE_EXCEEDED_MESSAGE,
+            success: false,
+          };
+        }
       }
-    } else if (status === "Rejected") {
-      updates.rejectedBy = Array.from(new Set([...(existingReqData.rejectedBy || []), actorName || "HR"]));
-      updates.approvedRejectedByName = actorName || "HR";
-      updates.approvedRejectedById = verifiedActorId || actorId || null;
-      updates.approvedRejectedAt = serverTimestamp();
-      updates.currentApprover = null;
-    } else if (status === "Pending") {
-      if (!isRetro) {
-        updates.currentApprover = existingReqData.selectedApproverEmail || existingReqData.reportLine1 || null;
-      }
-    }
 
-    await updateDoc(requestRef, updates);
+      updates.startDate = Timestamp.fromDate(startDate);
+      updates.endDate = Timestamp.fromDate(effectiveEndDate);
+      updates.updatedAt = serverTimestamp();
+      updates.lastModifiedAt = serverTimestamp();
+      if (status === "Approved" || status === "Rejected") {
+        updates.approvedRejectedAt = serverTimestamp();
+      }
+
+      await updateDoc(requestRef, updates);
+
+      auditPreviousValues = {
+        leaveType: existingReqData.leaveType,
+        startDate: existingReqData.startDate?.toDate ? format(existingReqData.startDate.toDate(), "yyyy-MM-dd") : null,
+        endDate: existingReqData.endDate?.toDate ? format(existingReqData.endDate.toDate(), "yyyy-MM-dd") : null,
+        numberOfDays: existingReqData.numberOfDays,
+        durationHours: existingReqData.durationHours ?? null,
+        status: existingReqData.status,
+        reason: existingReqData.reason,
+      };
+      auditMeta = {
+        employeeId: existingReqData.employeeId || existingReqData.requestingEmployeeDocId,
+        employeeName: existingReqData.employeeName,
+        updatedNumberOfDays: finalNumberOfDays,
+      };
+    }
 
     // Audit log previous vs updated values
     await logSystemEvent("Edit Leave Request", {
@@ -1796,21 +2260,14 @@ export async function editLeaveRequestAction(
       actorRole,
       actorName: actorName || "HR",
       leaveRequestId: requestId,
-      employeeId: existingReqData.employeeId || existingReqData.requestingEmployeeDocId,
-      employeeName: existingReqData.employeeName,
-      previousValues: {
-        leaveType: existingReqData.leaveType,
-        startDate: existingReqData.startDate?.toDate ? format(existingReqData.startDate.toDate(), "yyyy-MM-dd") : null,
-        endDate: existingReqData.endDate?.toDate ? format(existingReqData.endDate.toDate(), "yyyy-MM-dd") : null,
-        numberOfDays: existingReqData.numberOfDays,
-        status: existingReqData.status,
-        reason: existingReqData.reason,
-      },
+      employeeId: auditMeta.employeeId,
+      employeeName: auditMeta.employeeName,
+      previousValues: auditPreviousValues,
       updatedValues: {
         leaveType,
         startDate: format(startDate, "yyyy-MM-dd"),
         endDate: format(effectiveEndDate, "yyyy-MM-dd"),
-        numberOfDays,
+        numberOfDays: auditMeta.updatedNumberOfDays,
         status,
         reason,
       },
@@ -1819,6 +2276,16 @@ export async function editLeaveRequestAction(
 
     return { message: "Leave request updated successfully.", success: true };
   } catch (error: any) {
+    if (error instanceof PolicyValidationError) {
+      const errorsObj: EditLeaveRequestState['errors'] = { form: [error.message] };
+      if (error.field === 'leaveType') errorsObj.leaveType = [error.message];
+      if (error.field === 'requestedHours') errorsObj.requestedHours = [error.message];
+      return {
+        errors: errorsObj,
+        message: error.message,
+        success: false,
+      };
+    }
     console.error('Firestore Edit Leave Request Error:', error);
     return {
       errors: { form: [`Failed to update leave request: ${error.message}`] },
@@ -1930,6 +2397,10 @@ const RetroactiveLeaveSchema = z.object({
   requestingEmployeeDocId: z.string().min(1),
   leaveType: z.string().min(1),
   datesJson: z.string().min(1),
+  requestedHours: z.preprocess(
+    (v) => (v === null || v === "" || v === undefined ? undefined : v),
+    z.coerce.number().positive("Requested hours must be greater than 0.").optional()
+  ),
   reason: z.string().min(3).max(500),
   actorId: z.string().optional(),
   actorEmail: z.string().optional(),
@@ -1941,6 +2412,7 @@ export type SubmitRetroactiveLeaveState = {
     requestingEmployeeDocId?: string[];
     leaveType?: string[];
     datesJson?: string[];
+    requestedHours?: string[];
     reason?: string[];
     form?: string[];
   };
@@ -1956,6 +2428,7 @@ export async function submitRetroactiveLeaveAction(
     requestingEmployeeDocId: formData.get('requestingEmployeeDocId'),
     leaveType: formData.get('leaveType'),
     datesJson: formData.get('datesJson'),
+    requestedHours: formData.get('requestedHours'),
     reason: formData.get('reason'),
     actorId: formData.get('actorId') || undefined,
     actorEmail: formData.get('actorEmail') || undefined,
@@ -1970,38 +2443,14 @@ export async function submitRetroactiveLeaveAction(
     };
   }
 
-  const { requestingEmployeeDocId, leaveType, datesJson, reason, actorId, actorEmail, actorRole } = validatedFields.data;
+  const { requestingEmployeeDocId, leaveType, datesJson, requestedHours, reason, actorId, actorEmail, actorRole } = validatedFields.data;
 
-  const roleLower = (actorRole || "").trim().toLowerCase();
-  const privilegedRoles = [
-    'admin', 'hr', 'director', 'superadmin', 'human resource director',
-    'human resource director international schools', 'personnal director',
-    'recruitment and onbording manager', 'human resource executive',
-    'recruitment and onboarding executive', 'personnel executive'
-  ];
-  
-  let isPrivileged = privilegedRoles.includes(roleLower);
-  if (!isPrivileged && actorId) {
-    try {
-      const empSnap = await getDoc(doc(db, "employee", actorId));
-      if (empSnap.exists()) {
-        const empRole = (empSnap.data().role || "").trim().toLowerCase();
-        if (privilegedRoles.includes(empRole)) isPrivileged = true;
-      }
-    } catch {}
-  }
-  if (!isPrivileged && actorEmail) {
-    try {
-      const qEmail = query(collection(db, "employee"), where("email", "==", actorEmail), limit(1));
-      const snap = await getDocs(qEmail);
-      if (!snap.empty) {
-        const empRole = (snap.docs[0].data().role || "").trim().toLowerCase();
-        if (privilegedRoles.includes(empRole)) isPrivileged = true;
-      }
-    } catch {}
-  }
+  const serverPrivilege = await verifyServerHrPrivilege({ actorId, actorEmail });
+  const fallbackPrivilege = serverPrivilege.isPrivileged
+    ? serverPrivilege
+    : await verifyHrPrivilege(actorId, actorEmail, actorRole);
 
-  if (!isPrivileged) {
+  if (!fallbackPrivilege.isPrivileged) {
     return {
       errors: { form: ["Permission denied: Only authorized HR users can create retroactive leaves."] },
       message: "Permission denied.",
@@ -2020,109 +2469,26 @@ export async function submitRetroactiveLeaveAction(
     return { errors: { datesJson: ["Please select at least one date."] }, success: false };
   }
 
-  try {
-    const employeeDocRef = doc(db, "employee", requestingEmployeeDocId);
-    const employeeSnap = await getDoc(employeeDocRef);
-    if (!employeeSnap.exists()) {
-      return { errors: { form: ["Employee record not found."] }, success: false };
-    }
-
-    const employeeData = employeeSnap.data();
-    const employeeName = employeeData.name ?? "Unknown Employee";
-    const employeeEmail = (employeeData.nisEmail || employeeData.email || "").trim();
-
-    const existingReqsSnap = await getDocs(query(
-      collection(db, "leaveRequests"),
-      where("requestingEmployeeDocId", "==", requestingEmployeeDocId)
-    ));
-
-    const existingLeaveDates = new Set<string>();
-    existingReqsSnap.docs.forEach(d => {
-      const data = d.data();
-      if (data.status === "Approved" || data.status === "Pending") {
-        const sDate = data.startDate?.toDate ? data.startDate.toDate() : null;
-        const eDate = data.endDate?.toDate ? data.endDate.toDate() : null;
-        if (sDate) {
-          let cur = new Date(sDate);
-          const end = eDate ? new Date(eDate) : new Date(sDate);
-          while (cur <= end) {
-            existingLeaveDates.add(format(cur, "yyyy-MM-dd"));
-            cur.setDate(cur.getDate() + 1);
-          }
-        }
-      }
-    });
-
-    const parsedDates: Date[] = [];
-    for (const dStr of dateStrings) {
-      const dt = new Date(dStr);
-      if (isNaN(dt.getTime())) continue;
-      const fmtStr = format(dt, "yyyy-MM-dd");
-      if (existingLeaveDates.has(fmtStr)) {
-        return {
-          errors: { form: [`Employee already has a leave request on ${fmtStr}. Overlapping leaves are not allowed.`] },
-          message: `Overlapping leave on ${fmtStr}.`,
-          success: false,
-        };
-      }
+  const parsedDates: Date[] = [];
+  const seenDateKeys = new Set<string>();
+  for (const dStr of dateStrings) {
+    const dt = toCalendarDate(dStr);
+    if (isNaN(dt.getTime())) continue;
+    const fmtStr = format(dt, "yyyy-MM-dd");
+    if (!seenDateKeys.has(fmtStr)) {
+      seenDateKeys.add(fmtStr);
       parsedDates.push(dt);
     }
+  }
 
-    if (parsedDates.length === 0) {
-      return { errors: { datesJson: ["No valid dates selected."] }, success: false };
-    }
+  if (parsedDates.length === 0) {
+    return { errors: { datesJson: ["No valid dates selected."] }, success: false };
+  }
 
-    let verifiedHrName = "";
-    let verifiedHrId = actorId || "";
+  try {
+    let verifiedHrName = fallbackPrivilege.actorName || "";
+    let verifiedHrId = fallbackPrivilege.verifiedActorId || actorId || "";
     let verifiedHrEmail = actorEmail || "";
-
-    if (actorId) {
-      try {
-        const aDoc = await getDoc(doc(db, "employee", actorId));
-        if (aDoc.exists()) {
-          const aData = aDoc.data();
-          if (aData.name) verifiedHrName = String(aData.name).trim();
-          if (aData.employeeId) verifiedHrId = String(aData.employeeId).trim();
-          if (aData.email || aData.nisEmail) verifiedHrEmail = (aData.nisEmail || aData.email).trim();
-        }
-      } catch {}
-    }
-
-    if (!verifiedHrName && actorId) {
-      try {
-        const qId = query(collection(db, "employee"), where("employeeId", "==", actorId), limit(1));
-        const snap = await getDocs(qId);
-        if (!snap.empty) {
-          const aData = snap.docs[0].data();
-          if (aData.name) verifiedHrName = String(aData.name).trim();
-          if (aData.email || aData.nisEmail) verifiedHrEmail = (aData.nisEmail || aData.email).trim();
-        }
-      } catch {}
-    }
-
-    if (!verifiedHrName && actorEmail) {
-      try {
-        const qEmail = query(collection(db, "employee"), where("email", "==", actorEmail), limit(1));
-        const snap = await getDocs(qEmail);
-        if (!snap.empty) {
-          const aData = snap.docs[0].data();
-          if (aData.name) verifiedHrName = String(aData.name).trim();
-          verifiedHrId = aData.employeeId ? String(aData.employeeId) : snap.docs[0].id;
-        }
-      } catch {}
-
-      if (!verifiedHrName) {
-        try {
-          const qNis = query(collection(db, "employee"), where("nisEmail", "==", actorEmail.toLowerCase()), limit(1));
-          const snapNis = await getDocs(qNis);
-          if (!snapNis.empty) {
-            const aData = snapNis.docs[0].data();
-            if (aData.name) verifiedHrName = String(aData.name).trim();
-            verifiedHrId = aData.employeeId ? String(aData.employeeId) : snapNis.docs[0].id;
-          }
-        } catch {}
-      }
-    }
 
     if (!verifiedHrName && actorId) {
       try {
@@ -2137,40 +2503,356 @@ export async function submitRetroactiveLeaveAction(
     }
 
     const creatorDisplayName = verifiedHrName || null;
-    const createdDocIds: string[] = [];
+    const isMaternityHour = isMaternityHourName(leaveType);
+    const isAnyMaternity = isMaternityHour || isMaternityLeaveName(leaveType);
 
-    for (const dt of parsedDates) {
-      const utcDate = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()));
-      const timestamp = Timestamp.fromDate(utcDate);
+    let employeeName = "Unknown Employee";
+    let createdDocIds: string[] = [];
 
-      const newDocRef = await addDoc(collection(db, "leaveRequests"), {
-        requestingEmployeeDocId,
-        employeeId: employeeData.employeeId ? String(employeeData.employeeId) : requestingEmployeeDocId,
-        employeeName,
-        employeeEmail: employeeEmail || employeeData.email || "",
-        employeeStage: employeeData.stage ?? null,
-        employeeCampus: employeeData.campus ?? null,
-        leaveType,
-        startDate: timestamp,
-        endDate: timestamp,
-        reason,
-        numberOfDays: 1,
-        status: "Approved",
-        submittedAt: serverTimestamp(),
-        isRetroactive: true,
-        managerNotes: "Created retroactively by HR.",
-        currentApprover: creatorDisplayName,
-        hrCreatorName: creatorDisplayName,
-        hrCreatorId: verifiedHrId || null,
-        hrCreatorEmail: verifiedHrEmail || null,
-        createdByName: creatorDisplayName,
-        createdById: verifiedHrId || null,
-        approvedRejectedByName: creatorDisplayName,
-        approvedRejectedById: verifiedHrId || null,
-        approvedRejectedAt: serverTimestamp(),
-        approvedBy: creatorDisplayName ? [creatorDisplayName] : [],
+    const dbAdmin = adminDb;
+    if (dbAdmin) {
+      const txResult = await dbAdmin.runTransaction(async (tx) => {
+        const lockRef = dbAdmin.collection("leaveBalanceLocks").doc(requestingEmployeeDocId);
+        const empRef = dbAdmin.collection("employee").doc(requestingEmployeeDocId);
+
+        const [_lockSnap, empSnap, ltSnap, sgSnap, existingReqsSnap] = await Promise.all([
+          tx.get(lockRef),
+          tx.get(empRef),
+          tx.get(dbAdmin.collection("leaveTypes")),
+          tx.get(dbAdmin.collection("sharedLeaveGroups")),
+          tx.get(dbAdmin.collection("leaveRequests").where("requestingEmployeeDocId", "==", requestingEmployeeDocId)),
+        ]);
+
+        if (!empSnap.exists) {
+          throw new PolicyValidationError("Employee record not found.");
+        }
+
+        const empData = empSnap.data() || {};
+        const resolvedEmpName = empData.name ?? "Unknown Employee";
+        const resolvedEmpEmail = (empData.nisEmail || empData.email || "").trim();
+
+        const rawGender = (empData.gender || "").trim().toLowerCase();
+        const isMale = ["male", "m", "ذكر"].includes(rawGender);
+        if (isMale && isAnyMaternity) {
+          throw new PolicyValidationError("Male employees cannot receive Maternity Leave or Maternity Hour records.");
+        }
+
+        const existingLeaveDates = new Set<string>();
+        existingReqsSnap.docs.forEach((d) => {
+          const data = d.data();
+          if (data.status === "Approved" || data.status === "Pending") {
+            const sDate = data.startDate ? toCalendarDate(data.startDate) : null;
+            const eDate = data.endDate ? toCalendarDate(data.endDate) : sDate;
+            if (sDate) {
+              const cur = new Date(sDate);
+              const end = eDate ? new Date(eDate) : new Date(sDate);
+              while (cur <= end) {
+                existingLeaveDates.add(format(cur, "yyyy-MM-dd"));
+                cur.setDate(cur.getDate() + 1);
+              }
+            }
+          }
+        });
+
+        for (const dt of parsedDates) {
+          const fmtStr = format(dt, "yyyy-MM-dd");
+          if (existingLeaveDates.has(fmtStr)) {
+            throw new PolicyValidationError(
+              `Employee already has a leave request on ${fmtStr}. Overlapping leaves are not allowed.`
+            );
+          }
+        }
+
+        const leaveTypes = ltSnap.docs.map((d) => mapDocToLeaveTypeConfig(d.id, d.data()));
+        const sharedGroups = sgSnap.docs.map((d) => mapDocToSharedGroup(d.id, d.data()));
+        const empRequests = existingReqsSnap.docs.map((d) => mapDocToLeaveRequestRecord(d.id, d.data()));
+
+        const matchedLeaveType = leaveTypes.find(
+          (lt) => lt.id === leaveType || normalizeName(lt.name) === normalizeName(leaveType)
+        );
+
+        const policy = resolveEffectiveLeavePolicy({
+          leaveTypeNameOrId: leaveType,
+          leaveTypes,
+          sharedGroups,
+          employee: {
+            id: requestingEmployeeDocId,
+            docId: requestingEmployeeDocId,
+            employeeId: empData.employeeId,
+            role: empData.role,
+            positionClass: empData.positionClass,
+            gender: empData.gender,
+            email: empData.email,
+            nisEmail: empData.nisEmail,
+          },
+        });
+
+        if (!policy.isEligible) {
+          throw new PolicyValidationError("Employee is not eligible for this leave type.", "leaveType");
+        }
+
+        let perDateAmount = 1;
+        if (policy.unit === "hours") {
+          const hoursPerEntry = isMaternityHour ? (requestedHours ?? 1) : requestedHours;
+          if (!hoursPerEntry || hoursPerEntry <= 0) {
+            throw new PolicyValidationError("Please enter requested hours per date.", "requestedHours");
+          }
+          perDateAmount = roundLeaveAmount(hoursPerEntry);
+        }
+
+        // Group selected dates by reset period window so each period's limit is enforced accurately
+        const datesByPeriod = new Map<string, { anchorDate: Date; count: number }>();
+        for (const dt of parsedDates) {
+          const win = getPeriodWindow(policy.resetPeriod, dt);
+          const entry = datesByPeriod.get(win.key);
+          if (entry) {
+            entry.count += 1;
+          } else {
+            datesByPeriod.set(win.key, { anchorDate: dt, count: 1 });
+          }
+        }
+
+        for (const group of datesByPeriod.values()) {
+          const balance = calculatePolicyBalance({
+            policy,
+            requests: empRequests,
+            anchorDate: group.anchorDate,
+          });
+          const needed = roundLeaveAmount(perDateAmount * group.count);
+          const check = canConsumeFromBalance({ balance, requestedAmount: needed });
+          if (!check.allowed) {
+            throw new PolicyValidationError(LEAVE_BALANCE_EXCEEDED_MESSAGE);
+          }
+        }
+
+        const docIds: string[] = [];
+        for (const dt of parsedDates) {
+          const utcDate = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()));
+          const timestamp = AdminTimestamp.fromDate(utcDate);
+          const newDocRef = dbAdmin.collection("leaveRequests").doc();
+
+          tx.set(newDocRef, {
+            requestingEmployeeDocId,
+            employeeId: empData.employeeId ? String(empData.employeeId) : requestingEmployeeDocId,
+            employeeName: resolvedEmpName,
+            employeeEmail: resolvedEmpEmail || empData.email || "",
+            employeeStage: empData.stage ?? null,
+            employeeCampus: empData.campus ?? null,
+            leaveType: matchedLeaveType?.name || leaveType,
+            leaveTypeId: matchedLeaveType?.id ?? null,
+            sharedGroupId: policy.sharedGroupId ?? null,
+            startDate: timestamp,
+            endDate: timestamp,
+            reason,
+            numberOfDays: 1,
+            hours: policy.unit === "hours" ? perDateAmount : null,
+            durationHours: policy.unit === "hours" ? perDateAmount : null,
+            hoursPerDay: isMaternityHour ? perDateAmount : null,
+            isHourly: policy.unit === "hours",
+            durationText: policy.unit === "hours" ? `${perDateAmount} hour(s)` : "1 day(s)",
+            requestedAmount: perDateAmount,
+            requestedUnit: policy.unit,
+            status: "Approved",
+            submittedAt: FieldValue.serverTimestamp(),
+            isRetroactive: true,
+            managerNotes: "Created retroactively by HR.",
+            currentApprover: creatorDisplayName,
+            hrCreatorName: creatorDisplayName,
+            hrCreatorId: verifiedHrId || null,
+            hrCreatorEmail: verifiedHrEmail || null,
+            createdByName: creatorDisplayName,
+            createdById: verifiedHrId || null,
+            approvedRejectedByName: creatorDisplayName,
+            approvedRejectedById: verifiedHrId || null,
+            approvedRejectedAt: FieldValue.serverTimestamp(),
+            approvedBy: creatorDisplayName ? [creatorDisplayName] : [],
+          });
+          docIds.push(newDocRef.id);
+        }
+
+        tx.set(
+          lockRef,
+          {
+            lastRequestId: docIds[docIds.length - 1] || null,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        return { resolvedEmpName, docIds };
       });
-      createdDocIds.push(newDocRef.id);
+
+      employeeName = txResult.resolvedEmpName;
+      createdDocIds = txResult.docIds;
+    } else {
+      const employeeDocRef = doc(db, "employee", requestingEmployeeDocId);
+      const employeeSnap = await getDoc(employeeDocRef);
+      if (!employeeSnap.exists()) {
+        return { errors: { form: ["Employee record not found."] }, success: false };
+      }
+
+      const employeeData = employeeSnap.data();
+      employeeName = employeeData.name ?? "Unknown Employee";
+      const employeeEmail = (employeeData.nisEmail || employeeData.email || "").trim();
+
+      const rawGender = (employeeData.gender || "").trim().toLowerCase();
+      const isMale = ["male", "m", "ذكر"].includes(rawGender);
+      if (isMale && isAnyMaternity) {
+        return {
+          errors: { form: ["Male employees cannot receive Maternity Leave or Maternity Hour records."] },
+          message: "Male employees cannot receive Maternity Leave or Maternity Hour records.",
+          success: false,
+        };
+      }
+
+      const [ltSnap, sgSnap, existingReqsSnap] = await Promise.all([
+        getDocs(collection(db, "leaveTypes")),
+        getDocs(collection(db, "sharedLeaveGroups")),
+        getDocs(query(collection(db, "leaveRequests"), where("requestingEmployeeDocId", "==", requestingEmployeeDocId))),
+      ]);
+
+      const existingLeaveDates = new Set<string>();
+      existingReqsSnap.docs.forEach(d => {
+        const data = d.data();
+        if (data.status === "Approved" || data.status === "Pending") {
+          const sDate = data.startDate ? toCalendarDate(data.startDate) : null;
+          const eDate = data.endDate ? toCalendarDate(data.endDate) : sDate;
+          if (sDate) {
+            const cur = new Date(sDate);
+            const end = eDate ? new Date(eDate) : new Date(sDate);
+            while (cur <= end) {
+              existingLeaveDates.add(format(cur, "yyyy-MM-dd"));
+              cur.setDate(cur.getDate() + 1);
+            }
+          }
+        }
+      });
+
+      for (const dt of parsedDates) {
+        const fmtStr = format(dt, "yyyy-MM-dd");
+        if (existingLeaveDates.has(fmtStr)) {
+          return {
+            errors: { form: [`Employee already has a leave request on ${fmtStr}. Overlapping leaves are not allowed.`] },
+            message: `Overlapping leave on ${fmtStr}.`,
+            success: false,
+          };
+        }
+      }
+
+      const leaveTypes = ltSnap.docs.map((d) => mapDocToLeaveTypeConfig(d.id, d.data()));
+      const sharedGroups = sgSnap.docs.map((d) => mapDocToSharedGroup(d.id, d.data()));
+      const empRequests = existingReqsSnap.docs.map((d) => mapDocToLeaveRequestRecord(d.id, d.data()));
+      const matchedLeaveType = leaveTypes.find(
+        (lt) => lt.id === leaveType || normalizeName(lt.name) === normalizeName(leaveType)
+      );
+
+      const policy = resolveEffectiveLeavePolicy({
+        leaveTypeNameOrId: leaveType,
+        leaveTypes,
+        sharedGroups,
+        employee: {
+          id: requestingEmployeeDocId,
+          docId: requestingEmployeeDocId,
+          employeeId: employeeData.employeeId,
+          role: employeeData.role,
+          positionClass: employeeData.positionClass,
+          gender: employeeData.gender,
+          email: employeeData.email,
+          nisEmail: employeeData.nisEmail,
+        },
+      });
+
+      if (!policy.isEligible) {
+        return {
+          errors: { leaveType: ["Employee is not eligible for this leave type."], form: ["Employee is not eligible for this leave type."] },
+          message: "Employee is not eligible for this leave type.",
+          success: false,
+        };
+      }
+
+      let perDateAmount = 1;
+      if (policy.unit === "hours") {
+        const hoursPerEntry = isMaternityHour ? (requestedHours ?? 1) : requestedHours;
+        if (!hoursPerEntry || hoursPerEntry <= 0) {
+          return {
+            errors: { requestedHours: ["Please enter requested hours per date."], form: ["Please enter requested hours per date."] },
+            message: "Please enter requested hours per date.",
+            success: false,
+          };
+        }
+        perDateAmount = roundLeaveAmount(hoursPerEntry);
+      }
+
+      const datesByPeriod = new Map<string, { anchorDate: Date; count: number }>();
+      for (const dt of parsedDates) {
+        const win = getPeriodWindow(policy.resetPeriod, dt);
+        const entry = datesByPeriod.get(win.key);
+        if (entry) {
+          entry.count += 1;
+        } else {
+          datesByPeriod.set(win.key, { anchorDate: dt, count: 1 });
+        }
+      }
+
+      for (const group of datesByPeriod.values()) {
+        const balance = calculatePolicyBalance({
+          policy,
+          requests: empRequests,
+          anchorDate: group.anchorDate,
+        });
+        const needed = roundLeaveAmount(perDateAmount * group.count);
+        const check = canConsumeFromBalance({ balance, requestedAmount: needed });
+        if (!check.allowed) {
+          return {
+            errors: { form: [LEAVE_BALANCE_EXCEEDED_MESSAGE] },
+            message: LEAVE_BALANCE_EXCEEDED_MESSAGE,
+            success: false,
+          };
+        }
+      }
+
+      for (const dt of parsedDates) {
+        const utcDate = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()));
+        const timestamp = Timestamp.fromDate(utcDate);
+
+        const newDocRef = await addDoc(collection(db, "leaveRequests"), {
+          requestingEmployeeDocId,
+          employeeId: employeeData.employeeId ? String(employeeData.employeeId) : requestingEmployeeDocId,
+          employeeName,
+          employeeEmail: employeeEmail || employeeData.email || "",
+          employeeStage: employeeData.stage ?? null,
+          employeeCampus: employeeData.campus ?? null,
+          leaveType: matchedLeaveType?.name || leaveType,
+          leaveTypeId: matchedLeaveType?.id ?? null,
+          sharedGroupId: policy.sharedGroupId ?? null,
+          startDate: timestamp,
+          endDate: timestamp,
+          reason,
+          numberOfDays: 1,
+          hours: policy.unit === "hours" ? perDateAmount : null,
+          durationHours: policy.unit === "hours" ? perDateAmount : null,
+          hoursPerDay: isMaternityHour ? perDateAmount : null,
+          isHourly: policy.unit === "hours",
+          durationText: policy.unit === "hours" ? `${perDateAmount} hour(s)` : "1 day(s)",
+          requestedAmount: perDateAmount,
+          requestedUnit: policy.unit,
+          status: "Approved",
+          submittedAt: serverTimestamp(),
+          isRetroactive: true,
+          managerNotes: "Created retroactively by HR.",
+          currentApprover: creatorDisplayName,
+          hrCreatorName: creatorDisplayName,
+          hrCreatorId: verifiedHrId || null,
+          hrCreatorEmail: verifiedHrEmail || null,
+          createdByName: creatorDisplayName,
+          createdById: verifiedHrId || null,
+          approvedRejectedByName: creatorDisplayName,
+          approvedRejectedById: verifiedHrId || null,
+          approvedRejectedAt: serverTimestamp(),
+          approvedBy: creatorDisplayName ? [creatorDisplayName] : [],
+        });
+        createdDocIds.push(newDocRef.id);
+      }
     }
 
     await logSystemEvent("Create Retroactive Leave", {
@@ -2189,6 +2871,16 @@ export async function submitRetroactiveLeaveAction(
       success: true,
     };
   } catch (error: any) {
+    if (error instanceof PolicyValidationError) {
+      const errorsObj: SubmitRetroactiveLeaveState['errors'] = { form: [error.message] };
+      if (error.field === 'leaveType') errorsObj.leaveType = [error.message];
+      if (error.field === 'requestedHours') errorsObj.requestedHours = [error.message];
+      return {
+        errors: errorsObj,
+        message: error.message,
+        success: false,
+      };
+    }
     console.error("Retroactive Leave Error:", error);
     return {
       errors: { form: [`Failed to create retroactive leave records: ${error.message}`] },

@@ -3,8 +3,11 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase/config';
+import { adminDb } from '@/lib/firebase/admin-config';
+import { verifyServerHrPrivilege } from '@/lib/firebase/admin-actions';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, doc, Timestamp, setDoc, getDoc, updateDoc, writeBatch, limit, startAfter, orderBy } from 'firebase/firestore';
 import { logSystemEvent } from '@/lib/system-log';
+import type { RoleAllowanceOverride } from '@/types/leave-policy';
 
 // --- HOLIDAY SETTINGS ---
 
@@ -499,6 +502,47 @@ export async function manageCampusWorkingHoursAction(
 
 const collectionNames = z.enum(["roles", "groupNames", "systems", "campuses", "leaveTypes", "stage", "subjects", "machineNames", "reportLines1", "reportLines2", "positionClasses"]);
 
+const RoleAllowanceOverrideSchema = z.object({
+  targetType: z.enum(["positionClass", "role", "employee"]),
+  targetValue: z.string().trim().min(1),
+  targetLabel: z.string().trim().optional(),
+  allowanceAmount: z.coerce.number().min(0, "Override allowance cannot be negative."),
+});
+
+function parseRoleAllowancesJson(raw: FormDataEntryValue | null): {
+  overrides: RoleAllowanceOverride[];
+  error?: string;
+} {
+  if (!raw || typeof raw !== "string" || !raw.trim()) {
+    return { overrides: [] };
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return { overrides: [], error: "Invalid role/employee allowance overrides format." };
+    }
+    const result: RoleAllowanceOverride[] = [];
+    for (const item of parsed) {
+      const checked = RoleAllowanceOverrideSchema.safeParse(item);
+      if (!checked.success) {
+        return {
+          overrides: [],
+          error: checked.error.errors.map((e) => e.message).join(", ") || "Invalid allowance override entry.",
+        };
+      }
+      result.push({
+        targetType: checked.data.targetType,
+        targetValue: checked.data.targetValue,
+        ...(checked.data.targetLabel ? { targetLabel: checked.data.targetLabel } : {}),
+        allowanceAmount: Math.round(checked.data.allowanceAmount * 100) / 100,
+      });
+    }
+    return { overrides: result };
+  } catch {
+    return { overrides: [], error: "Could not parse allowance overrides." };
+  }
+}
+
 const ManageItemSchema = z.object({
   collectionName: collectionNames,
   operation: z.enum(['add', 'update', 'delete']),
@@ -519,10 +563,97 @@ export type ManageListItemState = {
   errors?: {
     form?: string[];
     name?: string[];
+    allowanceAmount?: string[];
+    sharedGroupId?: string[];
   };
   message?: string | null;
   success?: boolean;
 };
+
+async function syncLeaveTypeGroupMembership(params: {
+  leaveTypeId: string;
+  leaveTypeName: string;
+  targetGroupId: string | null;
+}) {
+  const { leaveTypeId, leaveTypeName, targetGroupId } = params;
+  if (adminDb) {
+    const groupsSnap = await adminDb.collection("sharedLeaveGroups").get();
+    const batch = adminDb.batch();
+    let hasWrites = false;
+
+    for (const groupDoc of groupsSnap.docs) {
+      const data = groupDoc.data();
+      const existingIds: string[] = Array.isArray(data.leaveTypeIds) ? data.leaveTypeIds : [];
+      const existingNames: string[] = Array.isArray(data.leaveTypeNames) ? data.leaveTypeNames : [];
+
+      if (targetGroupId && groupDoc.id === targetGroupId) {
+        const nextIds = Array.from(new Set([...existingIds, leaveTypeId]));
+        const nextNames = Array.from(new Set([...existingNames, leaveTypeName]));
+        batch.update(groupDoc.ref, {
+          leaveTypeIds: nextIds,
+          leaveTypeNames: nextNames,
+          updatedAt: new Date(),
+        });
+        hasWrites = true;
+      } else if (existingIds.includes(leaveTypeId)) {
+        const nextIds = existingIds.filter((x) => x !== leaveTypeId);
+        // Recompute names from remaining leaveTypes docs to keep accurate
+        const remainingDocs = await Promise.all(
+          nextIds.map((ltId) => adminDb!.collection("leaveTypes").doc(ltId).get())
+        );
+        const nextNames = remainingDocs
+          .filter((d) => d.exists)
+          .map((d) => String(d.data()?.name || "").trim())
+          .filter(Boolean);
+        batch.update(groupDoc.ref, {
+          leaveTypeIds: nextIds,
+          leaveTypeNames: nextNames,
+          updatedAt: new Date(),
+        });
+        hasWrites = true;
+      }
+    }
+
+    if (hasWrites) {
+      await batch.commit();
+    }
+    return;
+  }
+
+  const groupsSnap = await getDocs(collection(db, "sharedLeaveGroups"));
+  const batch = writeBatch(db);
+  let hasWrites = false;
+  for (const groupDoc of groupsSnap.docs) {
+    const data = groupDoc.data();
+    const existingIds: string[] = Array.isArray(data.leaveTypeIds) ? data.leaveTypeIds : [];
+    const existingNames: string[] = Array.isArray(data.leaveTypeNames) ? data.leaveTypeNames : [];
+
+    if (targetGroupId && groupDoc.id === targetGroupId) {
+      const nextIds = Array.from(new Set([...existingIds, leaveTypeId]));
+      const nextNames = Array.from(new Set([...existingNames, leaveTypeName]));
+      batch.update(groupDoc.ref, {
+        leaveTypeIds: nextIds,
+        leaveTypeNames: nextNames,
+        updatedAt: serverTimestamp(),
+      });
+      hasWrites = true;
+    } else if (existingIds.includes(leaveTypeId)) {
+      const nextIds = existingIds.filter((x) => x !== leaveTypeId);
+      const nextNames = existingNames.filter(
+        (n) => n.trim().toLowerCase() !== leaveTypeName.trim().toLowerCase()
+      );
+      batch.update(groupDoc.ref, {
+        leaveTypeIds: nextIds,
+        leaveTypeNames: nextNames,
+        updatedAt: serverTimestamp(),
+      });
+      hasWrites = true;
+    }
+  }
+  if (hasWrites) {
+    await batch.commit();
+  }
+}
 
 export async function manageListItemAction(
   prevState: ManageListItemState,
@@ -554,7 +685,7 @@ export async function manageListItemAction(
   const isEmailCollection = collectionName === 'reportLines1' || collectionName === 'reportLines2';
   const nameValidation = isEmailCollection
     ? z.string().email("Must be a valid email.").min(1, "Email cannot be empty.")
-    : z.string().min(1, "Name cannot be empty.");
+    : z.string().trim().min(1, "Name cannot be empty.");
 
   const FinalSchema = ManageItemSchema.extend({
       name: z.preprocess(
@@ -574,42 +705,243 @@ export async function manageListItemAction(
   }
 
   const { operation, name, id, actorId, actorEmail, actorRole } = validatedFields.data;
+
+  // Restrict Leave Type policy management strictly to HR/Admin users
+  if (collectionName === "leaveTypes") {
+    const hrCheck = await verifyServerHrPrivilege({
+      actorId: actorId || undefined,
+      actorEmail: actorEmail || undefined,
+    });
+    if (!hrCheck.isPrivileged) {
+      return {
+        errors: { form: ["Permission denied: Only authorized HR users can manage Leave Types and policies."] },
+        message: "Permission denied.",
+        success: false,
+      };
+    }
+  }
+
+  // Extract & validate optional/dynamic Leave Type policy fields when collectionName === "leaveTypes"
+  let leavePolicyPayload: Record<string, any> | null = null;
+  let targetSharedGroupId: string | null = null;
+
+  if (collectionName === "leaveTypes" && operation !== "delete") {
+    const rawAllowanceType = String(formData.get("allowanceType") || "unlimited").trim();
+    const allowanceType = (["unlimited", "individual", "shared"].includes(rawAllowanceType)
+      ? rawAllowanceType
+      : "unlimited") as "unlimited" | "individual" | "shared";
+
+    const rawUnit = String(formData.get("unit") || "").trim();
+    const unit = rawUnit === "hours" ? "hours" : "days";
+
+    const rawResetPeriod = String(formData.get("resetPeriod") || "").trim();
+    const validResetPeriods = ["monthly", "academic_term", "yearly"];
+    const resetPeriod = validResetPeriods.includes(rawResetPeriod)
+      ? (rawResetPeriod as "monthly" | "academic_term" | "yearly")
+      : null;
+
+    const rawAllowanceAmount = formData.get("allowanceAmount");
+    const parsedAmount =
+      rawAllowanceAmount !== null && String(rawAllowanceAmount).trim() !== ""
+        ? Number(String(rawAllowanceAmount).trim())
+        : null;
+
+    const rawSharedGroupId = String(formData.get("sharedGroupId") || "").trim() || null;
+    const rawGenderRestriction = String(formData.get("genderRestriction") || "all").trim();
+    const genderRestriction = rawGenderRestriction === "female" ? "female" : "all";
+
+    const { overrides, error: overrideError } = parseRoleAllowancesJson(formData.get("roleAllowancesJson"));
+    if (overrideError) {
+      return {
+        errors: { form: [overrideError] },
+        message: overrideError,
+        success: false,
+      };
+    }
+
+    if (allowanceType === "unlimited") {
+      // All allowance fields are strictly optional for Unlimited leave types
+      leavePolicyPayload = {
+        allowanceType: "unlimited",
+        allowanceAmount: null,
+        unit,
+        resetPeriod,
+        sharedGroupId: null,
+        roleAllowances: [],
+        genderRestriction,
+      };
+    } else if (allowanceType === "individual") {
+      if (parsedAmount === null || isNaN(parsedAmount) || parsedAmount <= 0) {
+        return {
+          errors: { allowanceAmount: ["Allowance amount must be a positive number for Individual leave types."] },
+          message: "Allowance amount must be a positive number.",
+          success: false,
+        };
+      }
+      if (!resetPeriod) {
+        return {
+          errors: { form: ["Reset period is required for Individual leave types."] },
+          message: "Reset period is required.",
+          success: false,
+        };
+      }
+      leavePolicyPayload = {
+        allowanceType: "individual",
+        allowanceAmount: Math.round(parsedAmount * 100) / 100,
+        unit,
+        resetPeriod,
+        sharedGroupId: null,
+        roleAllowances: overrides,
+        genderRestriction,
+      };
+    } else if (allowanceType === "shared") {
+      if (!rawSharedGroupId) {
+        return {
+          errors: { sharedGroupId: ["Please select a Shared Allowance Group."] },
+          message: "Please select a Shared Allowance Group.",
+          success: false,
+        };
+      }
+      const groupSnap = adminDb
+        ? await adminDb.collection("sharedLeaveGroups").doc(rawSharedGroupId).get()
+        : await getDoc(doc(db, "sharedLeaveGroups", rawSharedGroupId));
+      const groupExists = adminDb ? (groupSnap as any).exists : (groupSnap as any).exists();
+      if (!groupExists) {
+        return {
+          errors: { sharedGroupId: ["Selected Shared Allowance Group does not exist."] },
+          message: "Selected Shared Allowance Group does not exist.",
+          success: false,
+        };
+      }
+      const groupData = groupSnap.data() || {};
+      targetSharedGroupId = rawSharedGroupId;
+      leavePolicyPayload = {
+        allowanceType: "shared",
+        allowanceAmount: null,
+        unit: groupData.unit === "hours" ? "hours" : "days",
+        resetPeriod: groupData.resetPeriod || "monthly",
+        sharedGroupId: rawSharedGroupId,
+        roleAllowances: [],
+        genderRestriction,
+      };
+    }
+  }
+
   const collectionRef = collection(db, collectionName);
 
   try {
     switch (operation) {
-      case 'add':
+      case 'add': {
         if (!name) return { errors: { name: ["Name is required."] }, success: false };
-        
+
+        if (collectionName === "leaveTypes" && adminDb) {
+          const dupSnap = await adminDb.collection("leaveTypes").where("name", "==", name).get();
+          if (!dupSnap.empty) {
+            return { errors: { form: [`An item with the name "${name}" already exists.`] }, success: false };
+          }
+          const createdRef = await adminDb.collection("leaveTypes").add({
+            name,
+            ...(leavePolicyPayload || {}),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+          if (targetSharedGroupId) {
+            await syncLeaveTypeGroupMembership({
+              leaveTypeId: createdRef.id,
+              leaveTypeName: name,
+              targetGroupId: targetSharedGroupId,
+            });
+          }
+          await logSystemEvent("Manage List Item", { actorId, actorEmail, actorRole, operation, collectionName, itemName: name, ...(leavePolicyPayload || {}) });
+          return { success: true, message: `"${name}" added successfully.` };
+        }
+
         const qAdd = query(collectionRef, where("name", "==", name));
         const addSnapshot = await getDocs(qAdd);
         if (!addSnapshot.empty) {
           return { errors: { form: [`An item with the name "${name}" already exists.`] }, success: false };
         }
-        await addDoc(collectionRef, { name });
+        const addedDoc = await addDoc(collectionRef, { name, ...(leavePolicyPayload || {}) });
+        if (collectionName === "leaveTypes" && targetSharedGroupId) {
+          await syncLeaveTypeGroupMembership({
+            leaveTypeId: addedDoc.id,
+            leaveTypeName: name,
+            targetGroupId: targetSharedGroupId,
+          });
+        }
         await logSystemEvent("Manage List Item", { actorId, actorEmail, actorRole, operation, collectionName, itemName: name });
         return { success: true, message: `"${name}" added successfully.` };
+      }
 
-      case 'update':
+      case 'update': {
         if (!id || !name) return { errors: { form: ["ID and name are required for update."] }, success: false };
-        
+
+        if (collectionName === "leaveTypes" && adminDb) {
+          const dupSnap = await adminDb.collection("leaveTypes").where("name", "==", name).get();
+          if (!dupSnap.empty && dupSnap.docs[0].id !== id) {
+            return { errors: { form: [`An item with the name "${name}" already exists.`] }, success: false };
+          }
+          await adminDb.collection("leaveTypes").doc(id).update({
+            name,
+            ...(leavePolicyPayload || {}),
+            updatedAt: new Date(),
+          });
+          await syncLeaveTypeGroupMembership({
+            leaveTypeId: id,
+            leaveTypeName: name,
+            targetGroupId: targetSharedGroupId,
+          });
+          await logSystemEvent("Manage List Item", { actorId, actorEmail, actorRole, operation, collectionName, itemId: id, newItemName: name, ...(leavePolicyPayload || {}) });
+          return { success: true, message: `Item updated to "${name}" successfully.` };
+        }
+
         const qUpdate = query(collectionRef, where("name", "==", name));
         const updateSnapshot = await getDocs(qUpdate);
         if (!updateSnapshot.empty && updateSnapshot.docs[0].id !== id) {
-             return { errors: { form: [`An item with the name "${name}" already exists.`] }, success: false };
+          return { errors: { form: [`An item with the name "${name}" already exists.`] }, success: false };
         }
-        
+
         const docRefUpdate = doc(db, collectionName, id);
-        await updateDoc(docRefUpdate, { name });
+        await updateDoc(docRefUpdate, { name, ...(leavePolicyPayload || {}) });
+        if (collectionName === "leaveTypes") {
+          await syncLeaveTypeGroupMembership({
+            leaveTypeId: id,
+            leaveTypeName: name,
+            targetGroupId: targetSharedGroupId,
+          });
+        }
         await logSystemEvent("Manage List Item", { actorId, actorEmail, actorRole, operation, collectionName, itemId: id, newItemName: name });
         return { success: true, message: `Item updated to "${name}" successfully.` };
+      }
 
-      case 'delete':
+      case 'delete': {
         if (!id) return { errors: { form: ["ID is required for deletion."] }, success: false };
+
+        if (collectionName === "leaveTypes" && adminDb) {
+          const existingSnap = await adminDb.collection("leaveTypes").doc(id).get();
+          const existingName = existingSnap.exists ? String(existingSnap.data()?.name || "") : "";
+          await adminDb.collection("leaveTypes").doc(id).delete();
+          await syncLeaveTypeGroupMembership({
+            leaveTypeId: id,
+            leaveTypeName: existingName,
+            targetGroupId: null,
+          });
+          await logSystemEvent("Manage List Item", { actorId, actorEmail, actorRole, operation, collectionName, itemId: id });
+          return { success: true, message: "Item deleted successfully." };
+        }
+
         const docRefDelete = doc(db, collectionName, id);
         await deleteDoc(docRefDelete);
+        if (collectionName === "leaveTypes") {
+          await syncLeaveTypeGroupMembership({
+            leaveTypeId: id,
+            leaveTypeName: name || "",
+            targetGroupId: null,
+          });
+        }
         await logSystemEvent("Manage List Item", { actorId, actorEmail, actorRole, operation, collectionName, itemId: id });
         return { success: true, message: "Item deleted successfully." };
+      }
 
       default:
         return { errors: { form: ["Invalid operation."] }, success: false };
@@ -617,7 +949,309 @@ export async function manageListItemAction(
   } catch (error: any) {
     console.error(`Error performing ${operation} on ${collectionName}:`, error);
     return {
-      errors: { form: [`Failed to ${operation} item. An unexpected error occurred.`] },
+      errors: { form: [`Failed to ${operation} item: ${error.message || "An unexpected error occurred."}`] },
+      success: false,
+    };
+  }
+}
+
+// --- SHARED LEAVE BALANCE GROUPS ---
+
+const SharedLeaveGroupSchema = z.object({
+  operation: z.enum(["add", "update", "delete"]),
+  id: z.string().optional().nullable(),
+  name: z.string().trim().optional().nullable(),
+  allowanceAmount: z.preprocess(
+    (val) => (val === null || val === "" ? undefined : val),
+    z.coerce.number().positive("Allowance amount must be greater than 0.").optional()
+  ),
+  unit: z.enum(["days", "hours"]).optional(),
+  resetPeriod: z.enum(["monthly", "academic_term", "yearly"]).optional(),
+  leaveTypeIdsJson: z.string().optional().nullable(),
+  roleAllowancesJson: z.string().optional().nullable(),
+  actorId: z.string().optional().nullable(),
+  actorEmail: z.string().optional().nullable(),
+  actorRole: z.string().optional().nullable(),
+});
+
+export type ManageSharedGroupState = {
+  errors?: {
+    form?: string[];
+    name?: string[];
+    allowanceAmount?: string[];
+    leaveTypeIds?: string[];
+  };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function manageSharedLeaveGroupAction(
+  prevState: ManageSharedGroupState,
+  formData: FormData
+): Promise<ManageSharedGroupState> {
+  const parsed = SharedLeaveGroupSchema.safeParse({
+    operation: formData.get("operation"),
+    id: formData.get("id"),
+    name: formData.get("name"),
+    allowanceAmount: formData.get("allowanceAmount"),
+    unit: formData.get("unit") || "hours",
+    resetPeriod: formData.get("resetPeriod") || "monthly",
+    leaveTypeIdsJson: formData.get("leaveTypeIdsJson"),
+    roleAllowancesJson: formData.get("roleAllowancesJson"),
+    actorId: formData.get("actorId"),
+    actorEmail: formData.get("actorEmail"),
+    actorRole: formData.get("actorRole"),
+  });
+
+  if (!parsed.success) {
+    return {
+      errors: parsed.error.flatten().fieldErrors,
+      message: "Validation failed.",
+      success: false,
+    };
+  }
+
+  const {
+    operation,
+    id,
+    name,
+    allowanceAmount,
+    unit = "hours",
+    resetPeriod = "monthly",
+    leaveTypeIdsJson,
+    roleAllowancesJson,
+    actorId,
+    actorEmail,
+    actorRole,
+  } = parsed.data;
+
+  const hrCheck = await verifyServerHrPrivilege({
+    actorId: actorId || undefined,
+    actorEmail: actorEmail || undefined,
+  });
+  if (!hrCheck.isPrivileged) {
+    return {
+      errors: { form: ["Permission denied: Only authorized HR users can manage shared leave groups."] },
+      message: "Permission denied.",
+      success: false,
+    };
+  }
+
+  try {
+    if (operation === "delete") {
+      if (!id) {
+        return { errors: { form: ["Group ID is required."] }, message: "Group ID is required.", success: false };
+      }
+
+      if (adminDb) {
+        const linkedTypesSnap = await adminDb
+          .collection("leaveTypes")
+          .where("sharedGroupId", "==", id)
+          .get();
+        const batch = adminDb.batch();
+        batch.delete(adminDb.collection("sharedLeaveGroups").doc(id));
+        linkedTypesSnap.docs.forEach((ltDoc) => {
+          batch.update(ltDoc.ref, {
+            allowanceType: "unlimited",
+            sharedGroupId: null,
+            updatedAt: new Date(),
+          });
+        });
+        await batch.commit();
+      } else {
+        await deleteDoc(doc(db, "sharedLeaveGroups", id));
+      }
+
+      await logSystemEvent("Delete Shared Leave Group", {
+        actorId: actorId ?? undefined,
+        actorEmail: actorEmail ?? undefined,
+        actorRole: actorRole ?? undefined,
+        groupId: id,
+      });
+
+      return { success: true, message: "Shared leave balance group deleted successfully." };
+    }
+
+    const trimmedName = (name || "").trim();
+    if (!trimmedName) {
+      return { errors: { name: ["Group name is required."] }, message: "Group name is required.", success: false };
+    }
+    if (typeof allowanceAmount !== "number" || isNaN(allowanceAmount) || allowanceAmount <= 0) {
+      return {
+        errors: { allowanceAmount: ["Allowance amount must be greater than 0."] },
+        message: "Allowance amount must be greater than 0.",
+        success: false,
+      };
+    }
+
+    let selectedLeaveTypeIds: string[] = [];
+    if (leaveTypeIdsJson) {
+      try {
+        const rawIds = JSON.parse(leaveTypeIdsJson);
+        if (Array.isArray(rawIds)) {
+          selectedLeaveTypeIds = Array.from(
+            new Set(rawIds.map((x) => String(x).trim()).filter(Boolean))
+          );
+        }
+      } catch {
+        return {
+          errors: { leaveTypeIds: ["Invalid leave types selection."] },
+          message: "Invalid leave types selection.",
+          success: false,
+        };
+      }
+    }
+
+    if (selectedLeaveTypeIds.length === 0) {
+      return {
+        errors: { leaveTypeIds: ["Please link at least one Leave Type to this shared group."] },
+        message: "Please link at least one Leave Type.",
+        success: false,
+      };
+    }
+
+    const { overrides, error: overrideError } = parseRoleAllowancesJson(roleAllowancesJson ?? null);
+    if (overrideError) {
+      return { errors: { form: [overrideError] }, message: overrideError, success: false };
+    }
+
+    if (!adminDb) {
+      return {
+        errors: { form: ["Firebase Admin SDK is required to update shared groups safely."] },
+        message: "Server database unavailable.",
+        success: false,
+      };
+    }
+
+    // Check duplicate name
+    const dupSnap = await adminDb.collection("sharedLeaveGroups").where("name", "==", trimmedName).get();
+    if (!dupSnap.empty && dupSnap.docs.some((d) => d.id !== id)) {
+      return {
+        errors: { name: [`A shared group named "${trimmedName}" already exists.`] },
+        message: `A shared group named "${trimmedName}" already exists.`,
+        success: false,
+      };
+    }
+
+    // Resolve leaveType names & validate existence
+    const leaveTypesSnap = await adminDb.collection("leaveTypes").get();
+    const leaveTypeMap = new Map<string, string>();
+    leaveTypesSnap.docs.forEach((d) => {
+      leaveTypeMap.set(d.id, String(d.data().name || "").trim());
+    });
+
+    const validTypeIds = selectedLeaveTypeIds.filter((ltId) => leaveTypeMap.has(ltId));
+    const validTypeNames = validTypeIds.map((ltId) => leaveTypeMap.get(ltId)!).filter(Boolean);
+
+    if (validTypeIds.length === 0) {
+      return {
+        errors: { leaveTypeIds: ["Selected leave types were not found."] },
+        message: "Selected leave types were not found.",
+        success: false,
+      };
+    }
+
+    const groupRef =
+      operation === "update" && id
+        ? adminDb.collection("sharedLeaveGroups").doc(id)
+        : adminDb.collection("sharedLeaveGroups").doc();
+    const groupId = groupRef.id;
+
+    const batch = adminDb.batch();
+    const now = new Date();
+
+    const groupPayload = {
+      name: trimmedName,
+      allowanceAmount: Math.round(allowanceAmount * 100) / 100,
+      unit,
+      resetPeriod,
+      leaveTypeIds: validTypeIds,
+      leaveTypeNames: validTypeNames,
+      roleAllowances: overrides,
+      updatedAt: now,
+      ...(operation === "add" ? { createdAt: now } : {}),
+    };
+
+    if (operation === "update" && id) {
+      batch.set(groupRef, groupPayload, { merge: true });
+    } else {
+      batch.set(groupRef, groupPayload);
+    }
+
+    // Remove selected leaveTypeIds from any OTHER shared groups so a leave type belongs to at most one shared group
+    const allGroupsSnap = await adminDb.collection("sharedLeaveGroups").get();
+    const selectedSet = new Set(validTypeIds);
+
+    allGroupsSnap.docs.forEach((otherGroupDoc) => {
+      if (otherGroupDoc.id === groupId) return;
+      const otherIds: string[] = Array.isArray(otherGroupDoc.data().leaveTypeIds)
+        ? otherGroupDoc.data().leaveTypeIds
+        : [];
+      const filteredIds = otherIds.filter((ltId) => !selectedSet.has(ltId));
+      if (filteredIds.length !== otherIds.length) {
+        const filteredNames = filteredIds
+          .map((ltId) => leaveTypeMap.get(ltId))
+          .filter((n): n is string => Boolean(n));
+        batch.update(otherGroupDoc.ref, {
+          leaveTypeIds: filteredIds,
+          leaveTypeNames: filteredNames,
+          updatedAt: now,
+        });
+      }
+    });
+
+    // Update linked & unlinked leaveTypes documents
+    leaveTypesSnap.docs.forEach((ltDoc) => {
+      const data = ltDoc.data();
+      if (selectedSet.has(ltDoc.id)) {
+        batch.update(ltDoc.ref, {
+          allowanceType: "shared",
+          sharedGroupId: groupId,
+          unit,
+          resetPeriod,
+          allowanceAmount: null,
+          updatedAt: now,
+        });
+      } else if (data.sharedGroupId === groupId) {
+        // Previously in this group, now unchecked -> revert safely to unlimited without deleting history
+        batch.update(ltDoc.ref, {
+          allowanceType: "unlimited",
+          sharedGroupId: null,
+          updatedAt: now,
+        });
+      }
+    });
+
+    await batch.commit();
+
+    await logSystemEvent(
+      operation === "add" ? "Add Shared Leave Group" : "Update Shared Leave Group",
+      {
+        actorId: actorId ?? undefined,
+        actorEmail: actorEmail ?? undefined,
+        actorRole: actorRole ?? undefined,
+        groupId,
+        name: trimmedName,
+        allowanceAmount: groupPayload.allowanceAmount,
+        unit,
+        resetPeriod,
+        leaveTypeNames: validTypeNames,
+        overridesCount: overrides.length,
+      }
+    );
+
+    return {
+      success: true,
+      message:
+        operation === "add"
+          ? `Shared leave group "${trimmedName}" created successfully.`
+          : `Shared leave group "${trimmedName}" updated successfully.`,
+    };
+  } catch (error: any) {
+    console.error("Shared Leave Group Error:", error);
+    return {
+      errors: { form: [`Failed to save shared leave group: ${error.message}`] },
+      message: error.message || "Failed to save shared leave group.",
       success: false,
     };
   }

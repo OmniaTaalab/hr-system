@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
+import { useUserProfile } from '@/components/layout/app-layout';
 
 const settingsNavItems = [
   { titleEn: "General", titleAr: "عام", href: "/settings/general" },
@@ -23,6 +24,24 @@ export default function SettingsPageWrapper({ children }: { children: React.Reac
   const router = useRouter();
   const { profile, loading } = useUserProfile();
 
+  const userRole = profile?.role?.toLowerCase();
+  const canViewSettings =
+    userRole === 'admin' ||
+    userRole === 'hr' ||
+    userRole === 'human resource director' ||
+    userRole === 'human resource director international schools' ||
+    userRole === 'personnal director' ||
+    userRole === 'recruitment and onbording manager' ||
+    userRole === 'human resource executive' ||
+    userRole === 'recruitment and onboarding executive' ||
+    userRole === 'personnel executive';
+
+  React.useEffect(() => {
+    if (!loading && !canViewSettings) {
+      router.replace('/');
+    }
+  }, [loading, canViewSettings, router]);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-full">
@@ -31,23 +50,7 @@ export default function SettingsPageWrapper({ children }: { children: React.Reac
     );
   }
 
-  const userRole = profile?.role?.toLowerCase();
-const canViewSettings =
-  userRole === 'admin' ||
-  userRole === 'hr' ||
-  userRole === 'human resource director' ||
-  userRole === 'human resource director international schools' ||
-  userRole === 'personnal director' ||
-  userRole === 'recruitment and onbording manager' ||
-  userRole === 'human resource executive' ||
-  userRole === 'recruitment and onboarding executive' ||
-  userRole === 'personnel executive';
   if (!canViewSettings) {
-    // We check in a useEffect to avoid server-side render issues with router.
-    React.useEffect(() => {
-        router.replace('/');
-    }, [router]);
-    
     // Render a loading/access denied state while redirecting
     return (
       <div className="flex justify-center items-center h-full flex-col gap-4">
