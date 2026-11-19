@@ -9,12 +9,12 @@ import { logSystemEvent } from '../system-log';
 import {
   MAX_FOUR_DIGIT_EMPLOYEE_ID,
   MIN_FOUR_DIGIT_EMPLOYEE_ID,
-  chooseCreateEmployeeId,
   isValidFourDigitCounter,
   maxUsedFourDigitId,
   nextFreeFourDigitId,
   sameEmployeeId,
   toNumericEmployeeId,
+  validateMandatoryEmployeeId,
 } from '@/lib/employee-id';
 
 const EMPLOYEE_ID_COUNTER_REF = () => {
@@ -319,19 +319,12 @@ export async function checkEmployeeIdAvailabilityAction(employeeId: string): Pro
   isAvailable: boolean;
   message?: string;
 }> {
-  const trimmed = String(employeeId || "").trim();
-  if (!trimmed) {
-    return { isAvailable: false, message: "Employee ID is required." };
-  }
-  if (!/^\d{4}$/.test(trimmed)) {
-    return { isAvailable: false, message: "Employee ID must be exactly 4 digits (1000-9999)." };
-  }
-  const numericId = Number(trimmed);
-  if (!Number.isInteger(numericId) || numericId < MIN_FOUR_DIGIT_EMPLOYEE_ID || numericId > MAX_FOUR_DIGIT_EMPLOYEE_ID) {
-    return { isAvailable: false, message: "Employee ID must be exactly 4 digits (1000-9999)." };
+  const parsed = validateMandatoryEmployeeId(employeeId);
+  if (parsed.error || !parsed.employeeId) {
+    return { isAvailable: false, message: parsed.error || "Employee ID is required." };
   }
 
-  const isAssigned = await isEmployeeIdAssignedToExistingEmployee(trimmed);
+  const isAssigned = await isEmployeeIdAssignedToExistingEmployee(parsed.employeeId);
   if (isAssigned) {
     return {
       isAvailable: false,
@@ -452,21 +445,12 @@ async function resolveCreateEmployeeId(typedEmployeeId: string | undefined): Pro
   | { employeeId: string; claimed: true }
   | { error: string; field: "employeeId" | "form" }
 > {
-  const trimmed = String(typedEmployeeId || "").trim();
-  if (!trimmed) {
-    return { error: "Employee ID is required.", field: "employeeId" };
+  const parsed = validateMandatoryEmployeeId(typedEmployeeId);
+  if (parsed.error || !parsed.employeeId) {
+    return { error: parsed.error || "Employee ID is required.", field: "employeeId" };
   }
 
-  if (!/^\d{4}$/.test(trimmed)) {
-    return { error: "Employee ID must be exactly 4 digits (1000-9999).", field: "employeeId" };
-  }
-
-  const numericId = Number(trimmed);
-  if (!Number.isInteger(numericId) || numericId < MIN_FOUR_DIGIT_EMPLOYEE_ID || numericId > MAX_FOUR_DIGIT_EMPLOYEE_ID) {
-    return { error: "Employee ID must be exactly 4 digits (1000-9999).", field: "employeeId" };
-  }
-
-  const employeeId = String(numericId);
+  const employeeId = parsed.employeeId;
 
   // Check if ID is already assigned to an existing employee in Firestore
   if (await isEmployeeIdAssignedToExistingEmployee(employeeId)) {
@@ -516,11 +500,16 @@ const CreateEmployeeFormSchema = z.object({
     (val) => (val === "" || val === null || val === undefined ? "" : String(val).trim()),
     z.string()
       .min(1, { message: "Employee ID is required." })
-      .regex(/^\d{4}$/, { message: "Employee ID must be exactly 4 digits (1000-9999)." })
-      .refine((val) => {
-        const num = Number(val);
-        return Number.isInteger(num) && num >= MIN_FOUR_DIGIT_EMPLOYEE_ID && num <= MAX_FOUR_DIGIT_EMPLOYEE_ID;
-      }, { message: "Employee ID must be exactly 4 digits (1000-9999)." })
+      .superRefine((val, ctx) => {
+        const parsed = validateMandatoryEmployeeId(val);
+        if (parsed.error) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: parsed.error,
+          });
+        }
+      })
+      .transform((val) => validateMandatoryEmployeeId(val).employeeId ?? val)
   ),
   gender: z.preprocess(
     (val) => (val === "" || val === null || val === undefined ? undefined : val),
@@ -774,7 +763,7 @@ export async function updateEmployeeAction(
         };
       }
       const nextNumeric = toNumericEmployeeId(nextEmployeeId);
-      if (nextNumeric !== null && nextNumeric >= MIN_FOUR_DIGIT_EMPLOYEE_ID && nextNumeric <= MAX_FOUR_DIGIT_EMPLOYEE_ID) {
+      if (nextNumeric !== null && nextNumeric >= 1) {
         const claimed = await claimEmployeeId(String(nextNumeric));
         if (!claimed) {
           return {

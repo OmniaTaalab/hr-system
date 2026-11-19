@@ -1,7 +1,10 @@
 export const MIN_FOUR_DIGIT_EMPLOYEE_ID = 1000;
 export const MAX_FOUR_DIGIT_EMPLOYEE_ID = 9999;
+export const MIN_EMPLOYEE_ID = 1;
+export const MAX_EMPLOYEE_ID_DIGITS = 15;
 
-const FOUR_DIGIT_ID_MESSAGE = "Employee ID must be exactly 4 digits (1000-9999).";
+const DIGITS_ONLY_ID_MESSAGE = `Employee ID must contain numbers only (1 to ${MAX_EMPLOYEE_ID_DIGITS} digits).`;
+const POSITIVE_ID_MESSAGE = "Employee ID must be a positive number (1 or greater).";
 
 export function toNumericEmployeeId(value: unknown): number | null {
   if (value === null || value === undefined) return null;
@@ -12,33 +15,33 @@ export function toNumericEmployeeId(value: unknown): number | null {
 }
 
 export function sanitizeEmployeeIdInput(raw: string): string {
-  return raw.replace(/[^\d]/g, "").slice(0, 4).replace(/^0+/, "");
+  return raw.replace(/[^\d]/g, "").slice(0, MAX_EMPLOYEE_ID_DIGITS);
 }
 
 export function countDigits(raw: string): number {
   return (raw.match(/\d/g) || []).length;
 }
 
-export function validateOptionalFourDigitEmployeeId(value: string | undefined | null): {
+export function validateOptionalEmployeeId(value: string | undefined | null): {
   employeeId?: string;
   error?: string;
 } {
   const trimmed = value?.trim() ?? "";
   if (!trimmed) return {};
 
-  if (!/^\d{4}$/.test(trimmed)) {
-    return { error: FOUR_DIGIT_ID_MESSAGE };
+  if (!/^\d+$/.test(trimmed) || trimmed.length > MAX_EMPLOYEE_ID_DIGITS) {
+    return { error: DIGITS_ONLY_ID_MESSAGE };
   }
 
   const numericId = Number(trimmed);
-  if (!Number.isInteger(numericId) || numericId < MIN_FOUR_DIGIT_EMPLOYEE_ID || numericId > MAX_FOUR_DIGIT_EMPLOYEE_ID) {
-    return { error: FOUR_DIGIT_ID_MESSAGE };
+  if (!Number.isSafeInteger(numericId) || numericId < MIN_EMPLOYEE_ID) {
+    return { error: POSITIVE_ID_MESSAGE };
   }
 
   return { employeeId: String(numericId) };
 }
 
-export function validateMandatoryFourDigitEmployeeId(value: string | undefined | null): {
+export function validateMandatoryEmployeeId(value: string | undefined | null): {
   employeeId?: string;
   error?: string;
 } {
@@ -47,17 +50,11 @@ export function validateMandatoryFourDigitEmployeeId(value: string | undefined |
     return { error: "Employee ID is required." };
   }
 
-  if (!/^\d{4}$/.test(trimmed)) {
-    return { error: FOUR_DIGIT_ID_MESSAGE };
-  }
-
-  const numericId = Number(trimmed);
-  if (!Number.isInteger(numericId) || numericId < MIN_FOUR_DIGIT_EMPLOYEE_ID || numericId > MAX_FOUR_DIGIT_EMPLOYEE_ID) {
-    return { error: FOUR_DIGIT_ID_MESSAGE };
-  }
-
-  return { employeeId: String(numericId) };
+  return validateOptionalEmployeeId(trimmed);
 }
+
+export const validateOptionalFourDigitEmployeeId = validateOptionalEmployeeId;
+export const validateMandatoryFourDigitEmployeeId = validateMandatoryEmployeeId;
 
 export function sameEmployeeId(left: unknown, right: unknown): boolean {
   const leftNumeric = toNumericEmployeeId(left);
@@ -105,7 +102,7 @@ export type CreateEmployeeIdChoice =
   | { action: "reject"; error: string };
 
 export function chooseCreateEmployeeId(typed: string | undefined, used: Set<number>): CreateEmployeeIdChoice {
-  const parsed = validateOptionalFourDigitEmployeeId(typed);
+  const parsed = validateOptionalEmployeeId(typed);
   if (parsed.error) {
     return { action: "reject", error: parsed.error };
   }
@@ -119,5 +116,5 @@ export function chooseCreateEmployeeId(typed: string | undefined, used: Set<numb
 }
 
 export function shouldRejectEmployeeIdPaste(raw: string): boolean {
-  return countDigits(raw) > 4;
+  return countDigits(raw) > MAX_EMPLOYEE_ID_DIGITS;
 }

@@ -76,7 +76,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import * as XLSX from 'xlsx';
 import { MultiSelectFilter, type OptionType } from "@/components/multi-select";
 import type { BatchCreateEmployeesState } from "@/lib/firebase/admin-actions";
-import { countDigits, sanitizeEmployeeIdInput, validateOptionalFourDigitEmployeeId, validateMandatoryFourDigitEmployeeId } from "@/lib/employee-id";
+import { MAX_EMPLOYEE_ID_DIGITS, countDigits, sanitizeEmployeeIdInput, validateOptionalEmployeeId, validateMandatoryEmployeeId } from "@/lib/employee-id";
 import { GenerateEmployeeIdModal } from "@/components/employee/GenerateEmployeeIdModal";
 
 
@@ -246,15 +246,13 @@ function AddEmployeeFormContent({
   const lastHandledAddStateRef = useRef<CreateEmployeeState | null>(null);
 
   const applyEmployeeIdInput = (raw: string, options?: { fromPaste?: boolean; originalDigitCount?: number }) => {
-    if (options?.fromPaste && (options.originalDigitCount ?? 0) > 4) {
-      setEmployeeIdError("Employee ID must be exactly 4 digits (1000-9999).");
+    if (options?.fromPaste && (options.originalDigitCount ?? 0) > MAX_EMPLOYEE_ID_DIGITS) {
+      setEmployeeIdError(`Employee ID must be ${MAX_EMPLOYEE_ID_DIGITS} digits or fewer.`);
       return;
     }
     const nextValue = sanitizeEmployeeIdInput(raw);
     setTypedEmployeeId(nextValue);
-    if (nextValue.length === 0 || nextValue.length === 4) {
-      setEmployeeIdError(validateOptionalFourDigitEmployeeId(nextValue).error ?? null);
-    }
+    setEmployeeIdError(validateOptionalEmployeeId(nextValue).error ?? null);
   };
 
 
@@ -391,7 +389,7 @@ const validateAddEmployeeForm = (form: HTMLFormElement) => {
 
     // Employee ID validation
     const employeeIdValidation =
-      validateOptionalFourDigitEmployeeId(typedEmployeeId).error ?? null;
+      validateMandatoryEmployeeId(typedEmployeeId).error ?? null;
 
     if (employeeIdValidation) {
       event.preventDefault();
@@ -560,8 +558,8 @@ const validateAddEmployeeForm = (form: HTMLFormElement) => {
                       inputMode="numeric"
                       autoComplete="off"
                       spellCheck={false}
-                      maxLength={4}
-                      placeholder="e.g. 1042"
+                      maxLength={MAX_EMPLOYEE_ID_DIGITS}
+                      placeholder="e.g. 1, 12, or 1042"
                       className={
                         employeeIdError || fieldErrors.employeeId
                           ? "border-destructive border-2 focus-visible:ring-destructive"
@@ -571,11 +569,7 @@ const validateAddEmployeeForm = (form: HTMLFormElement) => {
                       onChange={(event) => applyEmployeeIdInput(event.target.value)}
                       onBlur={() => {
                         const trimmed = typedEmployeeId.trim();
-                        if (!trimmed) {
-                          setEmployeeIdError("Employee ID is required.");
-                        } else {
-                          setEmployeeIdError(validateMandatoryFourDigitEmployeeId(trimmed).error ?? null);
-                        }
+                        setEmployeeIdError(validateMandatoryEmployeeId(trimmed).error ?? null);
                       }}
                       onPaste={(event) => {
                         const pasted = event.clipboardData.getData("text");
@@ -592,7 +586,7 @@ const validateAddEmployeeForm = (form: HTMLFormElement) => {
                       }}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Enter a unique 4-digit Employee ID (1000-9999).
+                      Enter a unique numeric Employee ID (any positive number, e.g. 1, 12, 1042).
                     </p>
                     {(employeeIdError || fieldErrors.employeeId || addState?.errors?.employeeId) && (
                       <p className="text-sm text-destructive">
@@ -1049,6 +1043,12 @@ export function EditEmployeeFormContent({
           const formData = new FormData(form);
 
           const clientErrors: Record<string, string> = {};
+
+          const rawEmployeeId = String(formData.get("employeeId") || "").trim();
+          const employeeIdCheck = validateMandatoryEmployeeId(rawEmployeeId);
+          if (employeeIdCheck.error) {
+            clientErrors.employeeId = employeeIdCheck.error;
+          }
 
           const nisEmail = String(
             formData.get("nisEmail") || ""
@@ -1583,7 +1583,7 @@ export function EditEmployeeFormContent({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-employeeId" className={fieldErrors.employeeId ? "text-destructive" : ""}>
-                  Employee ID
+                  Employee ID *
                 </Label>
 
                 <Input
@@ -1591,13 +1591,32 @@ export function EditEmployeeFormContent({
                   name="employeeId"
                   data-field="employeeId"
                   defaultValue={employee.employeeId || ""}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={MAX_EMPLOYEE_ID_DIGITS}
+                  placeholder="e.g. 1, 12, or 1042"
                   className={
                     fieldErrors.employeeId
                       ? "border-destructive border-2 ring-1 ring-destructive focus-visible:ring-destructive"
                       : ""
                   }
-                  onChange={() => clearFieldError("employeeId")}
+                  onChange={(event) => {
+                    const sanitized = sanitizeEmployeeIdInput(event.target.value);
+                    if (event.target.value !== sanitized) {
+                      event.target.value = sanitized;
+                    }
+                    clearFieldError("employeeId");
+                  }}
+                  onKeyDown={(event) => {
+                    if (["e", "E", "+", "-", ".", " "].includes(event.key)) {
+                      event.preventDefault();
+                    }
+                  }}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Enter a unique numeric Employee ID (any positive number, e.g. 1, 12, 1042).
+                </p>
 
                 {fieldErrors.employeeId && (
                   <p className="text-sm text-destructive">

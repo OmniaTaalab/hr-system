@@ -9,12 +9,13 @@ import {
   sanitizeEmployeeIdInput,
   shouldRejectEmployeeIdPaste,
   toNumericEmployeeId,
-  validateOptionalFourDigitEmployeeId,
-  validateMandatoryFourDigitEmployeeId,
+  validateOptionalEmployeeId,
+  validateMandatoryEmployeeId,
 } from "./employee-id";
 
 
-const FOUR_DIGIT_ERROR = "Employee ID must be exactly 4 digits (1000-9999).";
+const DIGITS_ONLY_ERROR = "Employee ID must contain numbers only (1 to 15 digits).";
+const POSITIVE_ID_ERROR = "Employee ID must be a positive number (1 or greater).";
 const DUPLICATE_ERROR = "This Employee ID is already in use.";
 
 let passed = 0;
@@ -45,68 +46,63 @@ function test(name: string, fn: () => void) {
   }
 }
 
-test("empty ID auto-generates", () => {
+test("empty ID auto-generates when optional", () => {
   assertEqual(chooseCreateEmployeeId("", new Set()).action, "auto", "empty string");
   assertEqual(chooseCreateEmployeeId("   ", new Set()).action, "auto", "whitespace");
   assertEqual(chooseCreateEmployeeId(undefined, new Set()).action, "auto", "undefined");
-  assertEqual(validateOptionalFourDigitEmployeeId(null).employeeId, undefined, "null");
-  assertEqual(validateOptionalFourDigitEmployeeId(null).error, undefined, "null has no error");
+  assertEqual(validateOptionalEmployeeId(null).employeeId, undefined, "null");
+  assertEqual(validateOptionalEmployeeId(null).error, undefined, "null has no error");
 });
 
-test("typed valid IDs 1000 and 9999 are accepted", () => {
-  assertEqual(chooseCreateEmployeeId("1000", new Set()).action, "use", "1000");
-  assertEqual((chooseCreateEmployeeId("1000", new Set()) as { employeeId?: string }).employeeId, "1000", "1000 value");
-  assertEqual(chooseCreateEmployeeId("9999", new Set()).action, "use", "9999");
-  assertEqual(chooseCreateEmployeeId("9822", new Set()).action, "use", "9822");
-  assertEqual(validateOptionalFourDigitEmployeeId(" 4821 ").employeeId, "4821", "trimmed");
-});
-
-test("typed incomplete IDs are rejected and do not auto-generate", () => {
-  for (const value of ["1", "12", "123", "999"]) {
-    const result = chooseCreateEmployeeId(value, new Set());
-    assertEqual(result.action, "reject", value);
-    if (result.action === "reject") {
-      assertEqual(result.error, FOUR_DIGIT_ERROR, `${value} message`);
+test("typed valid IDs of 1, 2, 3, 4, and 5+ digits are accepted", () => {
+  for (const value of ["1", "7", "12", "45", "123", "999", "1000", "9822", "9999", "12345", "98220"]) {
+    const chosen = chooseCreateEmployeeId(value, new Set());
+    assertEqual(chosen.action, "use", value);
+    if (chosen.action === "use") {
+      assertEqual(chosen.employeeId, value, `${value} value`);
     }
   }
+  assertEqual(validateOptionalEmployeeId(" 05 ").employeeId, "5", "leading zero normalized");
+  assertEqual(validateOptionalEmployeeId(" 4821 ").employeeId, "4821", "trimmed");
 });
 
-test("values below 1000 or above 9999 are rejected", () => {
-  for (const value of ["0000", "0999", "0001", "10000", "98220", "4545454545466"]) {
-    const result = validateOptionalFourDigitEmployeeId(value);
-    assert(Boolean(result.error), `${value} should error`);
+test("zero and over-15-digit values are rejected", () => {
+  for (const value of ["0", "000", "0000"]) {
+    const result = validateOptionalEmployeeId(value);
+    assertEqual(result.error, POSITIVE_ID_ERROR, `${value} should require >= 1`);
   }
+  assertEqual(validateOptionalEmployeeId("1234567890123456").error, DIGITS_ONLY_ERROR, "16 digits rejected");
 });
 
 test("letters, symbols, decimals, and scientific notation are rejected", () => {
   for (const value of ["abcd", "12a4", "12.3", "1e3", "1000.0", "+1000", "-1000"]) {
-    const result = validateOptionalFourDigitEmployeeId(value);
+    const result = validateOptionalEmployeeId(value);
     assert(Boolean(result.error), `${value} should error`);
   }
 });
 
-test("sanitize keeps only ASCII digits, max 4, no leading zeros", () => {
+test("sanitize keeps only ASCII digits up to 15 chars", () => {
   assertEqual(sanitizeEmployeeIdInput("abc"), "", "letters");
   assertEqual(sanitizeEmployeeIdInput("12 34"), "1234", "spaces");
-  assertEqual(sanitizeEmployeeIdInput("ID:9822"), "9822", "prefix");
-  assertEqual(sanitizeEmployeeIdInput("98220"), "9822", "slice 5 digits");
-  assertEqual(sanitizeEmployeeIdInput("0999"), "999", "leading zeros");
-  assertEqual(sanitizeEmployeeIdInput("0000"), "", "all zeros");
-  assertEqual(sanitizeEmployeeIdInput("01000"), "100", "first 4 then strip zeros");
-  assertEqual(sanitizeEmployeeIdInput("1000"), "1000", "valid");
+  assertEqual(sanitizeEmployeeIdInput("ID:12"), "12", "2-digit prefix");
+  assertEqual(sanitizeEmployeeIdInput("98220"), "98220", "5 digits preserved");
+  assertEqual(sanitizeEmployeeIdInput("12345678901234567"), "123456789012345", "slice at 15 digits");
+  assertEqual(sanitizeEmployeeIdInput("7"), "7", "single digit");
 });
 
-test("paste with more than 4 digits is rejected", () => {
-  assertEqual(shouldRejectEmployeeIdPaste("98220"), true, "98220");
-  assertEqual(shouldRejectEmployeeIdPaste("12345"), true, "12345");
+test("paste with more than 15 digits is rejected", () => {
+  assertEqual(shouldRejectEmployeeIdPaste("1234567890123456"), true, "16 digits");
   assertEqual(countDigits("ID 98220 extra"), 5, "digits in mixed paste");
-  assertEqual(shouldRejectEmployeeIdPaste("9822"), false, "exactly 4");
-  assertEqual(shouldRejectEmployeeIdPaste("ID: 9822"), false, "4 digits with text");
+  assertEqual(shouldRejectEmployeeIdPaste("98220"), false, "5 digits allowed");
+  assertEqual(shouldRejectEmployeeIdPaste("12"), false, "2 digits allowed");
   assertEqual(shouldRejectEmployeeIdPaste(""), false, "empty paste");
 });
 
 test("typed ID that already exists is rejected", () => {
-  const used = new Set([9822, 1000, 69022]);
+  const used = new Set([12, 9822, 1000, 69022]);
+  const duplicateShort = chooseCreateEmployeeId("12", used);
+  assertEqual(duplicateShort.action, "reject", "12 taken");
+
   const duplicate = chooseCreateEmployeeId("9822", used);
   assertEqual(duplicate.action, "reject", "9822 taken");
   if (duplicate.action === "reject") {
@@ -116,19 +112,20 @@ test("typed ID that already exists is rejected", () => {
   const stringAndNumber = isEmployeeIdTakenInSet("1000", used);
   assertEqual(stringAndNumber, true, "1000 taken as number in set");
 
-  const free = chooseCreateEmployeeId("1001", used);
-  assertEqual(free.action, "use", "1001 free");
+  const free = chooseCreateEmployeeId("13", used);
+  assertEqual(free.action, "use", "13 free");
 });
 
-test("5-digit existing IDs do not collide with a 4-digit typed ID", () => {
+test("5-digit existing IDs do not collide with a shorter typed ID", () => {
   const used = new Set([69022, 10355, 4545454545466]);
-  const result = chooseCreateEmployeeId("6902", used);
-  assertEqual(result.action, "use", "6902 is not 69022");
+  const result = chooseCreateEmployeeId("69", used);
+  assertEqual(result.action, "use", "69 is not 69022");
   assertEqual(isEmployeeIdTakenInSet("9822", used), false, "9822 not in 5-digit set");
 });
 
 test("sameEmployeeId treats string and number forms as one ID", () => {
   assertEqual(sameEmployeeId("9822", 9822), true, "string vs number");
+  assertEqual(sameEmployeeId("12", 12), true, "2-digit string vs number");
   assertEqual(sameEmployeeId("9822", "9822"), true, "string vs string");
   assertEqual(sameEmployeeId(9822, 9822), true, "number vs number");
   assertEqual(sameEmployeeId("09822", "9822"), true, "leading zero numeric");
@@ -188,28 +185,28 @@ test("empty field with used IDs still chooses auto, not a duplicate typed ID", (
 });
 
 test("typed ID is not replaced by auto-generate when it is valid and free", () => {
-  const result = chooseCreateEmployeeId("2500", new Set([9822]));
-  assertEqual(result.action, "use", "keep typed");
+  const result = chooseCreateEmployeeId("25", new Set([9822]));
+  assertEqual(result.action, "use", "keep typed 2-digit");
   if (result.action === "use") {
-    assertEqual(result.employeeId, "2500", "uses 2500 not 9823");
+    assertEqual(result.employeeId, "25", "uses 25 not 9823");
   }
 });
 
-test("validateMandatoryFourDigitEmployeeId requires non-empty 4-digit ID", () => {
-  assertEqual(validateMandatoryFourDigitEmployeeId("").error, "Employee ID is required.", "empty string error");
-  assertEqual(validateMandatoryFourDigitEmployeeId("   ").error, "Employee ID is required.", "whitespace error");
-  assertEqual(validateMandatoryFourDigitEmployeeId(undefined).error, "Employee ID is required.", "undefined error");
-  assertEqual(validateMandatoryFourDigitEmployeeId(null).error, "Employee ID is required.", "null error");
+test("validateMandatoryEmployeeId accepts any positive integer ID and rejects empty/0/non-numeric", () => {
+  assertEqual(validateMandatoryEmployeeId("").error, "Employee ID is required.", "empty string error");
+  assertEqual(validateMandatoryEmployeeId("   ").error, "Employee ID is required.", "whitespace error");
+  assertEqual(validateMandatoryEmployeeId(undefined).error, "Employee ID is required.", "undefined error");
+  assertEqual(validateMandatoryEmployeeId(null).error, "Employee ID is required.", "null error");
 
-  assertEqual(validateMandatoryFourDigitEmployeeId("123").error, FOUR_DIGIT_ERROR, "3 digits");
-  assertEqual(validateMandatoryFourDigitEmployeeId("12345").error, FOUR_DIGIT_ERROR, "5 digits");
-  assertEqual(validateMandatoryFourDigitEmployeeId("0999").error, FOUR_DIGIT_ERROR, "under 1000");
-  assertEqual(validateMandatoryFourDigitEmployeeId("10000").error, FOUR_DIGIT_ERROR, "over 9999");
-  assertEqual(validateMandatoryFourDigitEmployeeId("abcd").error, FOUR_DIGIT_ERROR, "non-numeric");
+  assertEqual(validateMandatoryEmployeeId("0").error, POSITIVE_ID_ERROR, "zero");
+  assertEqual(validateMandatoryEmployeeId("abcd").error, DIGITS_ONLY_ERROR, "non-numeric");
 
-  assertEqual(validateMandatoryFourDigitEmployeeId("1000").employeeId, "1000", "min valid");
-  assertEqual(validateMandatoryFourDigitEmployeeId("9999").employeeId, "9999", "max valid");
-  assertEqual(validateMandatoryFourDigitEmployeeId(" 4821 ").employeeId, "4821", "trimmed valid");
+  assertEqual(validateMandatoryEmployeeId("1").employeeId, "1", "1 digit valid");
+  assertEqual(validateMandatoryEmployeeId("42").employeeId, "42", "2 digits valid");
+  assertEqual(validateMandatoryEmployeeId("123").employeeId, "123", "3 digits valid");
+  assertEqual(validateMandatoryEmployeeId("1000").employeeId, "1000", "4 digits valid");
+  assertEqual(validateMandatoryEmployeeId("12345").employeeId, "12345", "5 digits valid");
+  assertEqual(validateMandatoryEmployeeId(" 07 ").employeeId, "7", "trimmed leading zero valid");
 });
 
 test("consecutive generations with exclusions never repeat candidates", () => {
