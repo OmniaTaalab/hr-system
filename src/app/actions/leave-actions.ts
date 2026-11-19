@@ -547,7 +547,7 @@ export async function submitLeaveRequestAction(
         } else if (typeof requestedHours === "number" && requestedHours > 0) {
           finalDurationHours = roundLeaveAmount(requestedHours);
         } else {
-          throw new PolicyValidationError("Please enter the requested leave hours.", "requestedHours");
+          finalDurationHours = 2;
         }
 
         const finalNumberOfDays = workingDays > 0 ? workingDays : 1;
@@ -1908,11 +1908,8 @@ export async function editLeaveRequestAction(
                 ? existingReqData.durationHours
                 : typeof existingReqData.hours === "number" && existingReqData.hours > 0
                   ? existingReqData.hours
-                  : undefined;
+                  : 2;
 
-          if (!fallbackHours || fallbackHours <= 0) {
-            throw new PolicyValidationError("Please enter requested hours for this hourly leave type.", "requestedHours");
-          }
           finalHoursPerDay = null;
           finalDurationHours = roundLeaveAmount(fallbackHours);
           durationText = `${finalDurationHours} hour(s)`;
@@ -2593,10 +2590,7 @@ export async function submitRetroactiveLeaveAction(
 
         let perDateAmount = 1;
         if (policy.unit === "hours") {
-          const hoursPerEntry = isMaternityHour ? (requestedHours ?? 1) : requestedHours;
-          if (!hoursPerEntry || hoursPerEntry <= 0) {
-            throw new PolicyValidationError("Please enter requested hours per date.", "requestedHours");
-          }
+          const hoursPerEntry = isMaternityHour ? (requestedHours ?? 1) : (requestedHours ?? 2);
           perDateAmount = roundLeaveAmount(hoursPerEntry);
         }
 
@@ -2772,14 +2766,7 @@ export async function submitRetroactiveLeaveAction(
 
       let perDateAmount = 1;
       if (policy.unit === "hours") {
-        const hoursPerEntry = isMaternityHour ? (requestedHours ?? 1) : requestedHours;
-        if (!hoursPerEntry || hoursPerEntry <= 0) {
-          return {
-            errors: { requestedHours: ["Please enter requested hours per date."], form: ["Please enter requested hours per date."] },
-            message: "Please enter requested hours per date.",
-            success: false,
-          };
-        }
+        const hoursPerEntry = isMaternityHour ? (requestedHours ?? 1) : (requestedHours ?? 2);
         perDateAmount = roundLeaveAmount(hoursPerEntry);
       }
 

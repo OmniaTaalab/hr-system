@@ -353,7 +353,6 @@ function LeaveRequestForm() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [selectedLeaveType, setSelectedLeaveType] = useState<string>("");
-  const [requestedHours, setRequestedHours] = useState<string>("");
 
   const employeePolicyContext = useMemo(() => {
     const p = freshEmployee || profile;
@@ -437,14 +436,13 @@ function LeaveRequestForm() {
       return startDate ? roundLeaveAmount(Math.max(1, calculatedWorkingDays) * 1) : 0;
     }
     if (selectedPolicy.unit === "hours") {
-      const parsed = parseFloat(requestedHours);
-      return Number.isFinite(parsed) && parsed > 0 ? roundLeaveAmount(parsed) : 0;
+      return 2;
     }
     if (isFullMaternity) {
       return 120;
     }
     return startDate ? calculatedWorkingDays : 0;
-  }, [selectedPolicy, isMaternityHour, isFullMaternity, startDate, calculatedWorkingDays, requestedHours]);
+  }, [selectedPolicy, isMaternityHour, isFullMaternity, startDate, calculatedWorkingDays]);
 
   const selectedBalance = useMemo(() => {
     if (!selectedPolicy) return null;
@@ -489,7 +487,6 @@ function LeaveRequestForm() {
       return;
     }
     setSelectedLeaveType(val);
-    setRequestedHours("");
     const isHour = isMaternityHourName(val);
     const isFull = !isHour && isMaternityLeaveName(val);
 
@@ -505,6 +502,8 @@ function LeaveRequestForm() {
     setIsStartDatePickerOpen(false);
     if (d && isFullMaternity) {
       setEndDate(calculateMaternityEndDate(d));
+    } else if (d && isGenericHourly) {
+      setEndDate(d);
     } else if (d && !endDate) {
       setEndDate(d);
     }
@@ -542,7 +541,6 @@ function LeaveRequestForm() {
 
         formRef.current?.reset();
         setSelectedLeaveType("");
-        setRequestedHours("");
         setStartDate(undefined);
         setEndDate(undefined);
         setAttachment(null);
@@ -631,19 +629,6 @@ function LeaveRequestForm() {
       return;
     }
 
-    if (isGenericHourly) {
-      const parsedHours = parseFloat(requestedHours);
-      if (!Number.isFinite(parsedHours) || parsedHours <= 0) {
-        toast({
-          variant: "destructive",
-          title: "Requested Hours Required",
-          description: "Please enter a valid number of hours greater than 0.",
-        });
-        setIsSubmittingFile(false);
-        return;
-      }
-    }
-
     if (isBalanceExceeded) {
       toast({
         variant: "destructive",
@@ -701,8 +686,6 @@ if (endDate) {
     if (isMaternityHour) {
       formData.set("hoursPerDay", "1");
       formData.set("maternityCalculationMode", "1_hour_per_day");
-    } else if (isGenericHourly && requestedHours) {
-      formData.set("requestedHours", requestedHours);
     }
   
     // File Upload
@@ -1023,6 +1006,15 @@ if (endDate) {
                 </div>
               )}
 
+              {isGenericHourly && (
+                <p className="text-xs text-muted-foreground">
+                  {tText(
+                    "Each request automatically counts as 2 hours.",
+                    "يُحتسب ساعتان تلقائياً لكل طلب."
+                  )}
+                </p>
+              )}
+
               {isBalanceExceeded && (
                 <div className="flex items-center gap-2 text-destructive font-medium text-xs md:text-sm pt-1">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -1061,36 +1053,6 @@ if (endDate) {
             </p>
           )}
         </div>
-
-        {/* Requested Hours (for Hour-based Leave Types configured in HR Settings) */}
-        {isGenericHourly && (
-          <div className="space-y-2">
-            <Label htmlFor="requestedHours">
-              {tText("Requested Hours *", "عدد الساعات المطلوبة *")}
-            </Label>
-            <Input
-              id="requestedHours"
-              name="requestedHours"
-              type="number"
-              step="any"
-              min="0.25"
-              value={requestedHours}
-              onChange={(e) => setRequestedHours(e.target.value)}
-              disabled={isPending || isSubmittingFile}
-              placeholder={tText("e.g. 0.5, 1.5, 2", "مثال: 0.5 أو 1.5 أو 2")}
-              required
-            />
-            <p className="text-xs text-muted-foreground">
-              {tText(
-                "Fractional hours are supported (e.g., 0.5 for 30 minutes, 1.5 for 1 hour 30 minutes).",
-                "يتم دعم كسور الساعات (مثال: 0.5 لنصف ساعة، 1.5 لساعة ونصف)."
-              )}
-            </p>
-            {serverState?.errors?.requestedHours && (
-              <p className="text-sm text-destructive">{serverState.errors.requestedHours[0]}</p>
-            )}
-          </div>
-        )}
 
         {/* Dates */}
         <div className="flex flex-row items-start gap-4">

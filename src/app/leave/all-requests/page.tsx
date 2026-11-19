@@ -450,12 +450,8 @@ function AllLeaveRequestsContent() {
             : 1
           : parsedHours > 0
           ? parsedHours
-          : 0
+          : 2
         : 1;
-
-    if (retroSelectedPolicy.unit === "hours" && perEntry <= 0) {
-      return { balance: firstBalance, isExceeded: false };
-    }
 
     const byPeriod = new Map<string, { anchorDate: Date; count: number }>();
     for (const d of selectedDates) {
@@ -1536,23 +1532,17 @@ const isPrivileged =
                 {retroIsHourly && (
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium">
-                      {isRTL ? "عدد الساعات لكل تاريخ محدد *" : "Requested Hours (per selected date) *"}
+                      {isRTL ? "عدد الساعات لكل تاريخ (الافتراضي ساعتان)" : "Hours per selected date (defaults to 2h)"}
                     </label>
                     <Input
                       type="number"
                       name="requestedHours"
                       step="any"
                       min="0.25"
-                      placeholder={isRTL ? "مثال: 1.5 أو 2" : "e.g., 1.5 or 2"}
+                      placeholder={isRTL ? "الافتراضي: 2 ساعة" : "Default: 2"}
                       value={retroRequestedHours}
                       onChange={(e) => setRetroRequestedHours(e.target.value)}
-                      required
                     />
-                    <p className="text-xs text-muted-foreground">
-                      {isRTL
-                        ? "يدعم الكسور العشرية للساعات (مثل 0.5، 1.5، 2.25)."
-                        : "Supports fractional hours (e.g., 0.5, 1.5, 2.25)."}
-                    </p>
                   </div>
                 )}
 
@@ -1634,7 +1624,6 @@ const isPrivileged =
                   !selectedDates ||
                   selectedDates.length === 0 ||
                   !retroactiveReason.trim() ||
-                  (retroIsHourly && (!retroRequestedHours || Number(retroRequestedHours) <= 0)) ||
                   retroBalanceCheck.isExceeded ||
                   (retroSelectedPolicy ? !retroSelectedPolicy.isEligible : false)
                 }
@@ -1822,17 +1811,16 @@ const isPrivileged =
               {editIsHourly && (
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">
-                    {isRTL ? "عدد الساعات المطلوبة *" : "Requested Hours *"}
+                    {isRTL ? "عدد الساعات (الافتراضي ساعتان)" : "Requested Hours (defaults to 2h)"}
                   </label>
                   <Input
                     type="number"
                     name="requestedHours"
                     step="any"
                     min="0.25"
-                    placeholder={isRTL ? "مثال: 1.5 أو 2" : "e.g., 1.5 or 2"}
+                    placeholder={isRTL ? "الافتراضي: 2 ساعة" : "Default: 2"}
                     value={editRequestedHours}
                     onChange={(e) => setEditRequestedHours(e.target.value)}
-                    required
                   />
                   {editServerState?.errors?.requestedHours && (
                     <p className="text-xs text-destructive">{editServerState.errors.requestedHours.join(", ")}</p>
